@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useExecutionStore } from '@/stores/execution.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -8,6 +8,11 @@ export function useWebSocket() {
   let ws: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
+  // Capture composables during setup (must not be called inside callbacks)
+  const { t } = useI18n()
+  const execution = useExecutionStore()
+  const ui = useUiStore()
+
   function connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
@@ -15,22 +20,22 @@ export function useWebSocket() {
 
     ws.onopen = () => {
       connected.value = true
-      // Ping every 30 seconds to keep alive
       startPing()
     }
 
     ws.onmessage = (event) => {
+      if (typeof event.data !== 'string' || event.data === 'pong') return
+      let data: any
       try {
-        const data = JSON.parse(event.data)
-        handleMessage(data)
+        data = JSON.parse(event.data)
       } catch {
-        // ignore non-JSON messages (like pong)
+        return // ignore non-JSON messages
       }
+      handleMessage(data)
     }
 
     ws.onclose = () => {
       connected.value = false
-      // Reconnect after 3 seconds
       reconnectTimer = setTimeout(connect, 3000)
     }
 
@@ -41,6 +46,7 @@ export function useWebSocket() {
 
   function disconnect() {
     if (reconnectTimer) clearTimeout(reconnectTimer)
+    if (pingTimer) clearInterval(pingTimer)
     ws?.close()
     ws = null
     connected.value = false
@@ -58,10 +64,6 @@ export function useWebSocket() {
   }
 
   function handleMessage(data: any) {
-    const execution = useExecutionStore()
-    const ui = useUiStore()
-    const { t } = useI18n()
-
     switch (data.type) {
       case 'run_status_changed':
         execution.updateRunFromWs(data.run_id, data.status)

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useExecutionStore } from '@/stores/execution.store'
@@ -55,6 +55,32 @@ const loadingOutput = ref(false)
 // Delete all reports
 const deletingReports = ref(false)
 
+// Poll for updates when there are active (pending/running) runs
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+function startPolling() {
+  if (pollTimer) return
+  pollTimer = setInterval(() => {
+    if (execution.activeRuns.length > 0) {
+      execution.fetchRuns()
+    } else {
+      stopPolling()
+    }
+  }, 5000)
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+watch(() => execution.activeRuns.length, (count) => {
+  if (count > 0) startPolling()
+  else stopPolling()
+})
+
 onMounted(async () => {
   await Promise.all([
     execution.fetchRuns(),
@@ -69,6 +95,12 @@ onMounted(async () => {
       selectedRunId.value = runId
     }
   }
+  // Start polling if there are already active runs
+  if (execution.activeRuns.length > 0) startPolling()
+})
+
+onUnmounted(() => {
+  stopPolling()
 })
 
 function toggleRunDetail(run: ExecutionRun) {
