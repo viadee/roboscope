@@ -1,0 +1,283 @@
+/** Domain types matching backend schemas */
+
+export type Role = 'viewer' | 'runner' | 'editor' | 'admin'
+export type RunStatus = 'pending' | 'running' | 'passed' | 'failed' | 'error' | 'cancelled' | 'timeout'
+export type RunType = 'single' | 'folder' | 'batch' | 'scheduled'
+export type RunnerType = 'subprocess' | 'docker'
+
+export interface User {
+  id: number
+  email: string
+  username: string
+  role: Role
+  is_active: boolean
+  created_at: string
+  last_login_at: string | null
+}
+
+export interface TokenResponse {
+  access_token: string
+  refresh_token: string
+  token_type: string
+  expires_in: number
+}
+
+export interface Repository {
+  id: number
+  name: string
+  repo_type: 'git' | 'local'
+  git_url: string | null
+  default_branch: string
+  local_path: string
+  last_synced_at: string | null
+  auto_sync: boolean
+  sync_interval_minutes: number
+  sync_status: string | null
+  sync_error: string | null
+  created_by: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Branch {
+  name: string
+  is_active: boolean
+}
+
+export interface TreeNode {
+  name: string
+  path: string
+  type: 'file' | 'directory'
+  extension: string | null
+  children: TreeNode[] | null
+  test_count: number
+}
+
+export interface FileContent {
+  path: string
+  name: string
+  content: string
+  extension: string | null
+  line_count: number
+}
+
+export interface TestCaseInfo {
+  name: string
+  file_path: string
+  suite_name: string
+  tags: string[]
+  documentation: string
+  line_number: number
+}
+
+export interface SearchResult {
+  type: 'testcase' | 'keyword' | 'file'
+  name: string
+  file_path: string
+  line_number: number
+  context: string
+}
+
+export interface ExecutionRun {
+  id: number
+  repository_id: number
+  environment_id: number | null
+  run_type: RunType
+  runner_type: RunnerType
+  status: RunStatus
+  target_path: string
+  branch: string
+  tags_include: string | null
+  tags_exclude: string | null
+  parallel: boolean
+  retry_count: number
+  max_retries: number
+  timeout_seconds: number
+  celery_task_id: string | null
+  started_at: string | null
+  finished_at: string | null
+  duration_seconds: number | null
+  triggered_by: number
+  error_message: string | null
+  created_at: string
+}
+
+export interface RunListResponse {
+  items: ExecutionRun[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface Schedule {
+  id: number
+  name: string
+  cron_expression: string
+  repository_id: number
+  environment_id: number | null
+  target_path: string
+  branch: string
+  runner_type: RunnerType
+  tags_include: string | null
+  tags_exclude: string | null
+  is_active: boolean
+  last_run_at: string | null
+  next_run_at: string | null
+  created_by: number
+  created_at: string
+}
+
+export interface Environment {
+  id: number
+  name: string
+  python_version: string
+  venv_path: string | null
+  docker_image: string | null
+  is_default: boolean
+  description: string | null
+  created_by: number
+  created_at: string
+  updated_at: string
+}
+
+export interface EnvironmentPackage {
+  id: number
+  environment_id: number
+  package_name: string
+  version: string | null
+  installed_version: string | null
+}
+
+export interface EnvironmentVariable {
+  id: number
+  environment_id: number
+  key: string
+  value: string
+  is_secret: boolean
+}
+
+export interface Report {
+  id: number
+  execution_run_id: number
+  total_tests: number
+  passed_tests: number
+  failed_tests: number
+  skipped_tests: number
+  total_duration_seconds: number
+  created_at: string
+}
+
+export interface TestResult {
+  id: number
+  report_id: number
+  suite_name: string
+  test_name: string
+  status: string
+  duration_seconds: number
+  error_message: string | null
+  tags: string | null
+  start_time: string | null
+  end_time: string | null
+}
+
+export interface ReportDetail {
+  report: Report
+  test_results: TestResult[]
+}
+
+export interface OverviewKpi {
+  total_runs: number
+  passed_runs: number
+  failed_runs: number
+  success_rate: number
+  avg_duration_seconds: number
+  total_tests: number
+  flaky_tests: number
+  active_repos: number
+}
+
+export interface SuccessRatePoint {
+  date: string
+  success_rate: number
+  total_runs: number
+}
+
+export interface TrendPoint {
+  date: string
+  passed: number
+  failed: number
+  error: number
+  total: number
+  avg_duration: number
+}
+
+export interface FlakyTest {
+  test_name: string
+  suite_name: string
+  total_runs: number
+  pass_count: number
+  fail_count: number
+  flaky_rate: number
+  last_status: string
+}
+
+export interface AppSetting {
+  id: number
+  key: string
+  value: string
+  value_type: string
+  category: string
+  description: string | null
+}
+
+// --- Deep XML data types ---
+
+export interface XmlMessage {
+  timestamp: string
+  level: string
+  text: string
+}
+
+export interface XmlKeyword {
+  name: string
+  type: string
+  library: string
+  status: string
+  start_time: string
+  end_time: string
+  duration: number
+  doc: string
+  arguments: string[]
+  messages: XmlMessage[]
+  keywords: XmlKeyword[]
+}
+
+export interface XmlTest {
+  name: string
+  status: string
+  start_time: string
+  end_time: string
+  duration: number
+  doc: string
+  tags: string[]
+  error_message: string
+  keywords: XmlKeyword[]
+}
+
+export interface XmlSuite {
+  name: string
+  source: string
+  status: string
+  start_time: string
+  end_time: string
+  duration: number
+  doc: string
+  suites: XmlSuite[]
+  tests: XmlTest[]
+}
+
+export interface XmlReportData {
+  suites: XmlSuite[]
+  statistics: Record<string, unknown>
+  generated: string
+}
