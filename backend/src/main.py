@@ -151,6 +151,9 @@ def create_app() -> FastAPI:
     # Serve pre-built frontend static files (for standalone / offline mode).
     # The frontend dist/ folder is expected next to the backend package.
     frontend_dist = Path(__file__).resolve().parent.parent / "frontend_dist"
+    if not frontend_dist.is_dir():
+        # Fallback: check relative to current working directory (start.sh cd's to dist root)
+        frontend_dist = Path.cwd() / "frontend_dist"
     if frontend_dist.is_dir():
         # Serve assets (JS, CSS, images) under /assets
         assets_dir = frontend_dist / "assets"
@@ -172,6 +175,13 @@ def create_app() -> FastAPI:
             return FileResponse(str(index_html))
 
         logger.info("Serving frontend from %s", frontend_dist)
+    else:
+        logger.warning(
+            "frontend_dist not found (checked %s and %s). "
+            "Frontend will not be served — API-only mode.",
+            Path(__file__).resolve().parent.parent / "frontend_dist",
+            Path.cwd() / "frontend_dist",
+        )
 
     return app
 
