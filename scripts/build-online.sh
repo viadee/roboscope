@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────
-# mateoX — Build script for standalone distribution
+# mateoX — Build script for online distribution
 #
-# Creates a self-contained directory 'dist/mateox/' that can be
-# zipped and deployed on any machine with Python 3.12+.
+# Creates a lightweight directory 'dist/mateox-online/' that
+# requires internet access during install (pip downloads from PyPI).
+# Much smaller than the offline build (~5 MB vs ~100 MB).
 #
-# Usage:  ./scripts/build.sh
+# Usage:  ./scripts/build-online.sh
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DIST="$ROOT/dist/mateox"
+DIST="$ROOT/dist/mateox-online"
 
-echo "==> mateoX Build"
+echo "==> mateoX Build (online)"
 echo "    Root: $ROOT"
 echo ""
 
@@ -47,14 +48,10 @@ if [ -d "$ROOT/backend/migrations" ]; then
   cp "$ROOT/backend/alembic.ini" "$DIST/" 2>/dev/null || true
 fi
 
-# ── 4. Download Python wheels for offline install ─────────────
-echo "==> Downloading Python wheels..."
-mkdir -p "$DIST/wheels"
-
-# Helper: extract dependencies from pyproject.toml (works with Python 3.10+)
-_read_deps() {
-  cd "$ROOT/backend"
-  python3 -c "
+# ── 4. Extract requirements ───────────────────────────────────
+echo "==> Extracting requirements..."
+cd "$ROOT/backend"
+python3 -c "
 import pathlib
 try:
     import tomllib
@@ -80,58 +77,8 @@ except ModuleNotFoundError:
 data = tomllib.loads(pathlib.Path('pyproject.toml').read_text())
 for dep in data['project']['dependencies']:
     print(dep)
-"
-}
-
-DEPS_FILE=$(mktemp)
-_read_deps > "$DEPS_FILE"
-
-# Windows: uvicorn[standard] includes uvloop which is Unix-only; strip extras
-WIN_DEPS_FILE=$(mktemp)
-sed 's/uvicorn\[standard\]/uvicorn/' "$DEPS_FILE" > "$WIN_DEPS_FILE"
-
-# Download platform-specific binary wheels for all targets and Python versions
-for plat in manylinux2014_x86_64 macosx_11_0_arm64 macosx_11_0_x86_64 win_amd64; do
-  # Use Windows-specific deps (no uvloop) for win_amd64
-  if [ "$plat" = "win_amd64" ]; then
-    REQ_FILE="$WIN_DEPS_FILE"
-  else
-    REQ_FILE="$DEPS_FILE"
-  fi
-  for pyver in 3.10 3.11 3.12 3.13 3.14; do
-    abi="cp${pyver//./}"
-    echo "    Downloading wheels for $plat (Python $pyver)..."
-    python3 -m pip download \
-      -r "$REQ_FILE" \
-      -d "$DIST/wheels" \
-      --platform "$plat" \
-      --python-version "$pyver" \
-      --implementation cp \
-      --abi "$abi" \
-      --only-binary :all: \
-      2>&1 | grep -i "error\|saved" || true
-  done
-done
-rm -f "$WIN_DEPS_FILE"
-
-# Download for host platform (catches deps the cross-platform pass missed)
-echo "    Downloading wheels for host platform..."
-python3 -m pip download \
-  -r "$DEPS_FILE" \
-  -d "$DIST/wheels" \
-  2>/dev/null || true
-
-# Ensure conditional transitive deps are included
-# (e.g., tomli is needed by alembic on Python <3.11 but not on 3.12+)
-echo "    Downloading conditional dependencies..."
-for pkg in "tomli>=2.0.0" "exceptiongroup>=1.0.0" "typing_extensions>=4.0.0"; do
-  python3 -m pip download "$pkg" -d "$DIST/wheels" --no-deps 2>/dev/null || true
-done
-
-# Save requirements for install script
-cp "$DEPS_FILE" "$DIST/requirements.txt"
-rm -f "$DEPS_FILE"
-echo "    Wheels: $(ls "$DIST/wheels" | wc -l | tr -d ' ') packages"
+" > "$DIST/requirements.txt"
+echo "    Requirements: $(wc -l < "$DIST/requirements.txt" | tr -d ' ') packages"
 
 # ── 5. Create .env template ──────────────────────────────────
 cat > "$DIST/.env.example" << 'ENVEOF'
@@ -170,8 +117,8 @@ echo "==> Installing mateoX..."
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install dependencies offline (pip picks the correct platform wheels)
-pip install --no-index --find-links=wheels -r requirements.txt
+# Install dependencies from PyPI
+pip install -r requirements.txt
 
 # Copy default config if not exists
 [ -f .env ] || cp .env.example .env
@@ -221,7 +168,7 @@ cd /d "%~dp0"
 python -m venv .venv
 call .venv\Scripts\activate.bat
 
-pip install --no-index --find-links=wheels -r requirements.txt
+pip install -r requirements.txt
 
 if not exist .env copy .env.example .env
 
@@ -255,13 +202,13 @@ BATEOF
 echo ""
 echo "==> Creating ZIP archive..."
 cd "$ROOT/dist"
-zip -r "mateox.zip" mateox/ -x "mateox/.venv/*" "mateox/__pycache__/*"
+zip -r "mateox-online.zip" mateox-online/ -x "mateox-online/.venv/*" "mateox-online/__pycache__/*"
 echo ""
 echo "==> Build complete!"
-echo "    Distribution: $ROOT/dist/mateox.zip"
+echo "    Distribution: $ROOT/dist/mateox-online.zip"
 echo "    Directory:    $DIST"
 echo ""
-echo "To deploy:"
-echo "  1. Extract mateox.zip"
+echo "To deploy (requires internet access):"
+echo "  1. Extract mateox-online.zip"
 echo "  2. Run install.sh (Linux/Mac) or install.bat (Windows)"
 echo "  3. Run start.sh (Linux/Mac) or start.bat (Windows)"
