@@ -181,4 +181,16 @@ AVAILABLE_KPIS: dict[str, dict] = {
         "category": "maintenance",
         "description": "Repeated keyword sequences appearing across multiple tests",
     },
+    "source_test_stats": {
+        "id": "source_test_stats",
+        "name": "Source Test Analysis",
+        "category": "source",
+        "description": "Test case length, complexity, and keyword usage from .robot source files",
+    },
+    "source_library_distribution": {
+        "id": "source_library_distribution",
+        "name": "Source Library Imports",
+        "category": "source",
+        "description": "Library import distribution across .robot/.resource source files",
+    },
 }

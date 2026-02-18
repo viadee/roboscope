@@ -45,6 +45,7 @@ const categoryLabels: Record<string, string> = {
   keywords: 'stats.analysis.categoryKeywords',
   quality: 'stats.analysis.categoryQuality',
   maintenance: 'stats.analysis.categoryMaintenance',
+  source: 'stats.analysis.categorySource',
 }
 
 const isStale = computed(() => {
@@ -563,6 +564,76 @@ function formatDate(d: string | null) {
                 </tbody>
               </table>
               <p v-else class="text-muted text-center p-3">{{ t('stats.analysis.noRedundancy') }}</p>
+            </div>
+          </div>
+
+          <!-- Source Test Stats -->
+          <div v-if="stats.currentAnalysis.results.source_test_stats" class="card mb-3">
+            <div class="card-header"><h3>{{ t('stats.analysis.kpiSourceTestStats') }}</h3></div>
+            <div class="p-3">
+              <div class="grid grid-4 mb-3">
+                <div class="text-center"><div class="kpi-value-sm">{{ stats.currentAnalysis.results.source_test_stats.total_files }}</div><div class="kpi-label">{{ t('stats.analysis.sourceFiles') }}</div></div>
+                <div class="text-center"><div class="kpi-value-sm">{{ stats.currentAnalysis.results.source_test_stats.total_tests }}</div><div class="kpi-label">{{ t('stats.analysis.sourceTestCases') }}</div></div>
+                <div class="text-center"><div class="kpi-value-sm">{{ stats.currentAnalysis.results.source_test_stats.avg_steps }}</div><div class="kpi-label">{{ t('stats.analysis.avgSteps') }}</div></div>
+                <div class="text-center"><div class="kpi-value-sm">{{ stats.currentAnalysis.results.source_test_stats.avg_lines }}</div><div class="kpi-label">{{ t('stats.analysis.sourceAvgLines') }}</div></div>
+              </div>
+
+              <!-- Step Histogram -->
+              <div v-if="stats.currentAnalysis.results.source_test_stats.step_histogram.length" class="mb-3">
+                <div class="text-sm text-muted mb-1">{{ t('stats.analysis.sourceStepDist') }}</div>
+                <div class="histogram">
+                  <div v-for="bucket in stats.currentAnalysis.results.source_test_stats.step_histogram" :key="bucket.bucket" class="histogram-bar-row">
+                    <div class="histogram-label">{{ bucket.bucket }}</div>
+                    <div class="histogram-track">
+                      <div class="histogram-fill" :style="{ width: `${Math.min(bucket.count / Math.max(...stats.currentAnalysis!.results!.source_test_stats.step_histogram.map((b: any) => b.count), 1) * 100, 100)}%` }"></div>
+                    </div>
+                    <div class="histogram-value">{{ bucket.count }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Top Keywords -->
+              <div v-if="stats.currentAnalysis.results.source_test_stats.top_keywords.length" class="mb-3">
+                <div class="text-sm text-muted mb-1">{{ t('stats.analysis.sourceTopKeywords') }}</div>
+                <table class="data-table">
+                  <thead><tr><th>#</th><th>{{ t('stats.analysis.keyword') }}</th><th>{{ t('stats.analysis.library') }}</th><th>{{ t('stats.analysis.count') }}</th><th>%</th></tr></thead>
+                  <tbody>
+                    <tr v-for="(kw, i) in stats.currentAnalysis.results.source_test_stats.top_keywords" :key="i">
+                      <td>{{ i + 1 }}</td><td><strong>{{ kw.name }}</strong></td><td class="text-muted text-sm">{{ kw.library }}</td><td>{{ kw.count }}</td><td>{{ kw.percentage }}%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Per-file summary -->
+              <div v-if="stats.currentAnalysis.results.source_test_stats.files.length">
+                <div class="text-sm text-muted mb-1">{{ t('stats.analysis.sourceFileBreakdown') }}</div>
+                <table class="data-table">
+                  <thead><tr><th>{{ t('stats.analysis.sourceFilePath') }}</th><th>{{ t('stats.analysis.sourceTestCases') }}</th><th>{{ t('stats.analysis.avgSteps') }}</th></tr></thead>
+                  <tbody>
+                    <tr v-for="f in stats.currentAnalysis.results.source_test_stats.files" :key="f.path">
+                      <td><code class="text-sm">{{ f.path }}</code></td><td>{{ f.test_count }}</td><td>{{ f.avg_steps }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Source Library Distribution -->
+          <div v-if="stats.currentAnalysis.results.source_library_distribution" class="card mb-3">
+            <div class="card-header"><h3>{{ t('stats.analysis.kpiSourceLibDist') }}</h3></div>
+            <div class="p-3">
+              <div class="text-sm text-muted mb-2">
+                {{ t('stats.analysis.sourceTotalLibs') }}: {{ stats.currentAnalysis.results.source_library_distribution.total_libraries }}
+              </div>
+              <div v-for="lib in stats.currentAnalysis.results.source_library_distribution.libraries" :key="lib.library" class="lib-bar-row">
+                <div class="lib-bar-label">{{ lib.library }}</div>
+                <div class="lib-bar-track">
+                  <div class="lib-bar-fill" :style="{ width: `${lib.percentage}%` }"></div>
+                </div>
+                <div class="lib-bar-value">{{ lib.file_count }} {{ t('stats.analysis.sourceFiles') }}</div>
+              </div>
             </div>
           </div>
         </template>

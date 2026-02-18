@@ -5,6 +5,7 @@ import logging
 import re
 from collections import Counter
 from datetime import datetime
+from pathlib import Path
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -17,6 +18,7 @@ import src.execution.models  # noqa: F401
 
 from src.reports.models import Report, TestResult
 from src.reports.parser import parse_output_xml_deep
+from src.stats.keyword_library_map import resolve_keyword_library
 from src.stats.models import AnalysisReport
 
 logger = logging.getLogger("mateox.stats.analysis")
@@ -84,6 +86,28 @@ def _flatten_tests(suites: list[dict]) -> list[dict]:
 def _get_kw_names(kw_list: list[dict]) -> list[str]:
     """Get flat list of keyword names (top-level only) from a test's keywords."""
     return [kw.get("name", "") for kw in kw_list if kw.get("type", "kw") == "kw"]
+
+
+# --- Keyword Library Enrichment ---
+
+
+def _enrich_keyword_libraries(keywords: list[dict]) -> None:
+    """Fill empty library fields using the keyword-to-library mapping.
+
+    Modifies keywords in-place.  Keywords whose library remains unresolved
+    after the mapping lookup are labelled "User Keywords".
+    """
+    for kw in keywords:
+        if kw.get("library"):
+            continue
+        resolved = resolve_keyword_library(kw.get("name", ""))
+        if resolved:
+            kw["library"] = resolved
+        else:
+            # setup/teardown are BuiltIn constructs
+            kw_type = kw.get("type", "kw")
+            if kw_type in ("setup", "teardown"):
+                kw["library"] = "BuiltIn"
 
 
 # --- KPI Compute Functions ---
@@ -336,6 +360,261 @@ def compute_redundancy_detection(tests: list[dict]) -> dict:
     }
 
 
+# --- Source Analysis (parse .robot files directly) ---
+
+# Directories to skip when scanning source files
+_IGNORE_DIRS = {".git", "__pycache__", ".venv", "node_modules", ".tox", ".pytest_cache", ".mypy_cache"}
+
+
+def _parse_source_tests(base_path: str) -> list[dict]:
+    """Parse .robot source files and extract test cases with their keyword steps.
+
+    Returns list of dicts:
+      { name, file, suite, lines, steps: [str], tags: [str], doc: str }
+    """
+    base = Path(base_path)
+    if not base.exists() or not base.is_dir():
+        return []
+
+    tests: list[dict] = []
+
+    for robot_file in base.rglob("*.robot"):
+        if any(part in _IGNORE_DIRS for part in robot_file.parts):
+            continue
+
+        rel_path = str(robot_file.relative_to(base))
+        suite_name = robot_file.stem
+
+        try:
+            content = robot_file.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+
+        lines = content.splitlines()
+        in_test_section = False
+        current_test: dict | None = None
+
+        for i, line in enumerate(lines, 1):
+            stripped = line.strip()
+
+            if stripped.lower().startswith("*** test case"):
+                in_test_section = True
+                if current_test:
+                    current_test["line_end"] = i - 1
+                    current_test["lines"] = current_test["line_end"] - current_test["line_start"] + 1
+                    tests.append(current_test)
+                    current_test = None
+                continue
+
+            if stripped.startswith("***"):
+                if current_test:
+                    current_test["line_end"] = i - 1
+                    current_test["lines"] = current_test["line_end"] - current_test["line_start"] + 1
+                    tests.append(current_test)
+                    current_test = None
+                in_test_section = False
+                continue
+
+            if not in_test_section:
+                continue
+
+            # New test case (non-indented, non-empty, non-comment)
+            if stripped and not line.startswith((" ", "\t")) and not stripped.startswith("#"):
+                if current_test:
+                    current_test["line_end"] = i - 1
+                    current_test["lines"] = current_test["line_end"] - current_test["line_start"] + 1
+                    tests.append(current_test)
+                current_test = {
+                    "name": stripped,
+                    "file": rel_path,
+                    "suite": suite_name,
+                    "line_start": i,
+                    "line_end": i,
+                    "lines": 0,
+                    "steps": [],
+                    "tags": [],
+                    "doc": "",
+                }
+            elif current_test and stripped:
+                # Indented line inside test case
+                if stripped.startswith("#"):
+                    continue
+                if stripped.lower().startswith("[tags]"):
+                    tags_str = stripped[6:].strip()
+                    current_test["tags"] = [t.strip() for t in re.split(r"  +|\t+", tags_str) if t.strip()]
+                elif stripped.lower().startswith("[documentation]"):
+                    current_test["doc"] = stripped[15:].strip()
+                elif stripped.lower().startswith("["):
+                    # Other settings like [Setup], [Teardown], [Template], [Timeout]
+                    pass
+                else:
+                    # Keyword step — extract the keyword name (first cell)
+                    parts = re.split(r"  +|\t+", stripped)
+                    if parts:
+                        current_test["steps"].append(parts[0])
+
+        # End of file
+        if current_test:
+            current_test["line_end"] = len(lines)
+            current_test["lines"] = current_test["line_end"] - current_test["line_start"] + 1
+            tests.append(current_test)
+
+    return tests
+
+
+def _parse_source_libraries(base_path: str) -> list[dict]:
+    """Extract Library imports from .robot/.resource files.
+
+    Returns list of dicts: { library_name, files: [str] }
+    """
+    base = Path(base_path)
+    if not base.exists() or not base.is_dir():
+        return []
+
+    lib_map: dict[str, set[str]] = {}
+
+    for file_path in base.rglob("*"):
+        if not file_path.is_file():
+            continue
+        if file_path.suffix.lower() not in {".robot", ".resource"}:
+            continue
+        if any(part in _IGNORE_DIRS for part in file_path.parts):
+            continue
+
+        rel_path = str(file_path.relative_to(base))
+
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="replace")
+            in_settings = False
+            for line in content.splitlines():
+                stripped = line.strip()
+                if stripped.lower().startswith("*** setting"):
+                    in_settings = True
+                    continue
+                if stripped.startswith("***"):
+                    in_settings = False
+                    continue
+                if not in_settings or not stripped or stripped.startswith("#"):
+                    continue
+                parts = re.split(r"  +|\t+", stripped)
+                if parts and parts[0].lower() == "library" and len(parts) > 1:
+                    lib_name = parts[1].strip()
+                    if lib_name:
+                        if lib_name not in lib_map:
+                            lib_map[lib_name] = set()
+                        lib_map[lib_name].add(rel_path)
+        except Exception:
+            continue
+
+    return [
+        {"library_name": name, "files": sorted(files)}
+        for name, files in sorted(lib_map.items())
+    ]
+
+
+def compute_source_test_stats(base_path: str) -> dict:
+    """Analyse .robot source files for test case metrics.
+
+    Returns: total_files, total_tests, avg/min/max lines and steps,
+    step_histogram, top_keywords, per-file summary.
+    """
+    tests = _parse_source_tests(base_path)
+
+    if not tests:
+        return {
+            "total_files": 0, "total_tests": 0,
+            "avg_lines": 0, "min_lines": 0, "max_lines": 0,
+            "avg_steps": 0, "min_steps": 0, "max_steps": 0,
+            "step_histogram": [], "top_keywords": [], "files": [],
+        }
+
+    files_set = {t["file"] for t in tests}
+    all_lines = [t["lines"] for t in tests]
+    all_steps = [len(t["steps"]) for t in tests]
+
+    # Step histogram: same buckets as test_complexity
+    buckets = {"0-5": 0, "6-10": 0, "11-20": 0, "21-50": 0, "50+": 0}
+    for s in all_steps:
+        if s <= 5:
+            buckets["0-5"] += 1
+        elif s <= 10:
+            buckets["6-10"] += 1
+        elif s <= 20:
+            buckets["11-20"] += 1
+        elif s <= 50:
+            buckets["21-50"] += 1
+        else:
+            buckets["50+"] += 1
+
+    # Top keywords across all tests
+    kw_counter: Counter = Counter()
+    for t in tests:
+        for step in t["steps"]:
+            kw_counter[step] += 1
+
+    top_kws = kw_counter.most_common(30)
+    total_kw_calls = sum(kw_counter.values())
+
+    # Per-file summary
+    file_summary: dict[str, dict] = {}
+    for t in tests:
+        f = t["file"]
+        if f not in file_summary:
+            file_summary[f] = {"path": f, "test_count": 0, "total_steps": 0}
+        file_summary[f]["test_count"] += 1
+        file_summary[f]["total_steps"] += len(t["steps"])
+
+    file_list = sorted(file_summary.values(), key=lambda x: x["test_count"], reverse=True)
+    for f in file_list:
+        f["avg_steps"] = round(f["total_steps"] / f["test_count"], 1) if f["test_count"] else 0
+
+    return {
+        "total_files": len(files_set),
+        "total_tests": len(tests),
+        "avg_lines": round(sum(all_lines) / len(all_lines), 1) if all_lines else 0,
+        "min_lines": min(all_lines) if all_lines else 0,
+        "max_lines": max(all_lines) if all_lines else 0,
+        "avg_steps": round(sum(all_steps) / len(all_steps), 1) if all_steps else 0,
+        "min_steps": min(all_steps) if all_steps else 0,
+        "max_steps": max(all_steps) if all_steps else 0,
+        "step_histogram": [{"bucket": k, "count": v} for k, v in buckets.items()],
+        "top_keywords": [
+            {
+                "name": name,
+                "count": count,
+                "percentage": round(count / total_kw_calls * 100, 1) if total_kw_calls else 0,
+                "library": resolve_keyword_library(name),
+            }
+            for name, count in top_kws
+        ],
+        "files": file_list[:30],
+    }
+
+
+def compute_source_library_distribution(base_path: str) -> dict:
+    """Library import distribution from .robot/.resource source files."""
+    libraries = _parse_source_libraries(base_path)
+
+    if not libraries:
+        return {"total_libraries": 0, "libraries": []}
+
+    total_files_with_imports = len({f for lib in libraries for f in lib["files"]})
+
+    return {
+        "total_libraries": len(libraries),
+        "libraries": [
+            {
+                "library": lib["library_name"],
+                "file_count": len(lib["files"]),
+                "percentage": round(len(lib["files"]) / total_files_with_imports * 100, 1)
+                if total_files_with_imports else 0,
+                "files": lib["files"][:10],
+            }
+            for lib in sorted(libraries, key=lambda x: len(x["files"]), reverse=True)
+        ],
+    }
+
+
 # --- Orchestrator ---
 
 
@@ -390,8 +669,9 @@ def run_analysis(analysis_id: int) -> None:
                 analysis.reports_analyzed = parsed_count
                 session.commit()
 
-            # Flatten data
+            # Flatten data and enrich library info
             all_keywords = _flatten_keywords(all_suites)
+            _enrich_keyword_libraries(all_keywords)
             all_tests = _flatten_tests(all_suites)
 
             # Also load DB test results for tag_coverage / error_patterns
@@ -427,6 +707,14 @@ def run_analysis(analysis_id: int) -> None:
             analysis.progress = 85
             session.commit()
 
+            # Resolve repo local_path for source analysis KPIs
+            repo_local_path: str | None = None
+            if analysis.repository_id:
+                from src.repos.models import Repository
+                repo = session.get(Repository, analysis.repository_id)
+                if repo and repo.local_path:
+                    repo_local_path = repo.local_path
+
             # Compute selected KPIs
             compute_map = {
                 "keyword_frequency": lambda: compute_keyword_frequency(all_keywords),
@@ -438,6 +726,14 @@ def run_analysis(analysis_id: int) -> None:
                 "error_patterns": lambda: compute_error_patterns(all_tests),
                 "redundancy_detection": lambda: compute_redundancy_detection(all_tests),
             }
+
+            # Source analysis KPIs (require repo with local_path)
+            if repo_local_path:
+                _path = repo_local_path  # capture for lambda
+                compute_map["source_test_stats"] = lambda p=_path: compute_source_test_stats(p)
+                compute_map["source_library_distribution"] = (
+                    lambda p=_path: compute_source_library_distribution(p)
+                )
 
             results = {}
             for kpi_id in selected:

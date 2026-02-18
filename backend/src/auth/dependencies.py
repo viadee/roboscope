@@ -2,7 +2,7 @@
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.auth.constants import (
     ERR_INACTIVE_USER,
@@ -18,9 +18,9 @@ from src.database import get_db
 security = HTTPBearer()
 
 
-async def get_current_user(
+def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ) -> User:
     """Extract and validate the current user from the JWT token."""
     try:
@@ -38,7 +38,7 @@ async def get_current_user(
         )
 
     user_id = int(payload["sub"])
-    user = await get_user_by_id(db, user_id)
+    user = get_user_by_id(db, user_id)
 
     if user is None:
         raise HTTPException(
@@ -58,7 +58,7 @@ async def get_current_user(
 def require_role(min_role: Role):
     """Dependency factory that requires a minimum role level."""
 
-    async def role_checker(current_user: User = Depends(get_current_user)) -> User:
+    def role_checker(current_user: User = Depends(get_current_user)) -> User:
         user_level = ROLE_HIERARCHY.get(Role(current_user.role), -1)
         required_level = ROLE_HIERARCHY.get(min_role, 999)
 

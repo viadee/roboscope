@@ -26,9 +26,9 @@ class Settings(BaseSettings):
 
     # Database
     # Default: SQLite. Set to PostgreSQL URL for production.
-    # SQLite:     sqlite+aiosqlite:///./mateox.db
-    # PostgreSQL: postgresql+asyncpg://user:pass@localhost:5432/mateox
-    DATABASE_URL: str = "sqlite+aiosqlite:///./mateox.db"
+    # SQLite:     sqlite:///./mateox.db
+    # PostgreSQL: postgresql://user:pass@localhost:5432/mateox
+    DATABASE_URL: str = "sqlite:///./mateox.db"
 
     @property
     def is_sqlite(self) -> bool:
@@ -40,7 +40,11 @@ class Settings(BaseSettings):
 
     @property
     def sync_database_url(self) -> str:
-        """Convert async URL to sync URL for Alembic migrations."""
+        """Return a synchronous database URL.
+
+        Handles legacy async-style URLs (sqlite+aiosqlite, postgresql+asyncpg)
+        by stripping the async driver prefix, so existing .env files keep working.
+        """
         return (
             self.DATABASE_URL.replace("sqlite+aiosqlite://", "sqlite://")
             .replace("postgresql+asyncpg://", "postgresql://")
@@ -51,10 +55,6 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-
-    # Task execution uses an in-process ThreadPoolExecutor (no external deps).
-    # Redis/Celery settings are kept for optional future use.
-    REDIS_URL: str = "redis://localhost:6379/0"
 
     # Execution
     RUNNER_TYPE: Literal["subprocess", "docker", "auto"] = "auto"

@@ -6,16 +6,11 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
     environment:
-      DATABASE_URL: postgresql+asyncpg://mateox:mateox@db:5432/mateox_test
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      DATABASE_URL: postgresql://mateox:mateox@db:5432/mateox_test
       SECRET_KEY: test-secret-key
       CORS_ORIGINS: '["http://localhost:5173"]'
     depends_on:
       db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   frontend:
@@ -35,14 +30,6 @@ services:
       POSTGRES_DB: mateox_test
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mateox"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5

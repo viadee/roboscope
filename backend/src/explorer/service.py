@@ -34,8 +34,6 @@ def build_tree(base_path: str, relative_path: str = "") -> TreeNode:
 
         if item.is_dir():
             child = build_tree(base_path, rel)
-            # Count tests recursively
-            child.test_count = _count_tests_in_tree(child)
             children.append(child)
         else:
             ext = item.suffix.lower()
@@ -52,21 +50,15 @@ def build_tree(base_path: str, relative_path: str = "") -> TreeNode:
                 )
             )
 
-    return TreeNode(
+    root_node = TreeNode(
         name=root.name,
         path=relative_path or ".",
         type="directory",
         children=children,
+        test_count=sum(c.test_count for c in children),
     )
+    return root_node
 
-
-def _count_tests_in_tree(node: TreeNode) -> int:
-    """Count total tests in a tree node recursively."""
-    count = node.test_count
-    if node.children:
-        for child in node.children:
-            count += _count_tests_in_tree(child) if child.type == "directory" else child.test_count
-    return count
 
 
 def _count_tests_in_file(file_path: str) -> int:

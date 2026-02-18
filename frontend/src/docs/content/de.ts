@@ -379,11 +379,21 @@ const de: DocsContent = [
   <li>W\u00E4hlen Sie zun\u00E4chst ein Repository aus der Dropdown-Liste oben</li>
   <li>Klicken Sie auf Ordner, um sie auf- oder zuzuklappen</li>
   <li>Klicken Sie auf eine Datei, um sie im Editor-Bereich zu \u00F6ffnen</li>
+  <li>Im Kopfbereich des Dateibaums wird die <strong>Gesamtanzahl der Testf\u00E4lle</strong> \u00FCber alle <code>.robot</code>-Dateien angezeigt. Verzeichnisse zeigen zudem ein Badge mit ihrer individuellen Testanzahl.</li>
 </ul>
 <p>
   <code>.robot</code>-Dateien werden durch ein spezielles Symbol hervorgehoben
   und bieten zus\u00E4tzliche Funktionen wie das direkte Ausf\u00FChren einzelner Tests.
-</p>`
+</p>
+<h4>Localhost-Funktionen</h4>
+<p>
+  Wenn Sie mateoX \u00FCber <code>localhost</code> aufrufen, stehen zus\u00E4tzliche Funktionen zur Verf\u00FCgung:
+</p>
+<ul>
+  <li><strong>Projektordner \u00F6ffnen</strong> &mdash; Ein Ordner-Button im Kopfbereich des Dateibaums \u00F6ffnet das Projektverzeichnis im System-Dateibrowser (Finder, Windows Explorer oder Nautilus).</li>
+  <li><strong>Im Dateibrowser \u00F6ffnen</strong> &mdash; Jedes Verzeichnis im Baum hat einen Ordner-Button, um es direkt im Dateibrowser zu \u00F6ffnen.</li>
+  <li><strong>Absoluter Pfad</strong> &mdash; Bei ausgew\u00E4hlten Dateien wird der vollst\u00E4ndige Dateisystempfad unterhalb der Breadcrumb-Navigation angezeigt.</li>
+</ul>`
       },
       {
         id: 'explorer-file-operations',
@@ -809,9 +819,24 @@ const de: DocsContent = [
 </p>
 <ul>
   <li><strong>\u00DCbersicht</strong> \u2014 KPI-Karten, Erfolgsquoten-Chart, Pass/Fail-Trend und Flaky-Test-Erkennung.</li>
-  <li><strong>Tiefenanalyse</strong> \u2014 On-Demand-Analyse von Keyword-Analytik, Testqualit\u00E4t und Wartungsindikatoren. W\u00E4hlen Sie KPIs aus und starten Sie eine Analyse f\u00FCr tiefere Einblicke.</li>
-</ul>`,
-        tip: 'Nutzen Sie die Tiefenanalyse, um Keyword-Laufzeiten, Assertion-Dichte und Fehlermuster in Ihren Testsuiten zu untersuchen.'
+  <li><strong>Tiefenanalyse</strong> \u2014 On-Demand-Analyse von Keyword-Analytik, Testqualit\u00E4t, Wartungsindikatoren und Quellcode-Analyse. W\u00E4hlen Sie KPIs aus und starten Sie eine Analyse f\u00FCr tiefere Einblicke.</li>
+</ul>
+<h4>Quellcode-Analyse (Neu)</h4>
+<p>
+  Wenn ein Projekt ausgew\u00E4hlt ist, stehen zwei zus\u00E4tzliche KPIs in der Kategorie <em>Quellcode-Analyse</em> zur Verf\u00FCgung:
+</p>
+<ul>
+  <li><strong>Quellcode-Testanalyse</strong> \u2014 Analysiert Ihre <code>.robot</code>-Quelldateien direkt: Testf\u00E4lle pro Datei, durchschnittliche Zeilen und Keyword-Schritte pro Test, meistverwendete Keywords und Datei\u00FCbersicht.</li>
+  <li><strong>Quellcode-Bibliotheksimporte</strong> \u2014 Zeigt, welche Robot-Framework-Bibliotheken in Ihren <code>.robot</code>- und <code>.resource</code>-Dateien importiert werden, wie viele Dateien jede Bibliothek nutzen und deren Verteilung.</li>
+</ul>
+<p>
+  Diese KPIs funktionieren unabh\u00E4ngig von Ausf\u00FChrungsreports \u2014 sie analysieren die Quelldateien auf der Festplatte, sodass Sie Einblicke erhalten, noch bevor Tests ausgef\u00FChrt werden.
+</p>
+<h4>Bibliotheksverteilung (Korrektur)</h4>
+<p>
+  Der KPI <em>Bibliotheksverteilung</em> (in der Kategorie Keyword-Analyse) l\u00F6st Bibliotheksnamen f\u00FCr bekannte Robot-Framework-Keywords nun korrekt auf. Zuvor wurden viele Keywords als \u201EUnknown\u201C angezeigt, da die <code>output.xml</code> nicht immer das Library-Attribut enth\u00E4lt. Das System verwendet jetzt ein integriertes Mapping von \u00FCber 500 Keywords zu ihren Bibliotheken (BuiltIn, Collections, SeleniumLibrary, Browser, RequestsLibrary etc.).
+</p>`,
+        tip: 'Nutzen Sie die Tiefenanalyse, um Keyword-Laufzeiten, Assertion-Dichte und Fehlermuster in Ihren Testsuiten zu untersuchen. W\u00E4hlen Sie ein Projekt, um die Quellcode-Analyse-KPIs zu aktivieren.'
       }
     ]
   },

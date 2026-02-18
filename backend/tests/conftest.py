@@ -1,56 +1,63 @@
 """Shared test fixtures for the mateoX backend."""
 
 import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from src.auth.constants import Role
 from src.auth.service import create_access_token, hash_password
 from src.database import Base, get_db
 from src.main import app
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+TEST_DATABASE_URL = "sqlite:///:memory:"
 
 
-@pytest_asyncio.fixture(scope="session")
-async def engine():
-    """Create a test database engine (in-memory SQLite)."""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+@pytest.fixture(scope="session")
+def engine():
+    """Create a test database engine (in-memory SQLite).
+
+    check_same_thread=False is required because FastAPI runs sync route
+    handlers in a thread pool, while the test session is created in the
+    main thread.
+    """
+    engine = create_engine(
+        TEST_DATABASE_URL,
+        echo=False,
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(engine)
     yield engine
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
+    Base.metadata.drop_all(engine)
+    engine.dispose()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def db_session(engine):
+@pytest.fixture(scope="function")
+def db_session(engine):
     """Provide a transactional database session that rolls back after each test."""
-    async_session = async_sessionmaker(bind=engine, expire_on_commit=False)
-    async with async_session() as session:
-        # Start a savepoint so we can rollback
-        async with session.begin():
-            yield session
-            await session.rollback()
+    connection = engine.connect()
+    transaction = connection.begin()
+    session = Session(bind=connection, expire_on_commit=False)
+    yield session
+    session.close()
+    transaction.rollback()
+    connection.close()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def client(db_session: AsyncSession):
-    """Provide an HTTPX async test client with overridden DB dependency."""
-    async def override_get_db():
+@pytest.fixture(scope="function")
+def client(db_session: Session):
+    """Provide a test client with overridden DB dependency."""
+    def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+    with TestClient(app) as tc:
+        yield tc
     app.dependency_overrides.clear()
 
 
-@pytest_asyncio.fixture
-async def admin_user(db_session: AsyncSession):
+@pytest.fixture
+def admin_user(db_session: Session):
     """Create an admin user and return it."""
     from src.auth.models import User
 
@@ -61,13 +68,13 @@ async def admin_user(db_session: AsyncSession):
         role=Role.ADMIN,
     )
     db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
+    db_session.flush()
+    db_session.refresh(user)
     return user
 
 
-@pytest_asyncio.fixture
-async def runner_user(db_session: AsyncSession):
+@pytest.fixture
+def runner_user(db_session: Session):
     """Create a runner user and return it."""
     from src.auth.models import User
 
@@ -78,13 +85,13 @@ async def runner_user(db_session: AsyncSession):
         role=Role.RUNNER,
     )
     db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
+    db_session.flush()
+    db_session.refresh(user)
     return user
 
 
-@pytest_asyncio.fixture
-async def viewer_user(db_session: AsyncSession):
+@pytest.fixture
+def viewer_user(db_session: Session):
     """Create a viewer user and return it."""
     from src.auth.models import User
 
@@ -95,8 +102,8 @@ async def viewer_user(db_session: AsyncSession):
         role=Role.VIEWER,
     )
     db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
+    db_session.flush()
+    db_session.refresh(user)
     return user
 
 

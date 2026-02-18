@@ -8,47 +8,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: sqlite+aiosqlite:///./mateox.db
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      DATABASE_URL: sqlite:///./mateox.db
       DEBUG: "true"
       CORS_ORIGINS: '["http://localhost:5173"]'
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
       - workspace-data:/root/.mateox
-    depends_on:
-      redis:
-        condition: service_healthy
     restart: unless-stopped
-
-  worker:
-    build:
-      context: .
-      dockerfile: docker/worker.Dockerfile
-    environment:
-      DATABASE_URL: sqlite+aiosqlite:///./mateox.db
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-    volumes:
-      - ./backend:/app
-      - workspace-data:/root/.mateox
-    depends_on:
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
 volumes:
   workspace-data:

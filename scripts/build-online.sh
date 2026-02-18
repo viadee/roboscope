@@ -90,7 +90,7 @@ cat > "$DIST/.env.example" << 'ENVEOF'
 # Copy this to .env and adjust as needed.
 
 # Database (SQLite default — no setup required)
-DATABASE_URL=sqlite+aiosqlite:///./mateox.db
+DATABASE_URL=sqlite:///./mateox.db
 
 # Secret key for JWT tokens (change in production!)
 SECRET_KEY=CHANGE-ME-IN-PRODUCTION

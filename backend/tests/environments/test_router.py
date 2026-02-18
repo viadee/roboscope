@@ -12,7 +12,7 @@ URL = "/api/v1/environments"
 
 
 class TestListEnvironments:
-    async def test_list_environments_authenticated(self, client, db_session, admin_user):
+    def test_list_environments_authenticated(self, client, db_session, admin_user):
         # Create some environments directly in the DB
         env = Environment(
             name="test-env",
@@ -20,23 +20,23 @@ class TestListEnvironments:
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
+        db_session.flush()
 
-        response = await client.get(URL, headers=auth_header(admin_user))
+        response = client.get(URL, headers=auth_header(admin_user))
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
         assert len(data) >= 1
         assert data[0]["name"] == "test-env"
 
-    async def test_list_environments_unauthenticated(self, client):
-        response = await client.get(URL)
-        assert response.status_code == 403
+    def test_list_environments_unauthenticated(self, client):
+        response = client.get(URL)
+        assert response.status_code == 401
 
 
 class TestCreateEnvironment:
-    async def test_create_environment_as_admin(self, client, admin_user):
-        response = await client.post(
+    def test_create_environment_as_admin(self, client, admin_user):
+        response = client.post(
             URL,
             json={
                 "name": "new-env",
@@ -55,16 +55,16 @@ class TestCreateEnvironment:
         assert "created_at" in data
         assert "updated_at" in data
 
-    async def test_create_environment_as_viewer_forbidden(self, client, viewer_user):
-        response = await client.post(
+    def test_create_environment_as_viewer_forbidden(self, client, viewer_user):
+        response = client.post(
             URL,
             json={"name": "viewer-env"},
             headers=auth_header(viewer_user),
         )
         assert response.status_code == 403
 
-    async def test_create_environment_as_runner_forbidden(self, client, runner_user):
-        response = await client.post(
+    def test_create_environment_as_runner_forbidden(self, client, runner_user):
+        response = client.post(
             URL,
             json={"name": "runner-env"},
             headers=auth_header(runner_user),
@@ -73,7 +73,7 @@ class TestCreateEnvironment:
 
 
 class TestGetEnvironment:
-    async def test_get_environment(self, client, db_session, admin_user):
+    def test_get_environment(self, client, db_session, admin_user):
         env = Environment(
             name="detail-env",
             python_version="3.12",
@@ -81,10 +81,10 @@ class TestGetEnvironment:
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
-        response = await client.get(
+        response = client.get(
             f"{URL}/{env.id}",
             headers=auth_header(admin_user),
         )
@@ -94,39 +94,39 @@ class TestGetEnvironment:
         assert data["name"] == "detail-env"
         assert data["description"] == "Detailed"
 
-    async def test_get_environment_not_found(self, client, admin_user):
-        response = await client.get(
+    def test_get_environment_not_found(self, client, admin_user):
+        response = client.get(
             f"{URL}/99999",
             headers=auth_header(admin_user),
         )
         assert response.status_code == 404
 
-    async def test_get_environment_unauthenticated(self, client, db_session, admin_user):
+    def test_get_environment_unauthenticated(self, client, db_session, admin_user):
         env = Environment(
             name="unauth-env",
             python_version="3.12",
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
-        response = await client.get(f"{URL}/{env.id}")
-        assert response.status_code == 403
+        response = client.get(f"{URL}/{env.id}")
+        assert response.status_code == 401
 
 
 class TestUpdateEnvironment:
-    async def test_update_environment_as_admin(self, client, db_session, admin_user):
+    def test_update_environment_as_admin(self, client, db_session, admin_user):
         env = Environment(
             name="update-env",
             python_version="3.12",
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
-        response = await client.patch(
+        response = client.patch(
             f"{URL}/{env.id}",
             json={"name": "renamed-env", "description": "Now updated"},
             headers=auth_header(admin_user),
@@ -136,25 +136,25 @@ class TestUpdateEnvironment:
         assert data["name"] == "renamed-env"
         assert data["description"] == "Now updated"
 
-    async def test_update_environment_not_found(self, client, admin_user):
-        response = await client.patch(
+    def test_update_environment_not_found(self, client, admin_user):
+        response = client.patch(
             f"{URL}/99999",
             json={"name": "ghost"},
             headers=auth_header(admin_user),
         )
         assert response.status_code == 404
 
-    async def test_update_environment_as_viewer_forbidden(self, client, db_session, admin_user, viewer_user):
+    def test_update_environment_as_viewer_forbidden(self, client, db_session, admin_user, viewer_user):
         env = Environment(
             name="no-update-env",
             python_version="3.12",
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
-        response = await client.patch(
+        response = client.patch(
             f"{URL}/{env.id}",
             json={"name": "hacked"},
             headers=auth_header(viewer_user),
@@ -163,63 +163,63 @@ class TestUpdateEnvironment:
 
 
 class TestDeleteEnvironment:
-    async def test_delete_environment_as_admin(self, client, db_session, admin_user):
+    def test_delete_environment_as_admin(self, client, db_session, admin_user):
         env = Environment(
             name="delete-env",
             python_version="3.12",
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
-        response = await client.delete(
+        response = client.delete(
             f"{URL}/{env.id}",
             headers=auth_header(admin_user),
         )
         assert response.status_code == 204
 
         # Confirm it's gone
-        get_response = await client.get(
+        get_response = client.get(
             f"{URL}/{env.id}",
             headers=auth_header(admin_user),
         )
         assert get_response.status_code == 404
 
-    async def test_delete_environment_not_found(self, client, admin_user):
-        response = await client.delete(
+    def test_delete_environment_not_found(self, client, admin_user):
+        response = client.delete(
             f"{URL}/99999",
             headers=auth_header(admin_user),
         )
         assert response.status_code == 404
 
-    async def test_delete_environment_as_runner_forbidden(self, client, db_session, admin_user, runner_user):
+    def test_delete_environment_as_runner_forbidden(self, client, db_session, admin_user, runner_user):
         env = Environment(
             name="no-delete-env",
             python_version="3.12",
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
-        response = await client.delete(
+        response = client.delete(
             f"{URL}/{env.id}",
             headers=auth_header(runner_user),
         )
         assert response.status_code == 403
 
-    async def test_delete_environment_as_viewer_forbidden(self, client, db_session, admin_user, viewer_user):
+    def test_delete_environment_as_viewer_forbidden(self, client, db_session, admin_user, viewer_user):
         env = Environment(
             name="no-delete-viewer-env",
             python_version="3.12",
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
-        response = await client.delete(
+        response = client.delete(
             f"{URL}/{env.id}",
             headers=auth_header(viewer_user),
         )
@@ -227,7 +227,7 @@ class TestDeleteEnvironment:
 
 
 class TestCloneEnvironment:
-    async def test_clone_environment(self, client, db_session, admin_user):
+    def test_clone_environment(self, client, db_session, admin_user):
         env = Environment(
             name="original-env",
             python_version="3.11",
@@ -235,8 +235,8 @@ class TestCloneEnvironment:
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
         # Add a package and variable to the source
         pkg = EnvironmentPackage(
@@ -250,9 +250,9 @@ class TestCloneEnvironment:
             value="my_value",
         )
         db_session.add_all([pkg, var])
-        await db_session.flush()
+        db_session.flush()
 
-        response = await client.post(
+        response = client.post(
             f"{URL}/{env.id}/clone",
             params={"new_name": "cloned-env"},
             headers=auth_header(admin_user),
@@ -265,7 +265,7 @@ class TestCloneEnvironment:
         assert data["description"] == "Clone of original-env"
 
         # Verify packages were cloned
-        pkg_response = await client.get(
+        pkg_response = client.get(
             f"{URL}/{data['id']}/packages",
             headers=auth_header(admin_user),
         )
@@ -275,7 +275,7 @@ class TestCloneEnvironment:
         assert cloned_packages[0]["package_name"] == "requests"
 
         # Verify variables were cloned
-        var_response = await client.get(
+        var_response = client.get(
             f"{URL}/{data['id']}/variables",
             headers=auth_header(admin_user),
         )
@@ -284,8 +284,8 @@ class TestCloneEnvironment:
         assert len(cloned_vars) == 1
         assert cloned_vars[0]["key"] == "MY_VAR"
 
-    async def test_clone_environment_not_found(self, client, admin_user):
-        response = await client.post(
+    def test_clone_environment_not_found(self, client, admin_user):
+        response = client.post(
             f"{URL}/99999/clone",
             params={"new_name": "ghost-clone"},
             headers=auth_header(admin_user),
@@ -294,15 +294,15 @@ class TestCloneEnvironment:
 
 
 class TestPackages:
-    async def test_list_packages(self, client, db_session, admin_user):
+    def test_list_packages(self, client, db_session, admin_user):
         env = Environment(
             name="pkg-list-env",
             python_version="3.12",
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
         pkg = EnvironmentPackage(
             environment_id=env.id,
@@ -310,9 +310,9 @@ class TestPackages:
             version="3.0.0",
         )
         db_session.add(pkg)
-        await db_session.flush()
+        db_session.flush()
 
-        response = await client.get(
+        response = client.get(
             f"{URL}/{env.id}/packages",
             headers=auth_header(admin_user),
         )
@@ -322,16 +322,16 @@ class TestPackages:
         assert data[0]["package_name"] == "flask"
         assert data[0]["version"] == "3.0.0"
 
-    async def test_list_packages_env_not_found(self, client, admin_user):
-        response = await client.get(
+    def test_list_packages_env_not_found(self, client, admin_user):
+        response = client.get(
             f"{URL}/99999/packages",
             headers=auth_header(admin_user),
         )
         assert response.status_code == 404
 
-    @patch("src.environments.tasks.install_package_task")
-    async def test_add_package(self, mock_task, client, db_session, admin_user):
-        mock_task.delay = MagicMock()
+    @patch("src.environments.router.dispatch_task")
+    def test_add_package(self, mock_dispatch, client, db_session, admin_user):
+        mock_dispatch.return_value = MagicMock(id="fake-task-id")
 
         env = Environment(
             name="pkg-add-env",
@@ -339,10 +339,10 @@ class TestPackages:
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
-        response = await client.post(
+        response = client.post(
             f"{URL}/{env.id}/packages",
             json={"package_name": "requests", "version": "2.31.0"},
             headers=auth_header(admin_user),
@@ -353,20 +353,20 @@ class TestPackages:
         assert data["version"] == "2.31.0"
         assert data["environment_id"] == env.id
 
-    @patch("src.environments.tasks.install_package_task")
-    async def test_add_package_env_not_found(self, mock_task, client, admin_user):
-        mock_task.delay = MagicMock()
+    @patch("src.environments.router.dispatch_task")
+    def test_add_package_env_not_found(self, mock_dispatch, client, admin_user):
+        mock_dispatch.return_value = MagicMock(id="fake-task-id")
 
-        response = await client.post(
+        response = client.post(
             f"{URL}/99999/packages",
             json={"package_name": "requests"},
             headers=auth_header(admin_user),
         )
         assert response.status_code == 404
 
-    @patch("src.environments.tasks.uninstall_package_task")
-    async def test_remove_package(self, mock_task, client, db_session, admin_user):
-        mock_task.delay = MagicMock()
+    @patch("src.environments.router.dispatch_task")
+    def test_remove_package(self, mock_dispatch, client, db_session, admin_user):
+        mock_dispatch.return_value = MagicMock(id="fake-task-id")
 
         env = Environment(
             name="pkg-rm-env",
@@ -374,8 +374,8 @@ class TestPackages:
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
         pkg = EnvironmentPackage(
             environment_id=env.id,
@@ -383,19 +383,19 @@ class TestPackages:
             version="1.0.0",
         )
         db_session.add(pkg)
-        await db_session.flush()
+        db_session.flush()
 
-        response = await client.delete(
+        response = client.delete(
             f"{URL}/{env.id}/packages/old-pkg",
             headers=auth_header(admin_user),
         )
         assert response.status_code == 204
 
-    @patch("src.environments.tasks.uninstall_package_task")
-    async def test_remove_package_env_not_found(self, mock_task, client, admin_user):
-        mock_task.delay = MagicMock()
+    @patch("src.environments.router.dispatch_task")
+    def test_remove_package_env_not_found(self, mock_dispatch, client, admin_user):
+        mock_dispatch.return_value = MagicMock(id="fake-task-id")
 
-        response = await client.delete(
+        response = client.delete(
             f"{URL}/99999/packages/nope",
             headers=auth_header(admin_user),
         )
@@ -403,15 +403,15 @@ class TestPackages:
 
 
 class TestVariables:
-    async def test_list_variables(self, client, db_session, admin_user):
+    def test_list_variables(self, client, db_session, admin_user):
         env = Environment(
             name="var-list-env",
             python_version="3.12",
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
         var = EnvironmentVariable(
             environment_id=env.id,
@@ -420,9 +420,9 @@ class TestVariables:
             is_secret=False,
         )
         db_session.add(var)
-        await db_session.flush()
+        db_session.flush()
 
-        response = await client.get(
+        response = client.get(
             f"{URL}/{env.id}/variables",
             headers=auth_header(admin_user),
         )
@@ -433,15 +433,15 @@ class TestVariables:
         assert data[0]["value"] == "hello"
         assert data[0]["is_secret"] is False
 
-    async def test_list_variables_secrets_masked(self, client, db_session, admin_user):
+    def test_list_variables_secrets_masked(self, client, db_session, admin_user):
         env = Environment(
             name="var-mask-env",
             python_version="3.12",
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
         secret_var = EnvironmentVariable(
             environment_id=env.id,
@@ -456,9 +456,9 @@ class TestVariables:
             is_secret=False,
         )
         db_session.add_all([secret_var, plain_var])
-        await db_session.flush()
+        db_session.flush()
 
-        response = await client.get(
+        response = client.get(
             f"{URL}/{env.id}/variables",
             headers=auth_header(admin_user),
         )
@@ -477,24 +477,24 @@ class TestVariables:
         assert secret["value"] == "********"
         assert secret["is_secret"] is True
 
-    async def test_list_variables_env_not_found(self, client, admin_user):
-        response = await client.get(
+    def test_list_variables_env_not_found(self, client, admin_user):
+        response = client.get(
             f"{URL}/99999/variables",
             headers=auth_header(admin_user),
         )
         assert response.status_code == 404
 
-    async def test_add_variable(self, client, db_session, admin_user):
+    def test_add_variable(self, client, db_session, admin_user):
         env = Environment(
             name="var-add-env",
             python_version="3.12",
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
-        response = await client.post(
+        response = client.post(
             f"{URL}/{env.id}/variables",
             json={"key": "NEW_VAR", "value": "new_value", "is_secret": False},
             headers=auth_header(admin_user),
@@ -506,17 +506,17 @@ class TestVariables:
         assert data["is_secret"] is False
         assert data["environment_id"] == env.id
 
-    async def test_add_secret_variable(self, client, db_session, admin_user):
+    def test_add_secret_variable(self, client, db_session, admin_user):
         env = Environment(
             name="var-add-secret-env",
             python_version="3.12",
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
-        response = await client.post(
+        response = client.post(
             f"{URL}/{env.id}/variables",
             json={"key": "TOKEN", "value": "abc123", "is_secret": True},
             headers=auth_header(admin_user),
@@ -526,25 +526,25 @@ class TestVariables:
         assert data["key"] == "TOKEN"
         assert data["is_secret"] is True
 
-    async def test_add_variable_env_not_found(self, client, admin_user):
-        response = await client.post(
+    def test_add_variable_env_not_found(self, client, admin_user):
+        response = client.post(
             f"{URL}/99999/variables",
             json={"key": "X", "value": "Y"},
             headers=auth_header(admin_user),
         )
         assert response.status_code == 404
 
-    async def test_add_variable_as_viewer_forbidden(self, client, db_session, admin_user, viewer_user):
+    def test_add_variable_as_viewer_forbidden(self, client, db_session, admin_user, viewer_user):
         env = Environment(
             name="var-viewer-env",
             python_version="3.12",
             created_by=admin_user.id,
         )
         db_session.add(env)
-        await db_session.flush()
-        await db_session.refresh(env)
+        db_session.flush()
+        db_session.refresh(env)
 
-        response = await client.post(
+        response = client.post(
             f"{URL}/{env.id}/variables",
             json={"key": "NOPE", "value": "denied"},
             headers=auth_header(viewer_user),

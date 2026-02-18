@@ -3,7 +3,7 @@
 import json
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.settings.models import AppSetting
 from src.settings.schemas import SettingUpdate
@@ -23,44 +23,44 @@ DEFAULT_SETTINGS = [
 ]
 
 
-async def list_settings(db: AsyncSession, category: str | None = None) -> list[AppSetting]:
+def list_settings(db: Session, category: str | None = None) -> list[AppSetting]:
     """List all application settings."""
     query = select(AppSetting).order_by(AppSetting.category, AppSetting.key)
     if category:
         query = query.where(AppSetting.category == category)
-    result = await db.execute(query)
+    result = db.execute(query)
     return list(result.scalars().all())
 
 
-async def get_setting(db: AsyncSession, key: str) -> AppSetting | None:
+def get_setting(db: Session, key: str) -> AppSetting | None:
     """Get a single setting by key."""
-    result = await db.execute(select(AppSetting).where(AppSetting.key == key))
+    result = db.execute(select(AppSetting).where(AppSetting.key == key))
     return result.scalar_one_or_none()
 
 
-async def get_setting_value(db: AsyncSession, key: str, default: str = "") -> str:
+def get_setting_value(db: Session, key: str, default: str = "") -> str:
     """Get the value of a setting."""
-    setting = await get_setting(db, key)
+    setting = get_setting(db, key)
     return setting.value if setting else default
 
 
-async def update_settings(db: AsyncSession, updates: list[SettingUpdate]) -> list[AppSetting]:
+def update_settings(db: Session, updates: list[SettingUpdate]) -> list[AppSetting]:
     """Update multiple settings at once."""
     updated: list[AppSetting] = []
     for update in updates:
-        setting = await get_setting(db, update.key)
+        setting = get_setting(db, update.key)
         if setting:
             setting.value = update.value
             updated.append(setting)
-    await db.flush()
+    db.flush()
     return updated
 
 
-async def seed_default_settings(db: AsyncSession) -> None:
+def seed_default_settings(db: Session) -> None:
     """Create default settings if they don't exist."""
     for default in DEFAULT_SETTINGS:
-        existing = await get_setting(db, default["key"])
+        existing = get_setting(db, default["key"])
         if existing is None:
             setting = AppSetting(**default)
             db.add(setting)
-    await db.flush()
+    db.flush()

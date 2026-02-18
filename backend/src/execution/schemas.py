@@ -37,7 +37,7 @@ class RunResponse(BaseModel):
     retry_count: int
     max_retries: int
     timeout_seconds: int
-    celery_task_id: str | None = None
+    task_id: str | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
     duration_seconds: float | None = None

@@ -421,11 +421,21 @@ const en: DocsContent = [
   <li>Click a file to open it in the editor panel on the right.</li>
   <li>File icons indicate the type: <code>.robot</code> files get a special Robot Framework icon,
       while <code>.py</code>, <code>.yaml</code>, <code>.txt</code>, and other files use standard icons.</li>
+  <li>The tree header shows the <strong>total number of test cases</strong> found across all <code>.robot</code> files in the project. Directories also display a badge with their individual test count.</li>
 </ul>
 <p>
   A <strong>repository selector</strong> dropdown at the top lets you switch between
   registered repositories without leaving the Explorer.
-</p>`
+</p>
+<h4>Localhost Features</h4>
+<p>
+  When accessing mateoX on <code>localhost</code>, additional features are available:
+</p>
+<ul>
+  <li><strong>Open Project Folder</strong> &mdash; A folder button in the tree header opens the project's root directory in your system file browser (Finder, Windows Explorer, or Nautilus).</li>
+  <li><strong>Open in File Browser</strong> &mdash; Each directory in the tree has a folder button to open it directly in the system file browser.</li>
+  <li><strong>Absolute Path</strong> &mdash; When a file is selected, the full filesystem path is shown below the breadcrumb.</li>
+</ul>`
       },
       {
         id: 'create-rename-delete',
@@ -858,9 +868,24 @@ const en: DocsContent = [
 </p>
 <ul>
   <li><strong>Overview</strong> &mdash; KPI cards, success rate chart, pass/fail trend, and flaky test detection.</li>
-  <li><strong>Deep Analysis</strong> &mdash; On-demand analysis of keyword analytics, test quality metrics, and maintenance indicators. Select specific KPIs and start an analysis to explore deeper insights.</li>
-</ul>`,
-        tip: 'Use the Deep Analysis tab to investigate keyword durations, assertion density, and error patterns across your test suites.'
+  <li><strong>Deep Analysis</strong> &mdash; On-demand analysis of keyword analytics, test quality metrics, maintenance indicators, and source code analysis. Select specific KPIs and start an analysis to explore deeper insights.</li>
+</ul>
+<h4>Source Analysis (New)</h4>
+<p>
+  When a project is selected, two additional KPIs become available in the <em>Source Analysis</em> category:
+</p>
+<ul>
+  <li><strong>Source Test Analysis</strong> &mdash; Analyses your <code>.robot</code> source files directly: test case count per file, average lines and keyword steps per test, most frequently used keywords, and a file breakdown.</li>
+  <li><strong>Source Library Imports</strong> &mdash; Shows which Robot Framework libraries are imported across your <code>.robot</code> and <code>.resource</code> files, how many files use each library, and their relative distribution.</li>
+</ul>
+<p>
+  These KPIs work independently from execution reports &mdash; they analyse the source files on disk, so you get insights even before running any tests.
+</p>
+<h4>Library Distribution Fix</h4>
+<p>
+  The <em>Library Distribution</em> KPI (in the Keyword Analytics category) now correctly resolves library names for well-known Robot Framework keywords. Previously, many keywords showed as &ldquo;Unknown&rdquo; because the <code>output.xml</code> did not always include the library attribute. The system now uses a built-in mapping of 500+ keywords to their libraries (BuiltIn, Collections, SeleniumLibrary, Browser, RequestsLibrary, etc.).
+</p>`,
+        tip: 'Use the Deep Analysis tab to investigate keyword durations, assertion density, and error patterns across your test suites. Select a project to enable Source Analysis KPIs.'
       }
     ]
   },

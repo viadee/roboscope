@@ -13,9 +13,8 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
-    "sqlalchemy[asyncio]>=2.0.36",
+    "sqlalchemy>=2.0.36",
     "alembic>=1.14.0",
-    "aiosqlite>=0.20.0",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.6.0",
     "python-jose[cryptography]>=3.3.0",
@@ -27,18 +26,12 @@ dependencies = [
     "robotframework>=7.1",
     "websockets>=14.1",
     "apscheduler>=3.10.4",
-    "lxml>=5.3.0",
 ]
 
 [project.optional-dependencies]
-# Redis + Celery für async Task-Ausführung (optional)
-worker = [
-    "celery[redis]>=5.4.0",
-    "redis>=5.2.0",
-]
 # PostgreSQL-Support (optional, Standard ist SQLite)
 postgres = [
-    "asyncpg>=0.30.0",
+    "psycopg2-binary>=2.9.9",
 ]
 # Docker-Runner (optional)
 docker = [
@@ -46,12 +39,11 @@ docker = [
 ]
 # Alle optionalen Abhängigkeiten
 all = [
-    "mateox-backend[worker,postgres,docker]",
+    "mateox-backend[postgres,docker]",
 ]
 dev = [
     "mateox-backend[all]",
     "pytest>=8.3.0",
-    "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
     "httpx>=0.28.0",
     "factory-boy>=3.3.0",
@@ -61,7 +53,6 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "-v --tb=short"
 filterwarnings = [

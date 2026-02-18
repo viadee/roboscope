@@ -534,6 +534,11 @@ async function handleOpenInFileBrowser(node: TreeNode) {
   await explorer.openInFileBrowserAction(selectedRepoId.value, node.path)
 }
 
+async function handleOpenRootFolder() {
+  if (!selectedRepoId.value) return
+  await explorer.openInFileBrowserAction(selectedRepoId.value, '.')
+}
+
 function handleRunRobot(node: TreeNode) {
   if (!selectedRepoId.value) return
   if (envs.environments.length === 0) {
@@ -685,6 +690,7 @@ const flatNodes = computed(() => {
             <span class="text-muted text-sm" v-if="explorer.tree">
               {{ explorer.tree.test_count || 0 }} {{ t('explorer.tests') }}
             </span>
+            <button v-if="isLocalhost" class="icon-btn" @click="handleOpenRootFolder" :title="t('explorer.openRootFolder')">📂</button>
             <button class="icon-btn" @click="expandAll" :title="t('explorer.expandAll')">⊞</button>
             <button class="icon-btn" @click="collapseAll" :title="t('explorer.collapseAll')">⊟</button>
             <button class="icon-btn" @click="openCreateDialog()" :title="t('explorer.newFile')">+</button>

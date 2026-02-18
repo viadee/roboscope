@@ -69,9 +69,9 @@ def _make_test_result(report_id: int, **overrides) -> TestResult:
 
 
 class TestOverviewEndpoint:
-    async def test_overview_authenticated(self, client, admin_user):
+    def test_overview_authenticated(self, client, admin_user):
         """GET /overview should return KPI data for an authenticated user."""
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/overview",
             headers=auth_header(admin_user),
         )
@@ -85,36 +85,36 @@ class TestOverviewEndpoint:
         assert "total_tests" in data
         assert "active_repos" in data
 
-    async def test_overview_unauthenticated(self, client):
-        """GET /overview should return 403 without authentication."""
-        response = await client.get("/api/v1/stats/overview")
-        assert response.status_code == 403
+    def test_overview_unauthenticated(self, client):
+        """GET /overview should return 401 without authentication."""
+        response = client.get("/api/v1/stats/overview")
+        assert response.status_code == 401
 
-    async def test_overview_with_days_param(self, client, admin_user):
+    def test_overview_with_days_param(self, client, admin_user):
         """GET /overview should accept days query parameter."""
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/overview?days=7",
             headers=auth_header(admin_user),
         )
         assert response.status_code == 200
 
-    async def test_overview_with_data(self, client, db_session, admin_user):
+    def test_overview_with_data(self, client, db_session, admin_user):
         """GET /overview should reflect actual database data."""
         repo = _make_repo(admin_user.id)
         db_session.add(repo)
-        await db_session.flush()
-        await db_session.refresh(repo)
+        db_session.flush()
+        db_session.refresh(repo)
 
         run = _make_run(repo.id, admin_user.id, status=RunStatus.PASSED, duration_seconds=25.0)
         db_session.add(run)
-        await db_session.flush()
-        await db_session.refresh(run)
+        db_session.flush()
+        db_session.refresh(run)
 
         report = _make_report(run.id, total_tests=12)
         db_session.add(report)
-        await db_session.flush()
+        db_session.flush()
 
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/overview",
             headers=auth_header(admin_user),
         )
@@ -126,26 +126,26 @@ class TestOverviewEndpoint:
 
 
 class TestSuccessRateEndpoint:
-    async def test_success_rate_authenticated(self, client, admin_user):
+    def test_success_rate_authenticated(self, client, admin_user):
         """GET /success-rate should return a list for an authenticated user."""
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/success-rate",
             headers=auth_header(admin_user),
         )
         assert response.status_code == 200
         assert isinstance(response.json(), list)
 
-    async def test_success_rate_unauthenticated(self, client):
-        """GET /success-rate should return 403 without authentication."""
-        response = await client.get("/api/v1/stats/success-rate")
-        assert response.status_code == 403
+    def test_success_rate_unauthenticated(self, client):
+        """GET /success-rate should return 401 without authentication."""
+        response = client.get("/api/v1/stats/success-rate")
+        assert response.status_code == 401
 
-    async def test_success_rate_with_data(self, client, db_session, admin_user):
+    def test_success_rate_with_data(self, client, db_session, admin_user):
         """GET /success-rate should return trend data when KPI records exist."""
         repo = _make_repo(admin_user.id)
         db_session.add(repo)
-        await db_session.flush()
-        await db_session.refresh(repo)
+        db_session.flush()
+        db_session.refresh(repo)
 
         kpi = KpiRecord(
             date=date.today(),
@@ -158,9 +158,9 @@ class TestSuccessRateEndpoint:
             success_rate=90.0,
         )
         db_session.add(kpi)
-        await db_session.flush()
+        db_session.flush()
 
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/success-rate",
             headers=auth_header(admin_user),
         )
@@ -172,26 +172,26 @@ class TestSuccessRateEndpoint:
 
 
 class TestTrendsEndpoint:
-    async def test_trends_authenticated(self, client, admin_user):
+    def test_trends_authenticated(self, client, admin_user):
         """GET /trends should return a list for an authenticated user."""
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/trends",
             headers=auth_header(admin_user),
         )
         assert response.status_code == 200
         assert isinstance(response.json(), list)
 
-    async def test_trends_unauthenticated(self, client):
-        """GET /trends should return 403 without authentication."""
-        response = await client.get("/api/v1/stats/trends")
-        assert response.status_code == 403
+    def test_trends_unauthenticated(self, client):
+        """GET /trends should return 401 without authentication."""
+        response = client.get("/api/v1/stats/trends")
+        assert response.status_code == 401
 
-    async def test_trends_with_data(self, client, db_session, admin_user):
+    def test_trends_with_data(self, client, db_session, admin_user):
         """GET /trends should return pass/fail/error breakdown when data exists."""
         repo = _make_repo(admin_user.id)
         db_session.add(repo)
-        await db_session.flush()
-        await db_session.refresh(repo)
+        db_session.flush()
+        db_session.refresh(repo)
 
         kpi = KpiRecord(
             date=date.today(),
@@ -204,9 +204,9 @@ class TestTrendsEndpoint:
             success_rate=70.0,
         )
         db_session.add(kpi)
-        await db_session.flush()
+        db_session.flush()
 
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/trends",
             headers=auth_header(admin_user),
         )
@@ -219,38 +219,38 @@ class TestTrendsEndpoint:
 
 
 class TestFlakyEndpoint:
-    async def test_flaky_authenticated(self, client, admin_user):
+    def test_flaky_authenticated(self, client, admin_user):
         """GET /flaky should return a list for an authenticated user."""
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/flaky",
             headers=auth_header(admin_user),
         )
         assert response.status_code == 200
         assert isinstance(response.json(), list)
 
-    async def test_flaky_unauthenticated(self, client):
-        """GET /flaky should return 403 without authentication."""
-        response = await client.get("/api/v1/stats/flaky")
-        assert response.status_code == 403
+    def test_flaky_unauthenticated(self, client):
+        """GET /flaky should return 401 without authentication."""
+        response = client.get("/api/v1/stats/flaky")
+        assert response.status_code == 401
 
-    async def test_flaky_with_data(self, client, db_session, admin_user):
+    def test_flaky_with_data(self, client, db_session, admin_user):
         """GET /flaky should detect flaky tests from test results."""
         repo = _make_repo(admin_user.id)
         db_session.add(repo)
-        await db_session.flush()
-        await db_session.refresh(repo)
+        db_session.flush()
+        db_session.refresh(repo)
 
         # Create runs, reports, and alternating test results
         for i in range(4):
             run = _make_run(repo.id, admin_user.id, status=RunStatus.PASSED)
             db_session.add(run)
-            await db_session.flush()
-            await db_session.refresh(run)
+            db_session.flush()
+            db_session.refresh(run)
 
             report = _make_report(run.id, total_tests=1)
             db_session.add(report)
-            await db_session.flush()
-            await db_session.refresh(report)
+            db_session.flush()
+            db_session.refresh(report)
 
             tr = _make_test_result(
                 report.id,
@@ -259,9 +259,9 @@ class TestFlakyEndpoint:
                 status="PASS" if i % 2 == 0 else "FAIL",
             )
             db_session.add(tr)
-        await db_session.flush()
+        db_session.flush()
 
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/flaky?min_runs=3",
             headers=auth_header(admin_user),
         )
@@ -274,42 +274,42 @@ class TestFlakyEndpoint:
 
 
 class TestDurationEndpoint:
-    async def test_duration_authenticated(self, client, admin_user):
+    def test_duration_authenticated(self, client, admin_user):
         """GET /duration should return a list for an authenticated user."""
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/duration",
             headers=auth_header(admin_user),
         )
         assert response.status_code == 200
         assert isinstance(response.json(), list)
 
-    async def test_duration_unauthenticated(self, client):
-        """GET /duration should return 403 without authentication."""
-        response = await client.get("/api/v1/stats/duration")
-        assert response.status_code == 403
+    def test_duration_unauthenticated(self, client):
+        """GET /duration should return 401 without authentication."""
+        response = client.get("/api/v1/stats/duration")
+        assert response.status_code == 401
 
-    async def test_duration_with_data(self, client, db_session, admin_user):
+    def test_duration_with_data(self, client, db_session, admin_user):
         """GET /duration should return aggregated duration stats."""
         repo = _make_repo(admin_user.id)
         db_session.add(repo)
-        await db_session.flush()
-        await db_session.refresh(repo)
+        db_session.flush()
+        db_session.refresh(repo)
 
         run = _make_run(repo.id, admin_user.id)
         db_session.add(run)
-        await db_session.flush()
-        await db_session.refresh(run)
+        db_session.flush()
+        db_session.refresh(run)
 
         report = _make_report(run.id)
         db_session.add(report)
-        await db_session.flush()
-        await db_session.refresh(report)
+        db_session.flush()
+        db_session.refresh(report)
 
         tr = _make_test_result(report.id, test_name="test_timed", duration_seconds=3.5)
         db_session.add(tr)
-        await db_session.flush()
+        db_session.flush()
 
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/duration",
             headers=auth_header(admin_user),
         )
@@ -321,9 +321,9 @@ class TestDurationEndpoint:
 
 
 class TestAggregateEndpoint:
-    async def test_aggregate_authenticated(self, client, admin_user):
+    def test_aggregate_authenticated(self, client, admin_user):
         """POST /aggregate should succeed for an authenticated user."""
-        response = await client.post(
+        response = client.post(
             "/api/v1/stats/aggregate",
             headers=auth_header(admin_user),
         )
@@ -331,31 +331,31 @@ class TestAggregateEndpoint:
         data = response.json()
         assert "status" in data
 
-    async def test_aggregate_unauthenticated(self, client):
+    def test_aggregate_unauthenticated(self, client):
         """POST /aggregate should return 401/403 without authentication."""
-        response = await client.post("/api/v1/stats/aggregate")
+        response = client.post("/api/v1/stats/aggregate")
         assert response.status_code in (401, 403)
 
-    async def test_aggregate_with_days_param(self, client, admin_user):
+    def test_aggregate_with_days_param(self, client, admin_user):
         """POST /aggregate should accept days parameter."""
-        response = await client.post(
+        response = client.post(
             "/api/v1/stats/aggregate?days=7",
             headers=auth_header(admin_user),
         )
         assert response.status_code == 200
 
-    async def test_aggregate_with_data(self, client, db_session, admin_user):
+    def test_aggregate_with_data(self, client, db_session, admin_user):
         """POST /aggregate should aggregate existing run data."""
         repo = _make_repo(admin_user.id)
         db_session.add(repo)
-        await db_session.flush()
-        await db_session.refresh(repo)
+        db_session.flush()
+        db_session.refresh(repo)
 
         run = _make_run(repo.id, admin_user.id, status=RunStatus.PASSED)
         db_session.add(run)
-        await db_session.flush()
+        db_session.flush()
 
-        response = await client.post(
+        response = client.post(
             "/api/v1/stats/aggregate",
             headers=auth_header(admin_user),
         )
@@ -365,9 +365,9 @@ class TestAggregateEndpoint:
 
 
 class TestDataStatusEndpoint:
-    async def test_data_status_authenticated(self, client, admin_user):
+    def test_data_status_authenticated(self, client, admin_user):
         """GET /data-status should return staleness info."""
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/data-status",
             headers=auth_header(admin_user),
         )
@@ -376,14 +376,14 @@ class TestDataStatusEndpoint:
         assert "last_aggregated" in data
         assert "last_run_finished" in data
 
-    async def test_data_status_unauthenticated(self, client):
+    def test_data_status_unauthenticated(self, client):
         """GET /data-status should return 401/403 without authentication."""
-        response = await client.get("/api/v1/stats/data-status")
+        response = client.get("/api/v1/stats/data-status")
         assert response.status_code in (401, 403)
 
-    async def test_data_status_empty_db(self, client, admin_user):
+    def test_data_status_empty_db(self, client, admin_user):
         """GET /data-status should return nulls when no data exists."""
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/data-status",
             headers=auth_header(admin_user),
         )
@@ -395,43 +395,43 @@ class TestDataStatusEndpoint:
 
 
 class TestHeatmapEndpoint:
-    async def test_heatmap_authenticated(self, client, admin_user):
+    def test_heatmap_authenticated(self, client, admin_user):
         """GET /heatmap should return a list for an authenticated user."""
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/heatmap",
             headers=auth_header(admin_user),
         )
         assert response.status_code == 200
         assert isinstance(response.json(), list)
 
-    async def test_heatmap_unauthenticated(self, client):
-        """GET /heatmap should return 403 without authentication."""
-        response = await client.get("/api/v1/stats/heatmap")
-        assert response.status_code == 403
+    def test_heatmap_unauthenticated(self, client):
+        """GET /heatmap should return 401 without authentication."""
+        response = client.get("/api/v1/stats/heatmap")
+        assert response.status_code == 401
 
-    async def test_heatmap_empty_when_no_failures(self, client, db_session, admin_user):
+    def test_heatmap_empty_when_no_failures(self, client, db_session, admin_user):
         """GET /heatmap should return empty list when no tests have failed."""
         repo = _make_repo(admin_user.id)
         db_session.add(repo)
-        await db_session.flush()
-        await db_session.refresh(repo)
+        db_session.flush()
+        db_session.refresh(repo)
 
         run = _make_run(repo.id, admin_user.id)
         db_session.add(run)
-        await db_session.flush()
-        await db_session.refresh(run)
+        db_session.flush()
+        db_session.refresh(run)
 
         report = _make_report(run.id)
         db_session.add(report)
-        await db_session.flush()
-        await db_session.refresh(report)
+        db_session.flush()
+        db_session.refresh(report)
 
         # Only passing test results
         tr = _make_test_result(report.id, test_name="test_ok", status="PASS")
         db_session.add(tr)
-        await db_session.flush()
+        db_session.flush()
 
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/heatmap",
             headers=auth_header(admin_user),
         )
@@ -439,28 +439,28 @@ class TestHeatmapEndpoint:
         data = response.json()
         assert data == []
 
-    async def test_heatmap_with_failures(self, client, db_session, admin_user):
+    def test_heatmap_with_failures(self, client, db_session, admin_user):
         """GET /heatmap should return cells for failing tests."""
         repo = _make_repo(admin_user.id)
         db_session.add(repo)
-        await db_session.flush()
-        await db_session.refresh(repo)
+        db_session.flush()
+        db_session.refresh(repo)
 
         run = _make_run(repo.id, admin_user.id)
         db_session.add(run)
-        await db_session.flush()
-        await db_session.refresh(run)
+        db_session.flush()
+        db_session.refresh(run)
 
         report = _make_report(run.id)
         db_session.add(report)
-        await db_session.flush()
-        await db_session.refresh(report)
+        db_session.flush()
+        db_session.refresh(report)
 
         tr = _make_test_result(report.id, test_name="test_broken", status="FAIL", duration_seconds=2.0)
         db_session.add(tr)
-        await db_session.flush()
+        db_session.flush()
 
-        response = await client.get(
+        response = client.get(
             "/api/v1/stats/heatmap",
             headers=auth_header(admin_user),
         )

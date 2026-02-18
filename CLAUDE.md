@@ -42,7 +42,7 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 - Auth-Fixture mit JWT-Injection
 - API-Mocking via page.route()
 
-**Backend Tests (pytest-asyncio) — ~160 Tests**
+**Backend Tests (pytest) — ~160 Tests**
 - Auth: Login, Registration, Password-Reset (5 Tests)
 - Repos: CRUD, Service (20+ Tests)
 - Explorer: File-Browser, Open-In-File-Browser (5 Tests)
@@ -53,8 +53,8 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 - Settings: CRUD, Permissions (10+ Tests)
 
 **Docker — VOLLSTÄNDIG konfiguriert**
-- 4 Dockerfiles: backend, frontend, worker, playwright
-- 3 Compose-Files: production (PostgreSQL+Redis+Nginx), dev (SQLite+Redis), test
+- 3 Dockerfiles: backend, frontend, playwright
+- 3 Compose-Files: production (PostgreSQL+Nginx), dev (SQLite), test
 
 **Build/Distribution**
 - `scripts/build.sh` — Erstellt standalone ZIP-Archiv für Offline-Deployment (Windows, Mac, Linux)
@@ -72,7 +72,7 @@ Warum:
 
 Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `TaskDispatchError`, `TaskResult`
 
-**Wichtig**: Vor `dispatch_task()` muss immer `await db.commit()` aufgerufen werden, damit der Background-Thread die Daten in einer separaten DB-Session sehen kann.
+**Wichtig**: Vor `dispatch_task()` muss immer `db.commit()` aufgerufen werden, damit der Background-Thread die Daten in einer separaten DB-Session sehen kann.
 
 ### Aktuelle Arbeit / Nächste Schritte
 
@@ -101,6 +101,10 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] Umfassende E2E-Tests (Imprint, Passwort-Reset, Repo-Umgebung, Stats-Tabs)
 - [x] In-App-Dokumentation aktualisiert (EN+DE: Passwort-Reset, Umgebungsauswahl, Stats-Refresh, Impressum)
 - [x] Build-Skript aktualisiert (examples/ Verzeichnis, .env ohne Celery)
+- [x] Explorer: Testanzahl-Fix (build_tree test_count) + E2E-Tests + "Projektordner öffnen" Button
+- [x] Tiefenanalyse: Bibliotheksverteilung Fix (Keyword-zu-Library-Mapping für 500+ Keywords)
+- [x] Tiefenanalyse: Quellcode-Analyse KPIs (source_test_stats, source_library_distribution)
+- [x] greenlet>=3.1.0 als explizite Dependency (Windows/Python 3.13 Kompatibilität)
 
 **Offen:**
 - [ ] Offline-Archiv-Analyse
@@ -125,10 +129,10 @@ mateoX/
 │   │   ├── websocket/# WebSocket Connection Manager
 │   │   ├── api/v1/   # Router-Aggregation
 │   │   ├── config.py # Pydantic Settings (.env)
-│   │   ├── database.py # SQLAlchemy async + TimestampMixin
+│   │   ├── database.py # SQLAlchemy sync + TimestampMixin
 │   │   ├── celery_app.py # In-Process TaskExecutor (ThreadPoolExecutor, NICHT Celery!)
 │   │   └── main.py   # FastAPI App Factory + Lifespan
-│   ├── tests/        # pytest-asyncio Tests
+│   ├── tests/        # pytest Tests
 │   ├── migrations/   # Alembic (SQLite + PostgreSQL)
 │   └── pyproject.toml
 ├── frontend/         # Vue 3 + TypeScript + Vite
@@ -145,9 +149,9 @@ mateoX/
 │   ├── page-objects/ # LoginPage, DashboardPage, SidebarNav
 │   ├── fixtures/     # Auth-Fixture mit Token-Injection
 │   └── tests/        # auth, navigation, repos, execution, environments, reports, settings, stats, imprint, password-reset, repo-environment
-├── docker/           # Dockerfiles (backend, frontend, worker, playwright)
-├── docker-compose.yml      # Production (PostgreSQL + Redis + Nginx)
-├── docker-compose.dev.yml  # Development (SQLite + Redis)
+├── docker/           # Dockerfiles (backend, frontend, playwright)
+├── docker-compose.yml      # Production (PostgreSQL + Nginx)
+├── docker-compose.dev.yml  # Development (SQLite)
 ├── docker-compose.test.yml # Test-Umgebung
 └── Makefile          # Alle Befehle
 ```
@@ -183,10 +187,10 @@ mateoX/
 
 ## Tech-Stack
 
-- **Backend**: FastAPI, SQLAlchemy 2.0 async, Pydantic v2, ThreadPoolExecutor (Background Tasks), GitPython, Docker SDK
+- **Backend**: FastAPI, SQLAlchemy 2.0 (sync), Pydantic v2, ThreadPoolExecutor (Background Tasks), GitPython, Docker SDK
 - **Frontend**: Vue 3.5, Pinia, Vue Router 4, Axios, Chart.js, TypeScript, Vite
 - **Datenbank**: SQLite (Standard/Dev) oder PostgreSQL (Production), konfigurierbar via `DATABASE_URL`
-- **Tests**: pytest + pytest-asyncio, Vitest + @vue/test-utils, Playwright
+- **Tests**: pytest, Vitest + @vue/test-utils, Playwright
 - **Kein Redis/Celery nötig** — alle Background-Tasks laufen in-process via ThreadPoolExecutor
 
 ## API-Endpunkte
@@ -269,8 +273,8 @@ cd mateoX/e2e && npx playwright test
 cd mateoX/e2e && npx playwright test tests/execution-run.spec.ts  # einzelner Spec
 ```
 
-- **Backend**: pytest-asyncio, asyncio_mode=auto, In-Memory SQLite, transaktionaler Rollback
-- **Fixtures**: `db_session`, `client` (HTTPX), `admin_user`, `runner_user`, `viewer_user`, `auth_header(user)`
+- **Backend**: pytest, In-Memory SQLite, transaktionaler Rollback
+- **Fixtures**: `db_session`, `client` (TestClient), `admin_user`, `runner_user`, `viewer_user`, `auth_header(user)`
 - **Frontend**: Vitest, `describe/it/expect`, Pinia mit `createPinia`/`setActivePinia`
 - **E2E**: Playwright, Page Objects, Auth-Fixture mit JWT-Injection, API-Mocking via `page.route()`
 
@@ -286,7 +290,7 @@ make db-downgrade
 
 | Variable | Default | Beschreibung |
 |----------|---------|--------------|
-| `DATABASE_URL` | `sqlite+aiosqlite:///./mateox.db` | DB-Connection |
+| `DATABASE_URL` | `sqlite:///./mateox.db` | DB-Connection |
 | `SECRET_KEY` | dev-key | JWT-Secret |
 | `RUNNER_TYPE` | `auto` | `subprocess`, `docker`, `auto` |
 | `DOCKER_AVAILABLE` | `false` | Docker-Runner aktivieren |
@@ -299,7 +303,7 @@ make db-downgrade
 ## Bekannte Patterns und Gotchas
 
 ### DB Commit vor dispatch_task()
-Background-Tasks laufen in separaten Threads mit eigener sync DB-Session. Die async SQLAlchemy-Session im FastAPI-Request committed erst nach dem Handler-Return. Deshalb **muss immer `await db.commit()` VOR `dispatch_task()` aufgerufen werden**, damit der Background-Thread die Daten sieht.
+Background-Tasks laufen in separaten Threads mit eigener sync DB-Session. Die SQLAlchemy-Session im FastAPI-Request committed erst nach dem Handler-Return. Deshalb **muss immer `db.commit()` VOR `dispatch_task()` aufgerufen werden**, damit der Background-Thread die Daten sieht.
 
 ### SQLAlchemy Model Imports für Foreign Keys
 Wenn ein Task-Modul Models mit Foreign Keys importiert (z.B. `ExecutionRun.triggered_by → users.id`), müssen ALLE referenzierten Models vorher importiert sein. In jedem `tasks.py`:
@@ -333,15 +337,16 @@ Das Stats-Modul wurde um eine asynchrone Tiefenanalyse erweitert. Benutzer wähl
 - `backend/src/stats/service.py` — CRUD: `create_analysis()`, `get_analysis()`, `list_analyses()`
 - `backend/src/stats/router.py` — 4 neue Endpoints: `POST /analysis`, `GET /analysis`, `GET /analysis/{id}`, `GET /analysis/kpis`
 
-**8 KPIs in 3 Kategorien:**
+**10 KPIs in 4 Kategorien:**
 - **Keyword Analytics**: keyword_frequency, keyword_duration_impact, library_distribution
 - **Test Quality**: test_complexity, assertion_density, tag_coverage
 - **Maintenance**: error_patterns, redundancy_detection
+- **Source Analysis**: source_test_stats, source_library_distribution (analysiert .robot-Quelldateien direkt)
 
 **Ablauf:**
 1. Frontend sendet `POST /stats/analysis` mit `selected_kpis[]`
-2. Backend erstellt `AnalysisReport` (status=pending), `await db.commit()`, `dispatch_task(run_analysis, id)`
-3. `run_analysis()` läuft im Background-Thread: XML-Parsing → Flatten → Compute → JSON-Ergebnisse speichern
+2. Backend erstellt `AnalysisReport` (status=pending), `db.commit()`, `dispatch_task(run_analysis, id)`
+3. `run_analysis()` läuft im Background-Thread: XML-Parsing → Flatten → Keyword-Library-Enrichment → Compute → JSON-Ergebnisse speichern
 4. Frontend pollt alle 3s oder empfängt WebSocket `analysis_status_changed`
 5. Ergebnisse werden als KPI-spezifische Karten im StatsView (Tab "Deep Analysis") gerendert
 
@@ -376,9 +381,9 @@ vue-i18n v10 verwendet eine strikte Message-Syntax. Folgende Zeichen sind **rese
 
 ## Coding-Konventionen
 
-- **Backend**: Python 3.12+, Ruff (line-length=100), mypy strict, async/await
+- **Backend**: Python 3.12+, Ruff (line-length=100), mypy strict, sync SQLAlchemy
 - **Frontend**: TypeScript strict, Vue 3 Composition API + `<script setup>`, Pinia Stores
-- **Tests**: Async ohne `@pytest.mark.asyncio`, Klassen-Gruppierung, `_make_*` Helper
+- **Tests**: Sync Tests, Klassen-Gruppierung, `_make_*` Helper
 - **CSS**: Alle Variablen in `frontend/src/assets/styles/main.css`, keine separaten Variable/Transition-Dateien
 - **Git**: Konventionelle Commits, Feature-Branches, PR-basierter Workflow
 - **Sprache**: 4 Sprachen vollständig (EN, DE, FR, ES), In-App-Docs in EN+DE

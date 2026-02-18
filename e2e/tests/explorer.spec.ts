@@ -196,6 +196,49 @@ test.describe('Explorer — E2E', () => {
     });
   });
 
+  test('GET /explorer/{id}/tree returns correct test_count on root', async ({ page }) => {
+    const res = await page.request.get(`${API}/explorer/${repoId}/tree`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status()).toBe(200);
+    const tree = await res.json();
+    // sample.robot has 1 test case, so root test_count should be >= 1
+    expect(tree.test_count).toBeGreaterThanOrEqual(1);
+
+    // The tests/ subdirectory should also have test_count >= 1
+    const testsDir = tree.children.find((c: any) => c.name === 'tests');
+    expect(testsDir).toBeTruthy();
+    expect(testsDir.test_count).toBeGreaterThanOrEqual(1);
+
+    // The libs/ subdirectory should have test_count === 0 (no .robot files)
+    const libsDir = tree.children.find((c: any) => c.name === 'libs');
+    expect(libsDir).toBeTruthy();
+    expect(libsDir.test_count).toBe(0);
+  });
+
+  test('GET /explorer/{id}/tree counts multiple test cases', async ({ page }) => {
+    // Create a file with 3 test cases
+    await page.request.post(`${API}/explorer/${repoId}/file`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        path: 'tests/multi.robot',
+        content: '*** Test Cases ***\nTest One\n    Log    1\n\nTest Two\n    Log    2\n\nTest Three\n    Log    3\n',
+      },
+    });
+
+    const res = await page.request.get(`${API}/explorer/${repoId}/tree`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const tree = await res.json();
+    // 1 from sample.robot + 3 from multi.robot = 4
+    expect(tree.test_count).toBeGreaterThanOrEqual(4);
+
+    // Clean up
+    await page.request.delete(`${API}/explorer/${repoId}/file?path=tests/multi.robot`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  });
+
   // ─── UI Tests ─────────────────────────────────────────────────────
 
   test('UI: folder navigation - can expand/collapse directories', async ({ page }) => {
@@ -284,6 +327,19 @@ test.describe('Explorer — E2E', () => {
     await expect(page.locator('.cm-editor')).toBeVisible();
     // Content should show Python code
     await expect(page.locator('.cm-content')).toContainText('def greet');
+  });
+
+  test('UI: tree header shows correct test count', async ({ page }) => {
+    await goToExplorer(page, repoId);
+
+    // The tree header should show the test count (at least 1 from sample.robot)
+    const testCountText = page.locator('.tree-header-actions .text-muted');
+    await expect(testCountText).toBeVisible();
+    const text = await testCountText.textContent();
+    // Should show "N Tests" where N >= 1
+    const match = text?.match(/(\d+)/);
+    expect(match).toBeTruthy();
+    expect(Number(match![1])).toBeGreaterThanOrEqual(1);
   });
 
   test('UI: search finds test cases', async ({ page }) => {

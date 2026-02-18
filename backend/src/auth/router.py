@@ -1,7 +1,7 @@
 """Authentication API endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.auth.constants import ERR_INVALID_CREDENTIALS, ERR_TOKEN_INVALID, Role
 from src.auth.dependencies import get_current_user, require_role
@@ -31,12 +31,12 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(
+def login(
     data: LoginRequest,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Authenticate user and return JWT tokens."""
-    user = await authenticate_user(db, data.email, data.password)
+    user = authenticate_user(db, data.email, data.password)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -46,9 +46,9 @@ async def login(
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(
+def refresh_token(
     data: RefreshRequest,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Refresh access token using refresh token."""
     try:
@@ -65,7 +65,7 @@ async def refresh_token(
             detail=ERR_TOKEN_INVALID,
         )
 
-    user = await get_user_by_id(db, int(payload["sub"]))
+    user = get_user_by_id(db, int(payload["sub"]))
     if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -76,7 +76,7 @@ async def refresh_token(
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_user)):
+def get_me(current_user: User = Depends(get_current_user)):
     """Get current authenticated user."""
     return current_user
 
@@ -85,68 +85,68 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/users", response_model=list[UserResponse])
-async def list_users(
+def list_users(
     skip: int = 0,
     limit: int = 100,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     """List all users (admin only)."""
-    return await get_users(db, skip=skip, limit=limit)
+    return get_users(db, skip=skip, limit=limit)
 
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register_user(
+def register_user(
     data: RegisterRequest,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     """Create a new user (admin only)."""
-    existing = await get_user_by_email(db, data.email)
+    existing = get_user_by_email(db, data.email)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="User with this email already exists",
         )
-    user = await create_user(db, data)
+    user = create_user(db, data)
     return user
 
 
 @router.get("/users/{user_id}", response_model=UserResponse)
-async def get_user(
+def get_user(
     user_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     """Get user details (admin only)."""
-    user = await get_user_by_id(db, user_id)
+    user = get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
 
 
 @router.patch("/users/{user_id}", response_model=UserResponse)
-async def patch_user(
+def patch_user(
     user_id: int,
     data: UserUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     """Update user fields (admin only)."""
-    user = await get_user_by_id(db, user_id)
+    user = get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     update_data = data.model_dump(exclude_unset=True)
     if "password" in update_data:
         update_data["hashed_password"] = hash_password(update_data.pop("password"))
-    updated = await update_user(db, user, **update_data)
+    updated = update_user(db, user, **update_data)
     return updated
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(
+def delete_user(
     user_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     """Deactivate a user (admin only)."""
@@ -155,7 +155,7 @@ async def delete_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot deactivate yourself",
         )
-    user = await get_user_by_id(db, user_id)
+    user = get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    await update_user(db, user, is_active=False)
+    update_user(db, user, is_active=False)

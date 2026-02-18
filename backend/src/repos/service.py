@@ -5,33 +5,33 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.config import settings
 from src.repos.models import Repository
 from src.repos.schemas import RepoCreate, RepoUpdate
 
 
-async def list_repositories(db: AsyncSession) -> list[Repository]:
+def list_repositories(db: Session) -> list[Repository]:
     """List all repositories."""
-    result = await db.execute(select(Repository).order_by(Repository.name))
+    result = db.execute(select(Repository).order_by(Repository.name))
     return list(result.scalars().all())
 
 
-async def get_repository(db: AsyncSession, repo_id: int) -> Repository | None:
+def get_repository(db: Session, repo_id: int) -> Repository | None:
     """Get a repository by ID."""
-    result = await db.execute(select(Repository).where(Repository.id == repo_id))
+    result = db.execute(select(Repository).where(Repository.id == repo_id))
     return result.scalar_one_or_none()
 
 
-async def get_repository_by_name(db: AsyncSession, name: str) -> Repository | None:
+def get_repository_by_name(db: Session, name: str) -> Repository | None:
     """Get a repository by name."""
-    result = await db.execute(select(Repository).where(Repository.name == name))
+    result = db.execute(select(Repository).where(Repository.name == name))
     return result.scalar_one_or_none()
 
 
-async def create_repository(
-    db: AsyncSession, data: RepoCreate, user_id: int
+def create_repository(
+    db: Session, data: RepoCreate, user_id: int
 ) -> Repository:
     """Create a new repository entry."""
     if data.repo_type == "local":
@@ -55,35 +55,35 @@ async def create_repository(
         created_by=user_id,
     )
     db.add(repo)
-    await db.flush()
-    await db.refresh(repo)
+    db.flush()
+    db.refresh(repo)
     return repo
 
 
-async def update_repository(
-    db: AsyncSession, repo: Repository, data: RepoUpdate
+def update_repository(
+    db: Session, repo: Repository, data: RepoUpdate
 ) -> Repository:
     """Update repository fields."""
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(repo, key, value)
-    await db.flush()
-    await db.refresh(repo)
+    db.flush()
+    db.refresh(repo)
     return repo
 
 
-async def delete_repository(db: AsyncSession, repo: Repository) -> None:
+def delete_repository(db: Session, repo: Repository) -> None:
     """Delete a repository and its local clone (only for git repos)."""
     if repo.repo_type == "git":
         local_path = Path(repo.local_path)
         if local_path.exists():
             shutil.rmtree(local_path, ignore_errors=True)
-    await db.delete(repo)
-    await db.flush()
+    db.delete(repo)
+    db.flush()
 
 
 def clone_repository(git_url: str, local_path: str, branch: str = "main"):
-    """Clone a git repository (synchronous, for Celery tasks)."""
+    """Clone a git repository (synchronous, for background tasks)."""
     from git import Repo
 
     path = Path(local_path)
@@ -93,7 +93,7 @@ def clone_repository(git_url: str, local_path: str, branch: str = "main"):
 
 
 def sync_repository(local_path: str, branch: str | None = None) -> str:
-    """Pull latest changes from remote (synchronous, for Celery tasks)."""
+    """Pull latest changes from remote (synchronous, for background tasks)."""
     from git import GitCommandError, InvalidGitRepositoryError, Repo
 
     try:

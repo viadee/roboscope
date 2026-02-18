@@ -1,4 +1,4 @@
-.PHONY: help dev backend frontend worker install test lint clean docker-up docker-down
+.PHONY: help dev backend frontend install test lint clean docker-up docker-down
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -12,7 +12,6 @@ install: ## Install all dependencies
 
 dev: ## Start development servers (backend + frontend)
 	@echo "Starting backend on :8000 and frontend on :5173..."
-	@echo "Make sure Redis is running (redis-server or docker)"
 	cd backend && uvicorn src.main:app --reload --port 8000 &
 	cd frontend && npm run dev &
 	wait
@@ -22,12 +21,6 @@ backend: ## Start backend only
 
 frontend: ## Start frontend only
 	cd frontend && npm run dev
-
-worker: ## Start Celery worker
-	cd backend && celery -A src.celery_app worker --loglevel=info --concurrency=4
-
-beat: ## Start Celery Beat scheduler
-	cd backend && celery -A src.celery_app beat --loglevel=info
 
 # --- Testing ---
 

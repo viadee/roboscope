@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.auth.constants import ERR_TOKEN_EXPIRED, ERR_TOKEN_INVALID, Role
 from src.auth.models import User
@@ -59,25 +59,25 @@ def decode_token(token: str) -> dict:
         raise ValueError(ERR_TOKEN_INVALID) from e
 
 
-async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
+def get_user_by_email(db: Session, email: str) -> User | None:
     """Find a user by email."""
-    result = await db.execute(select(User).where(User.email == email))
+    result = db.execute(select(User).where(User.email == email))
     return result.scalar_one_or_none()
 
 
-async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
+def get_user_by_id(db: Session, user_id: int) -> User | None:
     """Find a user by ID."""
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = db.execute(select(User).where(User.id == user_id))
     return result.scalar_one_or_none()
 
 
-async def get_users(db: AsyncSession, skip: int = 0, limit: int = 100) -> list[User]:
+def get_users(db: Session, skip: int = 0, limit: int = 100) -> list[User]:
     """List all users with pagination."""
-    result = await db.execute(select(User).offset(skip).limit(limit))
+    result = db.execute(select(User).offset(skip).limit(limit))
     return list(result.scalars().all())
 
 
-async def create_user(db: AsyncSession, data: RegisterRequest) -> User:
+def create_user(db: Session, data: RegisterRequest) -> User:
     """Create a new user."""
     user = User(
         email=data.email,
@@ -86,14 +86,14 @@ async def create_user(db: AsyncSession, data: RegisterRequest) -> User:
         role=data.role,
     )
     db.add(user)
-    await db.flush()
-    await db.refresh(user)
+    db.flush()
+    db.refresh(user)
     return user
 
 
-async def authenticate_user(db: AsyncSession, email: str, password: str) -> User | None:
+def authenticate_user(db: Session, email: str, password: str) -> User | None:
     """Authenticate a user by email and password."""
-    user = await get_user_by_email(db, email)
+    user = get_user_by_email(db, email)
     if user is None:
         return None
     if not verify_password(password, user.hashed_password):
@@ -102,17 +102,17 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> User
         return None
     # Update last login
     user.last_login_at = datetime.now(timezone.utc)
-    await db.flush()
+    db.flush()
     return user
 
 
-async def update_user(db: AsyncSession, user: User, **kwargs) -> User:
+def update_user(db: Session, user: User, **kwargs) -> User:
     """Update user fields."""
     for key, value in kwargs.items():
         if value is not None and hasattr(user, key):
             setattr(user, key, value)
-    await db.flush()
-    await db.refresh(user)
+    db.flush()
+    db.refresh(user)
     return user
 
 
@@ -127,9 +127,9 @@ def create_token_response(user: User) -> TokenResponse:
     )
 
 
-async def ensure_admin_exists(db: AsyncSession) -> None:
+def ensure_admin_exists(db: Session) -> None:
     """Create a default admin user if no users exist."""
-    result = await db.execute(select(User).limit(1))
+    result = db.execute(select(User).limit(1))
     if result.scalar_one_or_none() is None:
         admin = User(
             email="admin@mateox.local",
@@ -138,4 +138,4 @@ async def ensure_admin_exists(db: AsyncSession) -> None:
             role=Role.ADMIN,
         )
         db.add(admin)
-        await db.flush()
+        db.flush()

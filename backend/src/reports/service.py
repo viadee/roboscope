@@ -1,28 +1,28 @@
 """Report service: CRUD, comparison."""
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.reports.models import Report, TestResult
 from src.reports.schemas import ReportCompareResponse, ReportResponse
 
 
-async def get_report(db: AsyncSession, report_id: int) -> Report | None:
+def get_report(db: Session, report_id: int) -> Report | None:
     """Get a report by ID."""
-    result = await db.execute(select(Report).where(Report.id == report_id))
+    result = db.execute(select(Report).where(Report.id == report_id))
     return result.scalar_one_or_none()
 
 
-async def get_report_by_run(db: AsyncSession, run_id: int) -> Report | None:
+def get_report_by_run(db: Session, run_id: int) -> Report | None:
     """Get a report by execution run ID."""
-    result = await db.execute(
+    result = db.execute(
         select(Report).where(Report.execution_run_id == run_id)
     )
     return result.scalar_one_or_none()
 
 
-async def list_reports(
-    db: AsyncSession,
+def list_reports(
+    db: Session,
     page: int = 1,
     page_size: int = 20,
     repository_id: int | None = None,
@@ -37,19 +37,19 @@ async def list_reports(
         )
 
     count_query = select(func.count()).select_from(query.subquery())
-    total_result = await db.execute(count_query)
+    total_result = db.execute(count_query)
     total = total_result.scalar() or 0
 
     query = query.offset((page - 1) * page_size).limit(page_size)
-    result = await db.execute(query)
+    result = db.execute(query)
     reports = list(result.scalars().all())
 
     return reports, total
 
 
-async def get_test_results(db: AsyncSession, report_id: int) -> list[TestResult]:
+def get_test_results(db: Session, report_id: int) -> list[TestResult]:
     """Get all test results for a report."""
-    result = await db.execute(
+    result = db.execute(
         select(TestResult)
         .where(TestResult.report_id == report_id)
         .order_by(TestResult.suite_name, TestResult.test_name)
@@ -57,16 +57,16 @@ async def get_test_results(db: AsyncSession, report_id: int) -> list[TestResult]
     return list(result.scalars().all())
 
 
-async def compare_reports(db: AsyncSession, report_a_id: int, report_b_id: int) -> ReportCompareResponse:
+def compare_reports(db: Session, report_a_id: int, report_b_id: int) -> ReportCompareResponse:
     """Compare two reports to find differences."""
-    report_a = await get_report(db, report_a_id)
-    report_b = await get_report(db, report_b_id)
+    report_a = get_report(db, report_a_id)
+    report_b = get_report(db, report_b_id)
 
     if report_a is None or report_b is None:
         raise ValueError("One or both reports not found")
 
-    results_a = await get_test_results(db, report_a_id)
-    results_b = await get_test_results(db, report_b_id)
+    results_a = get_test_results(db, report_a_id)
+    results_b = get_test_results(db, report_b_id)
 
     # Build test maps: name -> status
     map_a = {r.test_name: r.status for r in results_a}
@@ -99,8 +99,8 @@ async def compare_reports(db: AsyncSession, report_a_id: int, report_b_id: int) 
     )
 
 
-async def create_report_from_parsed(
-    db: AsyncSession,
+def create_report_from_parsed(
+    db: Session,
     run_id: int,
     output_xml_path: str,
     log_html_path: str | None,
@@ -125,8 +125,8 @@ async def create_report_from_parsed(
         total_duration_seconds=total_duration_seconds,
     )
     db.add(report)
-    await db.flush()
-    await db.refresh(report)
+    db.flush()
+    db.refresh(report)
 
     # Create test results
     for tr_data in test_results_data:
@@ -143,5 +143,5 @@ async def create_report_from_parsed(
         )
         db.add(test_result)
 
-    await db.flush()
+    db.flush()
     return report

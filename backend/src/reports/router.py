@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
 from src.auth.dependencies import get_current_user, require_role
@@ -41,10 +41,10 @@ logger = logging.getLogger("mateox.reports")
 router = APIRouter()
 
 
-async def _authenticate_flexible(
+def _authenticate_flexible(
     token: str | None,
     credentials: HTTPAuthorizationCredentials | None,
-    db: AsyncSession,
+    db: Session,
 ) -> User:
     """Authenticate via query param token or Bearer header. Raises 401 if neither works."""
     # Try query param token first (for iframe/download URLs)
@@ -66,7 +66,7 @@ async def _authenticate_flexible(
                 detail="Invalid token type",
             )
         user_id = int(payload["sub"])
-        user = await get_user_by_id(db, user_id)
+        user = get_user_by_id(db, user_id)
         if user is None or not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -81,26 +81,26 @@ async def _authenticate_flexible(
 
 
 @router.get("", response_model=list[ReportResponse])
-async def get_reports(
+def get_reports(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     repository_id: int | None = Query(default=None),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """List reports with pagination."""
-    reports, total = await list_reports(db, page, page_size, repository_id)
+    reports, total = list_reports(db, page, page_size, repository_id)
     return [ReportResponse.model_validate(r) for r in reports]
 
 
 @router.delete("/all", status_code=status.HTTP_200_OK)
-async def delete_all_reports(
-    db: AsyncSession = Depends(get_db),
+def delete_all_reports(
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     """Delete all reports, test results, and associated files on disk."""
     # Get all reports to find output dirs
-    result = await db.execute(select(Report))
+    result = db.execute(select(Report))
     reports = list(result.scalars().all())
 
     # Delete files from disk
@@ -116,42 +116,42 @@ async def delete_all_reports(
                     logger.warning("Failed to delete %s: %s", output_dir, e)
 
     # Delete all test results first (FK constraint)
-    await db.execute(delete(TestResult))
+    db.execute(delete(TestResult))
     # Delete all reports
     count = len(reports)
-    await db.execute(delete(Report))
-    await db.flush()
+    db.execute(delete(Report))
+    db.flush()
 
     logger.info("Deleted %d reports and %d output directories", count, deleted_dirs)
     return {"deleted": count, "dirs_cleaned": deleted_dirs}
 
 
 @router.get("/compare", response_model=ReportCompareResponse)
-async def compare(
+def compare(
     report_a: int = Query(..., description="First report ID"),
     report_b: int = Query(..., description="Second report ID"),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Compare two reports."""
     try:
-        return await compare_reports(db, report_a, report_b)
+        return compare_reports(db, report_a, report_b)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
 @router.get("/{report_id}", response_model=ReportDetailResponse)
-async def get_report_detail(
+def get_report_detail(
     report_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Get report with all test results."""
-    report = await get_report(db, report_id)
+    report = get_report(db, report_id)
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
 
-    results = await get_test_results(db, report_id)
+    results = get_test_results(db, report_id)
     return ReportDetailResponse(
         report=ReportResponse.model_validate(report),
         test_results=[TestResultResponse.model_validate(r) for r in results],
@@ -159,16 +159,16 @@ async def get_report_detail(
 
 
 @router.get("/{report_id}/html")
-async def get_report_html(
+def get_report_html(
     report_id: int,
     token: str | None = Query(default=None),
     credentials: HTTPAuthorizationCredentials | None = Depends(optional_bearer),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Serve the original Robot Framework HTML report with injected base tag."""
-    await _authenticate_flexible(token, credentials, db)
+    _authenticate_flexible(token, credentials, db)
 
-    report = await get_report(db, report_id)
+    report = get_report(db, report_id)
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
 
@@ -200,17 +200,17 @@ async def get_report_html(
 
 
 @router.get("/{report_id}/assets/{file_path:path}")
-async def get_report_asset(
+def get_report_asset(
     report_id: int,
     file_path: str,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Serve a file from the report's output directory (screenshots, etc.).
 
     No auth required — assets are scoped by report ID with path traversal protection.
     This allows the iframe'd HTML report to load resources without token forwarding.
     """
-    report = await get_report(db, report_id)
+    report = get_report(db, report_id)
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
 
@@ -243,15 +243,15 @@ async def get_report_asset(
 
 
 @router.get("/{report_id}/zip")
-async def get_report_zip(
+def get_report_zip(
     report_id: int,
     token: str | None = Query(default=None),
     credentials: HTTPAuthorizationCredentials | None = Depends(optional_bearer),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Download the entire report directory as a ZIP archive."""
-    await _authenticate_flexible(token, credentials, db)
-    report = await get_report(db, report_id)
+    _authenticate_flexible(token, credentials, db)
+    report = get_report(db, report_id)
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
 
@@ -287,13 +287,13 @@ async def get_report_zip(
 
 
 @router.get("/{report_id}/xml-data", response_model=XmlReportDataResponse)
-async def get_report_xml_data(
+def get_report_xml_data(
     report_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Get deep-parsed XML data with full keyword-level hierarchy."""
-    report = await get_report(db, report_id)
+    report = get_report(db, report_id)
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
 
@@ -323,18 +323,18 @@ async def get_report_xml_data(
 
 
 @router.get("/{report_id}/tests", response_model=list[TestResultResponse])
-async def get_report_tests(
+def get_report_tests(
     report_id: int,
     status_filter: str | None = Query(default=None, alias="status"),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Get individual test results for a report."""
-    report = await get_report(db, report_id)
+    report = get_report(db, report_id)
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
 
-    results = await get_test_results(db, report_id)
+    results = get_test_results(db, report_id)
     if status_filter:
         results = [r for r in results if r.status == status_filter.upper()]
 

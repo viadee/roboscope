@@ -61,7 +61,7 @@ All settings are in the `.env` file (created automatically from `.env.example` o
 |----------|---------|-------------|
 | `PORT` | `8145` | Server port |
 | `HOST` | `0.0.0.0` | Bind address (`0.0.0.0` = all interfaces, `127.0.0.1` = localhost only) |
-| `DATABASE_URL` | `sqlite+aiosqlite:///./mateox.db` | Database connection string |
+| `DATABASE_URL` | `sqlite:///./mateox.db` | Database connection string |
 | `SECRET_KEY` | `CHANGE-ME-IN-PRODUCTION` | JWT signing key (change this!) |
 | `DEBUG` | `false` | Enable debug mode |
 | `LOG_LEVEL` | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
@@ -82,12 +82,12 @@ Then restart with `./start.sh` (or `start.bat`).
 
 Edit `.env`:
 ```
-DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/mateox
+DATABASE_URL=postgresql://user:password@localhost:5432/mateox
 ```
 
-Note: PostgreSQL requires the `asyncpg` driver. Install it with:
+Note: PostgreSQL requires the `psycopg2` driver. Install it with:
 ```bash
-.venv/bin/pip install asyncpg
+.venv/bin/pip install psycopg2-binary
 ```
 
 ## System Requirements

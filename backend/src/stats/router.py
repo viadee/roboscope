@@ -4,7 +4,7 @@ import asyncio
 import json
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
 from src.auth.dependencies import get_current_user, require_role
@@ -41,97 +41,97 @@ router = APIRouter()
 
 
 @router.get("/overview", response_model=OverviewKpi)
-async def overview(
+def overview(
     days: int = Query(default=30, ge=1, le=365),
     repository_id: int | None = Query(default=None),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Get dashboard overview KPIs."""
-    return await get_overview(db, repository_id, days)
+    return get_overview(db, repository_id, days)
 
 
 @router.get("/success-rate", response_model=list[SuccessRatePoint])
-async def success_rate(
+def success_rate(
     days: int = Query(default=30, ge=1, le=365),
     repository_id: int | None = Query(default=None),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Get success rate trend over time."""
-    return await get_success_rate_trend(db, days, repository_id)
+    return get_success_rate_trend(db, days, repository_id)
 
 
 @router.get("/trends", response_model=list[TrendPoint])
-async def trends(
+def trends(
     days: int = Query(default=30, ge=1, le=365),
     repository_id: int | None = Query(default=None),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Get pass/fail/error trends over time."""
-    return await get_trends(db, days, repository_id)
+    return get_trends(db, days, repository_id)
 
 
 @router.get("/flaky", response_model=list[FlakyTest])
-async def flaky_tests(
+def flaky_tests(
     days: int = Query(default=30, ge=1, le=365),
     min_runs: int = Query(default=3, ge=2),
     repository_id: int | None = Query(default=None),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Get flaky test analysis."""
-    return await get_flaky_tests(db, days, min_runs, repository_id)
+    return get_flaky_tests(db, days, min_runs, repository_id)
 
 
 @router.get("/duration", response_model=list[DurationStat])
-async def duration_stats(
+def duration_stats(
     days: int = Query(default=30, ge=1, le=365),
     repository_id: int | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Get test duration statistics."""
-    return await get_duration_stats(db, days, repository_id, limit)
+    return get_duration_stats(db, days, repository_id, limit)
 
 
 @router.get("/heatmap", response_model=list[HeatmapCell])
-async def heatmap(
+def heatmap(
     days: int = Query(default=14, ge=1, le=90),
     repository_id: int | None = Query(default=None),
     limit: int = Query(default=30, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Get failure heatmap data."""
-    return await get_heatmap_data(db, days, repository_id, limit)
+    return get_heatmap_data(db, days, repository_id, limit)
 
 
 @router.post("/aggregate")
-async def aggregate_kpis(
+def aggregate_kpis(
     days: int = Query(default=365, ge=1, le=3650),
     _current_user: User = Depends(get_current_user),
 ):
     """Trigger KPI aggregation from execution runs into KpiRecord table."""
-    result = await asyncio.to_thread(aggregate_daily_kpis, days)
+    result = aggregate_daily_kpis(days)
     return result
 
 
 @router.get("/data-status")
-async def data_status(
+def data_status(
     _current_user: User = Depends(get_current_user),
 ):
     """Return staleness info: last aggregation date vs last finished run."""
-    return await asyncio.to_thread(get_data_status)
+    return get_data_status()
 
 
 # --- Analysis endpoints ---
 
 
 @router.get("/analysis/kpis")
-async def available_kpis(
+def available_kpis(
     _current_user: User = Depends(get_current_user),
 ):
     """Return metadata for all available KPIs."""
@@ -139,14 +139,14 @@ async def available_kpis(
 
 
 @router.post("/analysis", response_model=AnalysisResponse)
-async def create_analysis_endpoint(
+def create_analysis_endpoint(
     data: AnalysisCreate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.RUNNER)),
 ):
     """Create a new analysis and dispatch background computation."""
-    analysis = await create_analysis(db, data, current_user.id)
-    await db.commit()
+    analysis = create_analysis(db, data, current_user.id)
+    db.commit()
     dispatch_task(run_analysis, analysis.id)
 
     # Re-serialize for response
@@ -154,25 +154,25 @@ async def create_analysis_endpoint(
 
 
 @router.get("/analysis", response_model=list[AnalysisListResponse])
-async def list_analyses_endpoint(
+def list_analyses_endpoint(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """List all analyses (paginated, without results blob)."""
-    analyses = await list_analyses(db, page, page_size)
+    analyses = list_analyses(db, page, page_size)
     return [_analysis_to_list_response(a) for a in analyses]
 
 
 @router.get("/analysis/{analysis_id}", response_model=AnalysisResponse)
-async def get_analysis_endpoint(
+def get_analysis_endpoint(
     analysis_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Get a single analysis with full results."""
-    analysis = await get_analysis(db, analysis_id)
+    analysis = get_analysis(db, analysis_id)
     if not analysis:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Analysis not found")

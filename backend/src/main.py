@@ -12,7 +12,7 @@ from starlette.responses import FileResponse
 
 from src.api.v1.router import api_router
 from src.config import settings
-from src.database import create_tables, get_db, AsyncSessionLocal
+from src.database import create_tables, SessionLocal
 from src.websocket.manager import ws_manager
 
 logger = logging.getLogger("mateox")
@@ -37,25 +37,25 @@ async def lifespan(app: FastAPI):
     logger.info("Task executor: in-process ThreadPoolExecutor (max_workers=1)")
 
     # Create tables (in production, use Alembic migrations instead)
-    await create_tables()
+    create_tables()
 
     # Seed default admin user
-    async with AsyncSessionLocal() as session:
+    with SessionLocal() as session:
         from src.auth.service import ensure_admin_exists
-        await ensure_admin_exists(session)
-        await session.commit()
+        ensure_admin_exists(session)
+        session.commit()
 
     # Seed default settings
-    async with AsyncSessionLocal() as session:
+    with SessionLocal() as session:
         from src.settings.service import seed_default_settings
-        await seed_default_settings(session)
-        await session.commit()
+        seed_default_settings(session)
+        session.commit()
 
     # Seed "Examples" project with bundled test files
-    async with AsyncSessionLocal() as session:
+    with SessionLocal() as session:
         from src.repos.models import Repository
         from sqlalchemy import select
-        result = await session.execute(
+        result = session.execute(
             select(Repository).where(Repository.name == "Examples")
         )
         if result.scalar_one_or_none() is None:
@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
                     created_by=1,
                 )
                 session.add(repo)
-                await session.commit()
+                session.commit()
                 logger.info("Seeded 'Examples' project: %s", examples_dir)
             else:
                 logger.warning("Examples directory not found: %s", examples_dir)

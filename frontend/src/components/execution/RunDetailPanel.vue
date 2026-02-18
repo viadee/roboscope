@@ -80,6 +80,12 @@ watch(() => props.run.id, () => {
   reports.activeReport = null
   fetchReport()
 })
+
+watch(() => props.run.status, (newStatus, oldStatus) => {
+  if (newStatus !== oldStatus && canHaveReport.value && !reportId.value) {
+    fetchReport()
+  }
+})
 </script>
 
 <template>

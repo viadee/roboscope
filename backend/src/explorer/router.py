@@ -1,7 +1,7 @@
 """Explorer API endpoints for browsing test files."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.auth.dependencies import get_current_user
 from src.auth.models import User
@@ -38,14 +38,14 @@ router = APIRouter()
 
 
 @router.get("/{repo_id}/tree", response_model=TreeNode)
-async def get_tree(
+def get_tree(
     repo_id: int,
     path: str = Query(default="", description="Relative path within repo"),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Get the file tree for a repository."""
-    repo = await get_repository(db, repo_id)
+    repo = get_repository(db, repo_id)
     if repo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
 
@@ -60,14 +60,14 @@ async def get_tree(
 
 
 @router.get("/{repo_id}/file", response_model=FileContent)
-async def get_file(
+def get_file(
     repo_id: int,
     path: str = Query(..., description="Relative file path within repo"),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Read a file's content."""
-    repo = await get_repository(db, repo_id)
+    repo = get_repository(db, repo_id)
     if repo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
 
@@ -83,15 +83,15 @@ async def get_file(
 
 
 @router.get("/{repo_id}/search", response_model=list[SearchResult])
-async def search(
+def search(
     repo_id: int,
     q: str = Query(..., min_length=1, description="Search query"),
     file_type: str | None = Query(default=None, description="Filter by file type"),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Search for test cases, keywords, and files."""
-    repo = await get_repository(db, repo_id)
+    repo = get_repository(db, repo_id)
     if repo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
 
@@ -99,13 +99,13 @@ async def search(
 
 
 @router.get("/{repo_id}/testcases", response_model=list[TestCaseInfo])
-async def get_testcases(
+def get_testcases(
     repo_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """List all test cases in a repository."""
-    repo = await get_repository(db, repo_id)
+    repo = get_repository(db, repo_id)
     if repo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
 
@@ -113,18 +113,18 @@ async def get_testcases(
 
 
 @router.get("/{repo_id}/library-check", response_model=LibraryCheckResponse)
-async def library_check(
+def library_check(
     repo_id: int,
     environment_id: int = Query(..., description="Environment ID to check against"),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Check which libraries used in the repo are installed in the given environment."""
-    repo = await get_repository(db, repo_id)
+    repo = get_repository(db, repo_id)
     if repo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
 
-    env = await get_environment(db, environment_id)
+    env = get_environment(db, environment_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
 
@@ -154,14 +154,14 @@ async def library_check(
 
 
 @router.post("/{repo_id}/file", response_model=FileContent, status_code=status.HTTP_201_CREATED)
-async def create_new_file(
+def create_new_file(
     repo_id: int,
     body: FileCreateRequest,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Create a new file in the repository."""
-    repo = await get_repository(db, repo_id)
+    repo = get_repository(db, repo_id)
     if repo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
 
@@ -174,14 +174,14 @@ async def create_new_file(
 
 
 @router.put("/{repo_id}/file", response_model=FileContent)
-async def save_file(
+def save_file(
     repo_id: int,
     body: FileSaveRequest,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Save (overwrite) a file's content."""
-    repo = await get_repository(db, repo_id)
+    repo = get_repository(db, repo_id)
     if repo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
 
@@ -194,14 +194,14 @@ async def save_file(
 
 
 @router.delete("/{repo_id}/file", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_existing_file(
+def delete_existing_file(
     repo_id: int,
     path: str = Query(..., description="Relative path of the file to delete"),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Delete a file from the repository."""
-    repo = await get_repository(db, repo_id)
+    repo = get_repository(db, repo_id)
     if repo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
 
@@ -216,14 +216,14 @@ async def delete_existing_file(
 
 
 @router.post("/{repo_id}/file/rename", response_model=FileContent)
-async def rename_existing_file(
+def rename_existing_file(
     repo_id: int,
     body: FileRenameRequest,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Rename or move a file within the repository."""
-    repo = await get_repository(db, repo_id)
+    repo = get_repository(db, repo_id)
     if repo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
 
@@ -238,14 +238,14 @@ async def rename_existing_file(
 
 
 @router.post("/{repo_id}/file/open", status_code=status.HTTP_204_NO_CONTENT)
-async def open_file_in_editor(
+def open_file_in_editor(
     repo_id: int,
     body: FileOpenRequest,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Open a file in the system's default editor."""
-    repo = await get_repository(db, repo_id)
+    repo = get_repository(db, repo_id)
     if repo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
 
@@ -258,14 +258,14 @@ async def open_file_in_editor(
 
 
 @router.post("/{repo_id}/folder/open", status_code=status.HTTP_204_NO_CONTENT)
-async def open_folder_in_file_browser(
+def open_folder_in_file_browser(
     repo_id: int,
     body: FileOpenRequest,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Open a folder in the system's file browser (Finder/Explorer/Nautilus)."""
-    repo = await get_repository(db, repo_id)
+    repo = get_repository(db, repo_id)
     if repo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
 

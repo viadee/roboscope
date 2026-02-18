@@ -4,7 +4,7 @@ import json
 from datetime import date, timedelta
 
 from sqlalchemy import and_, case, desc, distinct, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.execution.models import ExecutionRun, RunStatus
 from src.reports.models import Report, TestResult
@@ -21,8 +21,8 @@ from src.stats.schemas import (
 )
 
 
-async def get_overview(
-    db: AsyncSession,
+def get_overview(
+    db: Session,
     repository_id: int | None = None,
     days: int = 30,
 ) -> OverviewKpi:
@@ -37,27 +37,27 @@ async def get_overview(
         run_query = run_query.where(ExecutionRun.repository_id == repository_id)
 
     # Total runs
-    total_result = await db.execute(
+    total_result = db.execute(
         select(func.count()).select_from(run_query.subquery())
     )
     total_runs = total_result.scalar() or 0
 
     # Passed runs
     passed_query = run_query.where(ExecutionRun.status == RunStatus.PASSED)
-    passed_result = await db.execute(
+    passed_result = db.execute(
         select(func.count()).select_from(passed_query.subquery())
     )
     passed_runs = passed_result.scalar() or 0
 
     # Failed runs
     failed_query = run_query.where(ExecutionRun.status == RunStatus.FAILED)
-    failed_result = await db.execute(
+    failed_result = db.execute(
         select(func.count()).select_from(failed_query.subquery())
     )
     failed_runs = failed_result.scalar() or 0
 
     # Average duration
-    avg_result = await db.execute(
+    avg_result = db.execute(
         select(func.avg(ExecutionRun.duration_seconds)).where(
             ExecutionRun.created_at >= str(since),
             ExecutionRun.duration_seconds.is_not(None),
@@ -66,7 +66,7 @@ async def get_overview(
     avg_duration = avg_result.scalar() or 0.0
 
     # Total tests from reports
-    test_count_result = await db.execute(
+    test_count_result = db.execute(
         select(func.sum(Report.total_tests)).where(
             Report.created_at >= str(since)
         )
@@ -74,7 +74,7 @@ async def get_overview(
     total_tests = test_count_result.scalar() or 0
 
     # Active repos
-    repo_result = await db.execute(
+    repo_result = db.execute(
         select(func.count(distinct(ExecutionRun.repository_id))).where(
             ExecutionRun.created_at >= str(since)
         )
@@ -96,8 +96,8 @@ async def get_overview(
     )
 
 
-async def get_success_rate_trend(
-    db: AsyncSession,
+def get_success_rate_trend(
+    db: Session,
     days: int = 30,
     repository_id: int | None = None,
 ) -> list[SuccessRatePoint]:
@@ -110,7 +110,7 @@ async def get_success_rate_trend(
     if repository_id:
         query = query.where(KpiRecord.repository_id == repository_id)
 
-    result = await db.execute(query)
+    result = db.execute(query)
     records = result.scalars().all()
 
     # Group by date
@@ -132,8 +132,8 @@ async def get_success_rate_trend(
     return points
 
 
-async def get_trends(
-    db: AsyncSession,
+def get_trends(
+    db: Session,
     days: int = 30,
     repository_id: int | None = None,
 ) -> list[TrendPoint]:
@@ -144,7 +144,7 @@ async def get_trends(
     if repository_id:
         query = query.where(KpiRecord.repository_id == repository_id)
 
-    result = await db.execute(query)
+    result = db.execute(query)
     records = result.scalars().all()
 
     date_map: dict[date, TrendPoint] = {}
@@ -162,8 +162,8 @@ async def get_trends(
     return sorted(date_map.values(), key=lambda p: p.date)
 
 
-async def get_flaky_tests(
-    db: AsyncSession,
+def get_flaky_tests(
+    db: Session,
     days: int = 30,
     min_runs: int = 3,
     repository_id: int | None = None,
@@ -185,7 +185,7 @@ async def get_flaky_tests(
     if repository_id:
         query = query.where(ExecutionRun.repository_id == repository_id)
 
-    result = await db.execute(query)
+    result = db.execute(query)
     rows = result.all()
 
     # Group by test name
@@ -228,8 +228,8 @@ async def get_flaky_tests(
     return flaky_tests
 
 
-async def get_duration_stats(
-    db: AsyncSession,
+def get_duration_stats(
+    db: Session,
     days: int = 30,
     repository_id: int | None = None,
     limit: int = 20,
@@ -255,7 +255,7 @@ async def get_duration_stats(
     if repository_id:
         query = query.where(ExecutionRun.repository_id == repository_id)
 
-    result = await db.execute(query)
+    result = db.execute(query)
     rows = result.all()
 
     return [
@@ -270,8 +270,8 @@ async def get_duration_stats(
     ]
 
 
-async def get_heatmap_data(
-    db: AsyncSession,
+def get_heatmap_data(
+    db: Session,
     days: int = 14,
     repository_id: int | None = None,
     limit: int = 30,
@@ -298,7 +298,7 @@ async def get_heatmap_data(
     if repository_id:
         failing_query = failing_query.where(ExecutionRun.repository_id == repository_id)
 
-    failing_result = await db.execute(failing_query)
+    failing_result = db.execute(failing_query)
     top_failing = [row.test_name for row in failing_result.all()]
 
     if not top_failing:
@@ -320,7 +320,7 @@ async def get_heatmap_data(
         )
     )
 
-    result = await db.execute(query)
+    result = db.execute(query)
     cells: list[HeatmapCell] = []
 
     for row in result.all():
@@ -338,8 +338,8 @@ async def get_heatmap_data(
 # --- Analysis CRUD ---
 
 
-async def create_analysis(
-    db: AsyncSession,
+def create_analysis(
+    db: Session,
     data: AnalysisCreate,
     user_id: int,
 ) -> AnalysisReport:
@@ -353,26 +353,26 @@ async def create_analysis(
         triggered_by=user_id,
     )
     db.add(analysis)
-    await db.flush()
+    db.flush()
     return analysis
 
 
-async def get_analysis(db: AsyncSession, analysis_id: int) -> AnalysisReport | None:
+def get_analysis(db: Session, analysis_id: int) -> AnalysisReport | None:
     """Get a single analysis report by ID."""
-    result = await db.execute(
+    result = db.execute(
         select(AnalysisReport).where(AnalysisReport.id == analysis_id)
     )
     return result.scalar_one_or_none()
 
 
-async def list_analyses(
-    db: AsyncSession,
+def list_analyses(
+    db: Session,
     page: int = 1,
     page_size: int = 20,
 ) -> list[AnalysisReport]:
     """List analysis reports, most recent first."""
     offset = (page - 1) * page_size
-    result = await db.execute(
+    result = db.execute(
         select(AnalysisReport)
         .order_by(desc(AnalysisReport.created_at))
         .offset(offset)

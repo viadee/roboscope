@@ -50,41 +50,41 @@ class TestJwt:
 
 
 class TestUserService:
-    async def test_create_user(self, db_session):
+    def test_create_user(self, db_session):
         data = RegisterRequest(
             email="new@test.com",
             username="newuser",
             password="pass123",
         )
-        user = await create_user(db_session, data)
+        user = create_user(db_session, data)
         assert user.id is not None
         assert user.email == "new@test.com"
         assert user.username == "newuser"
         assert user.hashed_password != "pass123"
 
-    async def test_get_user_by_email(self, db_session, admin_user):
-        user = await get_user_by_email(db_session, "admin@test.com")
+    def test_get_user_by_email(self, db_session, admin_user):
+        user = get_user_by_email(db_session, "admin@test.com")
         assert user is not None
         assert user.id == admin_user.id
 
-    async def test_get_user_by_email_not_found(self, db_session):
-        user = await get_user_by_email(db_session, "nonexistent@test.com")
+    def test_get_user_by_email_not_found(self, db_session):
+        user = get_user_by_email(db_session, "nonexistent@test.com")
         assert user is None
 
-    async def test_get_user_by_id(self, db_session, admin_user):
-        user = await get_user_by_id(db_session, admin_user.id)
+    def test_get_user_by_id(self, db_session, admin_user):
+        user = get_user_by_id(db_session, admin_user.id)
         assert user is not None
         assert user.email == "admin@test.com"
 
-    async def test_authenticate_user_correct(self, db_session, admin_user):
-        user = await authenticate_user(db_session, "admin@test.com", "admin123")
+    def test_authenticate_user_correct(self, db_session, admin_user):
+        user = authenticate_user(db_session, "admin@test.com", "admin123")
         assert user is not None
         assert user.id == admin_user.id
 
-    async def test_authenticate_user_wrong_password(self, db_session, admin_user):
-        user = await authenticate_user(db_session, "admin@test.com", "wrong")
+    def test_authenticate_user_wrong_password(self, db_session, admin_user):
+        user = authenticate_user(db_session, "admin@test.com", "wrong")
         assert user is None
 
-    async def test_authenticate_user_nonexistent(self, db_session):
-        user = await authenticate_user(db_session, "ghost@test.com", "pass")
+    def test_authenticate_user_nonexistent(self, db_session):
+        user = authenticate_user(db_session, "ghost@test.com", "pass")
         assert user is None

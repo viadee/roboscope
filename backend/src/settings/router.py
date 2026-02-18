@@ -5,7 +5,7 @@ import logging
 import subprocess
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
 from src.auth.dependencies import require_role
@@ -21,23 +21,23 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[SettingResponse])
-async def get_settings(
+def get_settings(
     category: str | None = Query(default=None),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     """List all application settings."""
-    return await list_settings(db, category)
+    return list_settings(db, category)
 
 
 @router.patch("", response_model=list[SettingResponse])
-async def patch_settings(
+def patch_settings(
     data: SettingsBulkUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     """Update multiple settings."""
-    return await update_settings(db, data.settings)
+    return update_settings(db, data.settings)
 
 
 def _get_docker_client():
@@ -68,7 +68,7 @@ def _get_docker_client():
 
 
 @router.get("/docker-status")
-async def get_docker_status(
+def get_docker_status(
     _current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     """Probe Docker daemon and return status info."""

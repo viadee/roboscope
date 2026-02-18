@@ -4,7 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import PlainTextResponse
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
 from src.auth.dependencies import get_current_user, require_role
@@ -46,22 +46,22 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[EnvResponse])
-async def get_environments(
-    db: AsyncSession = Depends(get_db),
+def get_environments(
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """List all environments."""
-    return await list_environments(db)
+    return list_environments(db)
 
 
 @router.post("", response_model=EnvResponse, status_code=status.HTTP_201_CREATED)
-async def add_environment(
+def add_environment(
     data: EnvCreate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.EDITOR)),
 ):
     """Create a new environment."""
-    return await create_environment(db, data, current_user.id)
+    return create_environment(db, data, current_user.id)
 
 
 # Default RF packages for quick setup
@@ -74,13 +74,13 @@ DEFAULT_RF_PACKAGES = [
 
 
 @router.post("/setup-default", response_model=EnvResponse, status_code=status.HTTP_201_CREATED)
-async def setup_default_environment(
-    db: AsyncSession = Depends(get_db),
+def setup_default_environment(
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.EDITOR)),
 ):
     """Create a default environment with essential Robot Framework libraries."""
     # Check if mateo-default already exists
-    result = await db.execute(
+    result = db.execute(
         select(Environment).where(Environment.name == "mateo-default")
     )
     if result.scalar_one_or_none() is not None:
@@ -89,7 +89,7 @@ async def setup_default_environment(
             detail="Default environment 'mateo-default' already exists",
         )
 
-    env = await create_environment(
+    env = create_environment(
         db,
         EnvCreate(
             name="mateo-default",
@@ -101,7 +101,7 @@ async def setup_default_environment(
     )
 
     for pkg_name in DEFAULT_RF_PACKAGES:
-        await add_package(db, env.id, PackageCreate(package_name=pkg_name))
+        add_package(db, env.id, PackageCreate(package_name=pkg_name))
 
     # Detect Docker availability and configure accordingly
     docker_available = _is_docker_available()
@@ -109,7 +109,7 @@ async def setup_default_environment(
         env.default_runner_type = "docker"
         logger.info("Docker detected — default environment will use Docker runner")
 
-    await db.commit()
+    db.commit()
 
     # Dispatch venv creation first, then package installs (FIFO queue)
     try:
@@ -148,74 +148,74 @@ def _is_docker_available() -> bool:
 
 
 @router.get("/{env_id}", response_model=EnvResponse)
-async def get_env(
+def get_env(
     env_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """Get environment details."""
-    env = await get_environment(db, env_id)
+    env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
     return env
 
 
 @router.patch("/{env_id}", response_model=EnvResponse)
-async def patch_env(
+def patch_env(
     env_id: int,
     data: EnvUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.EDITOR)),
 ):
     """Update an environment."""
-    env = await get_environment(db, env_id)
+    env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
-    return await update_environment(db, env, data)
+    return update_environment(db, env, data)
 
 
 @router.delete("/{env_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_env(
+def remove_env(
     env_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     """Delete an environment."""
-    env = await get_environment(db, env_id)
+    env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
-    await delete_environment(db, env)
+    delete_environment(db, env)
 
 
 @router.post("/{env_id}/clone", response_model=EnvResponse, status_code=status.HTTP_201_CREATED)
-async def clone_env(
+def clone_env(
     env_id: int,
     new_name: str = Query(..., min_length=1, max_length=255),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.EDITOR)),
 ):
     """Clone an environment."""
-    env = await get_environment(db, env_id)
+    env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
-    return await clone_environment(db, env, new_name, current_user.id)
+    return clone_environment(db, env, new_name, current_user.id)
 
 
 # --- Docker Image ---
 
 
 @router.get("/{env_id}/dockerfile", response_class=PlainTextResponse)
-async def get_dockerfile(
+def get_dockerfile(
     env_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.EDITOR)),
 ):
     """Generate and return a Dockerfile for this environment."""
-    env = await get_environment(db, env_id)
+    env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
 
-    packages = await list_packages(db, env_id)
+    packages = list_packages(db, env_id)
     if not packages:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -237,24 +237,24 @@ async def get_dockerfile(
 
 
 @router.post("/{env_id}/docker-build")
-async def docker_build(
+def docker_build(
     env_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.EDITOR)),
 ):
     """Build a Docker image for this environment."""
-    env = await get_environment(db, env_id)
+    env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
 
-    packages = await list_packages(db, env_id)
+    packages = list_packages(db, env_id)
     if not packages:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Environment has no packages",
         )
 
-    await db.commit()
+    db.commit()
 
     safe_name = env.name.lower().replace(" ", "-")
     image_tag = f"mateox/{safe_name}:latest"
@@ -296,7 +296,7 @@ POPULAR_RF_LIBRARIES = [
 
 
 @router.get("/packages/popular")
-async def get_popular_packages(
+def get_popular_packages(
     _current_user: User = Depends(get_current_user),
 ):
     """Get list of popular Robot Framework libraries."""
@@ -304,53 +304,53 @@ async def get_popular_packages(
 
 
 @router.get("/packages/search", response_model=list[PyPISearchResult])
-async def search_packages(
+def search_packages(
     q: str = Query(..., min_length=2, max_length=100),
     _current_user: User = Depends(get_current_user),
 ):
     """Search PyPI for packages."""
-    return await search_pypi(q)
+    return search_pypi(q)
 
 
 @router.get("/{env_id}/packages", response_model=list[PackageResponse])
-async def get_packages(
+def get_packages(
     env_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """List packages in an environment."""
-    env = await get_environment(db, env_id)
+    env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
-    return await list_packages(db, env_id)
+    return list_packages(db, env_id)
 
 
 @router.get("/{env_id}/packages/installed")
-async def get_installed_packages(
+def get_installed_packages(
     env_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """List all pip-installed packages in an environment's venv."""
-    env = await get_environment(db, env_id)
+    env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
     return pip_list_installed(env.venv_path)
 
 
 @router.post("/{env_id}/packages", response_model=PackageResponse, status_code=status.HTTP_201_CREATED)
-async def install_package(
+def install_package(
     env_id: int,
     data: PackageCreate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.EDITOR)),
 ):
     """Install a package in an environment."""
-    env = await get_environment(db, env_id)
+    env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
 
-    pkg = await add_package(db, env_id, data)
+    pkg = add_package(db, env_id, data)
 
     # Trigger async installation
     try:
@@ -368,21 +368,21 @@ async def install_package(
 
 
 @router.post("/{env_id}/packages/{package_name}/upgrade", response_model=PackageResponse)
-async def upgrade_package(
+def upgrade_package(
     env_id: int,
     package_name: str,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.EDITOR)),
 ):
     """Upgrade a package to its latest version."""
-    env = await get_environment(db, env_id)
+    env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
 
     # Find existing package record
     from sqlalchemy import select
     from src.environments.models import EnvironmentPackage
-    result = await db.execute(
+    result = db.execute(
         select(EnvironmentPackage).where(
             EnvironmentPackage.environment_id == env_id,
             EnvironmentPackage.package_name == package_name,
@@ -394,8 +394,8 @@ async def upgrade_package(
 
     # Clear version constraint and trigger upgrade
     pkg.version = None
-    await db.flush()
-    await db.refresh(pkg)
+    db.flush()
+    db.refresh(pkg)
 
     try:
         from src.environments.tasks import upgrade_package
@@ -412,17 +412,17 @@ async def upgrade_package(
 
 
 @router.delete("/{env_id}/packages/{package_name}", status_code=status.HTTP_204_NO_CONTENT)
-async def uninstall_package(
+def uninstall_package(
     env_id: int,
     package_name: str,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.EDITOR)),
 ):
     """Remove a package from an environment."""
-    env = await get_environment(db, env_id)
+    env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
-    await remove_package(db, env_id, package_name)
+    remove_package(db, env_id, package_name)
 
     try:
         from src.environments.tasks import uninstall_package
@@ -440,16 +440,16 @@ async def uninstall_package(
 
 
 @router.get("/{env_id}/variables", response_model=list[EnvVarResponse])
-async def get_variables(
+def get_variables(
     env_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """List variables in an environment."""
-    env = await get_environment(db, env_id)
+    env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
-    variables = await list_variables(db, env_id)
+    variables = list_variables(db, env_id)
     # Mask secret values
     for var in variables:
         if var.is_secret:
@@ -458,14 +458,14 @@ async def get_variables(
 
 
 @router.post("/{env_id}/variables", response_model=EnvVarResponse, status_code=status.HTTP_201_CREATED)
-async def create_variable(
+def create_variable(
     env_id: int,
     data: EnvVarCreate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.EDITOR)),
 ):
     """Add a variable to an environment."""
-    env = await get_environment(db, env_id)
+    env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
-    return await add_variable(db, env_id, data)
+    return add_variable(db, env_id, data)
