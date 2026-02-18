@@ -1,7 +1,7 @@
 """Background tasks for repository operations."""
 
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import create_engine, select
@@ -47,7 +47,7 @@ def clone_repo(repo_id: int, max_retries: int = 3) -> dict:
                     repo.name, repo.git_url, attempt + 1, max_retries,
                 )
                 clone_repository(repo.git_url, repo.local_path, repo.default_branch)
-                repo.last_synced_at = datetime.now(UTC)
+                repo.last_synced_at = datetime.now(timezone.utc)
                 repo.sync_status = "success"
                 repo.sync_error = None
                 session.commit()
@@ -100,7 +100,7 @@ def sync_repo(repo_id: int, max_retries: int = 3) -> dict:
                         return {"status": "error", "message": "No git URL configured"}
                     logger.info("Local path missing — cloning %s from %s", repo.name, repo.git_url)
                     clone_repository(repo.git_url, repo.local_path, repo.default_branch)
-                    repo.last_synced_at = datetime.now(UTC)
+                    repo.last_synced_at = datetime.now(timezone.utc)
                     repo.sync_status = "success"
                     repo.sync_error = None
                     session.commit()
@@ -108,7 +108,7 @@ def sync_repo(repo_id: int, max_retries: int = 3) -> dict:
 
                 # Pull latest changes
                 result = sync_repository(repo.local_path, repo.default_branch)
-                repo.last_synced_at = datetime.now(UTC)
+                repo.last_synced_at = datetime.now(timezone.utc)
                 repo.sync_status = "success"
                 repo.sync_error = None
                 session.commit()

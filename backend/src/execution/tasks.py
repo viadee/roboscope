@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import create_engine, select
@@ -84,7 +84,7 @@ def execute_test_run(run_id: int) -> dict:
 
         # Update status to RUNNING
         run.status = RunStatus.RUNNING
-        run.started_at = datetime.now(UTC)
+        run.started_at = datetime.now(timezone.utc)
         session.commit()
         _broadcast_run_status(run_id, RunStatus.RUNNING)
 
@@ -118,7 +118,7 @@ def execute_test_run(run_id: int) -> dict:
             if repo is None:
                 run.status = RunStatus.ERROR
                 run.error_message = "Repository not found"
-                run.finished_at = datetime.now(UTC)
+                run.finished_at = datetime.now(timezone.utc)
                 session.commit()
                 _broadcast_run_status(run_id, RunStatus.ERROR)
                 return {"status": "error", "message": "Repository not found"}
@@ -141,7 +141,7 @@ def execute_test_run(run_id: int) -> dict:
 
             # Update run with results
             run.duration_seconds = result.duration_seconds
-            run.finished_at = datetime.now(UTC)
+            run.finished_at = datetime.now(timezone.utc)
 
             if result.success:
                 run.status = RunStatus.PASSED
@@ -185,7 +185,7 @@ def execute_test_run(run_id: int) -> dict:
             logger.exception("Error executing run %d", run.id)
             run.status = RunStatus.ERROR
             run.error_message = str(e)[:1000]
-            run.finished_at = datetime.now(UTC)
+            run.finished_at = datetime.now(timezone.utc)
             session.commit()
             _broadcast_run_status(run_id, RunStatus.ERROR)
             return {"status": "error", "message": str(e)}

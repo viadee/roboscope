@@ -1,7 +1,7 @@
 """Execution API endpoints: runs and schedules."""
 
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -148,7 +148,7 @@ async def cancel_all_runs(
     cancelled = 0
     for run in runs:
         run.status = RunStatus.CANCELLED
-        run.finished_at = datetime.now(UTC)
+        run.finished_at = datetime.now(timezone.utc)
         cancelled += 1
     await db.flush()
     logger.info("Cancelled %d runs", cancelled)

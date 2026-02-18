@@ -1,7 +1,7 @@
 """Execution service: run management, scheduling."""
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -84,9 +84,9 @@ async def update_run_status(
     run.status = status
 
     if status == RunStatus.RUNNING:
-        run.started_at = datetime.now(UTC)
+        run.started_at = datetime.now(timezone.utc)
     elif status in (RunStatus.PASSED, RunStatus.FAILED, RunStatus.ERROR, RunStatus.CANCELLED, RunStatus.TIMEOUT):
-        run.finished_at = datetime.now(UTC)
+        run.finished_at = datetime.now(timezone.utc)
 
     if error_message is not None:
         run.error_message = error_message

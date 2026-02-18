@@ -1,7 +1,7 @@
 """Repository management service: Git operations, CRUD."""
 
 import shutil
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import select
