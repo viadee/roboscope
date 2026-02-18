@@ -86,18 +86,21 @@ for dep in data['project']['dependencies']:
 DEPS_FILE=$(mktemp)
 _read_deps > "$DEPS_FILE"
 
-# Download platform-specific binary wheels for all targets
+# Download platform-specific binary wheels for all targets and Python versions
 for plat in manylinux2014_x86_64 macosx_11_0_arm64 macosx_10_9_x86_64 win_amd64; do
-  echo "    Downloading wheels for $plat..."
-  python3 -m pip download \
-    -r "$DEPS_FILE" \
-    -d "$DIST/wheels" \
-    --platform "$plat" \
-    --python-version 3.12 \
-    --implementation cp \
-    --abi cp312 \
-    --only-binary :all: \
-    2>/dev/null || echo "    (some packages skipped for $plat)"
+  for pyver in 3.10 3.11 3.12 3.13; do
+    abi="cp${pyver//./}"
+    echo "    Downloading wheels for $plat (Python $pyver)..."
+    python3 -m pip download \
+      -r "$DEPS_FILE" \
+      -d "$DIST/wheels" \
+      --platform "$plat" \
+      --python-version "$pyver" \
+      --implementation cp \
+      --abi "$abi" \
+      --only-binary :all: \
+      2>/dev/null || true
+  done
 done
 
 # Final pass: download remaining pure-python wheels and any missed deps
