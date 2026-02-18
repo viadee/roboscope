@@ -21,8 +21,8 @@ const navItems = computed(() => {
     { path: '/repos', labelKey: 'nav.repos', icon: '\uD83D\uDCC1' },
     { path: '/explorer', labelKey: 'nav.explorer', icon: '\uD83D\uDD0D' },
     { path: '/runs', labelKey: 'nav.execution', icon: '\u25B6', badge: activeCount.value || undefined },
-    { path: '/reports', labelKey: 'nav.reports', icon: '\uD83D\uDCCA' },
     { path: '/stats', labelKey: 'nav.stats', icon: '\uD83D\uDCC8' },
+    { path: '/docs', labelKey: 'nav.docs', icon: '\uD83D\uDCD6' },
   ]
 
   if (auth.hasMinRole('editor')) {
@@ -110,7 +110,7 @@ function isActive(path: string): boolean {
 }
 
 .logo-img {
-  height: 36px;
+  height: 54px;
   width: auto;
 }
 

@@ -21,7 +21,8 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 - Bulk-Operationen: Cancel all runs (RUNNER+), Delete all reports (ADMIN)
 
 **Frontend (Vue 3 + TypeScript) — VOLLSTÄNDIG implementiert (~4.900 Zeilen)**
-- 10 Views: Login, Dashboard, Repos, Explorer, Execution, Environments, Reports, ReportDetail, Stats, Settings
+- 11 Views: Login, Dashboard, Repos, Explorer, Execution, Environments, Reports, ReportDetail, Stats, Settings, Docs
+- In-App-Dokumentation: DocsView mit TOC-Sidebar, Suche, Print/PDF, i18n (EN+DE), offline-fähig
 - 8 Pinia Stores: auth, repos, explorer, execution, environments, reports, stats, ui
 - 8 API-Clients: auth, repos, explorer, execution, environments, reports, stats, settings
 - 5 Base UI-Komponenten: BaseButton, BaseBadge, BaseModal, BaseToast, BaseSpinner
@@ -63,6 +64,7 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] "Alle löschen" Button auf Reports-Seite (DELETE /reports/all, nur für ADMIN, mit Bestätigungsdialog)
 - [x] Error-Handling: Fehlgeschlagene Dispatches → Run-Status ERROR + sichtbare Fehlermeldung
 - [x] E2E Tests für Execution (7/7 bestanden)
+- [x] In-App-Dokumentation (DocsView, EN+DE, TOC, Suche, Print/PDF, offline-fähig)
 
 **Offen:**
 - [ ] i18n für gesamte Anwendung (DE, EN, FR, ES)
@@ -102,6 +104,7 @@ mateoX/
 ├── frontend/         # Vue 3 + TypeScript + Vite
 │   └── src/
 │       ├── api/      # Axios API-Client mit JWT-Interceptor
+│       ├── docs/     # In-App-Dokumentation (types, content/en, content/de)
 │       ├── stores/   # Pinia Stores (auth, repos, explorer, execution, ...)
 │       ├── views/    # 10 Views (Login, Dashboard, Repos, Explorer, ...)
 │       ├── components/ # UI-Basiskomponenten + Layout

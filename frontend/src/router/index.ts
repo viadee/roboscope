@@ -45,12 +45,6 @@ const router = createRouter({
       meta: { requiresAuth: true, minRole: 'editor' },
     },
     {
-      path: '/reports',
-      name: 'reports',
-      component: () => import('@/views/ReportsView.vue'),
-      meta: { requiresAuth: true },
-    },
-    {
       path: '/reports/:id',
       name: 'report-detail',
       component: () => import('@/views/ReportDetailView.vue'),
@@ -67,6 +61,12 @@ const router = createRouter({
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),
       meta: { requiresAuth: true, minRole: 'admin' },
+    },
+    {
+      path: '/docs',
+      name: 'docs',
+      component: () => import('@/views/DocsView.vue'),
+      meta: { requiresAuth: true },
     },
     {
       path: '/:pathMatch(.*)*',
