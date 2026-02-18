@@ -103,19 +103,48 @@ async def setup_default_environment(
     for pkg_name in DEFAULT_RF_PACKAGES:
         await add_package(db, env.id, PackageCreate(package_name=pkg_name))
 
+    # Detect Docker availability and configure accordingly
+    docker_available = _is_docker_available()
+    if docker_available:
+        env.default_runner_type = "docker"
+        logger.info("Docker detected — default environment will use Docker runner")
+
     await db.commit()
 
     # Dispatch venv creation first, then package installs (FIFO queue)
     try:
-        from src.environments.tasks import create_venv, install_package as install_package_task
+        from src.environments.tasks import (
+            create_venv,
+            install_package as install_package_task,
+            build_docker_image,
+        )
 
         dispatch_task(create_venv, env.id)
         for pkg_name in DEFAULT_RF_PACKAGES:
             dispatch_task(install_package_task, env.id, pkg_name, None)
+
+        # If Docker is available, queue a Docker image build after packages
+        if docker_available:
+            dispatch_task(build_docker_image, env.id)
     except TaskDispatchError as e:
         logger.error("Failed to dispatch default env tasks: %s", e)
 
     return env
+
+
+def _is_docker_available() -> bool:
+    """Check if Docker is available on this system."""
+    import subprocess as _sp
+
+    try:
+        result = _sp.run(
+            ["docker", "info"],
+            capture_output=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
 
 
 @router.get("/{env_id}", response_model=EnvResponse)
