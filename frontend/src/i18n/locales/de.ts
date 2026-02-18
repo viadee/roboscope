@@ -52,7 +52,7 @@ export default {
     email: 'E-Mail',
     password: 'Passwort',
     loginFailed: 'Anmeldung fehlgeschlagen',
-    hint: 'Standard: admin@mateox.local / admin123',
+    hint: "Standard: admin{'@'}mateox.local / admin123",
   },
   dashboard: {
     title: 'Dashboard',

@@ -365,6 +365,15 @@ Beim ersten Start wird automatisch erstellt:
 - Admin-User: `admin@mateox.local` / `admin123`
 - "Examples"-Projekt: Zeigt auf `backend/examples/tests/` mit 5 Beispiel-Robot-Dateien
 
+### vue-i18n: Sonderzeichen in Übersetzungen escapen
+vue-i18n v10 verwendet eine strikte Message-Syntax. Folgende Zeichen sind **reserviert** und müssen in Übersetzungstexten escaped werden:
+- `@` → `{'@'}` (Linked-Message-Syntax, z.B. `admin{'@'}mateox.local`)
+- `|` → `{'|'}` (Plural-Trennzeichen)
+- `{` / `}` → `{'{}'}` (Placeholder-Syntax)
+- `#` → kann in Plural-Kontexten problematisch sein
+
+**Wichtig:** Im Dev-Modus (Vite) ist der Message-Compiler toleranter; im Production-Build (dist) führen unescapte Sonderzeichen zu `SyntaxError` und die betroffene Komponente rendert nicht (blanker Bildschirm). Immer im Production-Build testen!
+
 ## Coding-Konventionen
 
 - **Backend**: Python 3.12+, Ruff (line-length=100), mypy strict, async/await
