@@ -47,6 +47,10 @@ if [ -d "$ROOT/backend/migrations" ]; then
   cp "$ROOT/backend/alembic.ini" "$DIST/" 2>/dev/null || true
 fi
 
+# ── Copy README ─────────────────────────────────────────────
+cp "$ROOT/scripts/dist-README.md" "$DIST/README.md"
+echo "    README: $DIST/README.md"
+
 # ── 4. Download Python wheels for offline install ─────────────
 echo "==> Downloading Python wheels..."
 mkdir -p "$DIST/wheels"
@@ -146,7 +150,7 @@ SECRET_KEY=CHANGE-ME-IN-PRODUCTION
 
 # Server
 HOST=0.0.0.0
-PORT=8000
+PORT=8145
 DEBUG=false
 
 # Logging
@@ -202,12 +206,12 @@ else
 fi
 
 echo "==> Starting mateoX..."
-echo "    URL: http://localhost:${PORT:-8000}"
-echo "    API: http://localhost:${PORT:-8000}/api/v1/docs"
+echo "    URL: http://localhost:${PORT:-8145}"
+echo "    API: http://localhost:${PORT:-8145}/api/v1/docs"
 echo "    Default login: admin@mateox.local / admin123"
 echo ""
 
-python -m uvicorn src.main:app --host "${HOST:-0.0.0.0}" --port "${PORT:-8000}"
+python -m uvicorn src.main:app --host "${HOST:-0.0.0.0}" --port "${PORT:-8145}"
 STARTEOF
 chmod +x "$DIST/start.sh"
 
@@ -243,12 +247,12 @@ if not exist .venv (
 call .venv\Scripts\activate.bat
 
 echo ==> Starting mateoX...
-echo     URL: http://localhost:8000
-echo     API: http://localhost:8000/api/v1/docs
+echo     URL: http://localhost:8145
+echo     API: http://localhost:8145/api/v1/docs
 echo     Default login: admin@mateox.local / admin123
 echo.
 
-python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
+python -m uvicorn src.main:app --host 0.0.0.0 --port 8145
 BATEOF
 
 # ── 10. Create ZIP ───────────────────────────────────────────

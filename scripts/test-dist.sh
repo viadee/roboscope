@@ -149,6 +149,7 @@ echo "==> Step 2: Checking dist contents..."
 [ -f "$DIST/start.bat" ] && pass "start.bat" || fail "start.bat missing"
 [ -f "$DIST/.env.example" ] && pass ".env.example" || fail ".env.example missing"
 [ -f "$DIST/pyproject.toml" ] && pass "pyproject.toml" || fail "pyproject.toml missing"
+[ -f "$DIST/README.md" ] && pass "README.md" || fail "README.md missing"
 
 if [ "$MODE" = "offline" ]; then
   [ -d "$DIST/wheels" ] && pass "wheels/ directory" || fail "wheels/ missing"
