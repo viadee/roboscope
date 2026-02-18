@@ -28,6 +28,13 @@ export const useReposStore = defineStore('repos', () => {
     return await reposApi.syncRepo(id)
   }
 
+  async function updateRepo(id: number, data: Partial<Repository>): Promise<Repository> {
+    const updated = await reposApi.updateRepo(id, data)
+    const idx = repos.value.findIndex((r) => r.id === id)
+    if (idx >= 0) repos.value[idx] = updated
+    return updated
+  }
+
   async function removeRepo(id: number) {
     await reposApi.deleteRepo(id)
     repos.value = repos.value.filter((r) => r.id !== id)
@@ -41,5 +48,5 @@ export const useReposStore = defineStore('repos', () => {
     return repos.value.find((r) => r.id === id)
   }
 
-  return { repos, loading, branches, fetchRepos, addRepo, syncRepo, removeRepo, fetchBranches, getRepo }
+  return { repos, loading, branches, fetchRepos, addRepo, updateRepo, syncRepo, removeRepo, fetchBranches, getRepo }
 })

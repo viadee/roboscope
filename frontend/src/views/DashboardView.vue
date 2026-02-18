@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useStatsStore } from '@/stores/stats.store'
 import { useExecutionStore } from '@/stores/execution.store'
 import { useReposStore } from '@/stores/repos.store'
@@ -9,10 +10,15 @@ import BaseBadge from '@/components/ui/BaseBadge.vue'
 import { formatDuration } from '@/utils/formatDuration'
 import { formatTimeAgo } from '@/utils/formatDate'
 
+const router = useRouter()
 const stats = useStatsStore()
 const execution = useExecutionStore()
 const repos = useReposStore()
 const { t } = useI18n()
+
+function goToRun(runId: number) {
+  router.push({ path: '/runs', query: { run: String(runId) } })
+}
 
 onMounted(async () => {
   await Promise.all([
@@ -71,7 +77,12 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="run in execution.runs.slice(0, 10)" :key="run.id">
+            <tr
+              v-for="run in execution.runs.slice(0, 10)"
+              :key="run.id"
+              class="clickable-row"
+              @click="goToRun(run.id)"
+            >
               <td>#{{ run.id }}</td>
               <td class="text-sm">{{ run.target_path }}</td>
               <td><BaseBadge :status="run.status" /></td>
@@ -123,6 +134,15 @@ onMounted(async () => {
   margin-top: 4px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.clickable-row {
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.clickable-row:hover {
+  background: var(--color-bg-hover, #f8fafc);
 }
 
 .repo-grid {

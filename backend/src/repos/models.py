@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+import src.environments.models  # noqa: F401 — FK resolution
 from src.database import Base, TimestampMixin
 
 
@@ -25,3 +26,6 @@ class Repository(Base, TimestampMixin):
     sync_status: Mapped[str | None] = mapped_column(String(20), nullable=True, default="idle")
     sync_error: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    environment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("environments.id", ondelete="SET NULL"), nullable=True, default=None
+    )

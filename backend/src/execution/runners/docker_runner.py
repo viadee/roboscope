@@ -18,10 +18,37 @@ class DockerRunner(AbstractRunner):
         self._cancelled = False
 
     def _get_client(self):
-        """Lazy-load Docker client."""
+        """Lazy-load Docker client, resolving socket from Docker context if needed."""
         if self._client is None:
             import docker
-            self._client = docker.from_env()
+            try:
+                self._client = docker.from_env()
+                self._client.ping()
+            except Exception:
+                # docker.from_env() fails when DOCKER_HOST is unset and the
+                # default /var/run/docker.sock doesn't exist (e.g. Rancher
+                # Desktop, Colima, Docker Desktop on macOS).  Fall back to the
+                # socket advertised by `docker context inspect`.
+                import json
+                import subprocess
+
+                base_url = None
+                try:
+                    out = subprocess.check_output(
+                        ["docker", "context", "inspect"], text=True, timeout=5,
+                    )
+                    ctx = json.loads(out)
+                    if isinstance(ctx, list) and ctx:
+                        host = ctx[0].get("Endpoints", {}).get("docker", {}).get("Host", "")
+                        if host:
+                            base_url = host
+                except Exception:
+                    pass
+
+                if base_url:
+                    self._client = docker.DockerClient(base_url=base_url)
+                else:
+                    raise
         return self._client
 
     def prepare(self, repo_path: str, target_path: str, env_config: dict | None = None) -> None:

@@ -9,6 +9,8 @@ class EnvCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     python_version: str = "3.12"
     docker_image: str | None = None
+    default_runner_type: str = "subprocess"
+    max_docker_containers: int = 1
     is_default: bool = False
     description: str | None = None
 
@@ -17,6 +19,8 @@ class EnvUpdate(BaseModel):
     name: str | None = None
     python_version: str | None = None
     docker_image: str | None = None
+    default_runner_type: str | None = None
+    max_docker_containers: int | None = None
     is_default: bool | None = None
     description: str | None = None
 
@@ -27,6 +31,8 @@ class EnvResponse(BaseModel):
     python_version: str
     venv_path: str | None = None
     docker_image: str | None = None
+    default_runner_type: str
+    max_docker_containers: int
     is_default: bool
     description: str | None = None
     created_by: int

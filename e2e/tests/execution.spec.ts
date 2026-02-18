@@ -22,6 +22,19 @@ test.describe('Execution Page', () => {
     await expect(newRunButton).toBeVisible();
   });
 
+  test('should show simplified table with 5 columns', async ({ page }) => {
+    await page.goto('/runs');
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('h1', { hasText: 'Ausführung' })).toBeVisible({ timeout: 10_000 });
+
+    // Check if table exists; if so verify column count
+    const hasTable = await page.locator('.data-table').isVisible().catch(() => false);
+    if (hasTable) {
+      const headers = await page.locator('.data-table thead th').allTextContents();
+      expect(headers).toHaveLength(5);
+    }
+  });
+
   test('should show empty state or run list', async ({ page }) => {
     await page.goto('/runs');
     await page.waitForLoadState('networkidle');
@@ -52,5 +65,32 @@ test.describe('Execution Page', () => {
     // Cancel
     await page.getByRole('button', { name: 'Abbrechen' }).click();
     await expect(page.getByText('Neuen Run starten')).not.toBeVisible({ timeout: 3_000 });
+  });
+
+  test('should show clickable rows in run table', async ({ page }) => {
+    await page.goto('/runs');
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('h1', { hasText: 'Ausführung' })).toBeVisible({ timeout: 10_000 });
+
+    const rows = page.locator('.data-table tbody .clickable-row');
+    const rowCount = await rows.count();
+    if (rowCount > 0) {
+      // Click first row — detail panel should appear
+      await rows.first().click();
+      await expect(page.locator('.run-detail-panel')).toBeVisible({ timeout: 5_000 });
+
+      // Click the same row again — detail panel should collapse
+      await rows.first().click();
+      await expect(page.locator('.run-detail-panel')).not.toBeVisible({ timeout: 3_000 });
+    }
+  });
+
+  test('should show delete all reports button for admin', async ({ page }) => {
+    await page.goto('/runs');
+    await expect(page.locator('h1', { hasText: 'Ausführung' })).toBeVisible({ timeout: 10_000 });
+
+    // Admin should see the delete all reports button
+    const deleteBtn = page.getByRole('button', { name: /Alle Reports löschen/ });
+    await expect(deleteBtn).toBeVisible();
   });
 });

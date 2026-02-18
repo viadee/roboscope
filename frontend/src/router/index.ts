@@ -69,6 +69,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/imprint',
+      name: 'imprint',
+      component: () => import('@/views/ImprintView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       redirect: '/dashboard',

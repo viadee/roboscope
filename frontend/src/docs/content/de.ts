@@ -285,6 +285,62 @@ const de: DocsContent = [
 </p>`
       },
       {
+        id: 'library-check',
+        title: 'Library-Check (Paket-Manager)',
+        content: `
+<p>
+  Der <strong>Library-Check</strong> scannt die <code>.robot</code>- und
+  <code>.resource</code>-Dateien eines Repositories nach <code>Library</code>-Imports
+  und pr\u00FCft, ob die entsprechenden Python-Pakete in einer ausgew\u00E4hlten
+  Umgebung installiert sind.
+</p>
+<h4>Verwendung</h4>
+<ol>
+  <li>Klicken Sie auf der <strong>Repositories</strong>-Seite auf den <strong>Library-Check</strong>-Button einer Repository-Karte.</li>
+  <li>W\u00E4hlen Sie eine <strong>Umgebung</strong> aus dem Dropdown (vorbelegt mit der Standard-Umgebung des Repositories).</li>
+  <li>Klicken Sie auf <strong>Scannen</strong>.</li>
+</ol>
+<h4>Ergebnisse</h4>
+<p>Die Scan-Ergebnisse zeigen eine Tabelle mit jeder Library und ihrem Status:</p>
+<ul>
+  <li><strong>Installiert</strong> (gr\u00FCn) \u2014 Das PyPI-Paket ist in der Umgebung installiert, mit Versionsanzeige.</li>
+  <li><strong>Fehlt</strong> (rot) \u2014 Die Library wird in Testdateien verwendet, ist aber nicht installiert. Ein <strong>Installieren</strong>-Button erm\u00F6glicht die Ein-Klick-Installation.</li>
+  <li><strong>Built-in</strong> (grau) \u2014 Die Library geh\u00F6rt zur Robot Framework Standardbibliothek (z.B. Collections, String, BuiltIn).</li>
+</ul>
+<h4>Fehlende Libraries installieren</h4>
+<p>
+  Klicken Sie auf <strong>Installieren</strong> neben einer fehlenden Library oder nutzen Sie
+  <strong>Alle fehlenden installieren</strong> f\u00FCr die Batch-Installation.
+</p>
+<h4>Standard-Umgebung</h4>
+<p>
+  Jedem Repository kann eine <strong>Standard-Umgebung</strong> zugewiesen werden.
+  Diese wird beim \u00D6ffnen des Library-Check-Dialogs automatisch vorausgew\u00E4hlt.
+</p>`,
+        tip: 'F\u00FChren Sie nach dem Klonen eines neuen Repositories einen Library-Check durch, um alle ben\u00F6tigten Abh\u00E4ngigkeiten zu identifizieren.'
+      },
+      {
+        id: 'repositories-environment',
+        title: 'Projekt-Umgebung',
+        content: `
+<p>
+  Jedem Projekt kann eine <strong>Standard-Umgebung</strong> zugeordnet werden.
+  Diese wird automatisch bei Testausf\u00FChrungen und im Library-Check-Dialog
+  vorausgew\u00E4hlt.
+</p>
+<h4>Umgebung ausw\u00E4hlen</h4>
+<p>
+  Auf der <strong>Projekte</strong>-Seite zeigt jede Projektkarte ein Dropdown zur
+  Umgebungsauswahl. W\u00E4hlen Sie eine Umgebung aus der Liste \u2014 die \u00C4nderung
+  wird sofort gespeichert.
+</p>
+<p>
+  Wenn eine systemweite Standard-Umgebung konfiguriert ist, wird diese beim
+  Hinzuf\u00FCgen neuer Projekte automatisch vorausgew\u00E4hlt.
+</p>`,
+        tip: 'Weisen Sie jedem Projekt die korrekte Umgebung zu, um Fehler durch fehlende Bibliotheken zu vermeiden.'
+      },
+      {
         id: 'repositories-bulk',
         title: 'Bulk-Auswahl & L\u00F6schen',
         content: `
@@ -732,6 +788,30 @@ const de: DocsContent = [
   </tbody>
 </table>`,
         tip: 'Flaky Tests untergraben das Vertrauen in die Testautomatisierung. Priorisieren Sie deren Stabilisierung, um verl\u00E4ssliche Ergebnisse zu erhalten.'
+      },
+      {
+        id: 'statistics-refresh',
+        title: 'Aktualisieren & Datenaktualit\u00E4t',
+        content: `
+<p>
+  Statistikdaten k\u00F6nnen veralten, wenn neue Testl\u00E4ufe abgeschlossen werden.
+  Ein Hinweis-Banner erscheint oben auf der Seite, wenn die Daten seit l\u00E4ngerer
+  Zeit nicht aktualisiert wurden.
+</p>
+<h4>Manuelles Aktualisieren</h4>
+<p>
+  Klicken Sie auf den <strong>Aktualisieren</strong>-Button, um alle KPI-Karten,
+  Diagramme und Tabellen mit den neuesten Daten neu zu laden.
+</p>
+<h4>\u00DCbersicht & Tiefenanalyse</h4>
+<p>
+  Die Statistik-Seite ist in zwei Tabs unterteilt:
+</p>
+<ul>
+  <li><strong>\u00DCbersicht</strong> \u2014 KPI-Karten, Erfolgsquoten-Chart, Pass/Fail-Trend und Flaky-Test-Erkennung.</li>
+  <li><strong>Tiefenanalyse</strong> \u2014 On-Demand-Analyse von Keyword-Analytik, Testqualit\u00E4t und Wartungsindikatoren. W\u00E4hlen Sie KPIs aus und starten Sie eine Analyse f\u00FCr tiefere Einblicke.</li>
+</ul>`,
+        tip: 'Nutzen Sie die Tiefenanalyse, um Keyword-Laufzeiten, Assertion-Dichte und Fehlermuster in Ihren Testsuiten zu untersuchen.'
       }
     ]
   },
@@ -951,6 +1031,26 @@ const de: DocsContent = [
   <li>Der aktuell angemeldete Benutzer kann nicht gel\u00F6scht werden</li>
   <li>Der letzte verbleibende Admin kann nicht gel\u00F6scht werden</li>
 </ul>`
+      },
+      {
+        id: 'settings-password-reset',
+        title: 'Passwort zur\u00FCcksetzen',
+        content: `
+<p>
+  Administratoren k\u00F6nnen das Passwort eines Benutzers direkt \u00FCber die
+  Benutzerverwaltung zur\u00FCcksetzen:
+</p>
+<ol>
+  <li>Navigieren Sie zu <strong>Einstellungen \u2192 Benutzer</strong>.</li>
+  <li>Klicken Sie auf den Button <strong>Passwort zur\u00FCcksetzen</strong> in der entsprechenden Zeile.</li>
+  <li>Geben Sie das neue Passwort ein (mindestens 6 Zeichen).</li>
+  <li>Klicken Sie auf <strong>Passwort setzen</strong>.</li>
+</ol>
+<p>
+  Die \u00C4nderung wird sofort wirksam. Bestehende Sitzungen des Benutzers
+  bleiben aktiv, aber beim n\u00E4chsten Login wird das neue Passwort ben\u00F6tigt.
+</p>`,
+        tip: 'Kommunizieren Sie das neue Passwort auf einem sicheren Kanal an den Benutzer.'
       }
     ]
   },
@@ -1116,6 +1216,42 @@ const de: DocsContent = [
   Die vollst\u00E4ndige API-Dokumentation mit allen Endpunkten, Parametern und
   Antwortformaten finden Sie in der interaktiven
   <strong>Swagger UI</strong> unter <code>/api/v1/docs</code>.
+</p>`
+      }
+    ]
+  },
+
+  // ─── Rechtliches & Info ─────────────────────────────────────────
+  {
+    id: 'legal',
+    title: 'Rechtliches & Info',
+    icon: 'info',
+    subsections: [
+      {
+        id: 'legal-footer',
+        title: 'Footer',
+        content: `
+<p>
+  Am unteren Rand jeder Seite befindet sich ein Footer mit folgenden Informationen:
+</p>
+<ul>
+  <li>Der <strong>Copyright-Hinweis</strong> der viadee Unternehmensberatung AG.</li>
+  <li>Ein Link zur <strong>mateo-automation.com</strong>-Website.</li>
+  <li>Ein Link zum <strong>Impressum</strong>.</li>
+</ul>`
+      },
+      {
+        id: 'legal-imprint',
+        title: 'Impressum',
+        content: `
+<p>
+  Die <strong>Impressum</strong>-Seite enth\u00E4lt die gesetzlich vorgeschriebenen
+  Angaben gem\u00E4\u00DF \u00A7 5 TMG f\u00FCr die <em>viadee Unternehmensberatung AG</em>:
+  Firmenadresse, Kontaktdaten, Vorstand, Handelsregistereintrag und
+  Umsatzsteuer-Identifikationsnummer.
+</p>
+<p>
+  Erreichbar \u00FCber den Footer-Link oder direkt unter <code>/imprint</code>.
 </p>`
       }
     ]

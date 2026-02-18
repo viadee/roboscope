@@ -35,6 +35,12 @@ echo "==> Copying backend..."
 cp -r "$ROOT/backend/src" "$DIST/src"
 cp "$ROOT/backend/pyproject.toml" "$DIST/"
 
+# Copy example test files for the seeded "Examples" project
+if [ -d "$ROOT/backend/examples" ]; then
+  cp -r "$ROOT/backend/examples" "$DIST/examples"
+  echo "    Examples: $DIST/examples"
+fi
+
 # Copy migrations if they exist
 if [ -d "$ROOT/backend/migrations" ]; then
   cp -r "$ROOT/backend/migrations" "$DIST/migrations"
@@ -44,24 +50,45 @@ fi
 # ── 4. Download Python wheels for offline install ─────────────
 echo "==> Downloading Python wheels..."
 mkdir -p "$DIST/wheels"
-pip download \
-  -r <(cd "$ROOT/backend" && pip-compile --quiet --no-header pyproject.toml -o - 2>/dev/null || \
-       python3 -c "
-import tomllib, pathlib
+
+# Helper: extract dependencies from pyproject.toml (works with Python 3.10+)
+_read_deps() {
+  cd "$ROOT/backend"
+  python3 -c "
+import pathlib
+try:
+    import tomllib
+except ModuleNotFoundError:
+    try:
+        import tomli as tomllib
+    except ModuleNotFoundError:
+        import sys
+        lines = pathlib.Path('pyproject.toml').read_text().splitlines()
+        in_deps = False
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('dependencies') and '=' in stripped:
+                in_deps = True
+                continue
+            if in_deps:
+                if stripped == ']':
+                    break
+                dep = stripped.strip(',').strip('\"').strip(\"'\")
+                if dep and dep != '[':
+                    print(dep)
+        sys.exit(0)
 data = tomllib.loads(pathlib.Path('pyproject.toml').read_text())
 for dep in data['project']['dependencies']:
     print(dep)
-") \
+"
+}
+
+python3 -m pip download \
+  -r <(cd "$ROOT/backend" && pip-compile --quiet --no-header pyproject.toml -o - 2>/dev/null || _read_deps) \
   -d "$DIST/wheels" \
   --no-deps 2>/dev/null || {
     echo "    Falling back to pip download from pyproject.toml..."
-    cd "$ROOT/backend"
-    python3 -c "
-import tomllib, pathlib
-data = tomllib.loads(pathlib.Path('pyproject.toml').read_text())
-for dep in data['project']['dependencies']:
-    print(dep)
-" | xargs pip download -d "$DIST/wheels"
+    _read_deps | xargs python3 -m pip download -d "$DIST/wheels"
   }
 echo "    Wheels: $(ls "$DIST/wheels" | wc -l | tr -d ' ') packages"
 
@@ -81,11 +108,13 @@ HOST=0.0.0.0
 PORT=8000
 DEBUG=false
 
-# Celery/Redis (optional — leave disabled for single-user)
-CELERY_ENABLED=false
-
 # Logging
 LOG_LEVEL=INFO
+
+# Directories (defaults shown — adjust if needed)
+# WORKSPACE_DIR=~/.mateox/workspace
+# REPORTS_DIR=~/.mateox/reports
+# VENVS_DIR=~/.mateox/venvs
 ENVEOF
 
 # ── 6. Create install script ─────────────────────────────────

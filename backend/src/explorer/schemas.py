@@ -78,3 +78,26 @@ class FileOpenRequest(BaseModel):
     """Request to open a file in the system editor."""
 
     path: str
+
+
+class LibraryCheckItem(BaseModel):
+    """A single library check result."""
+
+    library_name: str
+    pypi_package: str | None = None
+    status: str  # "installed", "missing", "builtin"
+    installed_version: str | None = None
+    files: list[str] = []
+
+
+class LibraryCheckResponse(BaseModel):
+    """Response for the library check endpoint."""
+
+    repo_id: int
+    environment_id: int
+    environment_name: str
+    total_libraries: int
+    missing_count: int
+    installed_count: int
+    builtin_count: int
+    libraries: list[LibraryCheckItem]

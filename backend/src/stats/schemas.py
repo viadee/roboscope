@@ -1,8 +1,8 @@
 """Pydantic schemas for KPI and statistics."""
 
-from datetime import date
+from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class OverviewKpi(BaseModel):
@@ -77,3 +77,108 @@ class StatsFilter(BaseModel):
     branch: str | None = None
     environment_id: int | None = None
     tag: str | None = None
+
+
+# --- Analysis schemas ---
+
+
+class AnalysisCreate(BaseModel):
+    """Request to create a new analysis."""
+
+    repository_id: int | None = None
+    selected_kpis: list[str]
+    date_from: date | None = None
+    date_to: date | None = None
+
+
+class AnalysisResponse(BaseModel):
+    """Full analysis response with results."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    repository_id: int | None = None
+    status: str
+    selected_kpis: list[str] | str
+    date_from: date | None = None
+    date_to: date | None = None
+    results: dict | str | None = None
+    error_message: str | None = None
+    progress: int = 0
+    reports_analyzed: int = 0
+    triggered_by: int
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    created_at: datetime
+
+
+class AnalysisListResponse(BaseModel):
+    """Lightweight analysis list item (without results blob)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    repository_id: int | None = None
+    status: str
+    selected_kpis: list[str] | str
+    date_from: date | None = None
+    date_to: date | None = None
+    error_message: str | None = None
+    progress: int = 0
+    reports_analyzed: int = 0
+    triggered_by: int
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    created_at: datetime
+
+
+AVAILABLE_KPIS: dict[str, dict] = {
+    "keyword_frequency": {
+        "id": "keyword_frequency",
+        "name": "Keyword Frequency",
+        "category": "keywords",
+        "description": "Top used keywords ranked by call count, with library and percentage",
+    },
+    "keyword_duration_impact": {
+        "id": "keyword_duration_impact",
+        "name": "Keyword Duration Impact",
+        "category": "keywords",
+        "description": "Keywords ranked by cumulative time consumed",
+    },
+    "library_distribution": {
+        "id": "library_distribution",
+        "name": "Library Distribution",
+        "category": "keywords",
+        "description": "Keyword calls distributed across libraries",
+    },
+    "test_complexity": {
+        "id": "test_complexity",
+        "name": "Test Complexity",
+        "category": "quality",
+        "description": "Steps per test case: avg/min/max with histogram distribution",
+    },
+    "assertion_density": {
+        "id": "assertion_density",
+        "name": "Assertion Density",
+        "category": "quality",
+        "description": "Ratio of assertion keywords to total per test",
+    },
+    "tag_coverage": {
+        "id": "tag_coverage",
+        "name": "Tag Coverage",
+        "category": "quality",
+        "description": "Tag distribution, untagged test count, avg tags per test",
+    },
+    "error_patterns": {
+        "id": "error_patterns",
+        "name": "Error Patterns",
+        "category": "maintenance",
+        "description": "Cluster similar error messages by frequency",
+    },
+    "redundancy_detection": {
+        "id": "redundancy_detection",
+        "name": "Redundancy Detection",
+        "category": "maintenance",
+        "description": "Repeated keyword sequences appearing across multiple tests",
+    },
+}

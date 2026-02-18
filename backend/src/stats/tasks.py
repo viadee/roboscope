@@ -1,7 +1,7 @@
 """Background tasks for KPI aggregation."""
 
 import logging
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ import src.repos.models  # noqa: F401
 from src.execution.models import ExecutionRun, RunStatus
 from src.reports.models import Report
 from src.stats.models import KpiRecord
+from src.stats.analysis import run_analysis  # noqa: F401 — re-export for task registration
 
 logger = logging.getLogger("mateox.stats.tasks")
 
@@ -25,30 +26,40 @@ def _get_sync_session() -> Session:
     return Session(_sync_engine)
 
 
-def aggregate_daily_kpis() -> dict:
-    """Aggregate daily KPIs from execution runs."""
-    today = date.today()
+def aggregate_daily_kpis(days: int = 365) -> dict:
+    """Aggregate daily KPIs from execution runs.
+
+    Covers all dates with runs in the last ``days`` days (default: all).
+    Existing KpiRecords are updated (upsert).
+    """
+    since = date.today() - timedelta(days=days)
 
     with _get_sync_session() as session:
-        # Get all repos that had runs today
-        repo_query = select(
+        # Get all distinct (date, repo, branch) combos with runs in the range
+        combo_query = select(
+            func.date(ExecutionRun.created_at).label("run_date"),
             ExecutionRun.repository_id,
             ExecutionRun.branch,
         ).where(
-            func.date(ExecutionRun.created_at) == today,
+            func.date(ExecutionRun.created_at) >= since,
         ).distinct()
 
-        repos = session.execute(repo_query).all()
+        combos = session.execute(combo_query).all()
 
         aggregated = 0
-        for row in repos:
+        for row in combos:
+            run_date = row.run_date
             repo_id = row.repository_id
             branch = row.branch
 
-            # Check if record already exists for today
+            # Normalize run_date (might be string from SQLite)
+            if isinstance(run_date, str):
+                run_date = date.fromisoformat(run_date)
+
+            # Check if record already exists
             existing = session.execute(
                 select(KpiRecord).where(
-                    KpiRecord.date == today,
+                    KpiRecord.date == run_date,
                     KpiRecord.repository_id == repo_id,
                     KpiRecord.branch == branch,
                 )
@@ -56,7 +67,7 @@ def aggregate_daily_kpis() -> dict:
 
             # Count runs by status
             runs_query = select(ExecutionRun).where(
-                func.date(ExecutionRun.created_at) == today,
+                func.date(ExecutionRun.created_at) == run_date,
                 ExecutionRun.repository_id == repo_id,
                 ExecutionRun.branch == branch,
             )
@@ -85,7 +96,7 @@ def aggregate_daily_kpis() -> dict:
 
             avg_duration = session.execute(
                 select(func.avg(ExecutionRun.duration_seconds)).where(
-                    func.date(ExecutionRun.created_at) == today,
+                    func.date(ExecutionRun.created_at) == run_date,
                     ExecutionRun.repository_id == repo_id,
                     ExecutionRun.branch == branch,
                     ExecutionRun.duration_seconds.is_not(None),
@@ -103,7 +114,7 @@ def aggregate_daily_kpis() -> dict:
                 existing.success_rate = round(success_rate, 1)
             else:
                 record = KpiRecord(
-                    date=today,
+                    date=run_date,
                     repository_id=repo_id,
                     branch=branch,
                     total_runs=total,
@@ -118,5 +129,45 @@ def aggregate_daily_kpis() -> dict:
             aggregated += 1
 
         session.commit()
-        logger.info("Aggregated KPIs for %d repo/branch combos on %s", aggregated, today)
-        return {"status": "success", "aggregated": aggregated, "date": str(today)}
+        logger.info("Aggregated KPIs for %d repo/branch/date combos", aggregated)
+        return {"status": "success", "aggregated": aggregated}
+
+
+def get_data_status() -> dict:
+    """Return timestamps for staleness check.
+
+    Returns the last KPI aggregation date and the last finished run timestamp,
+    so the frontend can determine if data is stale.
+    """
+    with _get_sync_session() as session:
+        # Last KPI aggregation date
+        last_kpi_result = session.execute(
+            select(func.max(KpiRecord.date))
+        )
+        last_kpi_date = last_kpi_result.scalar()
+
+        # Last finished run (terminal status)
+        last_run_result = session.execute(
+            select(func.max(ExecutionRun.updated_at)).where(
+                ExecutionRun.status.in_([
+                    RunStatus.PASSED, RunStatus.FAILED, RunStatus.ERROR,
+                ])
+            )
+        )
+        last_run_at = last_run_result.scalar()
+
+        # Normalize
+        last_aggregated = str(last_kpi_date) if last_kpi_date else None
+        last_run_finished = None
+        if last_run_at:
+            if isinstance(last_run_at, str):
+                last_run_finished = last_run_at
+            elif isinstance(last_run_at, datetime):
+                last_run_finished = last_run_at.isoformat()
+            else:
+                last_run_finished = str(last_run_at)
+
+        return {
+            "last_aggregated": last_aggregated,
+            "last_run_finished": last_run_finished,
+        }

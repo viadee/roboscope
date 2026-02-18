@@ -4,6 +4,8 @@ import pytest
 
 from src.explorer.service import (
     build_tree,
+    check_libraries_against_env,
+    extract_libraries,
     list_all_testcases,
     parse_robot_testcases,
     read_file,
@@ -392,3 +394,162 @@ class TestListAllTestcases:
         testcases = list_all_testcases(str(tmp_path))
         names = [tc.name for tc in testcases]
         assert "Hidden Test" not in names
+
+
+SAMPLE_ROBOT_MULTI_LIB = """\
+*** Settings ***
+Library    Browser
+Library    RequestsLibrary
+Library    Collections
+Library    ./libs/custom.py
+
+*** Test Cases ***
+Example
+    Log    hello
+"""
+
+SAMPLE_RESOURCE_WITH_LIB = """\
+*** Settings ***
+Library    SeleniumLibrary
+
+*** Keywords ***
+Open App
+    Log    opening
+"""
+
+
+class TestExtractLibraries:
+    def test_extract_from_robot_file(self, tmp_path):
+        (tmp_path / "test.robot").write_text(SAMPLE_ROBOT_MULTI_LIB)
+        libs = extract_libraries(str(tmp_path))
+
+        lib_names = [l["library_name"] for l in libs]
+        assert "Browser" in lib_names
+        assert "RequestsLibrary" in lib_names
+        assert "Collections" in lib_names
+        assert "./libs/custom.py" in lib_names
+
+    def test_extract_from_resource_file(self, tmp_path):
+        (tmp_path / "keywords.resource").write_text(SAMPLE_RESOURCE_WITH_LIB)
+        libs = extract_libraries(str(tmp_path))
+
+        lib_names = [l["library_name"] for l in libs]
+        assert "SeleniumLibrary" in lib_names
+
+    def test_extract_tracks_files(self, tmp_path):
+        (tmp_path / "a.robot").write_text(
+            "*** Settings ***\nLibrary    Browser\n\n*** Test Cases ***\nT\n    Log    ok\n"
+        )
+        (tmp_path / "b.robot").write_text(
+            "*** Settings ***\nLibrary    Browser\n\n*** Test Cases ***\nT2\n    Log    ok\n"
+        )
+        libs = extract_libraries(str(tmp_path))
+
+        browser_lib = next(l for l in libs if l["library_name"] == "Browser")
+        assert len(browser_lib["files"]) == 2
+
+    def test_extract_ignores_git_dirs(self, tmp_path):
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+        (git_dir / "test.robot").write_text(
+            "*** Settings ***\nLibrary    SeleniumLibrary\n\n*** Test Cases ***\nT\n    Log    ok\n"
+        )
+        libs = extract_libraries(str(tmp_path))
+        assert len(libs) == 0
+
+    def test_extract_empty_repo(self, tmp_path):
+        libs = extract_libraries(str(tmp_path))
+        assert libs == []
+
+    def test_extract_skips_comments(self, tmp_path):
+        (tmp_path / "test.robot").write_text(
+            "*** Settings ***\n# Library    FakeLib\nLibrary    Browser\n\n"
+            "*** Test Cases ***\nT\n    Log    ok\n"
+        )
+        libs = extract_libraries(str(tmp_path))
+        lib_names = [l["library_name"] for l in libs]
+        assert "FakeLib" not in lib_names
+        assert "Browser" in lib_names
+
+    def test_extract_with_tab_separator(self, tmp_path):
+        (tmp_path / "test.robot").write_text(
+            "*** Settings ***\nLibrary\tBrowser\n\n"
+            "*** Test Cases ***\nT\n    Log    ok\n"
+        )
+        libs = extract_libraries(str(tmp_path))
+        lib_names = [l["library_name"] for l in libs]
+        assert "Browser" in lib_names
+
+
+class TestCheckLibrariesAgainstEnv:
+    def test_builtin_detected(self, tmp_path):
+        (tmp_path / "test.robot").write_text(
+            "*** Settings ***\nLibrary    Collections\nLibrary    String\n\n"
+            "*** Test Cases ***\nT\n    Log    ok\n"
+        )
+        results = check_libraries_against_env(str(tmp_path), [])
+        for r in results:
+            assert r["status"] == "builtin"
+
+    def test_installed_detected(self, tmp_path):
+        (tmp_path / "test.robot").write_text(
+            "*** Settings ***\nLibrary    Browser\n\n"
+            "*** Test Cases ***\nT\n    Log    ok\n"
+        )
+        installed = [{"name": "robotframework-browser", "version": "18.0.0"}]
+        results = check_libraries_against_env(str(tmp_path), installed)
+
+        browser = next(r for r in results if r["library_name"] == "Browser")
+        assert browser["status"] == "installed"
+        assert browser["installed_version"] == "18.0.0"
+        assert browser["pypi_package"] == "robotframework-browser"
+
+    def test_missing_detected(self, tmp_path):
+        (tmp_path / "test.robot").write_text(
+            "*** Settings ***\nLibrary    SeleniumLibrary\n\n"
+            "*** Test Cases ***\nT\n    Log    ok\n"
+        )
+        results = check_libraries_against_env(str(tmp_path), [])
+
+        selenium = next(r for r in results if r["library_name"] == "SeleniumLibrary")
+        assert selenium["status"] == "missing"
+        assert selenium["pypi_package"] == "robotframework-seleniumlibrary"
+
+    def test_normalized_package_matching(self, tmp_path):
+        """Package names with dashes should match those with underscores."""
+        (tmp_path / "test.robot").write_text(
+            "*** Settings ***\nLibrary    RequestsLibrary\n\n"
+            "*** Test Cases ***\nT\n    Log    ok\n"
+        )
+        # pip list often returns names with dashes
+        installed = [{"name": "robotframework-requests", "version": "0.9.7"}]
+        results = check_libraries_against_env(str(tmp_path), installed)
+
+        req = next(r for r in results if r["library_name"] == "RequestsLibrary")
+        assert req["status"] == "installed"
+
+    def test_path_based_import_treated_as_builtin(self, tmp_path):
+        (tmp_path / "test.robot").write_text(
+            "*** Settings ***\nLibrary    ./libs/custom.py\n\n"
+            "*** Test Cases ***\nT\n    Log    ok\n"
+        )
+        results = check_libraries_against_env(str(tmp_path), [])
+
+        custom = next(r for r in results if r["library_name"] == "./libs/custom.py")
+        assert custom["status"] == "builtin"
+
+    def test_mixed_statuses(self, tmp_path):
+        (tmp_path / "test.robot").write_text(
+            "*** Settings ***\n"
+            "Library    Collections\n"
+            "Library    Browser\n"
+            "Library    SeleniumLibrary\n\n"
+            "*** Test Cases ***\nT\n    Log    ok\n"
+        )
+        installed = [{"name": "robotframework-browser", "version": "18.0.0"}]
+        results = check_libraries_against_env(str(tmp_path), installed)
+
+        statuses = {r["library_name"]: r["status"] for r in results}
+        assert statuses["Collections"] == "builtin"
+        assert statuses["Browser"] == "installed"
+        assert statuses["SeleniumLibrary"] == "missing"

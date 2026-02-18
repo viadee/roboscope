@@ -1,5 +1,6 @@
 """Background tasks for test execution."""
 
+import asyncio
 import json
 import logging
 import uuid
@@ -23,6 +24,19 @@ logger = logging.getLogger("mateox.execution.tasks")
 
 _sync_url = settings.sync_database_url
 _sync_engine = create_engine(_sync_url)
+
+
+def _broadcast_run_status(run_id: int, status: str) -> None:
+    """Broadcast a run status change from a sync background thread."""
+    from src.websocket.manager import ws_manager
+    from src.main import _event_loop
+
+    coro = ws_manager.broadcast_run_status(run_id, status)
+
+    if _event_loop and _event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(coro, _event_loop)
+    else:
+        logger.warning("No event loop available to broadcast run %d status", run_id)
 
 
 def _get_sync_session() -> Session:
@@ -53,6 +67,7 @@ def _get_env_config(session: Session, env_id: int | None) -> dict | None:
         "python_version": env.python_version,
         "venv_path": env.venv_path,
         "docker_image": env.docker_image,
+        "default_runner_type": env.default_runner_type,
     }
 
 
@@ -71,6 +86,7 @@ def execute_test_run(run_id: int) -> dict:
         run.status = RunStatus.RUNNING
         run.started_at = datetime.now(UTC)
         session.commit()
+        _broadcast_run_status(run_id, RunStatus.RUNNING)
 
         # Prepare output directory
         output_dir = str(
@@ -82,8 +98,15 @@ def execute_test_run(run_id: int) -> dict:
         # Get environment config
         env_config = _get_env_config(session, run.environment_id)
 
+        # Determine effective runner type: use env default if run still has subprocess default
+        effective_runner_type = run.runner_type
+        if (env_config
+                and env_config.get("default_runner_type") == RunnerType.DOCKER
+                and run.runner_type == RunnerType.SUBPROCESS):
+            effective_runner_type = RunnerType.DOCKER
+
         # Get runner
-        runner = _get_runner(run.runner_type, env_config)
+        runner = _get_runner(effective_runner_type, env_config)
 
         try:
             # Prepare runner
@@ -97,6 +120,7 @@ def execute_test_run(run_id: int) -> dict:
                 run.error_message = "Repository not found"
                 run.finished_at = datetime.now(UTC)
                 session.commit()
+                _broadcast_run_status(run_id, RunStatus.ERROR)
                 return {"status": "error", "message": "Repository not found"}
 
             runner.prepare(repo.local_path, run.target_path, env_config)
@@ -129,6 +153,7 @@ def execute_test_run(run_id: int) -> dict:
                 run.error_message = result.error_message or result.stderr[:1000] if result.stderr else None
 
             session.commit()
+            _broadcast_run_status(run_id, run.status)
 
             # Save stdout/stderr to files in output_dir
             out_path = Path(output_dir)
@@ -162,6 +187,7 @@ def execute_test_run(run_id: int) -> dict:
             run.error_message = str(e)[:1000]
             run.finished_at = datetime.now(UTC)
             session.commit()
+            _broadcast_run_status(run_id, RunStatus.ERROR)
             return {"status": "error", "message": str(e)}
 
         finally:

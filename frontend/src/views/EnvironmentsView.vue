@@ -29,7 +29,13 @@ const searching = ref(false)
 const installing = ref<string | null>(null)
 const installVersion = ref('')
 
+// Docker image build
+const dockerfilePreview = ref<Record<number, string>>({})
+const dockerBuilding = ref<Record<number, boolean>>({})
+
 // Pip list
+const settingUp = ref(false)
+
 const pipInstalled = ref<Record<number, { name: string; version: string }[]>>({})
 
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
@@ -174,6 +180,76 @@ async function removePkg(envId: number, packageName: string) {
   }
 }
 
+async function loadDockerfile(envId: number) {
+  if (dockerfilePreview.value[envId]) return
+  try {
+    dockerfilePreview.value[envId] = await envsApi.getDockerfile(envId)
+  } catch {
+    dockerfilePreview.value[envId] = '# Error loading Dockerfile'
+  }
+}
+
+async function buildDockerImg(envId: number) {
+  dockerBuilding.value[envId] = true
+  try {
+    const result = await envsApi.buildDockerImage(envId)
+    toast.success(t('environments.docker.buildStarted'), t('environments.docker.buildStartedMsg'))
+
+    // Poll until docker_image changes
+    const poll = setInterval(async () => {
+      try {
+        const updated = await envsApi.getEnvironment(envId)
+        if (updated.docker_image === result.image_tag) {
+          clearInterval(poll)
+          dockerBuilding.value[envId] = false
+          // Refresh environments list to show updated docker_image
+          await envs.fetchEnvironments()
+          toast.success(t('environments.docker.buildComplete'))
+        }
+      } catch {
+        // keep polling
+      }
+    }, 3000)
+
+    // Safety timeout: stop polling after 5 minutes
+    setTimeout(() => {
+      clearInterval(poll)
+      dockerBuilding.value[envId] = false
+    }, 300000)
+  } catch (e: any) {
+    toast.error(t('environments.docker.buildFailed'), e.response?.data?.detail || '')
+    dockerBuilding.value[envId] = false
+  }
+}
+
+async function setupDefaultEnv() {
+  settingUp.value = true
+  try {
+    await envs.setupDefault()
+    toast.success(t('environments.setupDefault.toastSuccess'))
+  } catch (e: any) {
+    if (e.response?.status === 409) {
+      toast.error(t('environments.setupDefault.alreadyExists'))
+    } else {
+      toast.error(t('environments.setupDefault.toastError'))
+    }
+  } finally {
+    settingUp.value = false
+  }
+}
+
+async function updateEnvField(envId: number, field: string, value: string | number) {
+  try {
+    await envsApi.updateEnvironment(envId, { [field]: value })
+    const idx = envs.environments.findIndex(e => e.id === envId)
+    if (idx !== -1) {
+      ;(envs.environments[idx] as any)[field] = value
+    }
+  } catch (e: any) {
+    toast.error(t('common.error'), e.response?.data?.detail || t('common.error'))
+  }
+}
+
 function isInstalled(envId: number, packageName: string): boolean {
   return envs.packages[envId]?.some(p => p.package_name === packageName) || false
 }
@@ -248,6 +324,55 @@ function isInstalled(envId: number, packageName: string): boolean {
             <p v-else class="text-muted text-sm">{{ t('environments.noVariables') }}</p>
           </div>
 
+          <!-- Docker Image -->
+          <div v-if="envs.packages[env.id]?.length" class="detail-section">
+            <h4>{{ t('environments.docker.dockerImage') }}</h4>
+            <div v-if="env.docker_image" class="docker-current">
+              <span class="text-sm">{{ t('environments.docker.currentImage') }}:</span>
+              <code class="docker-tag">{{ env.docker_image }}</code>
+            </div>
+            <div class="docker-settings">
+              <div class="docker-setting-row">
+                <label class="text-sm">{{ t('environments.docker.defaultRunner') }}</label>
+                <select
+                  class="form-select form-select-sm"
+                  :value="env.default_runner_type"
+                  @change="updateEnvField(env.id, 'default_runner_type', ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="subprocess">{{ t('environments.docker.runnerSubprocess') }}</option>
+                  <option value="docker">{{ t('environments.docker.runnerDocker') }}</option>
+                </select>
+              </div>
+              <div class="docker-setting-row">
+                <label class="text-sm">{{ t('environments.docker.maxContainers') }}</label>
+                <input
+                  type="number"
+                  class="form-input form-input-sm"
+                  min="1"
+                  max="10"
+                  :value="env.max_docker_containers"
+                  @change="updateEnvField(env.id, 'max_docker_containers', Number(($event.target as HTMLInputElement).value))"
+                  style="width: 80px"
+                />
+                <span class="text-muted text-sm">{{ t('environments.docker.maxContainersHint') }}</span>
+              </div>
+            </div>
+            <details class="docker-preview" @toggle="($event.target as HTMLDetailsElement).open && loadDockerfile(env.id)">
+              <summary class="text-muted text-sm">{{ t('environments.docker.previewDockerfile') }}</summary>
+              <pre v-if="dockerfilePreview[env.id]" class="dockerfile-code">{{ dockerfilePreview[env.id] }}</pre>
+              <BaseSpinner v-else />
+            </details>
+            <div class="docker-build-action">
+              <BaseButton
+                size="sm"
+                :loading="dockerBuilding[env.id]"
+                @click="buildDockerImg(env.id)"
+              >
+                {{ dockerBuilding[env.id] ? t('environments.docker.building') : t('environments.docker.buildImage') }}
+              </BaseButton>
+            </div>
+          </div>
+
           <!-- Actions -->
           <div class="env-actions">
             <BaseButton variant="secondary" size="sm" @click="cloneEnv(env.id, env.name)">{{ t('common.clone') }}</BaseButton>
@@ -256,8 +381,24 @@ function isInstalled(envId: number, packageName: string): boolean {
         </div>
       </div>
 
-      <div v-if="!envs.environments.length" class="card text-center p-6">
-        <p class="text-muted">{{ t('environments.noEnvs') }}</p>
+      <div v-if="!envs.environments.length" class="setup-default-card">
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="setup-icon">
+          <path d="M16.5 9.4l-9-5.19M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+          <line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+        <h3 class="setup-title">{{ t('environments.setupDefault.title') }}</h3>
+        <p class="setup-description">{{ t('environments.setupDefault.description') }}</p>
+        <div class="setup-packages">
+          <span class="setup-pkg-tag">robotframework</span>
+          <span class="setup-pkg-tag">seleniumlibrary</span>
+          <span class="setup-pkg-tag">browser</span>
+          <span class="setup-pkg-tag">requests</span>
+        </div>
+        <BaseButton :loading="settingUp" @click="setupDefaultEnv">
+          {{ t('environments.setupDefault.button') }}
+        </BaseButton>
+        <p class="setup-hint">{{ t('environments.setupDefault.hint') }}</p>
       </div>
     </div>
 
@@ -445,6 +586,77 @@ function isInstalled(envId: number, packageName: string): boolean {
   border-top: 1px solid var(--color-border-light);
 }
 
+/* Docker image section */
+.docker-current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.docker-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(60, 181, 161, 0.1);
+  color: var(--color-primary, #3CB5A1);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.docker-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.docker-setting-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.docker-setting-row label {
+  min-width: 120px;
+  font-weight: 500;
+}
+
+.form-select-sm,
+.form-input-sm {
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid var(--color-border, #d0d5dd);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-bg-card, #fff);
+}
+
+.docker-preview {
+  margin-bottom: 8px;
+}
+
+.docker-preview summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.dockerfile-code {
+  background: var(--color-navy-dark, #101933);
+  color: #e0e6f0;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: monospace;
+  overflow-x: auto;
+  margin-top: 4px;
+  white-space: pre;
+}
+
+.docker-build-action {
+  margin-top: 4px;
+}
+
 /* Install dialog */
 .install-tabs {
   display: flex;
@@ -495,5 +707,59 @@ function isInstalled(envId: number, packageName: string): boolean {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Setup default card */
+.setup-default-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 40px 24px;
+  border: 2px dashed var(--color-border, #d0d5dd);
+  border-radius: var(--radius-md, 10px);
+  background: var(--color-bg-card, #ffffff);
+}
+
+.setup-icon {
+  color: var(--color-primary, #3CB5A1);
+  margin-bottom: 16px;
+}
+
+.setup-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.setup-description {
+  color: var(--color-text-muted, #5C688C);
+  font-size: 14px;
+  max-width: 400px;
+  margin-bottom: 16px;
+}
+
+.setup-packages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.setup-pkg-tag {
+  display: inline-block;
+  padding: 4px 12px;
+  background: rgba(60, 181, 161, 0.1);
+  color: var(--color-primary, #3CB5A1);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.setup-hint {
+  color: var(--color-text-muted, #5C688C);
+  font-size: 12px;
+  margin-top: 12px;
 }
 </style>

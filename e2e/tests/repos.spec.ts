@@ -7,27 +7,27 @@ test.describe('Repository Management', () => {
   });
 
   test('should load repos page with heading', async ({ page }) => {
-    await page.locator('.nav-item', { hasText: 'Repositories' }).click();
+    await page.locator('.nav-item', { hasText: 'Projekte' }).click();
     await page.waitForURL('**/repos');
 
-    await expect(page.locator('h1', { hasText: 'Repositories' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('h1', { hasText: 'Projekte' })).toBeVisible({ timeout: 10_000 });
   });
 
   test('should show add repo button for admin user', async ({ page }) => {
     await page.goto('/repos');
-    await expect(page.locator('h1', { hasText: 'Repositories' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('h1', { hasText: 'Projekte' })).toBeVisible({ timeout: 10_000 });
 
-    // Admin should see the "Repository hinzufügen" button
-    const addButton = page.getByRole('button', { name: /Repository hinzufügen/ });
+    // Admin should see the "Projekt hinzufügen" button
+    const addButton = page.getByRole('button', { name: /Projekt hinzufügen/ });
     await expect(addButton).toBeVisible();
   });
 
   test('should open and close add repository modal', async ({ page }) => {
     await page.goto('/repos');
-    await expect(page.locator('h1', { hasText: 'Repositories' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('h1', { hasText: 'Projekte' })).toBeVisible({ timeout: 10_000 });
 
     // Click add button
-    await page.getByRole('button', { name: /Repository hinzufügen/ }).click();
+    await page.getByRole('button', { name: /Projekt hinzufügen/ }).click();
 
     // Modal should open with the form
     await expect(page.getByPlaceholder('mein-projekt')).toBeVisible({ timeout: 3_000 });
@@ -41,10 +41,10 @@ test.describe('Repository Management', () => {
 
   test('should add a new repository', async ({ page }) => {
     await page.goto('/repos');
-    await expect(page.locator('h1', { hasText: 'Repositories' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('h1', { hasText: 'Projekte' })).toBeVisible({ timeout: 10_000 });
 
     // Open modal
-    await page.getByRole('button', { name: /Repository hinzufügen/ }).click();
+    await page.getByRole('button', { name: /Projekt hinzufügen/ }).click();
     await expect(page.getByPlaceholder('mein-projekt')).toBeVisible({ timeout: 3_000 });
 
     // Fill form
@@ -52,7 +52,7 @@ test.describe('Repository Management', () => {
     await page.getByPlaceholder('mein-projekt').fill(repoName);
     await page.getByPlaceholder('https://github.com/user/repo.git').fill(`https://github.com/test/${repoName}.git`);
 
-    // Submit — use exact match to avoid matching "+ Repository hinzufügen" button
+    // Submit — use exact match to avoid matching "+ Projekt hinzufügen" button
     await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
 
     // Modal should close
@@ -68,7 +68,7 @@ test.describe('Repository Management', () => {
 
     // Either there are repos displayed, or we see an empty state
     // (This test validates the page loads without errors)
-    const heading = page.locator('h1', { hasText: 'Repositories' });
+    const heading = page.locator('h1', { hasText: 'Projekte' });
     await expect(heading).toBeVisible({ timeout: 10_000 });
   });
 });

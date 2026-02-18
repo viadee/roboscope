@@ -30,6 +30,12 @@ export const useEnvironmentsStore = defineStore('environments', () => {
     environments.value = environments.value.filter((e) => e.id !== id)
   }
 
+  async function setupDefault(): Promise<Environment> {
+    const env = await envsApi.setupDefaultEnvironment()
+    environments.value.push(env)
+    return env
+  }
+
   async function cloneEnvironment(id: number, newName: string): Promise<Environment> {
     const env = await envsApi.cloneEnvironment(id, newName)
     environments.value.push(env)
@@ -59,7 +65,7 @@ export const useEnvironmentsStore = defineStore('environments', () => {
 
   return {
     environments, packages, variables, loading,
-    fetchEnvironments, addEnvironment, removeEnvironment, cloneEnvironment,
+    fetchEnvironments, addEnvironment, setupDefault, removeEnvironment, cloneEnvironment,
     fetchPackages, installPackage, uninstallPackage, fetchVariables,
   }
 })

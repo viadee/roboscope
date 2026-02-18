@@ -46,6 +46,8 @@ export interface EnvCreateRequest {
   name: string
   python_version?: string
   docker_image?: string | null
+  default_runner_type?: string
+  max_docker_containers?: number
   is_default?: boolean
   description?: string | null
 }

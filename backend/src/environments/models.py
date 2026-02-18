@@ -16,6 +16,8 @@ class Environment(Base, TimestampMixin):
     python_version: Mapped[str] = mapped_column(String(20), default="3.12")
     venv_path: Mapped[str | None] = mapped_column(String(500), default=None)
     docker_image: Mapped[str | None] = mapped_column(String(500), default=None)
+    default_runner_type: Mapped[str] = mapped_column(String(20), default="subprocess")
+    max_docker_containers: Mapped[int] = mapped_column(Integer, default=1)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     description: Mapped[str | None] = mapped_column(Text, default=None)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))

@@ -2,8 +2,10 @@
 
 import pytest
 import pytest_asyncio
+from unittest.mock import patch
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.environments.models import Environment
 from src.repos.models import Repository
 from tests.conftest import auth_header
 
@@ -294,3 +296,173 @@ class TestGetTestcases:
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
+
+
+@pytest_asyncio.fixture
+async def environment(db_session: AsyncSession, admin_user):
+    """Create an Environment record for testing library-check."""
+    env = Environment(
+        name="test-env",
+        python_version="3.12",
+        venv_path="/tmp/test-venv",
+        created_by=admin_user.id,
+    )
+    db_session.add(env)
+    await db_session.flush()
+    await db_session.refresh(env)
+    return env
+
+
+class TestLibraryCheck:
+    @patch("src.explorer.router.pip_list_installed")
+    async def test_library_check_returns_results(
+        self, mock_pip, client, admin_user, repo_with_files, environment
+    ):
+        """Library check should return installed/missing/builtin statuses."""
+        mock_pip.return_value = [
+            {"name": "robotframework-browser", "version": "18.0.0"},
+        ]
+        response = await client.get(
+            f"/api/v1/explorer/{repo_with_files.id}/library-check",
+            params={"environment_id": environment.id},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["repo_id"] == repo_with_files.id
+        assert data["environment_id"] == environment.id
+        assert data["environment_name"] == "test-env"
+        assert data["total_libraries"] >= 1
+        assert "libraries" in data
+
+        # The sample robot file has "Library    Browser" in *** Settings ***
+        lib_names = [l["library_name"] for l in data["libraries"]]
+        assert "Browser" in lib_names
+
+        browser = next(l for l in data["libraries"] if l["library_name"] == "Browser")
+        assert browser["status"] == "installed"
+        assert browser["installed_version"] == "18.0.0"
+
+    @patch("src.explorer.router.pip_list_installed")
+    async def test_library_check_missing_library(
+        self, mock_pip, client, admin_user, repo_with_files, environment
+    ):
+        """Libraries not in pip list should be marked missing."""
+        mock_pip.return_value = []  # Nothing installed
+        response = await client.get(
+            f"/api/v1/explorer/{repo_with_files.id}/library-check",
+            params={"environment_id": environment.id},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+
+        browser = next(
+            (l for l in data["libraries"] if l["library_name"] == "Browser"), None
+        )
+        if browser:
+            assert browser["status"] == "missing"
+
+    async def test_library_check_unauthenticated(
+        self, client, repo_with_files, environment
+    ):
+        response = await client.get(
+            f"/api/v1/explorer/{repo_with_files.id}/library-check",
+            params={"environment_id": environment.id},
+        )
+        assert response.status_code == 401
+
+    @patch("src.explorer.router.pip_list_installed")
+    async def test_library_check_nonexistent_repo(
+        self, mock_pip, client, admin_user, environment
+    ):
+        response = await client.get(
+            "/api/v1/explorer/99999/library-check",
+            params={"environment_id": environment.id},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 404
+
+    @patch("src.explorer.router.pip_list_installed")
+    async def test_library_check_nonexistent_env(
+        self, mock_pip, client, admin_user, repo_with_files
+    ):
+        response = await client.get(
+            f"/api/v1/explorer/{repo_with_files.id}/library-check",
+            params={"environment_id": 99999},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 404
+
+class TestOpenInFileBrowser:
+    @patch("src.explorer.router.open_in_file_browser")
+    async def test_open_folder_success(self, mock_open, client, admin_user, repo_with_files):
+        """POST /{repo_id}/folder/open should call open_in_file_browser."""
+        response = await client.post(
+            f"/api/v1/explorer/{repo_with_files.id}/folder/open",
+            json={"path": "suites"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 204
+        mock_open.assert_called_once_with(repo_with_files.local_path, "suites")
+
+    async def test_open_folder_unauthenticated(self, client, repo_with_files):
+        """POST /{repo_id}/folder/open should reject unauthenticated requests."""
+        response = await client.post(
+            f"/api/v1/explorer/{repo_with_files.id}/folder/open",
+            json={"path": "suites"},
+        )
+        assert response.status_code in (401, 403)
+
+    @patch("src.explorer.router.open_in_file_browser")
+    async def test_open_folder_nonexistent_repo(self, mock_open, client, admin_user):
+        """POST for nonexistent repo should return 404."""
+        response = await client.post(
+            "/api/v1/explorer/99999/folder/open",
+            json={"path": "suites"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 404
+
+    @patch("src.explorer.router.open_in_file_browser", side_effect=FileNotFoundError("Not found"))
+    async def test_open_folder_not_found(self, mock_open, client, admin_user, repo_with_files):
+        """POST for nonexistent folder should return 404."""
+        response = await client.post(
+            f"/api/v1/explorer/{repo_with_files.id}/folder/open",
+            json={"path": "nonexistent"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 404
+
+    @patch("src.explorer.router.open_in_file_browser", side_effect=ValueError("Path traversal"))
+    async def test_open_folder_path_traversal(self, mock_open, client, admin_user, repo_with_files):
+        """POST with path traversal should return 403."""
+        response = await client.post(
+            f"/api/v1/explorer/{repo_with_files.id}/folder/open",
+            json={"path": "../../../etc"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 403
+
+
+    @patch("src.explorer.router.pip_list_installed")
+    async def test_library_check_response_counts(
+        self, mock_pip, client, admin_user, repo_with_files, environment
+    ):
+        """Verify that counts in response match the library list."""
+        mock_pip.return_value = [
+            {"name": "robotframework-browser", "version": "18.0.0"},
+        ]
+        response = await client.get(
+            f"/api/v1/explorer/{repo_with_files.id}/library-check",
+            params={"environment_id": environment.id},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+
+        libs = data["libraries"]
+        assert data["total_libraries"] == len(libs)
+        assert data["missing_count"] == sum(1 for l in libs if l["status"] == "missing")
+        assert data["installed_count"] == sum(1 for l in libs if l["status"] == "installed")
+        assert data["builtin_count"] == sum(1 for l in libs if l["status"] == "builtin")

@@ -3,13 +3,16 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.constants import Role
 from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
+from sqlalchemy import select
 from src.celery_app import TaskDispatchError, dispatch_task
 from src.database import get_db
+from src.environments.models import Environment
 
 logger = logging.getLogger("mateox.environments")
 from src.environments.schemas import (
@@ -28,6 +31,7 @@ from src.environments.service import (
     clone_environment,
     create_environment,
     delete_environment,
+    generate_dockerfile,
     get_environment,
     list_environments,
     list_packages,
@@ -58,6 +62,60 @@ async def add_environment(
 ):
     """Create a new environment."""
     return await create_environment(db, data, current_user.id)
+
+
+# Default RF packages for quick setup
+DEFAULT_RF_PACKAGES = [
+    "robotframework",
+    "robotframework-seleniumlibrary",
+    "robotframework-browser",
+    "robotframework-requests",
+]
+
+
+@router.post("/setup-default", response_model=EnvResponse, status_code=status.HTTP_201_CREATED)
+async def setup_default_environment(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Create a default environment with essential Robot Framework libraries."""
+    # Check if mateo-default already exists
+    result = await db.execute(
+        select(Environment).where(Environment.name == "mateo-default")
+    )
+    if result.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Default environment 'mateo-default' already exists",
+        )
+
+    env = await create_environment(
+        db,
+        EnvCreate(
+            name="mateo-default",
+            python_version="3.12",
+            is_default=True,
+            description="Default environment with essential Robot Framework libraries",
+        ),
+        current_user.id,
+    )
+
+    for pkg_name in DEFAULT_RF_PACKAGES:
+        await add_package(db, env.id, PackageCreate(package_name=pkg_name))
+
+    await db.commit()
+
+    # Dispatch venv creation first, then package installs (FIFO queue)
+    try:
+        from src.environments.tasks import create_venv, install_package as install_package_task
+
+        dispatch_task(create_venv, env.id)
+        for pkg_name in DEFAULT_RF_PACKAGES:
+            dispatch_task(install_package_task, env.id, pkg_name, None)
+    except TaskDispatchError as e:
+        logger.error("Failed to dispatch default env tasks: %s", e)
+
+    return env
 
 
 @router.get("/{env_id}", response_model=EnvResponse)
@@ -112,6 +170,78 @@ async def clone_env(
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
     return await clone_environment(db, env, new_name, current_user.id)
+
+
+# --- Docker Image ---
+
+
+@router.get("/{env_id}/dockerfile", response_class=PlainTextResponse)
+async def get_dockerfile(
+    env_id: int,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Generate and return a Dockerfile for this environment."""
+    env = await get_environment(db, env_id)
+    if env is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
+
+    packages = await list_packages(db, env_id)
+    if not packages:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Environment has no packages",
+        )
+
+    pkg_specs = []
+    for pkg in packages:
+        if pkg.version:
+            pkg_specs.append(f"{pkg.package_name}=={pkg.version}")
+        else:
+            pkg_specs.append(pkg.package_name)
+
+    content = generate_dockerfile(
+        python_version=env.python_version or "3.12",
+        packages=pkg_specs,
+    )
+    return PlainTextResponse(content)
+
+
+@router.post("/{env_id}/docker-build")
+async def docker_build(
+    env_id: int,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Build a Docker image for this environment."""
+    env = await get_environment(db, env_id)
+    if env is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
+
+    packages = await list_packages(db, env_id)
+    if not packages:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Environment has no packages",
+        )
+
+    await db.commit()
+
+    safe_name = env.name.lower().replace(" ", "-")
+    image_tag = f"mateox/{safe_name}:latest"
+
+    try:
+        from src.environments.tasks import build_docker_image
+
+        dispatch_task(build_docker_image, env_id)
+    except TaskDispatchError as e:
+        logger.error("Failed to dispatch Docker build: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Task dispatch failed: {e}",
+        )
+
+    return {"status": "building", "image_tag": image_tag}
 
 
 # --- Packages ---

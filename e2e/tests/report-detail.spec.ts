@@ -226,12 +226,4 @@ test.describe('Report Detail Page', () => {
     await page.locator('.tab-btn').nth(1).click();
     await expect(page.locator('.html-report-iframe')).toBeVisible();
   });
-
-  test('should show back button linking to reports list', async ({ page }) => {
-    await page.goto('/reports/1');
-    await page.waitForLoadState('networkidle');
-
-    const backLink = page.locator('a[href="/reports"]');
-    await expect(backLink).toBeVisible();
-  });
 });

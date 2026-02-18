@@ -325,6 +325,124 @@ def rename_file(base_path: str, old_path: str, new_path: str) -> FileContent:
     )
 
 
+def extract_libraries(base_path: str) -> list[dict]:
+    """Scan all .robot/.resource files and extract Library imports from *** Settings ***."""
+    base = Path(base_path)
+    library_map: dict[str, set[str]] = {}  # library_name -> set of files
+
+    for file_path in base.rglob("*"):
+        if not file_path.is_file():
+            continue
+        if file_path.suffix.lower() not in {".robot", ".resource"}:
+            continue
+        if any(part in IGNORE_DIRS for part in file_path.parts):
+            continue
+
+        rel_path = str(file_path.relative_to(base))
+
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="replace")
+            in_settings = False
+            for line in content.splitlines():
+                stripped = line.strip()
+                if stripped.lower().startswith("*** settings") or stripped.lower().startswith("*** setting"):
+                    in_settings = True
+                    continue
+                if stripped.startswith("***"):
+                    in_settings = False
+                    continue
+                if not in_settings:
+                    continue
+                if not stripped or stripped.startswith("#"):
+                    continue
+
+                # Split on 2+ spaces or tabs
+                parts = re.split(r"  +|\t+", stripped)
+                if parts and parts[0].lower() == "library" and len(parts) > 1:
+                    lib_name = parts[1].strip()
+                    if lib_name:
+                        if lib_name not in library_map:
+                            library_map[lib_name] = set()
+                        library_map[lib_name].add(rel_path)
+        except Exception:
+            continue
+
+    return [
+        {"library_name": name, "files": sorted(files)}
+        for name, files in sorted(library_map.items())
+    ]
+
+
+def check_libraries_against_env(
+    base_path: str, installed_packages: list[dict]
+) -> list[dict]:
+    """Check extracted libraries against installed packages in an environment.
+
+    Args:
+        base_path: Repository local path.
+        installed_packages: List of dicts with 'name' and 'version' keys from pip list.
+
+    Returns:
+        List of dicts with library_name, pypi_package, status, installed_version, files.
+    """
+    from src.explorer.library_mapping import BUILTIN_LIBRARIES, resolve_pypi_package
+
+    libraries = extract_libraries(base_path)
+
+    # Normalize installed packages for lookup: lower + replace - with _
+    installed_map: dict[str, str] = {}
+    for pkg in installed_packages:
+        normalized = pkg.get("name", "").lower().replace("-", "_")
+        installed_map[normalized] = pkg.get("version", "")
+
+    results: list[dict] = []
+    for lib in libraries:
+        lib_name = lib["library_name"]
+
+        if lib_name in BUILTIN_LIBRARIES:
+            results.append({
+                "library_name": lib_name,
+                "pypi_package": None,
+                "status": "builtin",
+                "installed_version": None,
+                "files": lib["files"],
+            })
+            continue
+
+        pypi_package = resolve_pypi_package(lib_name)
+        if pypi_package is None:
+            # Path-based or relative import, treat as builtin/skip
+            results.append({
+                "library_name": lib_name,
+                "pypi_package": None,
+                "status": "builtin",
+                "installed_version": None,
+                "files": lib["files"],
+            })
+            continue
+
+        # Check if installed (normalize pypi_package for comparison)
+        normalized_pypi = pypi_package.lower().replace("-", "_")
+        if normalized_pypi in installed_map:
+            results.append({
+                "library_name": lib_name,
+                "pypi_package": pypi_package,
+                "status": "installed",
+                "installed_version": installed_map[normalized_pypi],
+                "files": lib["files"],
+            })
+        else:
+            results.append({
+                "library_name": lib_name,
+                "pypi_package": pypi_package,
+                "status": "missing",
+                "installed_version": None,
+                "files": lib["files"],
+            })
+
+    return results
+
+
 def open_in_editor(base_path: str, relative_path: str) -> None:
     """Open a file in the system's default editor."""
     target = _safe_resolve(base_path, relative_path)
@@ -337,3 +455,19 @@ def open_in_editor(base_path: str, relative_path: str) -> None:
         subprocess.Popen(["start", "", str(target)], shell=True)
     else:
         subprocess.Popen(["xdg-open", str(target)])
+
+
+def open_in_file_browser(base_path: str, relative_path: str) -> None:
+    """Open a folder in the system's file browser (Finder/Explorer/Nautilus)."""
+    target = _safe_resolve(base_path, relative_path)
+    if not target.exists():
+        raise FileNotFoundError(f"Not found: {relative_path}")
+    # For files, open the containing directory
+    folder = target if target.is_dir() else target.parent
+    system = platform.system()
+    if system == "Darwin":
+        subprocess.Popen(["open", str(folder)])
+    elif system == "Windows":
+        subprocess.Popen(["explorer", str(folder)])
+    else:
+        subprocess.Popen(["xdg-open", str(folder)])

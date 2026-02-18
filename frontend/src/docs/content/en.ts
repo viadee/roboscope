@@ -322,6 +322,63 @@ const en: DocsContent = [
         tip: 'Auto-sync ensures you always test against the latest code. Enable it for CI/CD-like workflows.'
       },
       {
+        id: 'library-check',
+        title: 'Library Check (Package Manager)',
+        content: `
+<p>
+  The <strong>Library Check</strong> feature scans a repository's <code>.robot</code> and
+  <code>.resource</code> files for <code>Library</code> imports and verifies whether the
+  corresponding Python packages are installed in a selected environment.
+</p>
+<h4>How to Use</h4>
+<ol>
+  <li>On the <strong>Repositories</strong> page, click the <strong>Library Check</strong> button on any repository card.</li>
+  <li>Select an <strong>Environment</strong> from the dropdown (pre-filled with the repository's default environment if set).</li>
+  <li>Click <strong>Scan</strong> to analyze the repository.</li>
+</ol>
+<h4>Results</h4>
+<p>The scan results show a table with each library and its status:</p>
+<ul>
+  <li><strong>Installed</strong> (green) &mdash; The library's PyPI package is installed in the environment, with the version shown.</li>
+  <li><strong>Missing</strong> (red) &mdash; The library is used in test files but not installed. An <strong>Install</strong> button appears for one-click installation.</li>
+  <li><strong>Built-in</strong> (gray) &mdash; The library is part of Robot Framework's standard library (e.g., Collections, String, BuiltIn) and needs no installation.</li>
+</ul>
+<h4>Install Missing Libraries</h4>
+<p>
+  Click <strong>Install</strong> next to any missing library to install it into the selected
+  environment. Use <strong>Install All Missing</strong> to install all missing libraries at once.
+  Installation uses the existing environment package management (pip install) and runs in the background.
+</p>
+<h4>Default Environment</h4>
+<p>
+  Each repository can have a <strong>default environment</strong> assigned. Set this when adding
+  a repository or later via the repository settings. The default environment is pre-selected
+  when opening the Library Check dialog.
+</p>`,
+        tip: 'Run a Library Check after cloning a new repository to quickly identify and install all required dependencies.'
+      },
+      {
+        id: 'project-environment',
+        title: 'Project Environment',
+        content: `
+<p>
+  Each project can have a <strong>default environment</strong> assigned. This environment
+  is used automatically when starting test runs from the project and is pre-selected
+  in the Library Check dialog.
+</p>
+<h4>Selecting an Environment</h4>
+<p>
+  On the <strong>Projects</strong> page, each project card displays an environment
+  dropdown. Select an environment from the list to assign it to the project. The change
+  is saved immediately.
+</p>
+<p>
+  If a system-wide default environment has been configured, it is automatically
+  pre-selected when adding new projects.
+</p>`,
+        tip: 'Assign the correct environment to each project to avoid "missing library" errors during test execution.'
+      },
+      {
         id: 'bulk-operations',
         title: 'Bulk Select & Delete',
         content: `
@@ -780,6 +837,30 @@ const en: DocsContent = [
   dependencies, or non-deterministic behavior.
 </p>`,
         tip: 'Flaky tests erode confidence in your test suite. Prioritize fixing tests with the highest flip counts.'
+      },
+      {
+        id: 'stats-refresh',
+        title: 'Refresh & Data Staleness',
+        content: `
+<p>
+  Statistics data may become stale as new test runs complete. A staleness banner
+  appears at the top of the Statistics page when data has not been refreshed recently.
+</p>
+<h4>Manual Refresh</h4>
+<p>
+  Click the <strong>Refresh</strong> button to reload all KPI cards, charts, and tables
+  with the latest data. This re-aggregates statistics from the database for the currently
+  selected filters.
+</p>
+<h4>Overview &amp; Deep Analysis Tabs</h4>
+<p>
+  The Statistics page is divided into two tabs:
+</p>
+<ul>
+  <li><strong>Overview</strong> &mdash; KPI cards, success rate chart, pass/fail trend, and flaky test detection.</li>
+  <li><strong>Deep Analysis</strong> &mdash; On-demand analysis of keyword analytics, test quality metrics, and maintenance indicators. Select specific KPIs and start an analysis to explore deeper insights.</li>
+</ul>`,
+        tip: 'Use the Deep Analysis tab to investigate keyword durations, assertion density, and error patterns across your test suites.'
       }
     ]
   },
@@ -1009,6 +1090,25 @@ const en: DocsContent = [
   <strong>Delete</strong> button and confirm the dialog. This action cannot be undone.
 </p>`,
         tip: 'Prefer deactivation over deletion for users who may return. This preserves their historical activity data.'
+      },
+      {
+        id: 'password-reset',
+        title: 'Password Reset',
+        content: `
+<p>
+  Admins can reset any user&rsquo;s password directly from the Users tab:
+</p>
+<ol>
+  <li>Navigate to <strong>Settings &gt; Users</strong>.</li>
+  <li>Click the <strong>Reset Password</strong> button on the user&rsquo;s row.</li>
+  <li>Enter the new password (minimum 6 characters) in the dialog.</li>
+  <li>Click <strong>Set Password</strong>.</li>
+</ol>
+<p>
+  The password change takes effect immediately. The user&rsquo;s existing sessions
+  remain valid, but they will need the new password for their next login.
+</p>`,
+        tip: 'Communicate the new password to the user through a secure channel. Consider asking them to change it again on first login.'
       }
     ]
   },
@@ -1178,6 +1278,42 @@ const en: DocsContent = [
   The selected language is saved to your browser&rsquo;s local storage and persists
   across sessions. All UI labels, buttons, messages, and this documentation adapt
   to the selected language.
+</p>`
+      }
+    ]
+  },
+
+  // ─── 11. Legal & About ──────────────────────────────────────────
+  {
+    id: 'legal',
+    title: 'Legal & About',
+    icon: 'info',
+    subsections: [
+      {
+        id: 'footer',
+        title: 'Footer',
+        content: `
+<p>
+  A footer is displayed at the bottom of every page, containing:
+</p>
+<ul>
+  <li>The <strong>copyright notice</strong> for viadee Unternehmensberatung AG.</li>
+  <li>A link to the <strong>mateo-automation.com</strong> website.</li>
+  <li>A link to the <strong>Imprint</strong> (legal notice) page.</li>
+</ul>`
+      },
+      {
+        id: 'imprint',
+        title: 'Imprint',
+        content: `
+<p>
+  The <strong>Imprint</strong> page provides the legal notice required by German law
+  (Impressum). It contains the company details of <em>viadee Unternehmensberatung AG</em>,
+  including address, contact information, board of directors, commercial register entry,
+  and VAT identification number.
+</p>
+<p>
+  Access the Imprint page via the footer link or by navigating to <code>/imprint</code>.
 </p>`
       }
     ]

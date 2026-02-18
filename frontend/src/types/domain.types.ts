@@ -35,6 +35,7 @@ export interface Repository {
   sync_status: string | null
   sync_error: string | null
   created_by: number
+  environment_id: number | null
   created_at: string
   updated_at: string
 }
@@ -133,6 +134,8 @@ export interface Environment {
   python_version: string
   venv_path: string | null
   docker_image: string | null
+  default_runner_type: string
+  max_docker_containers: number
   is_default: boolean
   description: string | null
   created_by: number
@@ -230,6 +233,53 @@ export interface AppSetting {
   description: string | null
 }
 
+// --- Docker status types ---
+
+export interface DockerImage {
+  repository: string
+  tag: string
+  size: number
+  created: string
+}
+
+export interface DockerStatus {
+  connected: boolean
+  version?: string
+  api_version?: string
+  os?: string
+  arch?: string
+  default_image: string
+  running_containers?: number
+  images?: DockerImage[]
+  error?: string
+}
+
+// --- Analysis types ---
+
+export interface AnalysisReport {
+  id: number
+  repository_id: number | null
+  status: 'pending' | 'running' | 'completed' | 'error'
+  selected_kpis: string[]
+  date_from: string | null
+  date_to: string | null
+  results: Record<string, any> | null
+  error_message: string | null
+  progress: number
+  reports_analyzed: number
+  triggered_by: number
+  started_at: string | null
+  completed_at: string | null
+  created_at: string
+}
+
+export interface KpiMeta {
+  id: string
+  name: string
+  category: string
+  description: string
+}
+
 // --- Deep XML data types ---
 
 export interface XmlMessage {
@@ -280,4 +330,25 @@ export interface XmlReportData {
   suites: XmlSuite[]
   statistics: Record<string, unknown>
   generated: string
+}
+
+// --- Library Check types ---
+
+export interface LibraryCheckItem {
+  library_name: string
+  pypi_package: string | null
+  status: 'installed' | 'missing' | 'builtin'
+  installed_version: string | null
+  files: string[]
+}
+
+export interface LibraryCheckResponse {
+  repo_id: number
+  environment_id: number
+  environment_name: string
+  total_libraries: number
+  missing_count: number
+  installed_count: number
+  builtin_count: number
+  libraries: LibraryCheckItem[]
 }

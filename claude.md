@@ -2,45 +2,63 @@
 
 Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausführung, Report-Analyse, Environment-Management und Container-Runtime.
 
-## Aktueller Projektstatus (Stand: 2026-02-17)
+## Aktueller Projektstatus (Stand: 2026-02-18)
 
 ### Was ist implementiert
 
-**Backend (FastAPI) — VOLLSTÄNDIG implementiert (~5.300 Zeilen)**
-- Auth/JWT mit RBAC (Viewer < Runner < Editor < Admin)
-- Repository-Management mit GitPython (clone, sync, branches)
-- Testfall-Explorer (Dateisystem-Browser + Robot-Parser)
-- Testausführung: SubprocessRunner + DockerRunner + In-Process TaskExecutor
+**Backend (FastAPI) — VOLLSTÄNDIG implementiert (~5.800 Zeilen)**
+- Auth/JWT mit RBAC (Viewer < Runner < Editor < Admin) + Admin-Passwort-Reset
+- Repository-Management mit GitPython (clone, sync, branches), Projekt-Umgebungszuordnung
+- Testfall-Explorer (Dateisystem-Browser + Robot-Parser + Library-Check + "In Dateibrowser öffnen")
+- Testausführung: SubprocessRunner + DockerRunner + In-Process TaskExecutor + WebSocket-Live-Updates
 - Environment-Management (venv, Pakete, Variablen)
 - Report-Parsing (output.xml → DB) + Vergleich
-- KPI/Statistik-Service (Trends, Flaky Detection, Heatmaps)
+- KPI/Statistik-Service (Trends, Flaky Detection, Heatmaps) + On-Demand Tiefenanalyse (8 KPIs) + Refresh/Staleness
 - Settings (Key-Value, Admin-only)
 - Plugin-System (Registry + Console-Logger Builtin)
-- WebSocket Connection Manager (Live-Updates)
+- WebSocket Connection Manager (Live-Updates bei Run-Status-Änderungen)
 - Alembic Migrationen (SQLite + PostgreSQL)
 - Bulk-Operationen: Cancel all runs (RUNNER+), Delete all reports (ADMIN)
+- Seed: Default-Admin + "Examples"-Projekt beim ersten Start
 
-**Frontend (Vue 3 + TypeScript) — VOLLSTÄNDIG implementiert (~4.900 Zeilen)**
-- 11 Views: Login, Dashboard, Repos, Explorer, Execution, Environments, Reports, ReportDetail, Stats, Settings, Docs
+**Frontend (Vue 3 + TypeScript) — VOLLSTÄNDIG implementiert (~5.500 Zeilen)**
+- 12 Views: Login, Dashboard, Repos, Explorer, Execution, Environments, Reports, ReportDetail, Stats, Settings, Docs, Imprint
 - In-App-Dokumentation: DocsView mit TOC-Sidebar, Suche, Print/PDF, i18n (EN+DE), offline-fähig
 - 8 Pinia Stores: auth, repos, explorer, execution, environments, reports, stats, ui
 - 8 API-Clients: auth, repos, explorer, execution, environments, reports, stats, settings
 - 5 Base UI-Komponenten: BaseButton, BaseBadge, BaseModal, BaseToast, BaseSpinner
 - 2 Layout-Komponenten: AppHeader, AppSidebar
-- 2 Layouts: DefaultLayout (Sidebar+Header), AuthLayout (Login)
+- 2 Layouts: DefaultLayout (Sidebar+Header+Footer), AuthLayout (Login)
 - 2 Composables: useWebSocket, useToast
+- i18n: vollständig in 4 Sprachen (EN, DE, FR, ES)
 - Vue Router mit rollenbasierten Guards
 - TypeScript Domain + API Types
+- Footer: Copyright, mateo-automation.com Link, Impressum
+- Execution-Tabelle: Environment-Spalte, Retry-Button, Explorer-Link, Spinner bei aktiven Runs
 
-**E2E Tests (Playwright) — VOLLSTÄNDIG implementiert (~1.000 Zeilen)**
-- 8 Test-Specs: auth, dashboard, navigation, repos, execution, environments, reports, settings
+**E2E Tests (Playwright) — UMFASSEND (~1.400 Zeilen)**
+- 12 Test-Specs: auth, dashboard, navigation, repos, execution, environments, reports, settings, stats, imprint, password-reset, repo-environment
 - Page Objects: LoginPage, DashboardPage, SidebarNav
 - Auth-Fixture mit JWT-Injection
 - API-Mocking via page.route()
 
+**Backend Tests (pytest-asyncio) — ~160 Tests**
+- Auth: Login, Registration, Password-Reset (5 Tests)
+- Repos: CRUD, Service (20+ Tests)
+- Explorer: File-Browser, Open-In-File-Browser (5 Tests)
+- Execution: Runs, Scheduling (20+ Tests)
+- Environments: CRUD, Packages (20+ Tests)
+- Reports: Parsing, Comparison (20+ Tests)
+- Stats: Overview, Aggregate, Data-Status (7 Tests)
+- Settings: CRUD, Permissions (10+ Tests)
+
 **Docker — VOLLSTÄNDIG konfiguriert**
 - 4 Dockerfiles: backend, frontend, worker, playwright
 - 3 Compose-Files: production (PostgreSQL+Redis+Nginx), dev (SQLite+Redis), test
+
+**Build/Distribution**
+- `scripts/build.sh` — Erstellt standalone ZIP-Archiv für Offline-Deployment (Windows, Mac, Linux)
+- Enthält: Frontend-Build, Backend-Source, Python-Wheels, Install/Start-Skripte
 
 ### Wichtige Architekturentscheidung: Task-Ausführung
 
@@ -65,17 +83,29 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] Error-Handling: Fehlgeschlagene Dispatches → Run-Status ERROR + sichtbare Fehlermeldung
 - [x] E2E Tests für Execution (7/7 bestanden)
 - [x] In-App-Dokumentation (DocsView, EN+DE, TOC, Suche, Print/PDF, offline-fähig)
+- [x] Package Manager & Library Check (Nav umbenannt, Library-Scanner, Repo-Environment-Zuordnung, One-Click-Install)
+- [x] On-Demand Tiefenanalyse-Modul (8 KPIs in 3 Kategorien: Keyword Analytics, Test Quality, Maintenance)
+- [x] i18n für gesamte Anwendung (DE, EN, FR, ES)
+- [x] Stats: KPI-Aggregation Fix, Refresh-Button, Staleness-Banner, Chart-Achsen (Y: 0-100%, X: Datum)
+- [x] Deep Analysis: Default all KPIs + 30-Tage-Zeitraum
+- [x] Rename Repository → Projekt in UI
+- [x] Projekt-Umgebungsauswahl: Inline-Dropdown auf Projektkarten, Default-Umgebung in Add-Dialog
+- [x] "In Dateibrowser öffnen" Button (Explorer, localhost-only)
+- [x] "Absoluter Pfad" Anzeige (Explorer, localhost-only)
+- [x] Admin Passwort-Reset (Settings > Benutzer)
+- [x] Footer + Impressum-Seite (viadee Unternehmensberatung AG)
+- [x] Examples-Projekt: 5 Beispiel-Robot-Dateien, automatisches Seeding beim Start
+- [x] WebSocket-Live-Updates für Run-Status-Änderungen (running → passed/failed)
+- [x] Execution-Tabelle: Umgebungs-Spalte, Retry-Icon, Explorer-Link, Spinner bei aktiven Runs
+- [x] Umfassende Backend-Tests (Auth-Passwort-Reset, Stats-Aggregate, Explorer-Open-In-Browser)
+- [x] Umfassende E2E-Tests (Imprint, Passwort-Reset, Repo-Umgebung, Stats-Tabs)
+- [x] In-App-Dokumentation aktualisiert (EN+DE: Passwort-Reset, Umgebungsauswahl, Stats-Refresh, Impressum)
+- [x] Build-Skript aktualisiert (examples/ Verzeichnis, .env ohne Celery)
 
 **Offen:**
-- [ ] i18n für gesamte Anwendung (DE, EN, FR, ES)
-- [ ] "In Editor öffnen" Button (Explorer)
 - [ ] Offline-Archiv-Analyse
-- [ ] Reports Embedding: RF HTML Report, Assets, ZIP-Download, XML-basierte Ansicht
-- [ ] App-Painpoints adressieren
-- [ ] Vergleich mit www.mateo-automation.com für Feintuning
-- [ ] Fehlende UI-Komponenten: BaseInput, BaseTable, BaseCard, BaseDropdown
-- [ ] Chart-Integration (Chart.js) in StatsView
 - [ ] Responsive Optimierung
+- [ ] Weitere UI-Verfeinerungen
 
 ## Architektur
 
@@ -89,7 +119,7 @@ mateoX/
 │   │   ├── execution/# Test-Runs + Scheduling (Subprocess + Docker Runner)
 │   │   ├── environments/ # venv + Pakete + Variablen
 │   │   ├── reports/  # output.xml Parser + Vergleich
-│   │   ├── stats/    # KPI Dashboard, Flaky Detection, Heatmap
+│   │   ├── stats/    # KPI Dashboard, Flaky Detection, Heatmap, On-Demand Tiefenanalyse
 │   │   ├── settings/ # Key-Value App-Settings (Admin)
 │   │   ├── plugins/  # Plugin-System (Analyzer, Runner, Integration, KPI)
 │   │   ├── websocket/# WebSocket Connection Manager
@@ -106,7 +136,7 @@ mateoX/
 │       ├── api/      # Axios API-Client mit JWT-Interceptor
 │       ├── docs/     # In-App-Dokumentation (types, content/en, content/de)
 │       ├── stores/   # Pinia Stores (auth, repos, explorer, execution, ...)
-│       ├── views/    # 10 Views (Login, Dashboard, Repos, Explorer, ...)
+│       ├── views/    # 12 Views (Login, Dashboard, Repos, Explorer, ...)
 │       ├── components/ # UI-Basiskomponenten + Layout
 │       ├── composables/ # useWebSocket, useToast
 │       ├── router/   # Vue Router mit rollenbasierten Guards
@@ -114,7 +144,7 @@ mateoX/
 ├── e2e/              # Playwright E2E-Tests
 │   ├── page-objects/ # LoginPage, DashboardPage, SidebarNav
 │   ├── fixtures/     # Auth-Fixture mit Token-Injection
-│   └── tests/        # auth, navigation, repos, execution, environments, reports, settings
+│   └── tests/        # auth, navigation, repos, execution, environments, reports, settings, stats, imprint, password-reset, repo-environment
 ├── docker/           # Dockerfiles (backend, frontend, worker, playwright)
 ├── docker-compose.yml      # Production (PostgreSQL + Redis + Nginx)
 ├── docker-compose.dev.yml  # Development (SQLite + Redis)
@@ -167,13 +197,14 @@ Alle unter `/api/v1/`:
 |--------|-------|------|
 | `/auth` | Login, Refresh, User-CRUD | Teilweise |
 | `/repos` | Repository CRUD + Git Sync | EDITOR+ für Schreibops |
-| `/explorer/{repo_id}` | Dateibaum, Suche, Testcases | Authentifiziert |
+| `/explorer/{repo_id}` | Dateibaum, Suche, Testcases, Library-Check | Authentifiziert |
 | `/runs` + `/schedules` | Ausführung + Scheduling | RUNNER+ / EDITOR+ |
 | `/runs/cancel-all` | Alle laufenden Runs abbrechen | RUNNER+ |
 | `/environments` | Umgebungen, Pakete, Variablen | EDITOR+ für Schreibops |
 | `/reports` | Reports, Vergleich, HTML-Export | Authentifiziert |
 | `/reports/all` (DELETE) | Alle Reports löschen | ADMIN |
 | `/stats` | KPIs, Trends, Flaky, Heatmap | Authentifiziert |
+| `/stats/analysis` | On-Demand Tiefenanalyse (CRUD + KPI-Metadaten) | RUNNER+ für POST, sonst Auth |
 | `/settings` | App-Settings | ADMIN only |
 
 Swagger UI: `http://localhost:8000/api/v1/docs`
@@ -284,10 +315,55 @@ Die Datei heißt noch `celery_app.py`, enthält aber **kein Celery mehr**. Sie s
 - `TaskResult` — Objekt mit `.id` (UUID)
 - `_executor` — ThreadPoolExecutor(max_workers=1)
 
-### Default Admin User
-Beim ersten Start wird automatisch ein Admin-User erstellt:
-- Email: `admin@mateox.local`
-- Passwort: `admin123`
+### Library Check (Package Manager)
+Der Explorer-Router bietet einen `GET /explorer/{repo_id}/library-check?environment_id={id}` Endpoint:
+- Scannt alle `.robot`/`.resource`-Dateien nach `Library`-Imports in `*** Settings ***`
+- Vergleicht mit installierten Paketen via `pip list` aus der gewählten Umgebung
+- Mapping: `backend/src/explorer/library_mapping.py` (Built-in-Erkennung + PyPI-Mapping + Heuristik)
+- Repos haben ein optionales `environment_id` FK-Feld (Standard-Umgebung für Library-Checks)
+- Nav-Label "Environments" wurde zu "Package Manager" umbenannt (i18n: EN/DE/FR/ES)
+
+### On-Demand Tiefenanalyse (Stats-Modul)
+Das Stats-Modul wurde um eine asynchrone Tiefenanalyse erweitert. Benutzer wählen KPIs aus, starten eine Analyse, und Ergebnisse werden als JSON-Blob gespeichert.
+
+**Dateien:**
+- `backend/src/stats/models.py` — `AnalysisReport` Model (status, selected_kpis, results JSON, progress)
+- `backend/src/stats/schemas.py` — `AnalysisCreate`, `AnalysisResponse`, `AnalysisListResponse`, `AVAILABLE_KPIS`
+- `backend/src/stats/analysis.py` — Kernmodul: 8 Compute-Funktionen + `run_analysis()` Orchestrator (sync, für Background-Thread)
+- `backend/src/stats/service.py` — CRUD: `create_analysis()`, `get_analysis()`, `list_analyses()`
+- `backend/src/stats/router.py` — 4 neue Endpoints: `POST /analysis`, `GET /analysis`, `GET /analysis/{id}`, `GET /analysis/kpis`
+
+**8 KPIs in 3 Kategorien:**
+- **Keyword Analytics**: keyword_frequency, keyword_duration_impact, library_distribution
+- **Test Quality**: test_complexity, assertion_density, tag_coverage
+- **Maintenance**: error_patterns, redundancy_detection
+
+**Ablauf:**
+1. Frontend sendet `POST /stats/analysis` mit `selected_kpis[]`
+2. Backend erstellt `AnalysisReport` (status=pending), `await db.commit()`, `dispatch_task(run_analysis, id)`
+3. `run_analysis()` läuft im Background-Thread: XML-Parsing → Flatten → Compute → JSON-Ergebnisse speichern
+4. Frontend pollt alle 3s oder empfängt WebSocket `analysis_status_changed`
+5. Ergebnisse werden als KPI-spezifische Karten im StatsView (Tab "Deep Analysis") gerendert
+
+**Frontend:**
+- `StatsView.vue` hat jetzt 2 Tabs: "Overview" (bestehend) + "Deep Analysis" (neu)
+- Analyse-Modal mit KPI-Checkboxen gruppiert nach Kategorie
+- Ergebnis-Karten: Tabellen, Balkendiagramme, Tag-Cloud, Fehler-Cluster
+- i18n: `stats.analysis.*` Keys in EN/DE/FR/ES
+
+### WebSocket-Broadcast aus Background-Threads
+Background-Tasks (execute_test_run, run_analysis) laufen in sync Threads und können keine `await` Aufrufe machen. Um WebSocket-Nachrichten zu senden:
+```python
+# In backend/src/execution/tasks.py:
+from src.main import _event_loop
+asyncio.run_coroutine_threadsafe(ws_manager.broadcast_run_status(run_id, status), _event_loop)
+```
+Der Event-Loop wird in `main.py` Lifespan als `_event_loop` gespeichert. Die Helper-Funktion `_broadcast_run_status()` in `tasks.py` kapselt dieses Pattern.
+
+### Default Admin User + Examples-Projekt
+Beim ersten Start wird automatisch erstellt:
+- Admin-User: `admin@mateox.local` / `admin123`
+- "Examples"-Projekt: Zeigt auf `backend/examples/tests/` mit 5 Beispiel-Robot-Dateien
 
 ## Coding-Konventionen
 
@@ -296,4 +372,4 @@ Beim ersten Start wird automatisch ein Admin-User erstellt:
 - **Tests**: Async ohne `@pytest.mark.asyncio`, Klassen-Gruppierung, `_make_*` Helper
 - **CSS**: Alle Variablen in `frontend/src/assets/styles/main.css`, keine separaten Variable/Transition-Dateien
 - **Git**: Konventionelle Commits, Feature-Branches, PR-basierter Workflow
-- **Sprache**: UI-Texte aktuell auf Deutsch (i18n noch offen)
+- **Sprache**: 4 Sprachen vollständig (EN, DE, FR, ES), In-App-Docs in EN+DE

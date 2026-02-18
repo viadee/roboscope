@@ -36,4 +36,21 @@ test.describe('Statistics Page', () => {
     // Either data or "no data" — both are valid states
     expect(hasStatCards || hasNoData || true).toBeTruthy();
   });
+
+  test('should show refresh button', async ({ page }) => {
+    await page.goto('/stats');
+    await expect(page.locator('h1', { hasText: 'Statistiken' })).toBeVisible({ timeout: 10_000 });
+
+    const refreshBtn = page.getByRole('button', { name: /Aktualisieren/ });
+    await expect(refreshBtn).toBeVisible();
+  });
+
+  test('should show overview and deep analysis tabs', async ({ page }) => {
+    await page.goto('/stats');
+    await expect(page.locator('h1', { hasText: 'Statistiken' })).toBeVisible({ timeout: 10_000 });
+
+    // Both tabs should be visible
+    await expect(page.getByText('Übersicht')).toBeVisible();
+    await expect(page.getByText('Tiefenanalyse')).toBeVisible();
+  });
 });

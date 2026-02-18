@@ -18,7 +18,6 @@ test.describe('Sidebar Navigation', () => {
     { label: 'Repositories', heading: 'Repositories', path: '/repos' },
     { label: 'Explorer', heading: 'Explorer', path: '/explorer' },
     { label: 'Ausführung', heading: 'Ausführung', path: '/runs' },
-    { label: 'Reports', heading: 'Reports', path: '/reports' },
     { label: 'Statistiken', heading: 'Statistiken', path: '/stats' },
   ];
 

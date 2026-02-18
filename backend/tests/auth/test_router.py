@@ -125,3 +125,74 @@ class TestUserManagement:
             headers=auth_header(admin_user),
         )
         assert response.status_code == 400
+
+
+class TestPasswordReset:
+    async def test_admin_can_reset_user_password(self, client, admin_user, runner_user):
+        """Admin should be able to reset another user's password via PATCH."""
+        response = await client.patch(
+            f"/api/v1/auth/users/{runner_user.id}",
+            json={"password": "newpass123"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+
+        # Verify the new password works by logging in
+        login_resp = await client.post("/api/v1/auth/login", json={
+            "email": "runner@test.com",
+            "password": "newpass123",
+        })
+        assert login_resp.status_code == 200
+        assert "access_token" in login_resp.json()
+
+    async def test_old_password_no_longer_works(self, client, admin_user, runner_user):
+        """After password reset, old password should fail."""
+        # Reset password
+        await client.patch(
+            f"/api/v1/auth/users/{runner_user.id}",
+            json={"password": "brandnew456"},
+            headers=auth_header(admin_user),
+        )
+
+        # Old password should fail
+        login_resp = await client.post("/api/v1/auth/login", json={
+            "email": "runner@test.com",
+            "password": "runner123",
+        })
+        assert login_resp.status_code == 401
+
+    async def test_password_too_short_rejected(self, client, admin_user, runner_user):
+        """Password shorter than 6 characters should be rejected."""
+        response = await client.patch(
+            f"/api/v1/auth/users/{runner_user.id}",
+            json={"password": "abc"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 422
+
+    async def test_non_admin_cannot_reset_password(self, client, runner_user, viewer_user):
+        """Non-admin user should not be able to reset passwords."""
+        response = await client.patch(
+            f"/api/v1/auth/users/{viewer_user.id}",
+            json={"password": "newpass123"},
+            headers=auth_header(runner_user),
+        )
+        assert response.status_code == 403
+
+    async def test_reset_password_with_other_fields(self, client, admin_user, runner_user):
+        """Password reset can be combined with other field updates."""
+        response = await client.patch(
+            f"/api/v1/auth/users/{runner_user.id}",
+            json={"password": "combo123", "username": "runner_updated"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["username"] == "runner_updated"
+
+        # Verify new password works
+        login_resp = await client.post("/api/v1/auth/login", json={
+            "email": "runner@test.com",
+            "password": "combo123",
+        })
+        assert login_resp.status_code == 200

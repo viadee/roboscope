@@ -1,15 +1,17 @@
 """Statistics and KPI service."""
 
+import json
 from datetime import date, timedelta
 
-from sqlalchemy import and_, case, distinct, func, select
+from sqlalchemy import and_, case, desc, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.execution.models import ExecutionRun, RunStatus
 from src.reports.models import Report, TestResult
 from src.repos.models import Repository
-from src.stats.models import KpiRecord
+from src.stats.models import AnalysisReport, KpiRecord
 from src.stats.schemas import (
+    AnalysisCreate,
     DurationStat,
     FlakyTest,
     HeatmapCell,
@@ -331,3 +333,49 @@ async def get_heatmap_data(
         ))
 
     return cells
+
+
+# --- Analysis CRUD ---
+
+
+async def create_analysis(
+    db: AsyncSession,
+    data: AnalysisCreate,
+    user_id: int,
+) -> AnalysisReport:
+    """Create a new analysis report record."""
+    analysis = AnalysisReport(
+        repository_id=data.repository_id,
+        status="pending",
+        selected_kpis=json.dumps(data.selected_kpis),
+        date_from=data.date_from,
+        date_to=data.date_to,
+        triggered_by=user_id,
+    )
+    db.add(analysis)
+    await db.flush()
+    return analysis
+
+
+async def get_analysis(db: AsyncSession, analysis_id: int) -> AnalysisReport | None:
+    """Get a single analysis report by ID."""
+    result = await db.execute(
+        select(AnalysisReport).where(AnalysisReport.id == analysis_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def list_analyses(
+    db: AsyncSession,
+    page: int = 1,
+    page_size: int = 20,
+) -> list[AnalysisReport]:
+    """List analysis reports, most recent first."""
+    offset = (page - 1) * page_size
+    result = await db.execute(
+        select(AnalysisReport)
+        .order_by(desc(AnalysisReport.created_at))
+        .offset(offset)
+        .limit(page_size)
+    )
+    return list(result.scalars().all())

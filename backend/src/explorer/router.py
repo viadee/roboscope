@@ -12,21 +12,26 @@ from src.explorer.schemas import (
     FileOpenRequest,
     FileRenameRequest,
     FileSaveRequest,
+    LibraryCheckItem,
+    LibraryCheckResponse,
     SearchResult,
     TestCaseInfo,
     TreeNode,
 )
 from src.explorer.service import (
     build_tree,
+    check_libraries_against_env,
     create_file,
     delete_file,
     list_all_testcases,
     open_in_editor,
+    open_in_file_browser,
     read_file,
     rename_file,
     search_in_repo,
     write_file,
 )
+from src.environments.service import get_environment, pip_list_installed
 from src.repos.service import get_repository
 
 router = APIRouter()
@@ -105,6 +110,42 @@ async def get_testcases(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
 
     return list_all_testcases(repo.local_path)
+
+
+@router.get("/{repo_id}/library-check", response_model=LibraryCheckResponse)
+async def library_check(
+    repo_id: int,
+    environment_id: int = Query(..., description="Environment ID to check against"),
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Check which libraries used in the repo are installed in the given environment."""
+    repo = await get_repository(db, repo_id)
+    if repo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+
+    env = await get_environment(db, environment_id)
+    if env is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
+
+    installed_packages = pip_list_installed(env.venv_path)
+    results = check_libraries_against_env(repo.local_path, installed_packages)
+
+    libraries = [LibraryCheckItem(**r) for r in results]
+    missing_count = sum(1 for lib in libraries if lib.status == "missing")
+    installed_count = sum(1 for lib in libraries if lib.status == "installed")
+    builtin_count = sum(1 for lib in libraries if lib.status == "builtin")
+
+    return LibraryCheckResponse(
+        repo_id=repo_id,
+        environment_id=environment_id,
+        environment_name=env.name,
+        total_libraries=len(libraries),
+        missing_count=missing_count,
+        installed_count=installed_count,
+        builtin_count=builtin_count,
+        libraries=libraries,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -212,5 +253,25 @@ async def open_file_in_editor(
         open_in_editor(repo.local_path, body.path)
     except FileNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed")
+
+
+@router.post("/{repo_id}/folder/open", status_code=status.HTTP_204_NO_CONTENT)
+async def open_folder_in_file_browser(
+    repo_id: int,
+    body: FileOpenRequest,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Open a folder in the system's file browser (Finder/Explorer/Nautilus)."""
+    repo = await get_repository(db, repo_id)
+    if repo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+
+    try:
+        open_in_file_browser(repo.local_path, body.path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     except ValueError:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed")

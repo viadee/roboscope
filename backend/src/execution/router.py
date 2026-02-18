@@ -53,6 +53,15 @@ async def start_run(
     current_user: User = Depends(require_role(Role.RUNNER)),
 ):
     """Start a new test execution run."""
+    # Override runner_type from environment's default if an environment is set
+    if data.environment_id:
+        from src.environments.models import Environment
+        env = (await db.execute(
+            select(Environment).where(Environment.id == data.environment_id)
+        )).scalar_one_or_none()
+        if env and env.default_runner_type and data.runner_type == "subprocess":
+            data.runner_type = env.default_runner_type
+
     run = await create_run(db, data, current_user.id)
     # Commit so background thread can see the run in a separate DB session
     await db.commit()

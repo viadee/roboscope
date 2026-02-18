@@ -82,6 +82,10 @@ export const useExplorerStore = defineStore('explorer', () => {
     await explorerApi.openInEditor(repoId, path)
   }
 
+  async function openInFileBrowserAction(repoId: number, path: string) {
+    await explorerApi.openInFileBrowser(repoId, path)
+  }
+
   function clearSelection() {
     selectedFile.value = null
     searchResults.value = []
@@ -90,6 +94,6 @@ export const useExplorerStore = defineStore('explorer', () => {
   return {
     tree, selectedFile, searchResults, testCases, loading, currentRepoId,
     fetchTree, openFile, searchInRepo, fetchTestCases, clearSelection,
-    saveFile, createFile, deleteFileAction, renameFileAction, openInEditorAction,
+    saveFile, createFile, deleteFileAction, renameFileAction, openInEditorAction, openInFileBrowserAction,
   }
 })

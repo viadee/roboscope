@@ -320,6 +320,80 @@ class TestDurationEndpoint:
         assert data[0]["avg_duration"] == 3.5
 
 
+class TestAggregateEndpoint:
+    async def test_aggregate_authenticated(self, client, admin_user):
+        """POST /aggregate should succeed for an authenticated user."""
+        response = await client.post(
+            "/api/v1/stats/aggregate",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "status" in data
+
+    async def test_aggregate_unauthenticated(self, client):
+        """POST /aggregate should return 401/403 without authentication."""
+        response = await client.post("/api/v1/stats/aggregate")
+        assert response.status_code in (401, 403)
+
+    async def test_aggregate_with_days_param(self, client, admin_user):
+        """POST /aggregate should accept days parameter."""
+        response = await client.post(
+            "/api/v1/stats/aggregate?days=7",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+
+    async def test_aggregate_with_data(self, client, db_session, admin_user):
+        """POST /aggregate should aggregate existing run data."""
+        repo = _make_repo(admin_user.id)
+        db_session.add(repo)
+        await db_session.flush()
+        await db_session.refresh(repo)
+
+        run = _make_run(repo.id, admin_user.id, status=RunStatus.PASSED)
+        db_session.add(run)
+        await db_session.flush()
+
+        response = await client.post(
+            "/api/v1/stats/aggregate",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+
+
+class TestDataStatusEndpoint:
+    async def test_data_status_authenticated(self, client, admin_user):
+        """GET /data-status should return staleness info."""
+        response = await client.get(
+            "/api/v1/stats/data-status",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "last_aggregated" in data
+        assert "last_run_finished" in data
+
+    async def test_data_status_unauthenticated(self, client):
+        """GET /data-status should return 401/403 without authentication."""
+        response = await client.get("/api/v1/stats/data-status")
+        assert response.status_code in (401, 403)
+
+    async def test_data_status_empty_db(self, client, admin_user):
+        """GET /data-status should return nulls when no data exists."""
+        response = await client.get(
+            "/api/v1/stats/data-status",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        # Both can be null when database is empty
+        assert data["last_aggregated"] is None or isinstance(data["last_aggregated"], str)
+        assert data["last_run_finished"] is None or isinstance(data["last_run_finished"], str)
+
+
 class TestHeatmapEndpoint:
     async def test_heatmap_authenticated(self, client, admin_user):
         """GET /heatmap should return a list for an authenticated user."""

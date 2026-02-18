@@ -176,6 +176,96 @@ def upgrade_package(env_id: int, package_name: str) -> dict:
             return {"status": "error", "message": str(exc)}
 
 
+def build_docker_image(env_id: int) -> dict:
+    """Build a Docker image for an environment with all its packages."""
+    with _get_sync_session() as session:
+        env = session.execute(
+            select(Environment).where(Environment.id == env_id)
+        ).scalar_one_or_none()
+
+        if env is None:
+            return {"status": "error", "message": "Environment not found"}
+
+        packages = session.execute(
+            select(EnvironmentPackage).where(EnvironmentPackage.environment_id == env_id)
+        ).scalars().all()
+
+        if not packages:
+            return {"status": "error", "message": "No packages to install"}
+
+        try:
+            from src.environments.service import generate_dockerfile
+
+            pkg_specs = []
+            for pkg in packages:
+                if pkg.version:
+                    pkg_specs.append(f"{pkg.package_name}=={pkg.version}")
+                else:
+                    pkg_specs.append(pkg.package_name)
+
+            dockerfile_content = generate_dockerfile(
+                python_version=env.python_version or "3.12",
+                packages=pkg_specs,
+            )
+
+            # Get Docker client (same fallback logic as docker_runner.py)
+            import docker
+
+            client = None
+            try:
+                client = docker.from_env()
+                client.ping()
+            except Exception:
+                import json as _json
+
+                base_url = None
+                try:
+                    out = subprocess.check_output(
+                        ["docker", "context", "inspect"], text=True, timeout=5,
+                    )
+                    ctx = _json.loads(out)
+                    if isinstance(ctx, list) and ctx:
+                        host = ctx[0].get("Endpoints", {}).get("docker", {}).get("Host", "")
+                        if host:
+                            base_url = host
+                except Exception:
+                    pass
+
+                if base_url:
+                    client = docker.DockerClient(base_url=base_url)
+                else:
+                    raise
+
+            # Build image from in-memory tarball
+            import io
+            import tarfile
+
+            dockerfile_bytes = dockerfile_content.encode("utf-8")
+            f = io.BytesIO()
+            with tarfile.open(fileobj=f, mode="w") as tar:
+                info = tarfile.TarInfo(name="Dockerfile")
+                info.size = len(dockerfile_bytes)
+                tar.addfile(info, io.BytesIO(dockerfile_bytes))
+            f.seek(0)
+
+            safe_name = env.name.lower().replace(" ", "-")
+            tag = f"mateox/{safe_name}:latest"
+
+            logger.info("Building Docker image %s for env %d", tag, env_id)
+            client.images.build(fileobj=f, custom_context=True, tag=tag, rm=True)
+
+            # Update environment's docker_image in DB
+            env.docker_image = tag
+            session.commit()
+
+            logger.info("Built Docker image %s for env %d", tag, env_id)
+            return {"status": "success", "image_tag": tag}
+
+        except Exception as exc:
+            logger.exception("Failed to build Docker image for env %d", env_id)
+            return {"status": "error", "message": str(exc)}
+
+
 def uninstall_package(env_id: int, package_name: str) -> dict:
     """Uninstall a pip package from an environment's virtualenv."""
     with _get_sync_session() as session:

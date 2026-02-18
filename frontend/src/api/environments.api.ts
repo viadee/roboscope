@@ -33,6 +33,11 @@ export async function cloneEnvironment(id: number, newName: string): Promise<Env
   return response.data
 }
 
+export async function setupDefaultEnvironment(): Promise<Environment> {
+  const response = await apiClient.post<Environment>('/environments/setup-default')
+  return response.data
+}
+
 // Packages
 
 export async function getPackages(envId: number): Promise<EnvironmentPackage[]> {
@@ -68,6 +73,21 @@ export async function searchPyPI(query: string): Promise<{ name: string; version
 
 export async function getPopularPackages(): Promise<{ name: string; description: string }[]> {
   const response = await apiClient.get('/environments/packages/popular')
+  return response.data
+}
+
+// Docker Image
+
+export async function getDockerfile(envId: number): Promise<string> {
+  const response = await apiClient.get(`/environments/${envId}/dockerfile`, {
+    responseType: 'text',
+    transformResponse: [(data: string) => data],
+  })
+  return response.data
+}
+
+export async function buildDockerImage(envId: number): Promise<{ status: string; image_tag: string }> {
+  const response = await apiClient.post<{ status: string; image_tag: string }>(`/environments/${envId}/docker-build`)
   return response.data
 }
 

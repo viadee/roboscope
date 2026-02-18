@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { FileContent, SearchResult, TestCaseInfo, TreeNode } from '@/types/domain.types'
+import type { FileContent, LibraryCheckResponse, SearchResult, TestCaseInfo, TreeNode } from '@/types/domain.types'
 
 export async function getTree(repoId: number, path: string = ''): Promise<TreeNode> {
   const response = await apiClient.get<TreeNode>(`/explorer/${repoId}/tree`, {
@@ -51,4 +51,15 @@ export async function renameFile(repoId: number, oldPath: string, newPath: strin
 
 export async function openInEditor(repoId: number, path: string): Promise<void> {
   await apiClient.post(`/explorer/${repoId}/file/open`, { path })
+}
+
+export async function openInFileBrowser(repoId: number, path: string): Promise<void> {
+  await apiClient.post(`/explorer/${repoId}/folder/open`, { path })
+}
+
+export async function checkLibraries(repoId: number, environmentId: number): Promise<LibraryCheckResponse> {
+  const response = await apiClient.get<LibraryCheckResponse>(`/explorer/${repoId}/library-check`, {
+    params: { environment_id: environmentId },
+  })
+  return response.data
 }

@@ -142,6 +142,30 @@ async def _migrate_sqlite(conn) -> None:
         await conn.execute(text("ALTER TABLE repositories ADD COLUMN sync_error TEXT"))
         logger.info("Migration: added sync_error column")
 
+    # Re-read columns after possible changes
+    result = await conn.execute(text("PRAGMA table_info(repositories)"))
+    columns = {row[1]: row for row in result.fetchall()}
+
+    if "environment_id" not in columns:
+        await conn.execute(text(
+            "ALTER TABLE repositories ADD COLUMN environment_id INTEGER REFERENCES environments(id) ON DELETE SET NULL"
+        ))
+        logger.info("Migration: added environment_id column to repositories")
+
+    # Migrate environments table: add default_runner_type and max_docker_containers
+    result = await conn.execute(text("PRAGMA table_info(environments)"))
+    env_columns = {row[1] for row in result.fetchall()}
+    if "default_runner_type" not in env_columns:
+        await conn.execute(text(
+            "ALTER TABLE environments ADD COLUMN default_runner_type VARCHAR(20) DEFAULT 'subprocess'"
+        ))
+        logger.info("Migration: added default_runner_type column to environments")
+    if "max_docker_containers" not in env_columns:
+        await conn.execute(text(
+            "ALTER TABLE environments ADD COLUMN max_docker_containers INTEGER DEFAULT 1"
+        ))
+        logger.info("Migration: added max_docker_containers column to environments")
+
 
 async def _migrate_postgres(conn) -> None:
     """PostgreSQL migrations."""
@@ -157,6 +181,40 @@ async def _migrate_postgres(conn) -> None:
             "ALTER TABLE repositories ALTER COLUMN git_url DROP NOT NULL"
         ))
         logger.info("Migration: added repo_type column, made git_url nullable")
+
+    # Add environment_id column if missing
+    result = await conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'repositories' AND column_name = 'environment_id'"
+    ))
+    if not result.fetchone():
+        await conn.execute(text(
+            "ALTER TABLE repositories ADD COLUMN environment_id INTEGER "
+            "REFERENCES environments(id) ON DELETE SET NULL"
+        ))
+        logger.info("Migration: added environment_id column to repositories")
+
+    # Add default_runner_type column to environments if missing
+    result = await conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'environments' AND column_name = 'default_runner_type'"
+    ))
+    if not result.fetchone():
+        await conn.execute(text(
+            "ALTER TABLE environments ADD COLUMN default_runner_type VARCHAR(20) DEFAULT 'subprocess'"
+        ))
+        logger.info("Migration: added default_runner_type column to environments")
+
+    # Add max_docker_containers column to environments if missing
+    result = await conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'environments' AND column_name = 'max_docker_containers'"
+    ))
+    if not result.fetchone():
+        await conn.execute(text(
+            "ALTER TABLE environments ADD COLUMN max_docker_containers INTEGER DEFAULT 1"
+        ))
+        logger.info("Migration: added max_docker_containers column to environments")
 
 
 async def drop_tables() -> None:

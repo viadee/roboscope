@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useExplorerStore } from '@/stores/explorer.store'
 import { useReposStore } from '@/stores/repos.store'
+import { useEnvironmentsStore } from '@/stores/environments.store'
+import { useToast } from '@/composables/useToast'
 import { createRun } from '@/api/execution.api'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
@@ -23,6 +25,8 @@ const route = useRoute()
 const router = useRouter()
 const explorer = useExplorerStore()
 const repos = useReposStore()
+const envs = useEnvironmentsStore()
+const toast = useToast()
 const { t } = useI18n()
 
 const searchQuery = ref('')
@@ -45,6 +49,9 @@ const runningFile = ref<string | null>(null)
 const runOverlay = ref<{ show: boolean; fileName: string; runId: number | null; error: string | null }>({
   show: false, fileName: '', runId: null, error: null,
 })
+const showEnvPrompt = ref(false)
+const settingUpDefaultEnv = ref(false)
+const pendingRunNode = ref<TreeNode | null>(null)
 
 // Breadcrumb
 const breadcrumb = computed(() => {
@@ -66,8 +73,21 @@ const isEditable = computed(() => {
 
 const isRobot = computed(() => explorer.selectedFile?.extension?.toLowerCase() === '.robot')
 
+const isLocalhost = computed(() =>
+  ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+)
+
+const currentRepo = computed(() =>
+  repos.repos.find(r => r.id === selectedRepoId.value)
+)
+
+const absolutePath = computed(() => {
+  if (!isLocalhost.value || !currentRepo.value || !explorer.selectedFile) return null
+  return currentRepo.value.local_path + '/' + explorer.selectedFile.path
+})
+
 onMounted(async () => {
-  await repos.fetchRepos()
+  await Promise.all([repos.fetchRepos(), envs.fetchEnvironments()])
   const repoId = Number(route.params.repoId)
   if (repoId && repos.repos.find(r => r.id === repoId)) {
     selectedRepoId.value = repoId
@@ -88,14 +108,38 @@ watch(selectedRepoId, async (newId) => {
   if (newId) {
     router.replace(`/explorer/${newId}`)
     explorer.clearSelection()
-    expandedPaths.value.clear()
     isDirty.value = false
     await explorer.fetchTree(newId)
     autoExpandRoot()
   }
 })
 
+const STORAGE_KEY_PREFIX = 'explorer-expanded-'
+
+function getStorageKey(): string {
+  return STORAGE_KEY_PREFIX + (selectedRepoId.value || 'default')
+}
+
+function saveExpandedPaths() {
+  try {
+    localStorage.setItem(getStorageKey(), JSON.stringify([...expandedPaths.value]))
+  } catch { /* ignore quota errors */ }
+}
+
+function loadExpandedPaths() {
+  try {
+    const stored = localStorage.getItem(getStorageKey())
+    if (stored) {
+      const paths = JSON.parse(stored) as string[]
+      expandedPaths.value = new Set(paths)
+      return true
+    }
+  } catch { /* ignore parse errors */ }
+  return false
+}
+
 function autoExpandRoot() {
+  if (loadExpandedPaths()) return
   if (explorer.tree) {
     expandedPaths.value.add(explorer.tree.path)
   }
@@ -110,10 +154,39 @@ function toggleExpand(node: TreeNode) {
   } else {
     expandedPaths.value.add(key)
   }
+  saveExpandedPaths()
 }
 
 function isExpanded(node: TreeNode): boolean {
   return expandedPaths.value.has(node.path)
+}
+
+function collectAllDirPaths(node: TreeNode, paths: string[]) {
+  if (node.type === 'directory') {
+    paths.push(node.path)
+    if (node.children) {
+      for (const child of node.children) {
+        collectAllDirPaths(child, paths)
+      }
+    }
+  }
+}
+
+function expandAll() {
+  if (!explorer.tree) return
+  const paths: string[] = [explorer.tree.path]
+  if (explorer.tree.children) {
+    for (const child of explorer.tree.children) {
+      collectAllDirPaths(child, paths)
+    }
+  }
+  expandedPaths.value = new Set(paths)
+  saveExpandedPaths()
+}
+
+function collapseAll() {
+  expandedPaths.value.clear()
+  saveExpandedPaths()
 }
 
 async function onNodeClick(node: TreeNode) {
@@ -131,6 +204,113 @@ async function onNodeClick(node: TreeNode) {
 }
 
 // --- CodeMirror editor ---
+
+// Comprehensive Robot Framework keyword set (based on npp-robot + RF5/RF7)
+const RF_BUILTINS = new Set([
+  // BuiltIn library
+  'call method', 'catenate', 'comment', 'continue for loop', 'continue for loop if',
+  'convert to binary', 'convert to boolean', 'convert to bytes', 'convert to hex',
+  'convert to integer', 'convert to number', 'convert to octal', 'convert to string',
+  'create dictionary', 'create list', 'evaluate', 'exit for loop', 'exit for loop if',
+  'fail', 'fatal error', 'get count', 'get length', 'get library instance',
+  'get time', 'get variable value', 'get variables', 'import library', 'import resource',
+  'import variables', 'keyword should exist', 'length should be', 'log', 'log many',
+  'log to console', 'log variables', 'no operation', 'pass execution', 'pass execution if',
+  'regexp escape', 'reload library', 'remove tags', 'repeat keyword', 'replace variables',
+  'return from keyword', 'return from keyword if', 'run keyword', 'run keyword and continue on failure',
+  'run keyword and expect error', 'run keyword and ignore error', 'run keyword and return',
+  'run keyword and return if', 'run keyword and return status', 'run keyword if',
+  'run keyword if all critical tests passed', 'run keyword if all tests passed',
+  'run keyword if any critical tests failed', 'run keyword if any tests failed',
+  'run keyword if test failed', 'run keyword if test passed',
+  'run keyword if timeout occurred', 'run keyword unless', 'run keywords',
+  'set global variable', 'set library search order', 'set log level',
+  'set suite documentation', 'set suite metadata', 'set suite variable',
+  'set tags', 'set test documentation', 'set test message', 'set test variable',
+  'set variable', 'set variable if', 'should be empty', 'should be equal',
+  'should be equal as integers', 'should be equal as numbers', 'should be equal as strings',
+  'should be true', 'should contain', 'should contain x times', 'should end with',
+  'should match', 'should match regexp', 'should not be empty', 'should not be equal',
+  'should not be equal as integers', 'should not be equal as numbers',
+  'should not be equal as strings', 'should not be true', 'should not contain',
+  'should not end with', 'should not match', 'should not match regexp',
+  'should not start with', 'should start with', 'sleep',
+  'variable should exist', 'variable should not exist', 'wait until keyword succeeds',
+  'skip', 'skip if',
+  // String library
+  'convert to lowercase', 'convert to uppercase', 'decode bytes to string',
+  'encode string to bytes', 'fetch from left', 'fetch from right',
+  'generate random string', 'get line', 'get line count',
+  'get lines containing string', 'get lines matching pattern', 'get lines matching regexp',
+  'get regexp matches', 'get substring', 'remove string', 'remove string using regexp',
+  'replace string', 'replace string using regexp', 'should be byte string',
+  'should be lowercase', 'should be string', 'should be titlecase',
+  'should be unicode string', 'should be uppercase', 'should not be string',
+  'split string', 'split string from right', 'split string to characters', 'split to lines',
+  // Collections library
+  'append to list', 'combine lists', 'convert to dictionary', 'convert to list',
+  'copy dictionary', 'copy list', 'count values in list', 'dictionaries should be equal',
+  'dictionary should contain item', 'dictionary should contain key',
+  'dictionary should contain sub dictionary', 'dictionary should contain value',
+  'dictionary should not contain key', 'dictionary should not contain value',
+  'get dictionary items', 'get dictionary keys', 'get dictionary values',
+  'get from dictionary', 'get from list', 'get index from list',
+  'get match count', 'get matches', 'get slice from list', 'insert into list',
+  'keep in dictionary', 'list should contain sub list', 'list should contain value',
+  'list should not contain duplicates', 'list should not contain value',
+  'lists should be equal', 'log dictionary', 'log list', 'pop from dictionary',
+  'remove duplicates', 'remove from dictionary', 'remove from list',
+  'remove values from list', 'reverse list', 'set list value', 'set to dictionary',
+  'should contain match', 'should not contain match', 'sort list',
+  // DateTime library
+  'add time to date', 'add time to time', 'convert date', 'convert time',
+  'get current date', 'subtract date from date', 'subtract time from date',
+  'subtract time from time',
+  // OperatingSystem library
+  'append to environment variable', 'append to file', 'copy directory', 'copy file',
+  'copy files', 'count directories in directory', 'count files in directory',
+  'count items in directory', 'create binary file', 'create directory', 'create file',
+  'directory should be empty', 'directory should exist', 'directory should not be empty',
+  'directory should not exist', 'empty directory', 'environment variable should be set',
+  'environment variable should not be set', 'file should be empty', 'file should exist',
+  'file should not be empty', 'file should not exist', 'get binary file',
+  'get environment variable', 'get environment variables', 'get file', 'get file size',
+  'get modified time', 'grep file', 'join path', 'join paths',
+  'list directories in directory', 'list directory', 'list files in directory',
+  'log environment variables', 'log file', 'move directory', 'move file', 'move files',
+  'normalize path', 'remove directory', 'remove environment variable', 'remove file',
+  'remove files', 'run', 'run and return rc', 'run and return rc and output',
+  'set environment variable', 'set modified time', 'should exist', 'should not exist',
+  'split extension', 'split path', 'touch', 'wait until created', 'wait until removed',
+  // Process library
+  'get process id', 'get process object', 'get process result', 'is process running',
+  'join command line', 'process should be running', 'process should be stopped',
+  'run process', 'send signal to process', 'split command line', 'start process',
+  'stop all processes', 'stop process', 'switch process', 'terminate all processes',
+  'terminate process', 'wait for process',
+  // Telnet library
+  'close all connections', 'close connection', 'execute command', 'login',
+  'open connection', 'read', 'read until', 'read until prompt', 'read until regexp',
+  'set default log level', 'set encoding', 'set newline', 'set prompt',
+  'set telnetlib log level', 'set timeout', 'switch connection', 'write',
+  'write bare', 'write control character', 'write until expected output',
+  // XML library
+  'add element', 'clear element', 'copy element', 'element attribute should be',
+  'element attribute should match', 'element should exist', 'element should not exist',
+  'element should not have attribute', 'element text should be', 'element text should match',
+  'element to string', 'elements should be equal', 'elements should match',
+  'evaluate xpath', 'get child elements', 'get element', 'get element attribute',
+  'get element attributes', 'get element count', 'get element text', 'get elements',
+  'get elements texts', 'log element', 'parse xml', 'remove element',
+  'remove element attribute', 'remove element attributes', 'remove elements',
+  'remove elements attribute', 'remove elements attributes', 'save xml',
+  'set element attribute', 'set element tag', 'set element text',
+  'set elements attribute', 'set elements tag', 'set elements text',
+  // Screenshot library
+  'set screenshot directory', 'take screenshot', 'take screenshot without embedding',
+  // Dialogs library
+  'execute manual step', 'get selection from user', 'get value from user', 'pause execution',
+])
 
 function robotLanguage() {
   return StreamLanguage.define({
@@ -186,7 +366,7 @@ function robotLanguage() {
       if (state.section === 'settings' && stream.match(/^(Library|Resource|Variables|Suite Setup|Suite Teardown|Test Setup|Test Teardown|Test Template|Test Timeout|Force Tags|Default Tags|Metadata)\b/i)) {
         return 'meta'
       }
-      // Control flow
+      // Control flow (RF5+)
       if (stream.match(/^\b(FOR|END|IF|ELSE IF|ELSE|TRY|EXCEPT|FINALLY|WHILE|BREAK|CONTINUE|RETURN|IN|IN RANGE|IN ENUMERATE|IN ZIP)\b/)) {
         return 'keyword'
       }
@@ -194,9 +374,27 @@ function robotLanguage() {
       if (stream.match(/^\b(Given|When|Then|And|But)\b/i)) {
         return 'keyword'
       }
-      // Built-in keywords
-      if (stream.match(/^\b(Log|Log To Console|Log Many|Set Variable|Set Global Variable|Set Suite Variable|Set Test Variable|Should Be Equal|Should Be True|Should Contain|Should Not Contain|Should Be Empty|Should Not Be Empty|Wait Until Keyword Succeeds|Run Keyword|Run Keyword If|Run Keyword And Return|Run Keyword And Return Status|Run Keyword And Expect Error|Run Keyword And Ignore Error|Run Keyword Unless|Evaluate|Call Method|Create List|Create Dictionary|Get Length|Get Count|Convert To String|Convert To Integer|Convert To Number|Fail|Fatal Error|Pass Execution|Pass Execution If|Skip|Skip If|Sleep|No Operation|Import Library|Import Resource|Import Variables|Set Library Search Order|Keyword Should Exist|Variable Should Exist|Variable Should Not Exist|Get Variable Value|Set Tags|Remove Tags|Set Log Level|Catenate|Get Time|Comment)\b/)) {
-        return 'function'
+      // Built-in keywords: match word sequences (single-space separated, stops at double-space separators)
+      if (stream.match(/^[A-Za-z]/, false)) {
+        const remaining = stream.string.slice(stream.pos)
+        const m = remaining.match(/^[A-Za-z][A-Za-z0-9]*(?: [A-Za-z][A-Za-z0-9]*)*/)
+        if (m) {
+          const cellText = m[0]
+          const words = cellText.split(' ')
+          // Greedy: try longest keyword match first
+          for (let len = words.length; len >= 1; len--) {
+            const candidate = words.slice(0, len).join(' ')
+            if (RF_BUILTINS.has(candidate.toLowerCase())) {
+              stream.pos += candidate.length
+              return 'function'
+            }
+          }
+          // Not a keyword — consume the first word
+          stream.pos += words[0].length
+          return null
+        }
+        stream.next()
+        return null
       }
       // Strings (quoted)
       if (stream.match(/^"(?:[^"\\]|\\.)*"/)) return 'string'
@@ -331,15 +529,36 @@ async function handleOpenInEditor(node: TreeNode) {
   await explorer.openInEditorAction(selectedRepoId.value, node.path)
 }
 
-async function handleRunRobot(node: TreeNode) {
+async function handleOpenInFileBrowser(node: TreeNode) {
+  if (!selectedRepoId.value) return
+  await explorer.openInFileBrowserAction(selectedRepoId.value, node.path)
+}
+
+function handleRunRobot(node: TreeNode) {
+  if (!selectedRepoId.value) return
+  if (envs.environments.length === 0) {
+    pendingRunNode.value = node
+    showEnvPrompt.value = true
+    return
+  }
+  doRunRobot(node)
+}
+
+async function doRunRobot(node: TreeNode) {
   if (!selectedRepoId.value) return
   runningFile.value = node.path
   runOverlay.value = { show: true, fileName: node.name, runId: null, error: null }
   try {
-    const run = await createRun({
+    const defaultEnv = envs.environments.find(e => e.is_default)
+    const runPayload: Record<string, any> = {
       repository_id: selectedRepoId.value,
       target_path: node.path,
-    })
+    }
+    if (defaultEnv) {
+      runPayload.environment_id = defaultEnv.id
+      runPayload.runner_type = defaultEnv.default_runner_type
+    }
+    const run = await createRun(runPayload as any)
     runOverlay.value.runId = run.id
   } catch (e: any) {
     runOverlay.value.error = e.response?.data?.detail || e.message
@@ -348,9 +567,39 @@ async function handleRunRobot(node: TreeNode) {
   }
 }
 
+async function setupDefaultFromExplorer() {
+  settingUpDefaultEnv.value = true
+  try {
+    await envs.setupDefault()
+    showEnvPrompt.value = false
+    toast.success(t('environments.setupDefault.toastSuccess'))
+    if (pendingRunNode.value) {
+      doRunRobot(pendingRunNode.value)
+      pendingRunNode.value = null
+    }
+  } catch (e: any) {
+    if (e.response?.status === 409) {
+      toast.error(t('environments.setupDefault.alreadyExists'))
+    } else {
+      toast.error(t('environments.setupDefault.toastError'))
+    }
+  } finally {
+    settingUpDefaultEnv.value = false
+  }
+}
+
+function skipEnvAndRun() {
+  showEnvPrompt.value = false
+  if (pendingRunNode.value) {
+    doRunRobot(pendingRunNode.value)
+    pendingRunNode.value = null
+  }
+}
+
 function goToExecution() {
+  const runId = runOverlay.value.runId
   runOverlay.value.show = false
-  router.push('/execution')
+  router.push({ path: '/runs', query: runId ? { run: String(runId) } : undefined })
 }
 
 async function handleSearch() {
@@ -436,6 +685,8 @@ const flatNodes = computed(() => {
             <span class="text-muted text-sm" v-if="explorer.tree">
               {{ explorer.tree.test_count || 0 }} {{ t('explorer.tests') }}
             </span>
+            <button class="icon-btn" @click="expandAll" :title="t('explorer.expandAll')">⊞</button>
+            <button class="icon-btn" @click="collapseAll" :title="t('explorer.collapseAll')">⊟</button>
             <button class="icon-btn" @click="openCreateDialog()" :title="t('explorer.newFile')">+</button>
           </div>
         </div>
@@ -462,6 +713,12 @@ const flatNodes = computed(() => {
                 @click="handleRunRobot(node)"
                 :title="t('explorer.runTest')"
               >▶</button>
+              <button
+                v-if="node.type === 'directory' && isLocalhost"
+                class="node-action-btn"
+                @click="handleOpenInFileBrowser(node)"
+                :title="t('explorer.openInFileBrowser')"
+              >📂</button>
               <button
                 v-if="node.type === 'directory'"
                 class="node-action-btn"
@@ -510,13 +767,20 @@ const flatNodes = computed(() => {
         <template v-else-if="explorer.selectedFile">
           <div class="preview-header">
             <div class="preview-header-left">
-              <nav class="breadcrumb">
-                <template v-for="(crumb, i) in breadcrumb" :key="crumb.path">
-                  <span v-if="i > 0" class="breadcrumb-sep">/</span>
-                  <span :class="{ 'breadcrumb-current': crumb.isLast }">{{ crumb.name }}</span>
-                </template>
-              </nav>
-              <span class="text-muted text-sm">{{ t('explorer.lines', { count: explorer.selectedFile.line_count }) }}</span>
+              <div class="preview-header-info">
+                <div class="preview-header-top">
+                  <nav class="breadcrumb">
+                    <template v-for="(crumb, i) in breadcrumb" :key="crumb.path">
+                      <span v-if="i > 0" class="breadcrumb-sep">/</span>
+                      <span :class="{ 'breadcrumb-current': crumb.isLast }">{{ crumb.name }}</span>
+                    </template>
+                  </nav>
+                  <span class="text-muted text-sm">{{ t('explorer.lines', { count: explorer.selectedFile.line_count }) }}</span>
+                </div>
+                <div v-if="absolutePath" class="absolute-path">
+                  {{ t('explorer.absolutePath') }}: {{ absolutePath }}
+                </div>
+              </div>
             </div>
             <div class="preview-header-actions">
               <span v-if="isDirty" class="unsaved-badge">{{ t('explorer.unsaved') }}</span>
@@ -586,6 +850,28 @@ const flatNodes = computed(() => {
       <template #footer>
         <BaseButton variant="secondary" size="sm" @click="showDeleteConfirm = false">{{ t('common.cancel') }}</BaseButton>
         <BaseButton variant="danger" size="sm" @click="handleDelete">{{ t('common.delete') }}</BaseButton>
+      </template>
+    </BaseModal>
+
+    <!-- Environment Setup Prompt -->
+    <BaseModal v-model="showEnvPrompt" :title="t('execution.envPrompt.title')">
+      <div class="env-prompt-body">
+        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="env-prompt-icon">
+          <path d="M16.5 9.4l-9-5.19M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+          <line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+        <p>{{ t('execution.envPrompt.message') }}</p>
+        <div class="env-prompt-packages">
+          <span class="env-prompt-tag">robotframework</span>
+          <span class="env-prompt-tag">seleniumlibrary</span>
+          <span class="env-prompt-tag">browser</span>
+          <span class="env-prompt-tag">requests</span>
+        </div>
+      </div>
+      <template #footer>
+        <BaseButton variant="secondary" @click="skipEnvAndRun">{{ t('execution.envPrompt.skip') }}</BaseButton>
+        <BaseButton :loading="settingUpDefaultEnv" @click="setupDefaultFromExplorer">{{ t('execution.envPrompt.setup') }}</BaseButton>
       </template>
     </BaseModal>
 
@@ -758,6 +1044,28 @@ const flatNodes = computed(() => {
   overflow: hidden;
 }
 
+.preview-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.preview-header-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.absolute-path {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+}
+
 .preview-header-actions {
   display: flex;
   align-items: center;
@@ -854,6 +1162,43 @@ const flatNodes = computed(() => {
 }
 
 .result-name { flex: 1; }
+
+.env-prompt-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 8px 0;
+  gap: 12px;
+}
+
+.env-prompt-icon {
+  color: var(--color-primary, #3CB5A1);
+}
+
+.env-prompt-body p {
+  color: var(--color-text-muted, #5C688C);
+  font-size: 14px;
+  max-width: 380px;
+  line-height: 1.5;
+}
+
+.env-prompt-packages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.env-prompt-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  background: rgba(60, 181, 161, 0.1);
+  color: var(--color-primary, #3CB5A1);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
 
 .empty-state {
   display: flex;

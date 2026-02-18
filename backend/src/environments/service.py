@@ -263,6 +263,30 @@ async def search_pypi(query: str) -> list[dict]:
     return results[:20]
 
 
+def generate_dockerfile(
+    python_version: str,
+    packages: list[str],
+    base_image: str | None = None,
+) -> str:
+    """Generate a Dockerfile that installs the given packages.
+
+    Pure function, no DB access.
+    """
+    base = base_image or f"python:{python_version}-slim"
+    lines = [
+        f"FROM {base}",
+        "",
+        "RUN pip install --no-cache-dir \\",
+    ]
+    for i, pkg in enumerate(packages):
+        suffix = "" if i == len(packages) - 1 else " \\"
+        lines.append(f"    {pkg}{suffix}")
+    lines.append("")
+    lines.append('CMD ["python", "-m", "robot", "--help"]')
+    lines.append("")
+    return "\n".join(lines)
+
+
 def pip_list_installed(venv_path: str | None) -> list[dict]:
     """List all packages installed in a venv via pip list --format=json."""
     if not venv_path:

@@ -1,5 +1,6 @@
 """mateoX FastAPI application entry point."""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,10 +17,16 @@ from src.websocket.manager import ws_manager
 
 logger = logging.getLogger("mateox")
 
+# Event loop reference for background threads to schedule async work
+_event_loop: asyncio.AbstractEventLoop | None = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown lifecycle."""
+    global _event_loop
+    _event_loop = asyncio.get_running_loop()
+
     # Startup
     logging.basicConfig(
         level=getattr(logging, settings.LOG_LEVEL),
@@ -43,6 +50,30 @@ async def lifespan(app: FastAPI):
         from src.settings.service import seed_default_settings
         await seed_default_settings(session)
         await session.commit()
+
+    # Seed "Examples" project with bundled test files
+    async with AsyncSessionLocal() as session:
+        from src.repos.models import Repository
+        from sqlalchemy import select
+        result = await session.execute(
+            select(Repository).where(Repository.name == "Examples")
+        )
+        if result.scalar_one_or_none() is None:
+            examples_dir = Path(__file__).resolve().parent.parent / "examples" / "tests"
+            if examples_dir.is_dir():
+                repo = Repository(
+                    name="Examples",
+                    repo_type="local",
+                    local_path=str(examples_dir),
+                    default_branch="main",
+                    auto_sync=False,
+                    created_by=1,
+                )
+                session.add(repo)
+                await session.commit()
+                logger.info("Seeded 'Examples' project: %s", examples_dir)
+            else:
+                logger.warning("Examples directory not found: %s", examples_dir)
 
     # Discover and load plugins
     from src.plugins.registry import plugin_registry

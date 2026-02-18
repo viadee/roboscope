@@ -22,6 +22,7 @@ from src.auth.service import (
     get_user_by_email,
     get_user_by_id,
     get_users,
+    hash_password,
     update_user,
 )
 from src.database import get_db
@@ -135,7 +136,10 @@ async def patch_user(
     user = await get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    updated = await update_user(db, user, **data.model_dump(exclude_unset=True))
+    update_data = data.model_dump(exclude_unset=True)
+    if "password" in update_data:
+        update_data["hashed_password"] = hash_password(update_data.pop("password"))
+    updated = await update_user(db, user, **update_data)
     return updated
 
 

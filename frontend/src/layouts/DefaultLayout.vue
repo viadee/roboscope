@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import BaseToast from '@/components/ui/BaseToast.vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useWebSocket } from '@/composables/useWebSocket'
+
+const { t } = useI18n()
 
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -31,6 +34,13 @@ onUnmounted(() => {
       <main class="main-content">
         <slot />
       </main>
+      <footer class="app-footer">
+        <span>&copy; {{ new Date().getFullYear() }} viadee Unternehmensberatung AG</span>
+        <span class="footer-sep">|</span>
+        <a href="https://www.mateo-automation.com" target="_blank" rel="noopener">mateo-automation.com</a>
+        <span class="footer-sep">|</span>
+        <router-link to="/imprint">{{ t('imprint.title') }}</router-link>
+      </footer>
     </div>
 
     <!-- Toast Notifications -->
@@ -69,6 +79,30 @@ onUnmounted(() => {
   flex: 1;
   padding: 24px;
   overflow-y: auto;
+}
+
+.app-footer {
+  padding: 12px 24px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border-light);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.app-footer a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.app-footer a:hover {
+  text-decoration: underline;
+}
+
+.footer-sep {
+  color: var(--color-border);
 }
 
 .toast-container {
