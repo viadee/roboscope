@@ -31,7 +31,19 @@ This creates a Python virtual environment and installs all dependencies.
 start.bat
 ```
 
-### 3. Open
+### 3. Stop
+
+**Linux / macOS:**
+```bash
+./stop.sh
+```
+
+**Windows:**
+```
+stop.bat
+```
+
+### 4. Open
 
 Open your browser at: **http://localhost:8145**
 
@@ -220,6 +232,8 @@ mateox/
 ├── install.bat       # Install script (Windows)
 ├── start.sh          # Start script (Linux/macOS)
 ├── start.bat         # Start script (Windows)
+├── stop.sh           # Stop script (Linux/macOS)
+├── stop.bat          # Stop script (Windows)
 ├── mateox.db         # SQLite database (created on first run)
 └── .venv/            # Python virtual environment (created by install.sh)
 ```

@@ -144,6 +144,23 @@ if [ -f ".env" ]; then
   set -a; source .env; set +a
 fi
 
+PORT="${PORT:-8145}"
+
+# Check if port is already in use
+if lsof -i :"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+  echo "Error: Port $PORT is already in use."
+  echo ""
+  if command -v lsof >/dev/null 2>&1; then
+    echo "Process using port $PORT:"
+    lsof -i :"$PORT" -sTCP:LISTEN 2>/dev/null || true
+  fi
+  echo ""
+  echo "Options:"
+  echo "  1. Stop the other process:  ./stop.sh"
+  echo "  2. Change the port in .env: PORT=9000"
+  exit 1
+fi
+
 # Activate venv
 if [ -d ".venv" ]; then
   source .venv/bin/activate
@@ -153,14 +170,62 @@ else
 fi
 
 echo "==> Starting mateoX..."
-echo "    URL: http://localhost:${PORT:-8145}"
-echo "    API: http://localhost:${PORT:-8145}/api/v1/docs"
+echo "    URL: http://localhost:${PORT}"
+echo "    API: http://localhost:${PORT}/api/v1/docs"
 echo "    Default login: admin@mateox.local / admin123"
 echo ""
 
-python -m uvicorn src.main:app --host "${HOST:-0.0.0.0}" --port "${PORT:-8145}"
+python -m uvicorn src.main:app --host "${HOST:-0.0.0.0}" --port "${PORT}"
 STARTEOF
 chmod +x "$DIST/start.sh"
+
+# ── 7b. Create stop script ───────────────────────────────────
+cat > "$DIST/stop.sh" << 'STOPEOF'
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
+
+# Load .env if present
+if [ -f ".env" ]; then
+  set -a; source .env; set +a
+fi
+
+PORT="${PORT:-8145}"
+
+echo "==> Stopping mateoX on port $PORT..."
+
+PIDS=$(lsof -ti :"$PORT" -sTCP:LISTEN 2>/dev/null || true)
+if [ -z "$PIDS" ]; then
+  echo "    No process found on port $PORT."
+  exit 0
+fi
+
+for PID in $PIDS; do
+  echo "    Stopping PID $PID..."
+  kill "$PID" 2>/dev/null || true
+done
+
+# Wait up to 5 seconds for graceful shutdown
+for i in $(seq 1 10); do
+  if ! lsof -ti :"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "    mateoX stopped."
+    exit 0
+  fi
+  sleep 0.5
+done
+
+# Force kill if still running
+PIDS=$(lsof -ti :"$PORT" -sTCP:LISTEN 2>/dev/null || true)
+if [ -n "$PIDS" ]; then
+  echo "    Force stopping..."
+  for PID in $PIDS; do
+    kill -9 "$PID" 2>/dev/null || true
+  done
+fi
+
+echo "    mateoX stopped."
+STOPEOF
+chmod +x "$DIST/stop.sh"
 
 # ── 8. Create Windows install script ─────────────────────────
 cat > "$DIST/install.bat" << 'BATEOF'
@@ -186,6 +251,28 @@ cat > "$DIST/start.bat" << 'BATEOF'
 @echo off
 cd /d "%~dp0"
 
+:: Load port from .env if present
+set PORT=8145
+if exist .env (
+    for /f "usebackq tokens=1,2 delims==" %%a in (".env") do (
+        if "%%a"=="PORT" set PORT=%%b
+    )
+)
+
+:: Check if port is already in use
+netstat -ano | findstr ":%PORT% " | findstr "LISTENING" >nul 2>&1
+if %errorlevel%==0 (
+    echo Error: Port %PORT% is already in use.
+    echo.
+    echo Process using port %PORT%:
+    netstat -ano | findstr ":%PORT% " | findstr "LISTENING"
+    echo.
+    echo Options:
+    echo   1. Stop the other process:  stop.bat
+    echo   2. Change the port in .env: PORT=9000
+    exit /b 1
+)
+
 if not exist .venv (
     echo Error: Run install.bat first.
     exit /b 1
@@ -194,12 +281,41 @@ if not exist .venv (
 call .venv\Scripts\activate.bat
 
 echo ==> Starting mateoX...
-echo     URL: http://localhost:8145
-echo     API: http://localhost:8145/api/v1/docs
+echo     URL: http://localhost:%PORT%
+echo     API: http://localhost:%PORT%/api/v1/docs
 echo     Default login: admin@mateox.local / admin123
 echo.
 
-python -m uvicorn src.main:app --host 0.0.0.0 --port 8145
+python -m uvicorn src.main:app --host 0.0.0.0 --port %PORT%
+BATEOF
+
+# ── 9b. Create Windows stop script ──────────────────────────
+cat > "$DIST/stop.bat" << 'BATEOF'
+@echo off
+cd /d "%~dp0"
+
+:: Load port from .env if present
+set PORT=8145
+if exist .env (
+    for /f "usebackq tokens=1,2 delims==" %%a in (".env") do (
+        if "%%a"=="PORT" set PORT=%%b
+    )
+)
+
+echo ==> Stopping mateoX on port %PORT%...
+
+set FOUND=0
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":%PORT% " ^| findstr "LISTENING"') do (
+    echo     Stopping PID %%p...
+    taskkill /PID %%p /F >nul 2>&1
+    set FOUND=1
+)
+
+if %FOUND%==0 (
+    echo     No process found on port %PORT%.
+) else (
+    echo     mateoX stopped.
+)
 BATEOF
 
 # ── 10. Create ZIP ───────────────────────────────────────────
