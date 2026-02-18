@@ -107,6 +107,8 @@ python3 -m pip download \
   -d "$DIST/wheels" \
   2>/dev/null || true
 
+# Save requirements for install script
+cp "$DEPS_FILE" "$DIST/requirements.txt"
 rm -f "$DEPS_FILE"
 echo "    Wheels: $(ls "$DIST/wheels" | wc -l | tr -d ' ') packages"
 
@@ -147,9 +149,8 @@ echo "==> Installing mateoX..."
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install wheels offline
-pip install --no-index --find-links=wheels wheels/*.whl 2>/dev/null || \
-  pip install --no-index --find-links=wheels wheels/*
+# Install dependencies offline (pip picks the correct platform wheels)
+pip install --no-index --find-links=wheels -r requirements.txt
 
 # Copy default config if not exists
 [ -f .env ] || cp .env.example .env
@@ -199,7 +200,7 @@ cd /d "%~dp0"
 python -m venv .venv
 call .venv\Scripts\activate.bat
 
-pip install --no-index --find-links=wheels wheels\*
+pip install --no-index --find-links=wheels -r requirements.txt
 
 if not exist .env copy .env.example .env
 
