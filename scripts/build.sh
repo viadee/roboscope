@@ -87,8 +87,8 @@ DEPS_FILE=$(mktemp)
 _read_deps > "$DEPS_FILE"
 
 # Download platform-specific binary wheels for all targets and Python versions
-for plat in manylinux2014_x86_64 macosx_11_0_arm64 macosx_10_9_x86_64 win_amd64; do
-  for pyver in 3.10 3.11 3.12 3.13; do
+for plat in manylinux2014_x86_64 macosx_11_0_arm64 macosx_11_0_x86_64 win_amd64; do
+  for pyver in 3.10 3.11 3.12 3.13 3.14; do
     abi="cp${pyver//./}"
     echo "    Downloading wheels for $plat (Python $pyver)..."
     python3 -m pip download \
@@ -99,16 +99,28 @@ for plat in manylinux2014_x86_64 macosx_11_0_arm64 macosx_10_9_x86_64 win_amd64;
       --implementation cp \
       --abi "$abi" \
       --only-binary :all: \
-      2>/dev/null || true
+      2>&1 | grep -i "error\|saved" || true
   done
 done
 
-# Final pass: download remaining pure-python wheels and any missed deps
-echo "    Downloading pure-python wheels..."
+# Download for host platform (catches deps the cross-platform pass missed)
+echo "    Downloading wheels for host platform..."
 python3 -m pip download \
   -r "$DEPS_FILE" \
   -d "$DIST/wheels" \
   2>/dev/null || true
+
+# Ensure conditional deps for older Python versions are included
+# (e.g., tomli is needed by alembic on Python <3.11 but not on 3.12+)
+echo "    Resolving conditional dependencies for Python 3.10..."
+python3 -m pip download \
+  -r "$DEPS_FILE" \
+  -d "$DIST/wheels" \
+  --python-version 3.10 \
+  --implementation cp \
+  --abi cp310 \
+  --only-binary :all: \
+  2>&1 | grep -i "error\|saved" || true
 
 # Save requirements for install script
 cp "$DEPS_FILE" "$DIST/requirements.txt"
