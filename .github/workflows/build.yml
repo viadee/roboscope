@@ -32,4 +32,4 @@ jobs:
         with:
           name: mateox
           path: dist/mateox.zip
-          retention-days: 30
+          retention-days: 7
