@@ -14,9 +14,10 @@ class Report(Base, TimestampMixin):
     __tablename__ = "reports"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    execution_run_id: Mapped[int] = mapped_column(
-        ForeignKey("execution_runs.id", ondelete="CASCADE"), unique=True, index=True
+    execution_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("execution_runs.id", ondelete="CASCADE"), unique=True, index=True, nullable=True
     )
+    archive_name: Mapped[str | None] = mapped_column(String(255), default=None)
     output_xml_path: Mapped[str] = mapped_column(String(500))
     log_html_path: Mapped[str | None] = mapped_column(String(500), default=None)
     report_html_path: Mapped[str | None] = mapped_column(String(500), default=None)

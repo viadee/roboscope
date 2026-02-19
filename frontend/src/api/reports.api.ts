@@ -44,6 +44,15 @@ export async function deleteAllReports(): Promise<{ deleted: number; dirs_cleane
   return response.data
 }
 
+export async function uploadReportArchive(file: File): Promise<ReportDetail> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await apiClient.post<ReportDetail>('/reports/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return response.data
+}
+
 export async function getUniqueTests(search?: string, limit = 50): Promise<UniqueTest[]> {
   const response = await apiClient.get<UniqueTest[]>('/reports/tests/unique', {
     params: { search, limit },

@@ -171,7 +171,8 @@ export interface EnvironmentVariable {
 
 export interface Report {
   id: number
-  execution_run_id: number
+  execution_run_id: number | null
+  archive_name: string | null
   total_tests: number
   passed_tests: number
   failed_tests: number

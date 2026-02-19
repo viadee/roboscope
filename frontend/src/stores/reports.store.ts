@@ -36,5 +36,12 @@ export const useReportsStore = defineStore('reports', () => {
     return await reportsApi.compareReports(reportA, reportB)
   }
 
-  return { reports, activeReport, loading, fetchReports, fetchReport, deleteAllReports, compareReports }
+  async function uploadArchive(file: File) {
+    const result = await reportsApi.uploadReportArchive(file)
+    // Add the new report to the list
+    reports.value.unshift(result.report)
+    return result
+  }
+
+  return { reports, activeReport, loading, fetchReports, fetchReport, deleteAllReports, compareReports, uploadArchive }
 })

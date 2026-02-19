@@ -7,7 +7,7 @@ import shutil
 import zipfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import delete, select
@@ -21,7 +21,8 @@ from src.database import get_db
 
 optional_bearer = HTTPBearer(auto_error=False)
 from src.reports.models import Report, TestResult
-from src.reports.parser import parse_output_xml_deep
+from src.config import settings
+from src.reports.parser import parse_output_xml, parse_output_xml_deep
 from src.reports.schemas import (
     ReportCompareResponse,
     ReportDetailResponse,
@@ -128,6 +129,135 @@ def delete_all_reports(
 
     logger.info("Deleted %d reports and %d output directories", count, deleted_dirs)
     return {"deleted": count, "dirs_cleaned": deleted_dirs}
+
+
+@router.post("/upload", response_model=ReportDetailResponse, status_code=status.HTTP_201_CREATED)
+def upload_archive(
+    file: UploadFile,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Upload a Robot Framework report ZIP for offline analysis.
+
+    The ZIP must contain an output.xml file. Optionally includes report.html
+    and log.html for HTML report viewing.
+    """
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be a .zip archive",
+        )
+
+    # Read and validate ZIP
+    try:
+        content = file.file.read()
+        if not zipfile.is_zipfile(io.BytesIO(content)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uploaded file is not a valid ZIP archive",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error reading uploaded file: {e}",
+        )
+
+    # Extract to a unique directory under REPORTS_DIR/archives/
+    import uuid
+
+    archive_id = uuid.uuid4().hex[:12]
+    archive_name = Path(file.filename).stem
+    extract_dir = Path(settings.REPORTS_DIR) / "archives" / f"{archive_name}_{archive_id}"
+    extract_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as zf:
+            zf.extractall(extract_dir)
+    except Exception as e:
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error extracting ZIP: {e}",
+        )
+
+    # Find output.xml (may be at root or one level deep)
+    output_xml = None
+    report_html = None
+    log_html = None
+
+    for xml_path in extract_dir.rglob("output.xml"):
+        output_xml = xml_path
+        break
+
+    if output_xml is None:
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No output.xml found in the uploaded archive",
+        )
+
+    # Look for report.html and log.html near output.xml
+    xml_dir = output_xml.parent
+    for html_candidate in xml_dir.glob("report.html"):
+        report_html = html_candidate
+    for html_candidate in xml_dir.glob("log.html"):
+        log_html = html_candidate
+
+    # Parse output.xml
+    try:
+        parsed = parse_output_xml(str(output_xml))
+    except Exception as e:
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error parsing output.xml: {e}",
+        )
+
+    # Create Report record (no execution_run_id for archives)
+    report = Report(
+        execution_run_id=None,
+        archive_name=archive_name,
+        output_xml_path=str(output_xml),
+        log_html_path=str(log_html) if log_html else None,
+        report_html_path=str(report_html) if report_html else None,
+        total_tests=parsed.total_tests,
+        passed_tests=parsed.passed_tests,
+        failed_tests=parsed.failed_tests,
+        skipped_tests=parsed.skipped_tests,
+        total_duration_seconds=parsed.total_duration_seconds,
+    )
+    db.add(report)
+    db.flush()
+    db.refresh(report)
+
+    # Create TestResult records
+    for tr in parsed.test_results:
+        test_result = TestResult(
+            report_id=report.id,
+            suite_name=tr.suite_name,
+            test_name=tr.test_name,
+            status=tr.status,
+            duration_seconds=tr.duration_seconds,
+            error_message=tr.error_message or None,
+            tags=",".join(tr.tags) if tr.tags else None,
+            start_time=tr.start_time or None,
+            end_time=tr.end_time or None,
+        )
+        db.add(test_result)
+    db.flush()
+
+    logger.info(
+        "Archive uploaded: %s — %d tests (%d passed, %d failed)",
+        archive_name, parsed.total_tests, parsed.passed_tests, parsed.failed_tests,
+    )
+
+    results = get_test_results(db, report.id)
+    return ReportDetailResponse(
+        report=ReportResponse.model_validate(report),
+        test_results=[TestResultResponse.model_validate(r) for r in results],
+    )
 
 
 @router.get("/compare", response_model=ReportCompareResponse)

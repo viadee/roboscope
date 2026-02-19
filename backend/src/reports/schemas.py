@@ -9,7 +9,8 @@ from pydantic import BaseModel
 
 class ReportResponse(BaseModel):
     id: int
-    execution_run_id: int
+    execution_run_id: int | None = None
+    archive_name: str | None = None
     total_tests: int
     passed_tests: int
     failed_tests: int
