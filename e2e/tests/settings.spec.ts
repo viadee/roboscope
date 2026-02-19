@@ -33,6 +33,6 @@ test.describe('Settings Page', () => {
     await page.waitForLoadState('networkidle');
 
     // The admin user should appear
-    await expect(page.getByText('admin@mateox.local')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('admin@roboscope.local')).toBeVisible({ timeout: 5_000 });
   });
 });

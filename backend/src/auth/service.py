@@ -132,7 +132,7 @@ def ensure_admin_exists(db: Session) -> None:
     result = db.execute(select(User).limit(1))
     if result.scalar_one_or_none() is None:
         admin = User(
-            email="admin@mateox.local",
+            email="admin@roboscope.local",
             username="admin",
             hashed_password=hash_password("admin123"),
             role=Role.ADMIN,

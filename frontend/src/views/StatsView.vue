@@ -863,8 +863,8 @@ function formatDate(d: string | null) {
   background: var(--color-bg-hover, #f8fafc);
 }
 .tab-btn.active {
-  color: var(--color-primary, #3CB5A1);
-  border-bottom-color: var(--color-primary, #3CB5A1);
+  color: var(--color-primary, #3B7DD8);
+  border-bottom-color: var(--color-primary, #3B7DD8);
 }
 
 /* Progress */
@@ -885,7 +885,7 @@ function formatDate(d: string | null) {
 }
 .progress-bar {
   height: 100%;
-  background: var(--color-primary, #3CB5A1);
+  background: var(--color-primary, #3B7DD8);
   border-radius: 4px;
   transition: width 0.3s ease;
 }
@@ -919,7 +919,7 @@ function formatDate(d: string | null) {
 }
 .lib-bar-label { width: 140px; font-size: 13px; text-align: right; flex-shrink: 0; }
 .lib-bar-track { flex: 1; height: 18px; background: var(--color-bg, #f4f7fa); border-radius: 3px; overflow: hidden; }
-.lib-bar-fill { height: 100%; background: var(--color-primary, #3CB5A1); border-radius: 3px; transition: width 0.3s; }
+.lib-bar-fill { height: 100%; background: var(--color-primary, #3B7DD8); border-radius: 3px; transition: width 0.3s; }
 .lib-bar-value { width: 100px; font-size: 12px; color: var(--color-text-muted); }
 
 /* Histogram */
@@ -931,7 +931,7 @@ function formatDate(d: string | null) {
 }
 .histogram-label { width: 60px; font-size: 12px; text-align: right; flex-shrink: 0; }
 .histogram-track { flex: 1; height: 16px; background: var(--color-bg, #f4f7fa); border-radius: 3px; overflow: hidden; }
-.histogram-fill { height: 100%; background: var(--color-accent, #DFAA40); border-radius: 3px; }
+.histogram-fill { height: 100%; background: var(--color-accent, #D4883E); border-radius: 3px; }
 .histogram-value { width: 40px; font-size: 12px; color: var(--color-text-muted); }
 
 /* Small KPI values */
@@ -950,7 +950,7 @@ function formatDate(d: string | null) {
   font-size: 13px;
 }
 .tag-count {
-  background: var(--color-primary, #3CB5A1);
+  background: var(--color-primary, #3B7DD8);
   color: white;
   border-radius: 10px;
   padding: 1px 6px;

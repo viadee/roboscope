@@ -40,7 +40,7 @@ async function handleLogin() {
           v-model="email"
           type="text"
           class="form-input"
-          placeholder="admin@mateox.local"
+          placeholder="admin@roboscope.local"
           required
           autofocus
         />

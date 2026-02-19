@@ -34,7 +34,7 @@ from src.repos.service import (
     update_repository,
 )
 
-logger = logging.getLogger("mateox.repos")
+logger = logging.getLogger("roboscope.repos")
 
 router = APIRouter()
 

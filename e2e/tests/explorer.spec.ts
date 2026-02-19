@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { loginAndGoToDashboard } from '../helpers';
 
 const API = 'http://localhost:8000/api/v1';
-const EMAIL = 'admin@mateox.local';
+const EMAIL = 'admin@roboscope.local';
 const PASSWORD = 'admin123';
 
 async function getAuthToken(page: Page): Promise<string> {
@@ -16,7 +16,7 @@ async function getAuthToken(page: Page): Promise<string> {
 /** Create a local repo with a test file for explorer testing. */
 async function createTestRepo(page: Page, token: string): Promise<{ repoId: number; repoName: string; localPath: string }> {
   const repoName = `explorer-e2e-${Date.now()}`;
-  const localPath = `/tmp/mateox-explorer-${Date.now()}`;
+  const localPath = `/tmp/roboscope-explorer-${Date.now()}`;
 
   const res = await page.request.post(`${API}/repos`, {
     headers: { Authorization: `Bearer ${token}` },

@@ -1,4 +1,4 @@
-"""mateoX FastAPI application entry point."""
+"""RoboScope FastAPI application entry point."""
 
 import asyncio
 import logging
@@ -15,7 +15,7 @@ from src.config import settings
 from src.database import create_tables, SessionLocal
 from src.websocket.manager import ws_manager
 
-logger = logging.getLogger("mateox")
+logger = logging.getLogger("roboscope")
 
 # Event loop reference for background threads to schedule async work
 _event_loop: asyncio.AbstractEventLoop | None = None
@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
         level=getattr(logging, settings.LOG_LEVEL),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-    logger.info(f"Starting mateoX v{settings.VERSION}")
+    logger.info(f"Starting RoboScope v{settings.VERSION}")
     logger.info(f"Database: {'SQLite' if settings.is_sqlite else 'PostgreSQL'}")
     logger.info("Task executor: in-process ThreadPoolExecutor (max_workers=1)")
 
@@ -79,11 +79,11 @@ async def lifespan(app: FastAPI):
     from src.plugins.registry import plugin_registry
     plugin_registry.discover_builtin()
 
-    logger.info("mateoX started successfully")
+    logger.info("RoboScope started successfully")
     yield
 
     # Shutdown
-    logger.info("Shutting down mateoX...")
+    logger.info("Shutting down RoboScope...")
     from src.plugins.registry import plugin_registry
     plugin_registry.shutdown_all()
 

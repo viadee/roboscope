@@ -53,7 +53,7 @@ export default {
     email: 'E-Mail',
     password: 'Passwort',
     loginFailed: 'Anmeldung fehlgeschlagen',
-    hint: "Standard: admin{'@'}mateox.local / admin123",
+    hint: "Standard: admin{'@'}roboscope.local / admin123",
   },
   dashboard: {
     title: 'Dashboard',
@@ -217,7 +217,7 @@ export default {
     },
     envPrompt: {
       title: 'Umgebung einrichten?',
-      message: 'Du hast noch keine Umgebung. Soll mateo eine Standard-Umgebung mit den wichtigsten Robot Framework Libraries einrichten?',
+      message: 'Du hast noch keine Umgebung. Soll RoboScope eine Standard-Umgebung mit den wichtigsten Robot Framework Libraries einrichten?',
       setup: 'Ja, einrichten',
       skip: 'Nein, ohne starten',
     },
@@ -265,14 +265,14 @@ export default {
     noVariables: 'Keine Variablen definiert.',
     noEnvs: 'Noch keine Umgebungen konfiguriert.',
     setupDefault: {
-      title: 'Erste Schritte mit mateo',
-      description: 'Wenn du nicht weißt, was du tun sollst, lass mateo eine Standard-Umgebung mit den wichtigsten Robot Framework Libraries für dich konfigurieren.',
-      button: 'mateo einrichten lassen',
+      title: 'Erste Schritte mit RoboScope',
+      description: 'Wenn du nicht weißt, was du tun sollst, lass RoboScope eine Standard-Umgebung mit den wichtigsten Robot Framework Libraries für dich konfigurieren.',
+      button: 'RoboScope einrichten lassen',
       hint: 'Pakete werden im Hintergrund installiert.',
       toastSuccess: 'Standard-Umgebung erstellt — Pakete werden im Hintergrund installiert.',
       toastError: 'Standard-Umgebung konnte nicht erstellt werden.',
       alreadyExists: 'Standard-Umgebung existiert bereits.',
-      libCheckMessage: 'Keine Umgebungen vorhanden. Lass mateo eine Standard-Umgebung erstellen, damit du einen Library-Check durchführen kannst.',
+      libCheckMessage: 'Keine Umgebungen vorhanden. Lass RoboScope eine Standard-Umgebung erstellen, damit du einen Library-Check durchführen kannst.',
     },
     addDialog: {
       title: 'Neue Umgebung erstellen',
@@ -596,7 +596,7 @@ export default {
     regNumber: 'Registernummer',
     vatId: 'USt-IdNr.',
     product: 'Produkt',
-    productText: 'mateo ist ein Produkt der viadee Unternehmensberatung AG für Testautomatisierung und Robotic Process Automation.',
+    productText: 'RoboScope ist ein Produkt der viadee Unternehmensberatung AG für Testautomatisierung und Robotic Process Automation.',
   },
   websocket: {
     runPassed: 'Test Run bestanden',

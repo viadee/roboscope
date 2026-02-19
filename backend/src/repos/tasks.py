@@ -14,7 +14,7 @@ import src.auth.models  # noqa: F401 — defines 'users' table
 from src.repos.models import Repository
 from src.repos.service import clone_repository, sync_repository
 
-logger = logging.getLogger("mateox.repos.tasks")
+logger = logging.getLogger("roboscope.repos.tasks")
 
 _sync_url = settings.sync_database_url
 _sync_engine = create_engine(_sync_url)

@@ -1,4 +1,4 @@
-# mateoX — Claude Code Projektdokumentation
+# RoboScope — Claude Code Projektdokumentation
 
 Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausführung, Report-Analyse, Environment-Management und Container-Runtime.
 
@@ -119,7 +119,7 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 ## Architektur
 
 ```
-mateoX/
+RoboScope/
 ├── backend/          # FastAPI (Python 3.12+)
 │   ├── src/          # Applikations-Code (Domain-Driven)
 │   │   ├── auth/     # JWT-Auth + RBAC (Viewer < Runner < Editor < Admin)
@@ -161,18 +161,18 @@ mateoX/
 └── Makefile          # Alle Befehle
 ```
 
-## Design-System (mateo-automation.com Branding)
+## Design-System (RoboScope Branding)
 
 ### Farben (CSS Custom Properties in main.css)
 ```css
---color-primary: #3CB5A1      /* Teal — mateo Hauptfarbe */
---color-accent: #DFAA40       /* Gold — Akzentfarbe */
---color-navy: #203166         /* Navy — Sidebar/Dark Areas */
---color-navy-dark: #101933    /* Dunkleres Navy */
+--color-primary: #3B7DD8      /* Steel Blue — RoboScope Hauptfarbe */
+--color-accent: #D4883E       /* Amber — Akzentfarbe */
+--color-navy: #1A2D50         /* Navy — Sidebar/Dark Areas (Logo-Farbe) */
+--color-navy-dark: #0F1A30    /* Dunkleres Navy */
 --color-bg: #F4F7FA           /* Seiten-Hintergrund */
 --color-bg-card: #ffffff      /* Karten-Hintergrund */
 --color-text: #1A1D2E         /* Haupttext */
---color-text-muted: #5C688C   /* Sekundärtext */
+--color-text-muted: #5A6380   /* Sekundärtext */
 ```
 
 ### Komponenten-Styling
@@ -241,12 +241,12 @@ make frontend           # nur Frontend
 
 Backend manuell starten:
 ```bash
-cd mateoX/backend && .venv/bin/python -m uvicorn src.main:app --reload --port 8000
+cd RoboScope/backend && .venv/bin/python -m uvicorn src.main:app --reload --port 8000
 ```
 
 Frontend manuell starten:
 ```bash
-cd mateoX/frontend && npm run dev
+cd RoboScope/frontend && npm run dev
 ```
 
 ### Mit Docker
@@ -274,8 +274,8 @@ make typecheck          # mypy + vue-tsc
 
 E2E Tests manuell starten:
 ```bash
-cd mateoX/e2e && npx playwright test
-cd mateoX/e2e && npx playwright test tests/execution-run.spec.ts  # einzelner Spec
+cd RoboScope/e2e && npx playwright test
+cd RoboScope/e2e && npx playwright test tests/execution-run.spec.ts  # einzelner Spec
 ```
 
 - **Backend**: pytest, In-Memory SQLite, transaktionaler Rollback
@@ -295,15 +295,15 @@ make db-downgrade
 
 | Variable | Default | Beschreibung |
 |----------|---------|--------------|
-| `DATABASE_URL` | `sqlite:///./mateox.db` | DB-Connection |
+| `DATABASE_URL` | `sqlite:///./roboscope.db` | DB-Connection |
 | `SECRET_KEY` | dev-key | JWT-Secret |
 | `RUNNER_TYPE` | `auto` | `subprocess`, `docker`, `auto` |
 | `DOCKER_AVAILABLE` | `false` | Docker-Runner aktivieren |
 | `DEFAULT_TIMEOUT_SECONDS` | `3600` | Timeout pro Run |
 | `LOG_LEVEL` | `INFO` | Logging-Level |
-| `WORKSPACE_DIR` | `~/.mateox/workspace` | Git-Repos Arbeitsverzeichnis |
-| `REPORTS_DIR` | `~/.mateox/reports` | Report-Dateien Verzeichnis |
-| `VENVS_DIR` | `~/.mateox/venvs` | Virtuelle Environments |
+| `WORKSPACE_DIR` | `~/.roboscope/workspace` | Git-Repos Arbeitsverzeichnis |
+| `REPORTS_DIR` | `~/.roboscope/reports` | Report-Dateien Verzeichnis |
+| `VENVS_DIR` | `~/.roboscope/venvs` | Virtuelle Environments |
 
 ## Bekannte Patterns und Gotchas
 
@@ -372,12 +372,12 @@ Der Event-Loop wird in `main.py` Lifespan als `_event_loop` gespeichert. Die Hel
 
 ### Default Admin User + Examples-Projekt
 Beim ersten Start wird automatisch erstellt:
-- Admin-User: `admin@mateox.local` / `admin123`
+- Admin-User: `admin@roboscope.local` / `admin123`
 - "Examples"-Projekt: Zeigt auf `backend/examples/tests/` mit 5 Beispiel-Robot-Dateien
 
 ### vue-i18n: Sonderzeichen in Übersetzungen escapen
 vue-i18n v10 verwendet eine strikte Message-Syntax. Folgende Zeichen sind **reserviert** und müssen in Übersetzungstexten escaped werden:
-- `@` → `{'@'}` (Linked-Message-Syntax, z.B. `admin{'@'}mateox.local`)
+- `@` → `{'@'}` (Linked-Message-Syntax, z.B. `admin{'@'}roboscope.local`)
 - `|` → `{'|'}` (Plural-Trennzeichen)
 - `{` / `}` → `{'{}'}` (Placeholder-Syntax)
 - `#` → kann in Plural-Kontexten problematisch sein

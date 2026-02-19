@@ -1,4 +1,4 @@
-"""Shared test fixtures for the mateoX backend."""
+"""Shared test fixtures for the RoboScope backend."""
 
 import pytest
 from fastapi.testclient import TestClient

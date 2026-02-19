@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────
-# Test script: verifies the install.sh inside dist/mateox works
+# Test script: verifies the install.sh inside dist/roboscope works
 #
 # Usage:  ./scripts/test-install.sh
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DIST="$ROOT/dist/mateox"
+DIST="$ROOT/dist/roboscope"
 TEST_DIR=$(mktemp -d)
 
 echo "==> Test: install.sh from dist"

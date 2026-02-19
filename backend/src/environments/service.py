@@ -14,7 +14,7 @@ from src.config import settings
 from src.environments.models import Environment, EnvironmentPackage, EnvironmentVariable
 from src.environments.schemas import EnvCreate, EnvUpdate, EnvVarCreate, PackageCreate
 
-logger = logging.getLogger("mateox.environments")
+logger = logging.getLogger("roboscope.environments")
 
 
 def list_environments(db: Session) -> list[Environment]:

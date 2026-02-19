@@ -9,10 +9,10 @@ const en: DocsContent = [
     subsections: [
       {
         id: 'overview',
-        title: 'What is mateoX?',
+        title: 'What is RoboScope?',
         content: `
 <p>
-  <strong>mateoX</strong> is a web-based test management tool designed specifically for
+  <strong>RoboScope</strong> is a web-based test management tool designed specifically for
   <em>Robot Framework</em>. It provides an integrated environment for managing test
   repositories, executing test runs, analyzing reports, and tracking statistics &mdash;
   all from a single, modern web interface.
@@ -27,14 +27,14 @@ const en: DocsContent = [
   <li><strong>Environment Management</strong> &mdash; Create isolated Python virtual environments, install packages, and define environment variables.</li>
   <li><strong>Role-Based Access</strong> &mdash; Four permission levels (Viewer, Runner, Editor, Admin) control who can view, run, edit, or administer.</li>
 </ul>`,
-        tip: 'mateoX works best with Chromium-based browsers (Chrome, Edge) or Firefox for the full CodeMirror editing experience.'
+        tip: 'RoboScope works best with Chromium-based browsers (Chrome, Edge) or Firefox for the full CodeMirror editing experience.'
       },
       {
         id: 'login',
         title: 'Logging In',
         content: `
 <p>
-  When you first open mateoX, you will be presented with the <strong>Login</strong> screen.
+  When you first open RoboScope, you will be presented with the <strong>Login</strong> screen.
   Enter your email address and password to authenticate.
 </p>
 <h4>Default Administrator Account</h4>
@@ -43,7 +43,7 @@ const en: DocsContent = [
     <tr><th>Field</th><th>Value</th></tr>
   </thead>
   <tbody>
-    <tr><td>Email</td><td><code>admin@mateox.local</code></td></tr>
+    <tr><td>Email</td><td><code>admin@roboscope.local</code></td></tr>
     <tr><td>Password</td><td><code>admin123</code></td></tr>
   </tbody>
 </table>
@@ -54,7 +54,7 @@ const en: DocsContent = [
 </p>
 <h4>Session Handling</h4>
 <p>
-  mateoX uses JWT-based authentication. Your session token is automatically refreshed
+  RoboScope uses JWT-based authentication. Your session token is automatically refreshed
   as long as the application is open. If the token expires (e.g., after a long
   inactivity period), you will be redirected to the login page.
 </p>`,
@@ -64,7 +64,7 @@ const en: DocsContent = [
         id: 'ui-layout',
         title: 'UI Layout',
         content: `
-<p>The mateoX interface consists of three main areas:</p>
+<p>The RoboScope interface consists of three main areas:</p>
 <ol>
   <li>
     <strong>Sidebar</strong> (left) &mdash; The primary navigation panel. It contains links to
@@ -79,7 +79,7 @@ const en: DocsContent = [
   <li>
     <strong>Content Area</strong> (center) &mdash; The main workspace where the selected
     view is rendered. Each view uses cards, tables, and action buttons following the
-    mateoX design system.
+    RoboScope design system.
   </li>
 </ol>
 <p>
@@ -93,7 +93,7 @@ const en: DocsContent = [
         title: 'Roles & Permissions',
         content: `
 <p>
-  mateoX implements a hierarchical role-based access control (RBAC) system.
+  RoboScope implements a hierarchical role-based access control (RBAC) system.
   Each higher role inherits all permissions from the roles below it.
 </p>
 <table>
@@ -189,8 +189,8 @@ const en: DocsContent = [
   </tbody>
 </table>
 <p>
-  Each card uses the mateoX design system: white background, teal accent for positive
-  trends, and gold for warnings. The values update automatically when navigating to
+  Each card uses the RoboScope design system: white background, blue accent for positive
+  trends, and amber for warnings. The values update automatically when navigating to
   the Dashboard.
 </p>`,
         tip: 'KPI cards reflect the last 30 days of activity. For longer time ranges, use the Statistics page.'
@@ -252,7 +252,7 @@ const en: DocsContent = [
         content: `
 <p>
   The <strong>Repositories</strong> page is where you register and manage your Robot Framework
-  test repositories. mateoX supports two types of repositories:
+  test repositories. RoboScope supports two types of repositories:
 </p>
 <ul>
   <li><strong>Git Repositories</strong> &mdash; Cloned from a remote URL, with branch selection and sync capabilities.</li>
@@ -260,7 +260,7 @@ const en: DocsContent = [
 </ul>
 <p>
   All repository data is stored under the <code>WORKSPACE_DIR</code> directory
-  (default: <code>~/.mateox/workspace</code>). Only users with the <strong>Editor</strong>
+  (default: <code>~/.roboscope/workspace</code>). Only users with the <strong>Editor</strong>
   role or above can add, edit, or delete repositories.
 </p>`
       },
@@ -277,7 +277,7 @@ const en: DocsContent = [
   <li>Click <strong>Create</strong>.</li>
 </ol>
 <p>
-  mateoX uses <em>GitPython</em> to clone the repository into the workspace directory.
+  RoboScope uses <em>GitPython</em> to clone the repository into the workspace directory.
   The clone operation runs as a background task, so you will see a <code>pending</code>
   status until it completes. Once the clone is finished, the repository becomes available
   in the Explorer and Execution views.
@@ -313,7 +313,7 @@ const en: DocsContent = [
 </p>
 <ul>
   <li><strong>Manual Sync</strong> &mdash; Click the <strong>Sync</strong> button on a repository row. This performs a <code>git pull</code> on the configured branch.</li>
-  <li><strong>Auto-Sync</strong> &mdash; Enable the auto-sync toggle for a repository. When enabled, mateoX will automatically pull changes at a configurable interval before each test run.</li>
+  <li><strong>Auto-Sync</strong> &mdash; Enable the auto-sync toggle for a repository. When enabled, RoboScope will automatically pull changes at a configurable interval before each test run.</li>
 </ul>
 <p>
   The sync status is indicated by a timestamp showing the last successful sync. If a
@@ -392,7 +392,7 @@ const en: DocsContent = [
   <li>A confirmation dialog will appear listing the repositories to be removed.</li>
 </ul>
 <p>
-  <strong>Warning:</strong> Deleting a repository removes it from mateoX and deletes
+  <strong>Warning:</strong> Deleting a repository removes it from RoboScope and deletes
   the cloned workspace data. Reports and run history associated with the repository
   are <em>not</em> automatically deleted. Use the Reports page to clean up old reports
   if needed.
@@ -429,7 +429,7 @@ const en: DocsContent = [
 </p>
 <h4>Localhost Features</h4>
 <p>
-  When accessing mateoX on <code>localhost</code>, additional features are available:
+  When accessing RoboScope on <code>localhost</code>, additional features are available:
 </p>
 <ul>
   <li><strong>Open Project Folder</strong> &mdash; A folder button in the tree header opens the project's root directory in your system file browser (Finder, Windows Explorer, or Nautilus).</li>
@@ -552,7 +552,7 @@ const en: DocsContent = [
 </ol>
 <p>
   The run enters <code>pending</code> status and is picked up by the task executor.
-  Since mateoX uses a single-worker executor, runs are processed one at a time in
+  Since RoboScope uses a single-worker executor, runs are processed one at a time in
   FIFO (first-in, first-out) order.
 </p>`,
         tip: 'If you need to run tests from multiple repositories, queue them sequentially. They will execute in order.'
@@ -645,7 +645,7 @@ const en: DocsContent = [
         content: `
 <p>
   The <strong>Reports</strong> page displays all generated test reports. After each
-  completed run, Robot Framework produces an <code>output.xml</code> file that mateoX
+  completed run, Robot Framework produces an <code>output.xml</code> file that RoboScope
   parses and stores for later analysis.
 </p>
 <p>Each report row shows:</p>
@@ -824,7 +824,7 @@ const en: DocsContent = [
         content: `
 <p>
   A <strong>flaky test</strong> is one that alternates between passing and failing without
-  any code changes. mateoX detects flaky tests by analyzing the pass/fail history of
+  any code changes. RoboScope detects flaky tests by analyzing the pass/fail history of
   individual test cases over the selected time period.
 </p>
 <p>
@@ -908,7 +908,7 @@ const en: DocsContent = [
 </p>
 <p>
   Environments are stored under the <code>VENVS_DIR</code> directory
-  (default: <code>~/.mateox/venvs</code>). Managing environments requires the
+  (default: <code>~/.roboscope/venvs</code>). Managing environments requires the
   <strong>Editor</strong> role or above.
 </p>`
       },
@@ -926,7 +926,7 @@ const en: DocsContent = [
   <li>Click <strong>Create</strong>.</li>
 </ol>
 <p>
-  mateoX creates a Python <code>venv</code> in the background using the system Python.
+  RoboScope creates a Python <code>venv</code> in the background using the system Python.
   The creation process typically takes a few seconds. Once ready, the environment
   status changes from <code>creating</code> to <code>ready</code>.
 </p>
@@ -1149,7 +1149,7 @@ const en: DocsContent = [
         title: 'WebSocket Live Updates',
         content: `
 <p>
-  mateoX uses <strong>WebSocket</strong> connections to deliver real-time updates
+  RoboScope uses <strong>WebSocket</strong> connections to deliver real-time updates
   without page refreshes. The frontend establishes a WebSocket connection upon login
   via the <code>useWebSocket</code> composable.
 </p>
@@ -1175,7 +1175,7 @@ const en: DocsContent = [
         title: 'Keyboard Shortcuts',
         content: `
 <p>
-  mateoX supports several keyboard shortcuts for faster navigation and editing:
+  RoboScope supports several keyboard shortcuts for faster navigation and editing:
 </p>
 <table>
   <thead>
@@ -1201,7 +1201,7 @@ const en: DocsContent = [
         title: 'Tips for Efficient Workflows',
         content: `
 <p>
-  Make the most of mateoX with these practical tips:
+  Make the most of RoboScope with these practical tips:
 </p>
 <h4>Organize Repositories Thoughtfully</h4>
 <ul>
@@ -1225,7 +1225,7 @@ const en: DocsContent = [
 <ul>
   <li>Assign appropriate roles to team members following the principle of least privilege.</li>
   <li>Use the Dashboard as a shared team status board for testing progress.</li>
-  <li>Download reports as ZIP archives when you need to share results outside of mateoX.</li>
+  <li>Download reports as ZIP archives when you need to share results outside of RoboScope.</li>
 </ul>`
       },
       {
@@ -1285,7 +1285,7 @@ const en: DocsContent = [
         title: 'Language Support',
         content: `
 <p>
-  mateoX supports multiple interface languages:
+  RoboScope supports multiple interface languages:
 </p>
 <table>
   <thead>

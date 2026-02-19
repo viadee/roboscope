@@ -8,13 +8,13 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: sqlite:///./mateox.db
+      DATABASE_URL: sqlite:///./roboscope.db
       DEBUG: "true"
       CORS_ORIGINS: '["http://localhost:5173"]'
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
-      - workspace-data:/root/.mateox
+      - workspace-data:/root/.roboscope
     restart: unless-stopped
 
 volumes:

@@ -18,14 +18,14 @@ test.describe('Authentication', () => {
     await expect(page.locator('h2', { hasText: 'Anmelden' })).toBeVisible();
 
     // Email and password inputs
-    await expect(page.getByPlaceholder('admin@mateox.local')).toBeVisible();
+    await expect(page.getByPlaceholder('admin@roboscope.local')).toBeVisible();
     await expect(page.getByPlaceholder('Passwort')).toBeVisible();
 
     // Submit button
     await expect(page.getByRole('button', { name: 'Anmelden' })).toBeVisible();
 
     // Hint text
-    await expect(page.getByText('Standard: admin@mateox.local / admin123')).toBeVisible();
+    await expect(page.getByText('Standard: admin@roboscope.local / admin123')).toBeVisible();
   });
 
   test('should login with valid credentials via UI and redirect to dashboard', async ({ page }) => {
@@ -41,7 +41,7 @@ test.describe('Authentication', () => {
 
   test('should show error with invalid credentials', async ({ page }) => {
     await page.goto('/login');
-    await page.getByPlaceholder('admin@mateox.local').fill('wrong@example.com');
+    await page.getByPlaceholder('admin@roboscope.local').fill('wrong@example.com');
     await page.getByPlaceholder('Passwort').fill('wrongpassword123');
     await page.getByRole('button', { name: 'Anmelden' }).click();
 

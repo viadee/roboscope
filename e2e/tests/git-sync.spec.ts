@@ -2,7 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import { loginAndGoToDashboard } from '../helpers';
 
 const API = 'http://localhost:8000/api/v1';
-const EMAIL = 'admin@mateox.local';
+const EMAIL = 'admin@roboscope.local';
 const PASSWORD = 'admin123';
 
 /**

@@ -837,12 +837,12 @@ async function removeMember(member: ProjectMember) {
   height: 16px;
   margin-top: 4px;
   cursor: pointer;
-  accent-color: var(--color-primary, #3CB5A1);
+  accent-color: var(--color-primary, #3B7DD8);
   flex-shrink: 0;
 }
 
 .card-selected {
-  outline: 2px solid var(--color-primary, #3CB5A1);
+  outline: 2px solid var(--color-primary, #3B7DD8);
   outline-offset: -2px;
   background: rgba(60, 181, 161, 0.04);
 }

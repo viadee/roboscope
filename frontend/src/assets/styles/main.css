@@ -1,41 +1,41 @@
-/* mateoX Global Styles — based on mateo-automation.com branding */
+/* RoboScope Global Styles */
 :root {
-  /* Primary: Teal (mateo brand color) */
-  --color-primary: #3CB5A1;
-  --color-primary-dark: #2D9484;
-  --color-primary-light: #89CEC2;
-  --color-primary-lighter: #B3E6DE;
-  --color-primary-bg: #E8F8F5;
+  /* Primary: Steel Blue (RoboScope brand) */
+  --color-primary: #3B7DD8;
+  --color-primary-dark: #2A5FA8;
+  --color-primary-light: #7BABEA;
+  --color-primary-lighter: #B3D1F5;
+  --color-primary-bg: #EBF3FD;
 
-  /* Secondary: Gold accent */
-  --color-accent: #DFAA40;
-  --color-accent-dark: #955B2B;
-  --color-accent-light: #F4E1BA;
+  /* Secondary: Warm Amber accent */
+  --color-accent: #D4883E;
+  --color-accent-dark: #A66A2E;
+  --color-accent-light: #F0D4B0;
 
-  /* Navy (sidebar, dark areas) */
-  --color-navy: #203166;
-  --color-navy-dark: #101933;
-  --color-navy-light: #5C688C;
+  /* Navy (sidebar, dark areas — matches logo) */
+  --color-navy: #1A2D50;
+  --color-navy-dark: #0F1A30;
+  --color-navy-light: #4A5A7A;
 
   /* Semantic colors */
   --color-success: #37996E;
   --color-success-bg: #DCFCE7;
-  --color-warning: #DFAA40;
+  --color-warning: #D4883E;
   --color-warning-bg: #FEF3C7;
   --color-danger: #DC3545;
   --color-danger-bg: #FEE2E2;
-  --color-info: #3CB5A1;
-  --color-info-bg: #E8F8F5;
+  --color-info: #3B7DD8;
+  --color-info-bg: #EBF3FD;
 
   /* Backgrounds */
   --color-bg: #F4F7FA;
   --color-bg-card: #ffffff;
-  --color-bg-sidebar: #101933;
+  --color-bg-sidebar: #0F1A30;
   --color-bg-header: #ffffff;
 
   /* Text */
   --color-text: #1A1D2E;
-  --color-text-muted: #5C688C;
+  --color-text-muted: #5A6380;
   --color-text-light: #8E96B0;
   --color-text-sidebar: #B4BDD9;
 
@@ -44,9 +44,9 @@
   --color-border-light: #EDF0F7;
 
   /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(16, 25, 51, 0.06);
-  --shadow-md: 0 4px 12px -2px rgba(16, 25, 51, 0.08);
-  --shadow-lg: 0 12px 24px -4px rgba(16, 25, 51, 0.12);
+  --shadow-sm: 0 1px 2px rgba(15, 26, 48, 0.06);
+  --shadow-md: 0 4px 12px -2px rgba(15, 26, 48, 0.08);
+  --shadow-lg: 0 12px 24px -4px rgba(15, 26, 48, 0.12);
 
   /* Radius */
   --radius-sm: 6px;

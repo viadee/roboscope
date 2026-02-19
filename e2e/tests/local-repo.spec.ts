@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { loginAndGoToDashboard } from '../helpers';
 
 const API = 'http://localhost:8000/api/v1';
-const EMAIL = 'admin@mateox.local';
+const EMAIL = 'admin@roboscope.local';
 const PASSWORD = 'admin123';
 
 async function getAuthToken(page: Page): Promise<string> {
@@ -30,7 +30,7 @@ test.describe('Local Repository — E2E', () => {
 
   test('POST /repos should create a local repo without git_url', async ({ page }) => {
     const repoName = `local-api-${Date.now()}`;
-    const localPath = `/tmp/mateox-e2e-${Date.now()}`;
+    const localPath = `/tmp/roboscope-e2e-${Date.now()}`;
 
     const res = await page.request.post(`${API}/repos`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -79,7 +79,7 @@ test.describe('Local Repository — E2E', () => {
     const repoName = `local-sync-${Date.now()}`;
     const createRes = await page.request.post(`${API}/repos`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { name: repoName, repo_type: 'local', local_path: `/tmp/mateox-sync-${Date.now()}` },
+      data: { name: repoName, repo_type: 'local', local_path: `/tmp/roboscope-sync-${Date.now()}` },
     });
     const repo = await createRes.json();
 
@@ -100,7 +100,7 @@ test.describe('Local Repository — E2E', () => {
     const repoName = `local-list-${Date.now()}`;
     const createRes = await page.request.post(`${API}/repos`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { name: repoName, repo_type: 'local', local_path: `/tmp/mateox-list-${Date.now()}` },
+      data: { name: repoName, repo_type: 'local', local_path: `/tmp/roboscope-list-${Date.now()}` },
     });
     const repo = await createRes.json();
 
@@ -131,7 +131,7 @@ test.describe('Local Repository — E2E', () => {
 
   test('should create a local repo via UI', async ({ page }) => {
     const repoName = `local-ui-${Date.now()}`;
-    const localPath = `/tmp/mateox-ui-${Date.now()}`;
+    const localPath = `/tmp/roboscope-ui-${Date.now()}`;
 
     await goToRepos(page);
     await page.getByRole('button', { name: /Projekt hinzufügen/ }).click();
@@ -163,7 +163,7 @@ test.describe('Local Repository — E2E', () => {
 
   test('local repo card should show path instead of git URL', async ({ page }) => {
     const repoName = `local-card-${Date.now()}`;
-    const localPath = `/tmp/mateox-card-${Date.now()}`;
+    const localPath = `/tmp/roboscope-card-${Date.now()}`;
 
     await page.request.post(`${API}/repos`, {
       headers: { Authorization: `Bearer ${token}` },

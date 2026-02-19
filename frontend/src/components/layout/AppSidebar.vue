@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useExecutionStore } from '@/stores/execution.store'
 import { computed } from 'vue'
-import mateoLogo from '@/assets/mateo-logo.png'
+import roboscopeLogo from '@/assets/roboscope.png'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -60,7 +60,7 @@ watch(() => route.path, () => {
   <aside class="sidebar" :class="{ collapsed: !ui.sidebarOpen, mobile: ui.isMobile }">
     <div class="sidebar-header">
       <router-link to="/dashboard" class="logo">
-        <img :src="mateoLogo" alt="mateo" class="logo-img" v-if="ui.sidebarOpen" />
+        <img :src="roboscopeLogo" alt="RoboScope" class="logo-img" v-if="ui.sidebarOpen" />
         <span class="logo-collapsed" v-else>m</span>
       </router-link>
     </div>

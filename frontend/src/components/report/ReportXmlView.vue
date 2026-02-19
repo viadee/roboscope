@@ -368,13 +368,13 @@ export default {
   border-left: 3px solid var(--color-danger);
 }
 
-.suite-header .tree-label { color: var(--color-navy, #203166); }
+.suite-header .tree-label { color: var(--color-navy, #1A2D50); }
 .test-header .tree-label { color: var(--color-text); }
 .kw-header .tree-label { color: var(--color-text-muted); font-weight: 400; }
 
 .kw-type {
   font-size: 10px;
-  color: var(--color-accent, #DFAA40);
+  color: var(--color-accent, #D4883E);
   font-weight: 600;
   text-transform: uppercase;
   flex-shrink: 0;
@@ -393,7 +393,7 @@ export default {
 
 .tag-chip {
   font-size: 10px;
-  background: var(--color-primary, #3CB5A1);
+  background: var(--color-primary, #3B7DD8);
   color: white;
   padding: 1px 6px;
   border-radius: 8px;

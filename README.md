@@ -1,4 +1,4 @@
-# mateoX
+# RoboScope
 
 Web-based Robot Framework Test Management Tool with Git integration, GUI execution, report analysis, environment management, and container runtime.
 
@@ -53,23 +53,23 @@ make docker-up     # Production (PostgreSQL + Nginx)
 
 ### Standalone Deployment
 
-Download the latest `mateox.zip` from [GitHub Actions](../../actions/workflows/build.yml), then:
+Download the latest `roboscope.zip` from [GitHub Actions](../../actions/workflows/build.yml), then:
 
 ```bash
-unzip mateox.zip
-cd mateox
+unzip roboscope.zip
+cd roboscope
 ./install.sh       # Creates venv, installs dependencies offline
 ./start.sh         # Starts server at http://localhost:8000
 ```
 
 On Windows, use `install.bat` and `start.bat` instead.
 
-Default login: `admin@mateox.local` / `admin123`
+Default login: `admin@roboscope.local` / `admin123`
 
 ## Project Structure
 
 ```
-mateoX/
+RoboScope/
 ├── backend/          # FastAPI application
 │   ├── src/          # Source code (domain-driven modules)
 │   ├── tests/        # pytest-asyncio tests
@@ -117,7 +117,7 @@ make test               # All tests
 # Build standalone offline distribution
 bash scripts/build.sh
 
-# Output: dist/mateox.zip (includes wheels for Linux, macOS, Windows)
+# Output: dist/roboscope.zip (includes wheels for Linux, macOS, Windows)
 ```
 
 ## License

@@ -15,7 +15,7 @@ import src.execution.models  # noqa: F401
 from src.reports.models import Report, TestResult
 from src.reports.parser import parse_output_xml
 
-logger = logging.getLogger("mateox.reports.tasks")
+logger = logging.getLogger("roboscope.reports.tasks")
 
 _sync_url = settings.sync_database_url
 _sync_engine = create_engine(_sync_url)

@@ -240,8 +240,8 @@ function downloadZip() {
 }
 
 .tab-btn.active {
-  color: var(--color-primary, #3CB5A1);
-  border-bottom-color: var(--color-primary, #3CB5A1);
+  color: var(--color-primary, #3B7DD8);
+  border-bottom-color: var(--color-primary, #3B7DD8);
 }
 
 .tab-content {

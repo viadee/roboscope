@@ -14,7 +14,7 @@ from src.celery_app import TaskDispatchError, dispatch_task
 from src.database import get_db
 from src.environments.models import Environment
 
-logger = logging.getLogger("mateox.environments")
+logger = logging.getLogger("roboscope.environments")
 from src.environments.schemas import (
     EnvCreate,
     EnvResponse,
@@ -79,20 +79,20 @@ def setup_default_environment(
     current_user: User = Depends(require_role(Role.EDITOR)),
 ):
     """Create a default environment with essential Robot Framework libraries."""
-    # Check if mateo-default already exists
+    # Check if roboscope-default already exists
     result = db.execute(
-        select(Environment).where(Environment.name == "mateo-default")
+        select(Environment).where(Environment.name == "roboscope-default")
     )
     if result.scalar_one_or_none() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Default environment 'mateo-default' already exists",
+            detail="Default environment 'roboscope-default' already exists",
         )
 
     env = create_environment(
         db,
         EnvCreate(
-            name="mateo-default",
+            name="roboscope-default",
             python_version="3.12",
             is_default=True,
             description="Default environment with essential Robot Framework libraries",
@@ -257,7 +257,7 @@ def docker_build(
     db.commit()
 
     safe_name = env.name.lower().replace(" ", "-")
-    image_tag = f"mateox/{safe_name}:latest"
+    image_tag = f"roboscope/{safe_name}:latest"
 
     try:
         from src.environments.tasks import build_docker_image

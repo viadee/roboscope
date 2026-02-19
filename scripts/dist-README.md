@@ -1,4 +1,4 @@
-# mateoX
+# RoboScope
 
 Web-based Robot Framework Test Management Tool with Git integration, test execution, report analysis, environment management, and more.
 
@@ -48,7 +48,7 @@ stop.bat
 Open your browser at: **http://localhost:8145**
 
 Default login:
-- **Email:** `admin@mateox.local`
+- **Email:** `admin@roboscope.local`
 - **Password:** `admin123`
 
 > Change the admin password after first login via Settings > Users.
@@ -61,13 +61,13 @@ All settings are in the `.env` file (created automatically from `.env.example` o
 |----------|---------|-------------|
 | `PORT` | `8145` | Server port |
 | `HOST` | `0.0.0.0` | Bind address (`0.0.0.0` = all interfaces, `127.0.0.1` = localhost only) |
-| `DATABASE_URL` | `sqlite:///./mateox.db` | Database connection string |
+| `DATABASE_URL` | `sqlite:///./roboscope.db` | Database connection string |
 | `SECRET_KEY` | `CHANGE-ME-IN-PRODUCTION` | JWT signing key (change this!) |
 | `DEBUG` | `false` | Enable debug mode |
 | `LOG_LEVEL` | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
-| `WORKSPACE_DIR` | `~/.mateox/workspace` | Directory for cloned Git repositories |
-| `REPORTS_DIR` | `~/.mateox/reports` | Directory for test execution reports |
-| `VENVS_DIR` | `~/.mateox/venvs` | Directory for Python virtual environments |
+| `WORKSPACE_DIR` | `~/.roboscope/workspace` | Directory for cloned Git repositories |
+| `REPORTS_DIR` | `~/.roboscope/reports` | Directory for test execution reports |
+| `VENVS_DIR` | `~/.roboscope/venvs` | Directory for Python virtual environments |
 
 ### Changing the Port
 
@@ -82,7 +82,7 @@ Then restart with `./start.sh` (or `start.bat`).
 
 Edit `.env`:
 ```
-DATABASE_URL=postgresql://user:password@localhost:5432/mateox
+DATABASE_URL=postgresql://user:password@localhost:5432/roboscope
 ```
 
 Note: PostgreSQL requires the `psycopg2` driver. Install it with:
@@ -140,11 +140,11 @@ Python 3 is not installed or not in your PATH.
 
 ### "ImportError: cannot import name 'StrEnum' from 'enum'"
 
-You are running Python 3.10 or older. This has been fixed — if you see this error, you have an outdated version of mateoX. Download the latest release.
+You are running Python 3.10 or older. This has been fixed — if you see this error, you have an outdated version of RoboScope. Download the latest release.
 
 ### "ImportError: cannot import name 'UTC' from 'datetime'"
 
-Same as above — you need a newer build of mateoX. This was fixed for Python 3.10 compatibility.
+Same as above — you need a newer build of RoboScope. This was fixed for Python 3.10 compatibility.
 
 ### "ERROR: ... is not a supported wheel on this platform"
 
@@ -180,7 +180,7 @@ You need to run the install script before starting. It creates the virtual envir
 
 ### "CSRF" or "CORS" errors in the browser console
 
-If accessing mateoX from a different hostname than `localhost`, add the hostname to the CORS configuration. Edit `.env`:
+If accessing RoboScope from a different hostname than `localhost`, add the hostname to the CORS configuration. Edit `.env`:
 ```
 CORS_ORIGINS=["http://your-hostname:8145"]
 ```
@@ -188,7 +188,7 @@ CORS_ORIGINS=["http://your-hostname:8145"]
 ### Database is locked (SQLite)
 
 SQLite doesn't support concurrent writes well. This can happen under heavy load:
-1. Ensure only one mateoX instance is running
+1. Ensure only one RoboScope instance is running
 2. For production with multiple users, switch to PostgreSQL (see Configuration section above)
 
 ### How do I reset the admin password?
@@ -196,20 +196,20 @@ SQLite doesn't support concurrent writes well. This can happen under heavy load:
 Log in as admin, go to **Settings > Users**, and use the password reset button. If you're locked out:
 ```bash
 # Delete the database and restart (creates fresh admin)
-rm mateox.db
+rm roboscope.db
 ./start.sh
 ```
 
 ### How do I back up my data?
 
-The SQLite database file is `mateox.db` in the installation directory. Simply copy it:
+The SQLite database file is `roboscope.db` in the installation directory. Simply copy it:
 ```bash
-cp mateox.db mateox-backup-$(date +%Y%m%d).db
+cp roboscope.db roboscope-backup-$(date +%Y%m%d).db
 ```
 
-### How do I update mateoX?
+### How do I update RoboScope?
 
-1. Back up your `mateox.db` and `.env` files
+1. Back up your `roboscope.db` and `.env` files
 2. Extract the new release over the existing directory
 3. Run `./install.sh` again to update dependencies
 4. Run `./start.sh`
@@ -219,7 +219,7 @@ Your database and configuration will be preserved.
 ## Directory Structure
 
 ```
-mateox/
+roboscope/
 ├── src/              # Backend application source
 ├── frontend_dist/    # Pre-built frontend (HTML, JS, CSS)
 ├── examples/         # Example Robot Framework test files
@@ -234,7 +234,7 @@ mateox/
 ├── start.bat         # Start script (Windows)
 ├── stop.sh           # Stop script (Linux/macOS)
 ├── stop.bat          # Stop script (Windows)
-├── mateox.db         # SQLite database (created on first run)
+├── roboscope.db         # SQLite database (created on first run)
 └── .venv/            # Python virtual environment (created by install.sh)
 ```
 

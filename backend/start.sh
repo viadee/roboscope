@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start mateoX Backend mit sauberer Umgebung
+# Start RoboScope Backend mit sauberer Umgebung
 cd "$(dirname "$0")"
 
 # Bestehende DATABASE_URL aus Eltern-Prozess entfernen

@@ -1179,7 +1179,7 @@ const flatNodes = computed(() => {
 }
 
 .env-prompt-icon {
-  color: var(--color-primary, #3CB5A1);
+  color: var(--color-primary, #3B7DD8);
 }
 
 .env-prompt-body p {
@@ -1200,7 +1200,7 @@ const flatNodes = computed(() => {
   display: inline-block;
   padding: 3px 10px;
   background: rgba(60, 181, 161, 0.1);
-  color: var(--color-primary, #3CB5A1);
+  color: var(--color-primary, #3B7DD8);
   border-radius: 20px;
   font-size: 12px;
   font-weight: 500;

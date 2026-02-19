@@ -15,7 +15,7 @@ from src.database import get_db
 from src.settings.schemas import SettingResponse, SettingsBulkUpdate
 from src.settings.service import list_settings, update_settings
 
-logger = logging.getLogger("mateox.settings")
+logger = logging.getLogger("roboscope.settings")
 
 router = APIRouter()
 

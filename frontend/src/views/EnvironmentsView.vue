@@ -598,7 +598,7 @@ function isInstalled(envId: number, packageName: string): boolean {
   display: inline-block;
   padding: 2px 8px;
   background: rgba(60, 181, 161, 0.1);
-  color: var(--color-primary, #3CB5A1);
+  color: var(--color-primary, #3B7DD8);
   border-radius: 4px;
   font-size: 12px;
   font-family: monospace;
@@ -642,7 +642,7 @@ function isInstalled(envId: number, packageName: string): boolean {
 }
 
 .dockerfile-code {
-  background: var(--color-navy-dark, #101933);
+  background: var(--color-navy-dark, #0F1A30);
   color: #e0e6f0;
   padding: 12px;
   border-radius: 6px;
@@ -722,7 +722,7 @@ function isInstalled(envId: number, packageName: string): boolean {
 }
 
 .setup-icon {
-  color: var(--color-primary, #3CB5A1);
+  color: var(--color-primary, #3B7DD8);
   margin-bottom: 16px;
 }
 
@@ -751,7 +751,7 @@ function isInstalled(envId: number, packageName: string): boolean {
   display: inline-block;
   padding: 4px 12px;
   background: rgba(60, 181, 161, 0.1);
-  color: var(--color-primary, #3CB5A1);
+  color: var(--color-primary, #3B7DD8);
   border-radius: 20px;
   font-size: 12px;
   font-weight: 500;

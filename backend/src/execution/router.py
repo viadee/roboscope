@@ -38,7 +38,7 @@ from src.execution.service import (
 )
 from src.reports.models import Report
 
-logger = logging.getLogger("mateox.execution")
+logger = logging.getLogger("roboscope.execution")
 
 router = APIRouter()
 

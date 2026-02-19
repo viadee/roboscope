@@ -61,11 +61,11 @@ test.describe('Imprint Page & Footer', () => {
     await expect(page.getByText('Rita Helter')).toBeVisible();
   });
 
-  test('should show mateo product link on imprint page', async ({ page }) => {
+  test('should show product link on imprint page', async ({ page }) => {
     await page.goto('/imprint');
     await page.waitForLoadState('networkidle');
 
-    const mateoLink = page.locator('a[href="https://www.mateo-automation.com"]').first();
-    await expect(mateoLink).toBeVisible();
+    const productLink = page.locator('a[href="https://www.mateo-automation.com"]').first();
+    await expect(productLink).toBeVisible();
   });
 });

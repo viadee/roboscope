@@ -21,7 +21,7 @@ from src.reports.parser import parse_output_xml_deep
 from src.stats.keyword_library_map import resolve_keyword_library
 from src.stats.models import AnalysisReport
 
-logger = logging.getLogger("mateox.stats.analysis")
+logger = logging.getLogger("roboscope.stats.analysis")
 
 _sync_url = settings.sync_database_url
 _sync_engine = create_engine(_sync_url)

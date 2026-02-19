@@ -41,7 +41,7 @@ from src.reports.service import (
     list_unique_tests,
 )
 
-logger = logging.getLogger("mateox.reports")
+logger = logging.getLogger("roboscope.reports")
 
 router = APIRouter()
 

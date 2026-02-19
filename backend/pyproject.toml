@@ -6,9 +6,9 @@ build-backend = "hatchling.build"
 packages = ["src"]
 
 [project]
-name = "mateox-backend"
+name = "roboscope-backend"
 version = "0.1.0"
-description = "mateoX - Web-based Robot Framework Test Management Tool"
+description = "RoboScope - Web-based Robot Framework Test Management Tool"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
@@ -39,10 +39,10 @@ docker = [
 ]
 # Alle optionalen Abhängigkeiten
 all = [
-    "mateox-backend[postgres,docker]",
+    "roboscope-backend[postgres,docker]",
 ]
 dev = [
-    "mateox-backend[all]",
+    "roboscope-backend[all]",
     "pytest>=8.3.0",
     "pytest-cov>=6.0.0",
     "httpx>=0.28.0",

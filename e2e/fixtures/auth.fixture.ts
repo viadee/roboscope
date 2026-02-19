@@ -56,7 +56,7 @@ async function injectTokensIntoPage(
  */
 async function loginViaApi(
   page: Page,
-  email = 'admin@mateox.local',
+  email = 'admin@roboscope.local',
   password = 'admin',
 ): Promise<void> {
   const apiBase = process.env.API_BASE_URL || 'http://localhost:8000';

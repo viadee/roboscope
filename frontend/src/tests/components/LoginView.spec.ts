@@ -57,7 +57,7 @@ describe('LoginView', () => {
       const wrapper = mountLoginView()
       const emailInput = wrapper.find('input[type="text"]')
       expect(emailInput.exists()).toBe(true)
-      expect(emailInput.attributes('placeholder')).toBe('admin@mateox.local')
+      expect(emailInput.attributes('placeholder')).toBe('admin@roboscope.local')
     })
 
     it('renders login form with password input', () => {
@@ -121,12 +121,12 @@ describe('LoginView', () => {
 
       vi.spyOn(auth, 'login').mockResolvedValue(undefined)
 
-      await wrapper.find('input[type="text"]').setValue('admin@mateox.local')
+      await wrapper.find('input[type="text"]').setValue('admin@roboscope.local')
       await wrapper.find('input[type="password"]').setValue('admin')
       await wrapper.find('form').trigger('submit')
       await flushPromises()
 
-      expect(auth.login).toHaveBeenCalledWith('admin@mateox.local', 'admin')
+      expect(auth.login).toHaveBeenCalledWith('admin@roboscope.local', 'admin')
     })
 
     it('does not show error text before form submission', () => {

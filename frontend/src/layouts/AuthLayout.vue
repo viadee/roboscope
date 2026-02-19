@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import mateoLogo from '@/assets/mateo-logo.png'
+import roboscopeLogo from '@/assets/roboscope.png'
 
 const { t } = useI18n()
 </script>
@@ -9,7 +9,7 @@ const { t } = useI18n()
   <div class="auth-layout">
     <div class="auth-container">
       <div class="auth-logo">
-        <img :src="mateoLogo" alt="mateo" class="auth-logo-img" />
+        <img :src="roboscopeLogo" alt="RoboScope" class="auth-logo-img" />
         <p>{{ t('auth.tagline') }}</p>
       </div>
       <slot />
@@ -27,7 +27,7 @@ const { t } = useI18n()
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #101933 0%, #203166 50%, #162044 100%);
+  background: linear-gradient(135deg, #0F1A30 0%, #1A2D50 50%, #122240 100%);
   position: relative;
   overflow: hidden;
 }
@@ -67,7 +67,7 @@ const { t } = useI18n()
 .bg-circle-1 {
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(60, 181, 161, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(59, 125, 216, 0.08) 0%, transparent 70%);
   top: -150px;
   right: -100px;
 }
@@ -75,7 +75,7 @@ const { t } = useI18n()
 .bg-circle-2 {
   width: 400px;
   height: 400px;
-  background: radial-gradient(circle, rgba(223, 170, 64, 0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(212, 136, 62, 0.06) 0%, transparent 70%);
   bottom: -100px;
   left: -100px;
 }

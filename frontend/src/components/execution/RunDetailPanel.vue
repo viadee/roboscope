@@ -302,7 +302,7 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
 <style scoped>
 .run-detail-panel {
   padding: 20px;
-  border-top: 2px solid var(--color-primary, #3CB5A1);
+  border-top: 2px solid var(--color-primary, #3B7DD8);
   background: var(--color-bg-card, #ffffff);
 }
 
@@ -383,8 +383,8 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
 }
 
 .tab-btn.active {
-  color: var(--color-primary, #3CB5A1);
-  border-bottom-color: var(--color-primary, #3CB5A1);
+  color: var(--color-primary, #3B7DD8);
+  border-bottom-color: var(--color-primary, #3B7DD8);
 }
 
 .tab-content {

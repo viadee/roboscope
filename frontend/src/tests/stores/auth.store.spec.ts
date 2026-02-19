@@ -43,7 +43,7 @@ describe('auth.store', () => {
       }
       const mockUser = {
         id: 1,
-        email: 'admin@mateox.local',
+        email: 'admin@roboscope.local',
         username: 'admin',
         role: 'admin' as const,
         is_active: true,
@@ -55,10 +55,10 @@ describe('auth.store', () => {
       vi.mocked(authApi.getMe).mockResolvedValue(mockUser)
 
       const store = useAuthStore()
-      await store.login('admin@mateox.local', 'admin')
+      await store.login('admin@roboscope.local', 'admin')
 
       expect(authApi.login).toHaveBeenCalledWith({
-        email: 'admin@mateox.local',
+        email: 'admin@roboscope.local',
         password: 'admin',
       })
       expect(store.token).toBe('test-access-token')
@@ -88,7 +88,7 @@ describe('auth.store', () => {
       }
       const mockUser = {
         id: 1,
-        email: 'admin@mateox.local',
+        email: 'admin@roboscope.local',
         username: 'admin',
         role: 'admin' as const,
         is_active: true,
@@ -100,7 +100,7 @@ describe('auth.store', () => {
       vi.mocked(authApi.getMe).mockResolvedValue(mockUser)
 
       const store = useAuthStore()
-      await store.login('admin@mateox.local', 'admin')
+      await store.login('admin@roboscope.local', 'admin')
 
       store.logout()
 
@@ -116,7 +116,7 @@ describe('auth.store', () => {
     it('returns true when user role meets the minimum', async () => {
       const mockUser = {
         id: 1,
-        email: 'admin@mateox.local',
+        email: 'admin@roboscope.local',
         username: 'admin',
         role: 'admin' as const,
         is_active: true,
@@ -133,7 +133,7 @@ describe('auth.store', () => {
       vi.mocked(authApi.getMe).mockResolvedValue(mockUser)
 
       const store = useAuthStore()
-      await store.login('admin@mateox.local', 'admin')
+      await store.login('admin@roboscope.local', 'admin')
 
       expect(store.hasMinRole('viewer')).toBe(true)
       expect(store.hasMinRole('runner')).toBe(true)
@@ -144,7 +144,7 @@ describe('auth.store', () => {
     it('returns false when user role is below the minimum', async () => {
       const mockUser = {
         id: 2,
-        email: 'viewer@mateox.local',
+        email: 'viewer@roboscope.local',
         username: 'viewer',
         role: 'viewer' as const,
         is_active: true,
@@ -161,7 +161,7 @@ describe('auth.store', () => {
       vi.mocked(authApi.getMe).mockResolvedValue(mockUser)
 
       const store = useAuthStore()
-      await store.login('viewer@mateox.local', 'pass')
+      await store.login('viewer@roboscope.local', 'pass')
 
       expect(store.hasMinRole('viewer')).toBe(true)
       expect(store.hasMinRole('runner')).toBe(false)
@@ -187,7 +187,7 @@ describe('auth.store', () => {
     it('fetches and sets the current user when a token exists', async () => {
       const mockUser = {
         id: 1,
-        email: 'admin@mateox.local',
+        email: 'admin@roboscope.local',
         username: 'admin',
         role: 'editor' as const,
         is_active: true,
@@ -205,7 +205,7 @@ describe('auth.store', () => {
 
       const store = useAuthStore()
       // Set token via login first
-      await store.login('admin@mateox.local', 'admin')
+      await store.login('admin@roboscope.local', 'admin')
       vi.mocked(authApi.getMe).mockClear()
 
       // Now fetch user again

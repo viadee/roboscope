@@ -53,7 +53,7 @@ export default {
     email: 'Correo electrónico',
     password: 'Contraseña',
     loginFailed: 'Error de inicio de sesión',
-    hint: "Por defecto: admin{'@'}mateox.local / admin123",
+    hint: "Por defecto: admin{'@'}roboscope.local / admin123",
   },
   dashboard: {
     title: 'Panel',
@@ -217,7 +217,7 @@ export default {
     },
     envPrompt: {
       title: '¿Configurar un entorno?',
-      message: 'Aún no tienes un entorno. ¿Quieres que mateo cree un entorno por defecto con las bibliotecas esenciales de Robot Framework?',
+      message: 'Aún no tienes un entorno. ¿Quieres que RoboScope cree un entorno por defecto con las bibliotecas esenciales de Robot Framework?',
       setup: 'Sí, configurar',
       skip: 'No, iniciar sin entorno',
     },
@@ -265,14 +265,14 @@ export default {
     noVariables: 'No hay variables definidas.',
     noEnvs: 'No hay entornos configurados.',
     setupDefault: {
-      title: 'Comenzar con mateo',
-      description: 'Si no sabes qué hacer, deja que mateo configure un entorno por defecto con las bibliotecas de Robot Framework más importantes.',
-      button: 'Dejar que mateo lo configure',
+      title: 'Comenzar con RoboScope',
+      description: 'Si no sabes qué hacer, deja que RoboScope configure un entorno por defecto con las bibliotecas de Robot Framework más importantes.',
+      button: 'Dejar que RoboScope lo configure',
       hint: 'Los paquetes se instalarán en segundo plano.',
       toastSuccess: 'Entorno por defecto creado — los paquetes se están instalando en segundo plano.',
       toastError: 'No se pudo crear el entorno por defecto.',
       alreadyExists: 'El entorno por defecto ya existe.',
-      libCheckMessage: 'No hay entornos disponibles. Deja que mateo cree un entorno por defecto para poder ejecutar una verificación de bibliotecas.',
+      libCheckMessage: 'No hay entornos disponibles. Deja que RoboScope cree un entorno por defecto para poder ejecutar una verificación de bibliotecas.',
     },
     addDialog: {
       title: 'Crear nuevo entorno',
@@ -596,7 +596,7 @@ export default {
     regNumber: 'Número de registro',
     vatId: 'NIF-IVA',
     product: 'Producto',
-    productText: 'mateo es un producto de viadee Unternehmensberatung AG para automatización de pruebas y Robotic Process Automation.',
+    productText: 'RoboScope es un producto de viadee Unternehmensberatung AG para automatización de pruebas y Robotic Process Automation.',
   },
   websocket: {
     runPassed: 'Test aprobado',

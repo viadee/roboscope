@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────
-# mateoX — Build script for standalone distribution
+# RoboScope — Build script for standalone distribution
 #
-# Creates a self-contained directory 'dist/mateox/' that can be
+# Creates a self-contained directory 'dist/roboscope/' that can be
 # zipped and deployed on any machine with Python 3.12+.
 #
 # Usage:  ./scripts/build.sh
@@ -10,9 +10,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DIST="$ROOT/dist/mateox"
+DIST="$ROOT/dist/roboscope"
 
-echo "==> mateoX Build"
+echo "==> RoboScope Build"
 echo "    Root: $ROOT"
 echo ""
 
@@ -139,11 +139,11 @@ echo "    Wheels: $(ls "$DIST/wheels" | wc -l | tr -d ' ') packages"
 
 # ── 5. Create .env template ──────────────────────────────────
 cat > "$DIST/.env.example" << 'ENVEOF'
-# mateoX Configuration
+# RoboScope Configuration
 # Copy this to .env and adjust as needed.
 
 # Database (SQLite default — no setup required)
-DATABASE_URL=sqlite:///./mateox.db
+DATABASE_URL=sqlite:///./roboscope.db
 
 # Secret key for JWT tokens (change in production!)
 SECRET_KEY=CHANGE-ME-IN-PRODUCTION
@@ -157,9 +157,9 @@ DEBUG=false
 LOG_LEVEL=INFO
 
 # Directories (defaults shown — adjust if needed)
-# WORKSPACE_DIR=~/.mateox/workspace
-# REPORTS_DIR=~/.mateox/reports
-# VENVS_DIR=~/.mateox/venvs
+# WORKSPACE_DIR=~/.roboscope/workspace
+# REPORTS_DIR=~/.roboscope/reports
+# VENVS_DIR=~/.roboscope/venvs
 ENVEOF
 
 # ── 6. Create install script ─────────────────────────────────
@@ -168,7 +168,7 @@ cat > "$DIST/install.sh" << 'INSTALLEOF'
 set -euo pipefail
 cd "$(dirname "$0")"
 
-echo "==> Installing mateoX..."
+echo "==> Installing RoboScope..."
 
 # Create virtual environment
 python3 -m venv .venv
@@ -181,7 +181,7 @@ pip install --no-index --find-links=wheels -r requirements.txt
 [ -f .env ] || cp .env.example .env
 
 echo ""
-echo "==> mateoX installed successfully!"
+echo "==> RoboScope installed successfully!"
 echo "    Start with: ./start.sh"
 INSTALLEOF
 chmod +x "$DIST/install.sh"
@@ -222,10 +222,10 @@ else
   exit 1
 fi
 
-echo "==> Starting mateoX..."
+echo "==> Starting RoboScope..."
 echo "    URL: http://localhost:${PORT}"
 echo "    API: http://localhost:${PORT}/api/v1/docs"
-echo "    Default login: admin@mateox.local / admin123"
+echo "    Default login: admin@roboscope.local / admin123"
 echo ""
 
 python -m uvicorn src.main:app --host "${HOST:-0.0.0.0}" --port "${PORT}"
@@ -245,7 +245,7 @@ fi
 
 PORT="${PORT:-8145}"
 
-echo "==> Stopping mateoX on port $PORT..."
+echo "==> Stopping RoboScope on port $PORT..."
 
 PIDS=$(lsof -ti :"$PORT" -sTCP:LISTEN 2>/dev/null || true)
 if [ -z "$PIDS" ]; then
@@ -261,7 +261,7 @@ done
 # Wait up to 5 seconds for graceful shutdown
 for i in $(seq 1 10); do
   if ! lsof -ti :"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
-    echo "    mateoX stopped."
+    echo "    RoboScope stopped."
     exit 0
   fi
   sleep 0.5
@@ -276,14 +276,14 @@ if [ -n "$PIDS" ]; then
   done
 fi
 
-echo "    mateoX stopped."
+echo "    RoboScope stopped."
 STOPEOF
 chmod +x "$DIST/stop.sh"
 
 # ── 8. Create Windows install script ─────────────────────────
 cat > "$DIST/install.bat" << 'BATEOF'
 @echo off
-echo ==> Installing mateoX...
+echo ==> Installing RoboScope...
 
 cd /d "%~dp0"
 
@@ -295,7 +295,7 @@ pip install --no-index --find-links=wheels -r requirements.txt
 if not exist .env copy .env.example .env
 
 echo.
-echo ==> mateoX installed successfully!
+echo ==> RoboScope installed successfully!
 echo     Start with: start.bat
 BATEOF
 
@@ -333,10 +333,10 @@ if not exist .venv (
 
 call .venv\Scripts\activate.bat
 
-echo ==> Starting mateoX...
+echo ==> Starting RoboScope...
 echo     URL: http://localhost:%PORT%
 echo     API: http://localhost:%PORT%/api/v1/docs
-echo     Default login: admin@mateox.local / admin123
+echo     Default login: admin@roboscope.local / admin123
 echo.
 
 python -m uvicorn src.main:app --host 0.0.0.0 --port %PORT%
@@ -355,7 +355,7 @@ if exist .env (
     )
 )
 
-echo ==> Stopping mateoX on port %PORT%...
+echo ==> Stopping RoboScope on port %PORT%...
 
 set FOUND=0
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":%PORT% " ^| findstr "LISTENING"') do (
@@ -367,7 +367,7 @@ for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":%PORT% " ^| findstr "LISTEN
 if %FOUND%==0 (
     echo     No process found on port %PORT%.
 ) else (
-    echo     mateoX stopped.
+    echo     RoboScope stopped.
 )
 BATEOF
 
@@ -375,13 +375,13 @@ BATEOF
 echo ""
 echo "==> Creating ZIP archive..."
 cd "$ROOT/dist"
-zip -r "mateox.zip" mateox/ -x "mateox/.venv/*" "mateox/__pycache__/*"
+zip -r "roboscope.zip" roboscope/ -x "roboscope/.venv/*" "roboscope/__pycache__/*"
 echo ""
 echo "==> Build complete!"
-echo "    Distribution: $ROOT/dist/mateox.zip"
+echo "    Distribution: $ROOT/dist/roboscope.zip"
 echo "    Directory:    $DIST"
 echo ""
 echo "To deploy:"
-echo "  1. Extract mateox.zip"
+echo "  1. Extract roboscope.zip"
 echo "  2. Run install.sh (Linux/Mac) or install.bat (Windows)"
 echo "  3. Run start.sh (Linux/Mac) or start.bat (Windows)"

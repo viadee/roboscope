@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
     environment:
-      DATABASE_URL: postgresql://mateox:mateox@db:5432/mateox_test
+      DATABASE_URL: postgresql://roboscope:roboscope@db:5432/roboscope_test
       SECRET_KEY: test-secret-key
       CORS_ORIGINS: '["http://localhost:5173"]'
     depends_on:
@@ -25,11 +25,11 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: mateox
-      POSTGRES_PASSWORD: mateox
-      POSTGRES_DB: mateox_test
+      POSTGRES_USER: roboscope
+      POSTGRES_PASSWORD: roboscope
+      POSTGRES_DB: roboscope_test
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mateox"]
+      test: ["CMD-SHELL", "pg_isready -U roboscope"]
       interval: 5s
       timeout: 5s
       retries: 5

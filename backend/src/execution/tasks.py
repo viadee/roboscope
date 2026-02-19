@@ -20,7 +20,7 @@ from src.execution.models import ExecutionRun, RunStatus, RunnerType
 from src.execution.runners.subprocess_runner import SubprocessRunner
 from src.environments.models import Environment
 
-logger = logging.getLogger("mateox.execution.tasks")
+logger = logging.getLogger("roboscope.execution.tasks")
 
 _sync_url = settings.sync_database_url
 _sync_engine = create_engine(_sync_url)

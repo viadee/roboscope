@@ -4,7 +4,7 @@ import { type Page, type Locator, expect } from '@playwright/test';
  * Page Object for the Login view (/login).
  *
  * Selectors are derived from the actual LoginView.vue template:
- *   - email input: placeholder "admin@mateox.local"
+ *   - email input: placeholder "admin@roboscope.local"
  *   - password input: placeholder "Passwort"
  *   - submit button: text "Anmelden"
  *   - error message: .error-text paragraph
@@ -20,7 +20,7 @@ export class LoginPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.emailInput = page.getByPlaceholder('admin@mateox.local');
+    this.emailInput = page.getByPlaceholder('admin@roboscope.local');
     this.passwordInput = page.getByPlaceholder('Passwort');
     this.submitButton = page.getByRole('button', { name: 'Anmelden' });
     this.errorMessage = page.locator('.error-text');

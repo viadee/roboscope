@@ -12,7 +12,7 @@ from datetime import datetime
 from sqlalchemy import MetaData, create_engine, func, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
-logger = logging.getLogger("mateox.database")
+logger = logging.getLogger("roboscope.database")
 
 from src.config import settings
 

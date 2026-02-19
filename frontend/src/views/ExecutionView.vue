@@ -703,7 +703,7 @@ function isTerminal(status: string): boolean {
 
 .selected-row {
   background: rgba(60, 181, 161, 0.08) !important;
-  border-left: 3px solid var(--color-primary, #3CB5A1);
+  border-left: 3px solid var(--color-primary, #3B7DD8);
 }
 
 .detail-card {
@@ -738,7 +738,7 @@ function isTerminal(status: string): boolean {
 
 .page-size-select:focus {
   outline: none;
-  border-color: var(--color-primary, #3CB5A1);
+  border-color: var(--color-primary, #3B7DD8);
   box-shadow: 0 0 0 2px rgba(60, 181, 161, 0.15);
 }
 
@@ -804,7 +804,7 @@ function isTerminal(status: string): boolean {
 }
 
 .env-prompt-icon {
-  color: var(--color-primary, #3CB5A1);
+  color: var(--color-primary, #3B7DD8);
 }
 
 .env-prompt-body p {
@@ -825,7 +825,7 @@ function isTerminal(status: string): boolean {
   display: inline-block;
   padding: 3px 10px;
   background: rgba(60, 181, 161, 0.1);
-  color: var(--color-primary, #3CB5A1);
+  color: var(--color-primary, #3B7DD8);
   border-radius: 20px;
   font-size: 12px;
   font-weight: 500;
@@ -853,7 +853,7 @@ function isTerminal(status: string): boolean {
 
 .icon-btn:hover {
   background: var(--color-bg-hover, #f0f2f5);
-  color: var(--color-primary, #3CB5A1);
+  color: var(--color-primary, #3B7DD8);
 }
 
 .status-cell {
@@ -866,7 +866,7 @@ function isTerminal(status: string): boolean {
   width: 14px;
   height: 14px;
   border: 2px solid var(--color-border, #e2e8f0);
-  border-top-color: var(--color-primary, #3CB5A1);
+  border-top-color: var(--color-primary, #3B7DD8);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -905,8 +905,8 @@ function isTerminal(status: string): boolean {
 }
 
 .tab-btn.active {
-  color: var(--color-primary, #3CB5A1);
-  border-bottom-color: var(--color-primary, #3CB5A1);
+  color: var(--color-primary, #3B7DD8);
+  border-bottom-color: var(--color-primary, #3B7DD8);
 }
 
 .tab-badge {

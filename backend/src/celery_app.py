@@ -12,7 +12,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
 
-logger = logging.getLogger("mateox.executor")
+logger = logging.getLogger("roboscope.executor")
 
 
 class TaskDispatchError(Exception):
@@ -29,7 +29,7 @@ class TaskResult:
 
 
 # Single-worker executor: tasks queue up, run one at a time.
-_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mateox-task")
+_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="roboscope-task")
 
 
 def dispatch_task(func: Callable[..., Any], *args: Any, **kwargs: Any) -> TaskResult:

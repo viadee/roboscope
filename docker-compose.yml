@@ -8,7 +8,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://mateox:mateox@db:5432/mateox
+      DATABASE_URL: postgresql://roboscope:roboscope@db:5432/roboscope
       SECRET_KEY: change-me-in-production
       CORS_ORIGINS: '["http://localhost", "http://localhost:80"]'
       DOCKER_AVAILABLE: "true"
@@ -16,7 +16,7 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - workspace-data:/root/.mateox
+      - workspace-data:/root/.roboscope
     restart: unless-stopped
 
   frontend:
@@ -32,13 +32,13 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: mateox
-      POSTGRES_PASSWORD: mateox
-      POSTGRES_DB: mateox
+      POSTGRES_USER: roboscope
+      POSTGRES_PASSWORD: roboscope
+      POSTGRES_DB: roboscope
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mateox"]
+      test: ["CMD-SHELL", "pg_isready -U roboscope"]
       interval: 5s
       timeout: 5s
       retries: 5

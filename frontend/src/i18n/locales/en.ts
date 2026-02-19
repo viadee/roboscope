@@ -53,7 +53,7 @@ export default {
     email: 'Email',
     password: 'Password',
     loginFailed: 'Login failed',
-    hint: "Default: admin{'@'}mateox.local / admin123",
+    hint: "Default: admin{'@'}roboscope.local / admin123",
   },
   dashboard: {
     title: 'Dashboard',
@@ -217,7 +217,7 @@ export default {
     },
     envPrompt: {
       title: 'Set up an environment?',
-      message: 'You don\'t have an environment yet. Would you like mateo to create a default environment with the essential Robot Framework libraries?',
+      message: 'You don\'t have an environment yet. Would you like RoboScope to create a default environment with the essential Robot Framework libraries?',
       setup: 'Yes, set it up',
       skip: 'No, start without',
     },
@@ -265,14 +265,14 @@ export default {
     noVariables: 'No variables defined.',
     noEnvs: 'No environments configured yet.',
     setupDefault: {
-      title: 'Get Started with mateo',
-      description: 'If you don\'t know what to do, let mateo configure a default environment for you with the most important Robot Framework libraries.',
-      button: 'Let mateo set this up',
+      title: 'Get Started with RoboScope',
+      description: 'If you don\'t know what to do, let RoboScope configure a default environment for you with the most important Robot Framework libraries.',
+      button: 'Let RoboScope set this up',
       hint: 'Packages will be installed in the background.',
       toastSuccess: 'Default environment created — packages are installing in the background.',
       toastError: 'Could not create default environment.',
       alreadyExists: 'Default environment already exists.',
-      libCheckMessage: 'No environments available. Let mateo create a default environment so you can run a library check.',
+      libCheckMessage: 'No environments available. Let RoboScope create a default environment so you can run a library check.',
     },
     addDialog: {
       title: 'Create New Environment',
@@ -596,7 +596,7 @@ export default {
     regNumber: 'Registration Number',
     vatId: 'VAT ID',
     product: 'Product',
-    productText: 'mateo is a product of viadee Unternehmensberatung AG for test automation and robotic process automation.',
+    productText: 'RoboScope is a product of viadee Unternehmensberatung AG for test automation and robotic process automation.',
   },
   websocket: {
     runPassed: 'Test Run Passed',

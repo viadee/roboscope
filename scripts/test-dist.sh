@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────
-# mateoX — Distribution smoke test
+# RoboScope — Distribution smoke test
 #
 # Builds the dist (online or offline), starts the server,
 # and runs HTTP-based E2E checks to verify everything works.
@@ -28,10 +28,10 @@ for arg in "$@"; do
 done
 
 if [ "$MODE" = "online" ]; then
-  DIST="$ROOT/dist/mateox-online"
+  DIST="$ROOT/dist/roboscope-online"
   BUILD_SCRIPT="$ROOT/scripts/build-online.sh"
 else
-  DIST="$ROOT/dist/mateox"
+  DIST="$ROOT/dist/roboscope"
   BUILD_SCRIPT="$ROOT/scripts/build.sh"
 fi
 
@@ -117,7 +117,7 @@ check_http_size() {
 
 # ── 1. Build ────────────────────────────────────────────────
 
-echo "==> mateoX Distribution Test ($MODE)"
+echo "==> RoboScope Distribution Test ($MODE)"
 echo "    Root: $ROOT"
 echo "    Dist: $DIST"
 echo "    Port: $PORT"
@@ -231,7 +231,7 @@ echo ""
 echo "==> Step 4: Starting server on port $PORT..."
 
 # Remove stale DB so we get a clean seed
-rm -f "$DIST/mateox.db"
+rm -f "$DIST/roboscope.db"
 
 python3 -m uvicorn src.main:app --host 127.0.0.1 --port "$PORT" &
 SERVER_PID=$!
@@ -291,7 +291,7 @@ echo "==> Step 6: API tests..."
 # Login
 login_response=$(curl -s -X POST "$BASE_URL/api/v1/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@mateox.local","password":"admin123"}')
+  -d '{"email":"admin@roboscope.local","password":"admin123"}')
 
 if echo "$login_response" | grep -q "access_token"; then
   pass "POST /api/v1/auth/login (admin login)"
@@ -306,7 +306,7 @@ if [ -n "$TOKEN" ]; then
 
   # Get current user (needs auth header)
   me_response=$(curl -s -H "$AUTH_HEADER" "$BASE_URL/api/v1/auth/me")
-  if echo "$me_response" | grep -q "admin@mateox.local"; then
+  if echo "$me_response" | grep -q "admin@roboscope.local"; then
     pass "GET /api/v1/auth/me (authenticated)"
   else
     fail "GET /api/v1/auth/me — unexpected response"

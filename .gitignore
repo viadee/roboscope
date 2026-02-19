@@ -48,8 +48,8 @@ e2e/test-results/
 # Docker
 docker-compose.override.yml
 
-# mateoX workspace
-.mateox/
+# RoboScope workspace
+.roboscope/
 
 # Logs
 *.log

@@ -16,7 +16,7 @@ from src.reports.models import Report
 from src.stats.models import KpiRecord
 from src.stats.analysis import run_analysis  # noqa: F401 — re-export for task registration
 
-logger = logging.getLogger("mateox.stats.tasks")
+logger = logging.getLogger("roboscope.stats.tasks")
 
 _sync_url = settings.sync_database_url
 _sync_engine = create_engine(_sync_url)

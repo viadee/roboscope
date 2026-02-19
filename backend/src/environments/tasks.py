@@ -14,7 +14,7 @@ import src.auth.models  # noqa: F401
 
 from src.environments.models import Environment, EnvironmentPackage
 
-logger = logging.getLogger("mateox.environments.tasks")
+logger = logging.getLogger("roboscope.environments.tasks")
 
 _sync_url = settings.sync_database_url
 _sync_engine = create_engine(_sync_url)
@@ -249,7 +249,7 @@ def build_docker_image(env_id: int) -> dict:
             f.seek(0)
 
             safe_name = env.name.lower().replace(" ", "-")
-            tag = f"mateox/{safe_name}:latest"
+            tag = f"roboscope/{safe_name}:latest"
 
             logger.info("Building Docker image %s for env %d", tag, env_id)
             client.images.build(fileobj=f, custom_context=True, tag=tag, rm=True)

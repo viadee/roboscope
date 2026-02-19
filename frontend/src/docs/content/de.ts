@@ -8,10 +8,10 @@ const de: DocsContent = [
     subsections: [
       {
         id: 'getting-started-overview',
-        title: 'Was ist mateoX?',
+        title: 'Was ist RoboScope?',
         content: `
 <p>
-  <strong>mateoX</strong> ist ein webbasiertes Test-Management-Tool f\u00FCr
+  <strong>RoboScope</strong> ist ein webbasiertes Test-Management-Tool f\u00FCr
   <em>Robot Framework</em>. Es erm\u00F6glicht Teams, ihre automatisierten Tests
   zentral zu verwalten, auszuf\u00FChren und auszuwerten \u2014 ohne Kommandozeile,
   direkt im Browser.
@@ -25,7 +25,7 @@ const de: DocsContent = [
   <li><strong>Umgebungsverwaltung</strong> \u2014 Python-Environments und Pakete verwalten</li>
   <li><strong>Rollenbasierte Zugriffskontrolle</strong> \u2014 Vier Rollen mit abgestuften Berechtigungen</li>
 </ul>`,
-        tip: 'mateoX eignet sich besonders f\u00FCr Teams, die Robot Framework einsetzen und eine zentrale Oberfl\u00E4che f\u00FCr Testverwaltung und -ausf\u00FChrung ben\u00F6tigen.'
+        tip: 'RoboScope eignet sich besonders f\u00FCr Teams, die Robot Framework einsetzen und eine zentrale Oberfl\u00E4che f\u00FCr Testverwaltung und -ausf\u00FChrung ben\u00F6tigen.'
       },
       {
         id: 'getting-started-login',
@@ -40,7 +40,7 @@ const de: DocsContent = [
     <tr><th>Feld</th><th>Wert</th></tr>
   </thead>
   <tbody>
-    <tr><td>E-Mail</td><td><code>admin@mateox.local</code></td></tr>
+    <tr><td>E-Mail</td><td><code>admin@roboscope.local</code></td></tr>
     <tr><td>Passwort</td><td><code>admin123</code></td></tr>
   </tbody>
 </table>
@@ -59,7 +59,7 @@ const de: DocsContent = [
         title: 'Aufbau der Oberfl\u00E4che',
         content: `
 <p>
-  Die mateoX-Oberfl\u00E4che besteht aus drei Hauptbereichen:
+  Die RoboScope-Oberfl\u00E4che besteht aus drei Hauptbereichen:
 </p>
 <ol>
   <li>
@@ -78,7 +78,7 @@ const de: DocsContent = [
 </ol>
 <p>
   Das Design orientiert sich am <em>mateo-automation.com</em>-Branding mit den
-  Hauptfarben Teal (<code>#3CB5A1</code>) und Gold (<code>#DFAA40</code>)
+  Hauptfarben Steel Blue (<code>#3B7DD8</code>) und Amber (<code>#D4883E</code>)
   auf dunklem Navy-Hintergrund in der Sidebar.
 </p>`
       },
@@ -87,7 +87,7 @@ const de: DocsContent = [
         title: 'Rollen & Berechtigungen',
         content: `
 <p>
-  mateoX verwendet ein hierarchisches Rollenmodell. Jede h\u00F6here Rolle erbt
+  RoboScope verwendet ein hierarchisches Rollenmodell. Jede h\u00F6here Rolle erbt
   s\u00E4mtliche Berechtigungen der darunterliegenden Stufen.
 </p>
 <table>
@@ -236,7 +236,7 @@ const de: DocsContent = [
         content: `
 <p>
   Unter <strong>Repositories</strong> verwalten Sie die Git-Quellen Ihrer
-  Robot-Framework-Tests. mateoX klont Repositories lokal und h\u00E4lt sie
+  Robot-Framework-Tests. RoboScope klont Repositories lokal und h\u00E4lt sie
   synchron, damit Tests stets gegen den aktuellen Stand ausgef\u00FChrt werden.
 </p>
 <p>
@@ -387,7 +387,7 @@ const de: DocsContent = [
 </p>
 <h4>Localhost-Funktionen</h4>
 <p>
-  Wenn Sie mateoX \u00FCber <code>localhost</code> aufrufen, stehen zus\u00E4tzliche Funktionen zur Verf\u00FCgung:
+  Wenn Sie RoboScope \u00FCber <code>localhost</code> aufrufen, stehen zus\u00E4tzliche Funktionen zur Verf\u00FCgung:
 </p>
 <ul>
   <li><strong>Projektordner \u00F6ffnen</strong> &mdash; Ein Ordner-Button im Kopfbereich des Dateibaums \u00F6ffnet das Projektverzeichnis im System-Dateibrowser (Finder, Windows Explorer oder Nautilus).</li>
@@ -530,7 +530,7 @@ const de: DocsContent = [
   </tbody>
 </table>
 <p>
-  Nach dem Start wird der Run in die Warteschlange eingereiht. Da mateoX mit
+  Nach dem Start wird der Run in die Warteschlange eingereiht. Da RoboScope mit
   einem einzelnen Worker arbeitet (<code>max_workers=1</code>), werden Runs
   nacheinander in FIFO-Reihenfolge abgearbeitet.
 </p>`,
@@ -669,7 +669,7 @@ const de: DocsContent = [
   Klicken Sie auf den <strong>Download</strong>-Button in der Report-Detail-
   oder der Report-Listen-Ansicht.
 </p>`,
-        tip: 'Die ZIP-Datei eignet sich ideal zum Archivieren oder Teilen von Ergebnissen mit Teammitgliedern, die keinen mateoX-Zugang haben.'
+        tip: 'Die ZIP-Datei eignet sich ideal zum Archivieren oder Teilen von Ergebnissen mit Teammitgliedern, die keinen RoboScope-Zugang haben.'
       },
       {
         id: 'reports-delete-all',
@@ -867,8 +867,8 @@ const de: DocsContent = [
 <p>
   Klicken Sie auf <strong>Neue Umgebung</strong> und geben Sie einen
   aussagekr\u00E4ftigen Namen ein (z.\u202FB. <code>projekt-a-rf7</code>).
-  mateoX erstellt daraufhin ein neues Python-venv im konfigurierten
-  Verzeichnis (<code>~/.mateox/venvs/</code>).
+  RoboScope erstellt daraufhin ein neues Python-venv im konfigurierten
+  Verzeichnis (<code>~/.roboscope/venvs/</code>).
 </p>
 <p>
   Nach der Erstellung ist das venv sofort verf\u00FCgbar und kann mit Paketen
@@ -1089,7 +1089,7 @@ const de: DocsContent = [
         title: 'WebSocket-Live-Updates',
         content: `
 <p>
-  mateoX nutzt <strong>WebSocket-Verbindungen</strong> f\u00FCr Echtzeit-Updates
+  RoboScope nutzt <strong>WebSocket-Verbindungen</strong> f\u00FCr Echtzeit-Updates
   in der Oberfl\u00E4che. Folgende Bereiche profitieren davon:
 </p>
 <ul>
@@ -1112,7 +1112,7 @@ const de: DocsContent = [
         title: 'Tastenkombinationen',
         content: `
 <p>
-  mateoX unterst\u00FCtzt verschiedene Tastenkombinationen f\u00FCr effizientes
+  RoboScope unterst\u00FCtzt verschiedene Tastenkombinationen f\u00FCr effizientes
   Arbeiten:
 </p>
 <table>
@@ -1152,7 +1152,7 @@ const de: DocsContent = [
         title: 'Tipps f\u00FCr effizientes Arbeiten',
         content: `
 <p>
-  Die folgenden Empfehlungen helfen Ihnen, mateoX optimal zu nutzen:
+  Die folgenden Empfehlungen helfen Ihnen, RoboScope optimal zu nutzen:
 </p>
 <h4>Repository-Organisation</h4>
 <ul>
@@ -1178,7 +1178,7 @@ const de: DocsContent = [
         title: 'Fehlerbehebung',
         content: `
 <p>
-  Bei Problemen mit mateoX k\u00F6nnen die folgenden Schritte helfen:
+  Bei Problemen mit RoboScope k\u00F6nnen die folgenden Schritte helfen:
 </p>
 <h4>Login schl\u00E4gt fehl</h4>
 <ul>
@@ -1210,7 +1210,7 @@ const de: DocsContent = [
         title: 'API-Zugriff',
         content: `
 <p>
-  mateoX stellt eine vollst\u00E4ndige REST-API unter <code>/api/v1/</code> bereit.
+  RoboScope stellt eine vollst\u00E4ndige REST-API unter <code>/api/v1/</code> bereit.
   Alle Funktionen der Oberfl\u00E4che sind auch programmatisch nutzbar.
 </p>
 <h4>Authentifizierung</h4>

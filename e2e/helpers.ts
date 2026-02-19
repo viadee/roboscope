@@ -1,10 +1,10 @@
 /**
- * Shared helpers for mateoX E2E tests.
+ * Shared helpers for RoboScope E2E tests.
  */
 import { type Page, expect } from '@playwright/test';
 
 const API = 'http://localhost:8000/api/v1';
-const EMAIL = 'admin@mateox.local';
+const EMAIL = 'admin@roboscope.local';
 const PASSWORD = 'admin123';
 
 /**
@@ -41,7 +41,7 @@ export async function loginAndGoToDashboard(page: Page): Promise<void> {
  */
 export async function loginViaUi(page: Page, email = EMAIL, password = PASSWORD): Promise<void> {
   await page.goto('/login');
-  await page.getByPlaceholder('admin@mateox.local').fill(email);
+  await page.getByPlaceholder('admin@roboscope.local').fill(email);
   await page.getByPlaceholder('Passwort').fill(password);
   await page.getByRole('button', { name: 'Anmelden' }).click();
 }

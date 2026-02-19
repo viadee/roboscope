@@ -15,7 +15,7 @@ test.describe('Admin Password Reset', () => {
     await page.waitForLoadState('networkidle');
 
     // Wait for users table to load
-    await expect(page.getByText('admin@mateox.local')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('admin@roboscope.local')).toBeVisible({ timeout: 5_000 });
 
     // Reset password button should be visible
     const resetBtn = page.getByRole('button', { name: /Passwort zurücksetzen/ });
@@ -27,7 +27,7 @@ test.describe('Admin Password Reset', () => {
     await page.waitForLoadState('networkidle');
 
     await page.getByText('Benutzer').click();
-    await expect(page.getByText('admin@mateox.local')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('admin@roboscope.local')).toBeVisible({ timeout: 5_000 });
 
     // Click reset password
     await page.getByRole('button', { name: /Passwort zurücksetzen/ }).first().click();
@@ -41,7 +41,7 @@ test.describe('Admin Password Reset', () => {
     await page.waitForLoadState('networkidle');
 
     await page.getByText('Benutzer').click();
-    await expect(page.getByText('admin@mateox.local')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('admin@roboscope.local')).toBeVisible({ timeout: 5_000 });
 
     // Open dialog
     await page.getByRole('button', { name: /Passwort zurücksetzen/ }).first().click();
@@ -57,7 +57,7 @@ test.describe('Admin Password Reset', () => {
     await page.waitForLoadState('networkidle');
 
     await page.getByText('Benutzer').click();
-    await expect(page.getByText('admin@mateox.local')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('admin@roboscope.local')).toBeVisible({ timeout: 5_000 });
 
     // Open dialog
     await page.getByRole('button', { name: /Passwort zurücksetzen/ }).first().click();

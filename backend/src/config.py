@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     )
 
     # Application
-    PROJECT_NAME: str = "mateoX"
+    PROJECT_NAME: str = "RoboScope"
     VERSION: str = "0.1.0"
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
@@ -26,9 +26,9 @@ class Settings(BaseSettings):
 
     # Database
     # Default: SQLite. Set to PostgreSQL URL for production.
-    # SQLite:     sqlite:///./mateox.db
-    # PostgreSQL: postgresql://user:pass@localhost:5432/mateox
-    DATABASE_URL: str = "sqlite:///./mateox.db"
+    # SQLite:     sqlite:///./roboscope.db
+    # PostgreSQL: postgresql://user:pass@localhost:5432/roboscope
+    DATABASE_URL: str = "sqlite:///./roboscope.db"
 
     @property
     def is_sqlite(self) -> bool:
@@ -58,16 +58,16 @@ class Settings(BaseSettings):
 
     # Execution
     RUNNER_TYPE: Literal["subprocess", "docker", "auto"] = "auto"
-    WORKSPACE_DIR: str = str(Path.home() / ".mateox" / "workspace")
-    REPORTS_DIR: str = str(Path.home() / ".mateox" / "reports")
-    VENVS_DIR: str = str(Path.home() / ".mateox" / "venvs")
+    WORKSPACE_DIR: str = str(Path.home() / ".roboscope" / "workspace")
+    REPORTS_DIR: str = str(Path.home() / ".roboscope" / "reports")
+    VENVS_DIR: str = str(Path.home() / ".roboscope" / "venvs")
     DEFAULT_TIMEOUT_SECONDS: int = 3600
     MAX_PARALLEL_RUNS: int = 4
 
     # Docker
     DOCKER_AVAILABLE: bool = False
     DOCKER_DEFAULT_IMAGE: str = "python:3.12-slim"
-    DOCKER_NETWORK: str = "mateox-network"
+    DOCKER_NETWORK: str = "roboscope-network"
 
     # Git
     GIT_SYNC_INTERVAL_MINUTES: int = 15

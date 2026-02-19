@@ -19,7 +19,7 @@ async function globalSetup(_config: FullConfig): Promise<void> {
   try {
     const loginResponse = await apiContext.post('/api/v1/auth/login', {
       data: {
-        email: 'admin@mateox.local',
+        email: 'admin@roboscope.local',
         password: 'admin',
       },
     });
