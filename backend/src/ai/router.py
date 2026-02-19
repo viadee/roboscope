@@ -13,6 +13,7 @@ from src.celery_app import TaskDispatchError, dispatch_task
 from src.database import get_db
 from src.repos.models import Repository
 
+from src.ai.models import AiJob, AiProvider
 from src.ai.schemas import (
     AiJobResponse,
     AiProviderCreate,
