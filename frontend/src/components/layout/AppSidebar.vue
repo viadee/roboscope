@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth.store'
@@ -39,10 +40,24 @@ const navItems = computed(() => {
 function isActive(path: string): boolean {
   return route.path.startsWith(path)
 }
+
+// Close sidebar on route change when on mobile
+watch(() => route.path, () => {
+  ui.closeSidebarOnMobile()
+})
 </script>
 
 <template>
-  <aside class="sidebar" :class="{ collapsed: !ui.sidebarOpen }">
+  <!-- Mobile overlay backdrop -->
+  <Transition name="fade">
+    <div
+      v-if="ui.isMobile && ui.sidebarOpen"
+      class="sidebar-backdrop"
+      @click="ui.toggleSidebar"
+    ></div>
+  </Transition>
+
+  <aside class="sidebar" :class="{ collapsed: !ui.sidebarOpen, mobile: ui.isMobile }">
     <div class="sidebar-header">
       <router-link to="/dashboard" class="logo">
         <img :src="mateoLogo" alt="mateo" class="logo-img" v-if="ui.sidebarOpen" />
@@ -77,6 +92,13 @@ function isActive(path: string): boolean {
 </template>
 
 <style scoped>
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 99;
+}
+
 .sidebar {
   position: fixed;
   top: 0;
@@ -87,13 +109,23 @@ function isActive(path: string): boolean {
   color: var(--color-text-sidebar);
   display: flex;
   flex-direction: column;
-  transition: width 0.2s ease;
+  transition: width 0.2s ease, transform 0.2s ease;
   z-index: 100;
   overflow: hidden;
 }
 
 .sidebar.collapsed {
   width: 60px;
+}
+
+.sidebar.mobile {
+  width: var(--sidebar-width);
+  transform: translateX(0);
+}
+
+.sidebar.mobile.collapsed {
+  width: var(--sidebar-width);
+  transform: translateX(calc(-1 * var(--sidebar-width)));
 }
 
 .sidebar-header {
@@ -219,5 +251,13 @@ function isActive(path: string): boolean {
   font-size: 11px;
   color: var(--color-text-light);
   text-transform: capitalize;
+}
+
+/* Fade transition for backdrop */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
 }
 </style>

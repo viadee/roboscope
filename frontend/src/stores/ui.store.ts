@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 export interface Toast {
   id: number
@@ -9,13 +9,34 @@ export interface Toast {
   timeout?: number
 }
 
+const MOBILE_BREAKPOINT = 768
+
 export const useUiStore = defineStore('ui', () => {
-  const sidebarOpen = ref(true)
+  const sidebarOpen = ref(window.innerWidth >= MOBILE_BREAKPOINT)
+  const windowWidth = ref(window.innerWidth)
   const toasts = ref<Toast[]>([])
   let toastId = 0
 
+  const isMobile = computed(() => windowWidth.value < MOBILE_BREAKPOINT)
+
+  function handleResize() {
+    windowWidth.value = window.innerWidth
+    if (windowWidth.value < MOBILE_BREAKPOINT) {
+      sidebarOpen.value = false
+    }
+  }
+
+  // Listen for resize events
+  window.addEventListener('resize', handleResize)
+
   function toggleSidebar() {
     sidebarOpen.value = !sidebarOpen.value
+  }
+
+  function closeSidebarOnMobile() {
+    if (isMobile.value) {
+      sidebarOpen.value = false
+    }
   }
 
   function addToast(title: string, message: string, type: Toast['type'] = 'info', timeout = 5000) {
@@ -46,5 +67,5 @@ export const useUiStore = defineStore('ui', () => {
     addToast(title, message, 'warning')
   }
 
-  return { sidebarOpen, toasts, toggleSidebar, addToast, removeToast, success, error, info, warning }
+  return { sidebarOpen, isMobile, windowWidth, toasts, toggleSidebar, closeSidebarOnMobile, addToast, removeToast, success, error, info, warning }
 })

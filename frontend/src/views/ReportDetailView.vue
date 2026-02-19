@@ -110,6 +110,7 @@ function downloadZip() {
           <div class="card-header">
             <h3 style="color: var(--color-danger)">{{ t('reportDetail.failedTests', { count: failedTests.length }) }}</h3>
           </div>
+          <div class="table-responsive">
           <table class="data-table">
             <thead>
               <tr>
@@ -128,6 +129,7 @@ function downloadZip() {
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
         <!-- All Tests -->
@@ -135,6 +137,7 @@ function downloadZip() {
           <div class="card-header">
             <h3>{{ t('reportDetail.allTests', { count: reports.activeReport.test_results.length }) }}</h3>
           </div>
+          <div class="table-responsive">
           <table class="data-table">
             <thead>
               <tr>
@@ -155,6 +158,7 @@ function downloadZip() {
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 

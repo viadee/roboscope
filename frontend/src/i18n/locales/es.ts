@@ -34,6 +34,7 @@ export default {
     nextPage: 'Siguiente \u2192',
     pageOf: 'Página {current} de {total}',
     logout: 'Cerrar sesión',
+    menu: 'Menú',
   },
   nav: {
     dashboard: 'Panel',

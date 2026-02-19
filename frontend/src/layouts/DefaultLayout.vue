@@ -27,7 +27,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-layout" :class="{ 'sidebar-collapsed': !ui.sidebarOpen }">
+  <div class="app-layout" :class="{ 'sidebar-collapsed': !ui.sidebarOpen, 'is-mobile': ui.isMobile }">
     <AppSidebar />
     <div class="main-area">
       <AppHeader />
@@ -75,9 +75,13 @@ onUnmounted(() => {
   margin-left: 60px;
 }
 
+/* On mobile, sidebar is an overlay — main area takes full width */
+.is-mobile .main-area {
+  margin-left: 0 !important;
+}
+
 .main-content {
   flex: 1;
-  padding: 24px;
   overflow-y: auto;
 }
 
@@ -90,6 +94,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .app-footer a {
@@ -114,5 +119,19 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 8px;
   max-width: 380px;
+}
+
+@media (max-width: 768px) {
+  .app-footer {
+    padding: 10px 12px;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .toast-container {
+    left: 12px;
+    right: 12px;
+    max-width: none;
+  }
 }
 </style>

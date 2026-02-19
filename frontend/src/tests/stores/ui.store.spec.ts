@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -13,7 +13,8 @@ describe('ui.store', () => {
   })
 
   describe('initial state', () => {
-    it('has sidebar open by default', () => {
+    it('has sidebar open by default on desktop', () => {
+      // Default window.innerWidth is 1024 in jsdom, which is >= 768
       const store = useUiStore()
       expect(store.sidebarOpen).toBe(true)
     })
@@ -21,6 +22,11 @@ describe('ui.store', () => {
     it('has no toasts by default', () => {
       const store = useUiStore()
       expect(store.toasts).toEqual([])
+    })
+
+    it('exposes isMobile computed', () => {
+      const store = useUiStore()
+      expect(typeof store.isMobile).toBe('boolean')
     })
   })
 
@@ -38,6 +44,24 @@ describe('ui.store', () => {
       store.toggleSidebar() // close
       store.toggleSidebar() // re-open
       expect(store.sidebarOpen).toBe(true)
+    })
+  })
+
+  describe('closeSidebarOnMobile', () => {
+    it('does nothing on desktop', () => {
+      const store = useUiStore()
+      store.sidebarOpen = true
+      store.closeSidebarOnMobile()
+      expect(store.sidebarOpen).toBe(true)
+    })
+
+    it('closes sidebar when isMobile is true', () => {
+      const store = useUiStore()
+      store.sidebarOpen = true
+      // Simulate mobile by setting windowWidth below breakpoint
+      ;(store as any).windowWidth = 500
+      store.closeSidebarOnMobile()
+      expect(store.sidebarOpen).toBe(false)
     })
   })
 

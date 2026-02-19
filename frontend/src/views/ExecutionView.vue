@@ -292,6 +292,7 @@ function isTerminal(status: string): boolean {
     <BaseSpinner v-if="execution.loading" />
 
     <div v-else class="card">
+      <div class="table-responsive">
       <table class="data-table" v-if="execution.runs.length">
         <thead>
           <tr>
@@ -345,6 +346,7 @@ function isTerminal(status: string): boolean {
           </tr>
         </tbody>
       </table>
+      </div>
       <p v-else class="text-muted text-center p-4">{{ t('execution.noRuns') }}</p>
 
       <!-- Pagination -->

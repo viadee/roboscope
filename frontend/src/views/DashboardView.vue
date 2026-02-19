@@ -66,6 +66,7 @@ onMounted(async () => {
           <h3>{{ t('dashboard.recentRuns') }}</h3>
           <router-link to="/runs" class="text-sm">{{ t('dashboard.showAll') }}</router-link>
         </div>
+        <div class="table-responsive">
         <table class="data-table" v-if="execution.runs.length">
           <thead>
             <tr>
@@ -91,6 +92,7 @@ onMounted(async () => {
             </tr>
           </tbody>
         </table>
+        </div>
         <p v-else class="text-muted text-center p-4">{{ t('dashboard.noRuns') }}</p>
       </div>
 

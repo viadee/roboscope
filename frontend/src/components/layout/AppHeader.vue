@@ -26,7 +26,7 @@ function logout() {
 <template>
   <header class="app-header">
     <div class="header-left">
-      <button class="toggle-btn" @click="ui.toggleSidebar">
+      <button class="toggle-btn" @click="ui.toggleSidebar" :aria-label="t('common.menu')">
         &#9776;
       </button>
     </div>
@@ -126,5 +126,24 @@ function logout() {
 .lang-btn.active {
   background: var(--color-primary);
   color: white;
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 0 12px;
+  }
+
+  .header-right {
+    gap: 8px;
+  }
+
+  .header-user {
+    display: none;
+  }
+
+  .lang-btn {
+    padding: 2px 5px;
+    font-size: 10px;
+  }
 }
 </style>

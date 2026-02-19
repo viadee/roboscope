@@ -34,6 +34,7 @@ export default {
     nextPage: 'Weiter \u2192',
     pageOf: 'Seite {current} von {total}',
     logout: 'Abmelden',
+    menu: 'Menü',
   },
   nav: {
     dashboard: 'Dashboard',
