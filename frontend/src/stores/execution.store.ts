@@ -99,6 +99,13 @@ export const useExecutionStore = defineStore('execution', () => {
     schedules.value = schedules.value.filter((s) => s.id !== id)
   }
 
+  async function updateSchedule(id: number, data: Partial<Schedule>) {
+    const updated = await executionApi.updateSchedule(id, data)
+    const idx = schedules.value.findIndex((s) => s.id === id)
+    if (idx >= 0) schedules.value[idx] = updated
+    return updated
+  }
+
   async function toggleSchedule(id: number) {
     const updated = await executionApi.toggleSchedule(id)
     const idx = schedules.value.findIndex((s) => s.id === id)
@@ -108,6 +115,6 @@ export const useExecutionStore = defineStore('execution', () => {
   return {
     runs, totalRuns, currentPage, pageSize, schedules, loading, activeRun, activeRuns,
     fetchRuns, startRun, cancelRun, cancelAllRuns, retryRun, fetchRun, updateRunFromWs,
-    fetchSchedules, addSchedule, removeSchedule, toggleSchedule,
+    fetchSchedules, addSchedule, updateSchedule, removeSchedule, toggleSchedule,
   }
 })

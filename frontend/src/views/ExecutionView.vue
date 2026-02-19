@@ -14,10 +14,11 @@ import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import RunDetailPanel from '@/components/execution/RunDetailPanel.vue'
+import CronEditor from '@/components/execution/CronEditor.vue'
 import { useRouter } from 'vue-router'
 import { formatDuration } from '@/utils/formatDuration'
 import { formatTimeAgo } from '@/utils/formatDate'
-import type { ExecutionRun } from '@/types/domain.types'
+import type { ExecutionRun, Schedule, RunnerType } from '@/types/domain.types'
 
 const route = useRoute()
 const router = useRouter()
@@ -28,6 +29,85 @@ const auth = useAuthStore()
 const reportsStore = useReportsStore()
 const toast = useToast()
 const { t } = useI18n()
+
+const activeTab = ref<'runs' | 'schedules'>('runs')
+
+// Schedule management
+const showScheduleDialog = ref(false)
+const editingSchedule = ref<Schedule | null>(null)
+const scheduleForm = ref({
+  name: '',
+  cron_expression: '0 8 * * *',
+  repository_id: 0,
+  environment_id: null as number | null,
+  target_path: '.',
+  branch: 'main',
+  runner_type: 'subprocess' as RunnerType,
+})
+const savingSchedule = ref(false)
+
+function openScheduleDialog(schedule?: Schedule) {
+  if (schedule) {
+    editingSchedule.value = schedule
+    scheduleForm.value = {
+      name: schedule.name,
+      cron_expression: schedule.cron_expression,
+      repository_id: schedule.repository_id,
+      environment_id: schedule.environment_id,
+      target_path: schedule.target_path,
+      branch: schedule.branch,
+      runner_type: schedule.runner_type,
+    }
+  } else {
+    editingSchedule.value = null
+    scheduleForm.value = {
+      name: '',
+      cron_expression: '0 8 * * *',
+      repository_id: 0,
+      environment_id: null,
+      target_path: '.',
+      branch: 'main',
+      runner_type: 'subprocess' as RunnerType,
+    }
+  }
+  showScheduleDialog.value = true
+}
+
+async function saveSchedule() {
+  savingSchedule.value = true
+  try {
+    if (editingSchedule.value) {
+      await execution.updateSchedule(editingSchedule.value.id, scheduleForm.value)
+      toast.success(t('schedule.toasts.updated'))
+    } else {
+      await execution.addSchedule(scheduleForm.value)
+      toast.success(t('schedule.toasts.created'))
+    }
+    showScheduleDialog.value = false
+  } catch (e: any) {
+    toast.error(t('common.error'), e.response?.data?.detail || t('schedule.toasts.saveError'))
+  } finally {
+    savingSchedule.value = false
+  }
+}
+
+async function deleteSchedule(id: number) {
+  if (!confirm(t('schedule.confirmDelete'))) return
+  try {
+    await execution.removeSchedule(id)
+    toast.success(t('schedule.toasts.deleted'))
+  } catch {
+    toast.error(t('schedule.toasts.deleteError'))
+  }
+}
+
+async function toggleScheduleActive(id: number) {
+  try {
+    await execution.toggleSchedule(id)
+  } catch {
+    toast.error(t('common.error'))
+  }
+}
 
 const showRunDialog = ref(false)
 const runForm = ref({
@@ -84,6 +164,7 @@ watch(() => execution.activeRuns.length, (count) => {
 onMounted(async () => {
   await Promise.all([
     execution.fetchRuns(),
+    execution.fetchSchedules(),
     repos.fetchRepos(),
     envs.fetchEnvironments(),
   ])
@@ -267,31 +348,50 @@ function isTerminal(status: string): boolean {
     <div class="page-header">
       <h1>{{ t('execution.title') }}</h1>
       <div class="flex gap-2">
-        <BaseButton v-if="auth.hasMinRole('runner')" @click="showRunDialog = true">
-          {{ t('execution.newRun') }}
-        </BaseButton>
-        <BaseButton
-          v-if="auth.hasMinRole('runner') && execution.activeRuns.length > 0"
-          variant="danger"
-          @click="killAll"
-        >
-          {{ t('execution.cancelAll') }}
-        </BaseButton>
-        <BaseButton
-          v-if="auth.hasMinRole('admin')"
-          variant="danger"
-          size="sm"
-          :loading="deletingReports"
-          @click="deleteAllReports"
-        >
-          {{ t('execution.deleteAllReports') }}
-        </BaseButton>
+        <template v-if="activeTab === 'runs'">
+          <BaseButton v-if="auth.hasMinRole('runner')" @click="showRunDialog = true">
+            {{ t('execution.newRun') }}
+          </BaseButton>
+          <BaseButton
+            v-if="auth.hasMinRole('runner') && execution.activeRuns.length > 0"
+            variant="danger"
+            @click="killAll"
+          >
+            {{ t('execution.cancelAll') }}
+          </BaseButton>
+          <BaseButton
+            v-if="auth.hasMinRole('admin')"
+            variant="danger"
+            size="sm"
+            :loading="deletingReports"
+            @click="deleteAllReports"
+          >
+            {{ t('execution.deleteAllReports') }}
+          </BaseButton>
+        </template>
+        <template v-else>
+          <BaseButton v-if="auth.hasMinRole('editor')" @click="openScheduleDialog()">
+            {{ t('schedule.addSchedule') }}
+          </BaseButton>
+        </template>
       </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+      <button class="tab-btn" :class="{ active: activeTab === 'runs' }" @click="activeTab = 'runs'">
+        {{ t('schedule.tabRuns') }}
+      </button>
+      <button class="tab-btn" :class="{ active: activeTab === 'schedules' }" @click="activeTab = 'schedules'">
+        {{ t('schedule.tabSchedules') }}
+        <span v-if="execution.schedules.length" class="tab-badge">{{ execution.schedules.length }}</span>
+      </button>
     </div>
 
     <BaseSpinner v-if="execution.loading" />
 
-    <div v-else class="card">
+    <!-- Runs Tab -->
+    <div v-show="activeTab === 'runs' && !execution.loading" class="card">
       <div class="table-responsive">
       <table class="data-table" v-if="execution.runs.length">
         <thead>
@@ -394,6 +494,110 @@ function isTerminal(status: string): boolean {
         @view-output="viewOutput"
       />
     </div>
+
+    <!-- Schedules Tab -->
+    <div v-show="activeTab === 'schedules' && !execution.loading">
+      <div v-if="execution.schedules.length" class="card">
+        <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ t('common.name') }}</th>
+              <th>{{ t('schedule.cronExpression') }}</th>
+              <th>{{ t('schedule.target') }}</th>
+              <th>{{ t('common.status') }}</th>
+              <th style="width: 120px;">{{ t('common.actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="schedule in execution.schedules" :key="schedule.id">
+              <td><strong>{{ schedule.name }}</strong></td>
+              <td><code class="cron-code">{{ schedule.cron_expression }}</code></td>
+              <td class="text-sm text-muted">
+                {{ getRepoName(schedule.repository_id) }} / {{ schedule.target_path }}
+              </td>
+              <td>
+                <span class="schedule-status" :class="{ active: schedule.is_active, inactive: !schedule.is_active }">
+                  {{ schedule.is_active ? t('schedule.active') : t('schedule.inactive') }}
+                </span>
+              </td>
+              <td class="row-actions">
+                <button
+                  class="icon-btn"
+                  :title="schedule.is_active ? t('schedule.pause') : t('schedule.resume')"
+                  @click="toggleScheduleActive(schedule.id)"
+                >
+                  <span v-if="schedule.is_active">&#9646;&#9646;</span>
+                  <span v-else>&#9654;</span>
+                </button>
+                <button
+                  v-if="auth.hasMinRole('editor')"
+                  class="icon-btn"
+                  :title="t('common.edit')"
+                  @click="openScheduleDialog(schedule)"
+                >
+                  &#9998;
+                </button>
+                <button
+                  v-if="auth.hasMinRole('editor')"
+                  class="icon-btn icon-btn-danger"
+                  :title="t('common.delete')"
+                  @click="deleteSchedule(schedule.id)"
+                >
+                  &#10005;
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+      <div v-else class="card">
+        <p class="text-muted text-center p-4">{{ t('schedule.noSchedules') }}</p>
+      </div>
+    </div>
+
+    <!-- Schedule Dialog -->
+    <BaseModal v-model="showScheduleDialog" :title="editingSchedule ? t('schedule.editDialog') : t('schedule.addDialog')" size="lg">
+      <form @submit.prevent="saveSchedule">
+        <div class="form-group mb-3">
+          <label class="form-label">{{ t('common.name') }}</label>
+          <input v-model="scheduleForm.name" class="form-input" :placeholder="t('schedule.namePlaceholder')" required />
+        </div>
+        <div class="form-group mb-3">
+          <label class="form-label">{{ t('schedule.cronExpression') }}</label>
+          <CronEditor v-model="scheduleForm.cron_expression" />
+        </div>
+        <div class="grid grid-2">
+          <div class="form-group">
+            <label class="form-label">{{ t('execution.runDialog.repository') }}</label>
+            <select v-model="scheduleForm.repository_id" class="form-select" required>
+              <option :value="0" disabled>{{ t('execution.runDialog.selectRepo') }}</option>
+              <option v-for="repo in repos.repos" :key="repo.id" :value="repo.id">{{ repo.name }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ t('execution.runDialog.environment') }}</label>
+            <select v-model="scheduleForm.environment_id" class="form-select">
+              <option :value="null">{{ t('execution.runDialog.noEnv') }}</option>
+              <option v-for="env in envs.environments" :key="env.id" :value="env.id">{{ env.name }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ t('execution.runDialog.targetPath') }}</label>
+            <input v-model="scheduleForm.target_path" class="form-input" :placeholder="t('execution.runDialog.targetPlaceholder')" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ t('execution.branch') }}</label>
+            <input v-model="scheduleForm.branch" class="form-input" placeholder="main" />
+          </div>
+        </div>
+      </form>
+      <template #footer>
+        <BaseButton variant="secondary" @click="showScheduleDialog = false">{{ t('common.cancel') }}</BaseButton>
+        <BaseButton :loading="savingSchedule" @click="saveSchedule">{{ t('common.save') }}</BaseButton>
+      </template>
+    </BaseModal>
 
     <!-- New Run Dialog -->
     <BaseModal v-model="showRunDialog" :title="t('execution.runDialog.title')" size="lg">
@@ -669,5 +873,94 @@ function isTerminal(status: string): boolean {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Tabs */
+.tab-nav {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--color-border, #e2e8f0);
+  margin-bottom: 20px;
+}
+
+.tab-btn {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tab-btn:hover {
+  color: var(--color-text);
+  background: var(--color-bg-hover, #f8fafc);
+}
+
+.tab-btn.active {
+  color: var(--color-primary, #3CB5A1);
+  border-bottom-color: var(--color-primary, #3CB5A1);
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--color-border-light, #edf2f7);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.tab-btn.active .tab-badge {
+  background: rgba(60, 181, 161, 0.15);
+  color: var(--color-primary);
+}
+
+/* Schedule table */
+.cron-code {
+  font-family: 'Fira Code', monospace;
+  font-size: 12px;
+  padding: 2px 8px;
+  background: var(--color-bg, #f4f7fa);
+  border-radius: 4px;
+  color: var(--color-primary);
+}
+
+.schedule-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.schedule-status.active {
+  background: rgba(60, 181, 161, 0.12);
+  color: var(--color-success, #22c55e);
+}
+
+.schedule-status.inactive {
+  background: var(--color-border-light, #edf2f7);
+  color: var(--color-text-muted);
+}
+
+.icon-btn-danger:hover {
+  color: var(--color-danger, #ef4444) !important;
+}
+
+.mb-3 {
+  margin-bottom: 16px;
 }
 </style>
