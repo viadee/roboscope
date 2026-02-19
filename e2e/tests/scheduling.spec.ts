@@ -7,13 +7,13 @@ test.describe('Scheduling UX', () => {
   })
 
   test('shows Runs and Schedules tabs on execution page', async ({ page }) => {
-    await page.goto('/execution')
+    await page.goto('/runs')
     await expect(page.locator('.tab-btn', { hasText: /Runs|Ausführungen|Exécutions|Ejecuciones/ })).toBeVisible()
     await expect(page.locator('.tab-btn', { hasText: /Schedules|Zeitpläne|Planifications|Programaciones/ })).toBeVisible()
   })
 
   test('switches between Runs and Schedules tabs', async ({ page }) => {
-    await page.goto('/execution')
+    await page.goto('/runs')
 
     // Runs tab is active by default
     const runsTab = page.locator('.tab-btn', { hasText: /Runs|Ausführungen|Exécutions|Ejecuciones/ })
@@ -38,7 +38,7 @@ test.describe('Scheduling UX', () => {
       return route.continue()
     })
 
-    await page.goto('/execution')
+    await page.goto('/runs')
     await page.locator('.tab-btn', { hasText: /Schedules|Zeitpläne|Planifications|Programaciones/ }).click()
     await expect(page.locator('.text-muted.text-center')).toBeVisible()
   })
@@ -86,7 +86,7 @@ test.describe('Scheduling UX', () => {
       return route.continue()
     })
 
-    await page.goto('/execution')
+    await page.goto('/runs')
     await page.locator('.tab-btn', { hasText: /Schedules|Zeitpläne|Planifications|Programaciones/ }).click()
 
     await expect(page.locator('td', { hasText: 'Nightly Tests' })).toBeVisible({ timeout: 5_000 })
@@ -106,7 +106,7 @@ test.describe('Scheduling UX', () => {
       return route.continue()
     })
 
-    await page.goto('/execution')
+    await page.goto('/runs')
     await page.locator('.tab-btn', { hasText: /Schedules|Zeitpläne|Planifications|Programaciones/ }).click()
 
     // Click add schedule button
@@ -131,7 +131,7 @@ test.describe('Scheduling UX', () => {
       return route.continue()
     })
 
-    await page.goto('/execution')
+    await page.goto('/runs')
     await page.locator('.tab-btn', { hasText: /Schedules|Zeitpläne|Planifications|Programaciones/ }).click()
     await page.locator('button', { hasText: /New Schedule|Neuer Zeitplan|Nouvelle planification|Nueva programación/ }).click()
 

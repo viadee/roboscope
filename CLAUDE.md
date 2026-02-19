@@ -20,12 +20,13 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 - Alembic Migrationen (SQLite + PostgreSQL)
 - Bulk-Operationen: Cancel all runs (RUNNER+), Delete all reports (ADMIN)
 - Seed: Default-Admin + "Examples"-Projekt beim ersten Start
+- AI-Modul: LLM-gestützte .roboscope ↔ .robot Generierung (OpenAI, Anthropic, OpenRouter, Ollama)
 
 **Frontend (Vue 3 + TypeScript) — VOLLSTÄNDIG implementiert (~5.500 Zeilen)**
 - 12 Views: Login, Dashboard, Repos, Explorer, Execution, Environments, Reports, ReportDetail, Stats, Settings, Docs, Imprint
 - In-App-Dokumentation: DocsView mit TOC-Sidebar, Suche, Print/PDF, i18n (EN+DE), offline-fähig
-- 8 Pinia Stores: auth, repos, explorer, execution, environments, reports, stats, ui
-- 8 API-Clients: auth, repos, explorer, execution, environments, reports, stats, settings
+- 9 Pinia Stores: auth, repos, explorer, execution, environments, reports, stats, ui, ai
+- 9 API-Clients: auth, repos, explorer, execution, environments, reports, stats, settings, ai
 - 5 Base UI-Komponenten: BaseButton, BaseBadge, BaseModal, BaseToast, BaseSpinner
 - 2 Layout-Komponenten: AppHeader, AppSidebar
 - 2 Layouts: DefaultLayout (Sidebar+Header+Footer), AuthLayout (Login)
@@ -106,6 +107,7 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] Tiefenanalyse: Quellcode-Analyse KPIs (source_test_stats, source_library_distribution)
 - [x] greenlet>=3.1.0 als explizite Dependency (Windows/Python 3.13 Kompatibilität)
 - [x] fix: HTML Report Fragment-Navigation 404 + iframe Toolbar (Back/Reload)
+- [x] AI-Modul: .roboscope Spec ↔ .robot Generierung (LLM-Anbindung, Drift-Erkennung, Provider-Management)
 
 **Offen / Roadmap (priorisiert):**
 - [x] **Responsive Design** — Sidebar, Tabellen, iframe-Layout für kleinere Bildschirme optimieren
@@ -129,6 +131,7 @@ RoboScope/
 │   │   ├── environments/ # venv + Pakete + Variablen
 │   │   ├── reports/  # output.xml Parser + Vergleich
 │   │   ├── stats/    # KPI Dashboard, Flaky Detection, Heatmap, On-Demand Tiefenanalyse
+│   │   ├── ai/       # LLM-gestützte .roboscope ↔ .robot Generierung
 │   │   ├── settings/ # Key-Value App-Settings (Admin)
 │   │   ├── plugins/  # Plugin-System (Analyzer, Runner, Integration, KPI)
 │   │   ├── websocket/# WebSocket Connection Manager
@@ -215,6 +218,7 @@ Alle unter `/api/v1/`:
 | `/stats` | KPIs, Trends, Flaky, Heatmap | Authentifiziert |
 | `/stats/analysis` | On-Demand Tiefenanalyse (CRUD + KPI-Metadaten) | RUNNER+ für POST, sonst Auth |
 | `/settings` | App-Settings | ADMIN only |
+| `/ai` | LLM-Provider CRUD, Spec→Robot Generierung, Robot→Spec Reverse, Drift-Erkennung | EDITOR+ |
 
 Swagger UI: `http://localhost:8000/api/v1/docs`
 
@@ -369,6 +373,38 @@ from src.main import _event_loop
 asyncio.run_coroutine_threadsafe(ws_manager.broadcast_run_status(run_id, status), _event_loop)
 ```
 Der Event-Loop wird in `main.py` Lifespan als `_event_loop` gespeichert. Die Helper-Funktion `_broadcast_run_status()` in `tasks.py` kapselt dieses Pattern.
+
+### AI-Modul (.roboscope ↔ .robot Generierung)
+LLM-gestütztes Modul zur bidirektionalen Synchronisation zwischen `.roboscope` YAML-Spezifikationen und `.robot` Testdateien.
+
+**Dateien:**
+- `backend/src/ai/models.py` — `AiProvider` (LLM-Konfiguration), `AiJob` (Generierungs-Jobs)
+- `backend/src/ai/schemas.py` — Pydantic Request/Response Schemas
+- `backend/src/ai/service.py` — CRUD, Spec-Parsing, Drift-Erkennung (SHA256)
+- `backend/src/ai/router.py` — 10 API-Endpoints (Provider CRUD, Generate, Reverse, Accept, Validate, Drift)
+- `backend/src/ai/llm_client.py` — Einheitlicher LLM-Client (OpenAI/Anthropic/OpenRouter/Ollama via httpx)
+- `backend/src/ai/prompts.py` — System/User Prompt Templates für Generierung und Reverse
+- `backend/src/ai/tasks.py` — Background-Tasks: `run_generate()`, `run_reverse()`
+- `backend/src/ai/encryption.py` — Fernet-Verschlüsselung für API-Keys (abgeleitet von SECRET_KEY)
+- `backend/src/ai/rf_knowledge.py` — Stub für optionale rf-mcp Integration
+- `frontend/src/api/ai.api.ts` — API-Client
+- `frontend/src/stores/ai.store.ts` — Pinia Store (Provider-Management, Job-Polling, Drift)
+- `frontend/src/components/ai/ProviderConfig.vue` — LLM-Provider Verwaltung (Settings-Tab)
+- `frontend/src/components/ai/GenerateModal.vue` — Generierungs-Modal mit Fortschritt + DiffPreview
+- `frontend/src/components/ai/DiffPreview.vue` — Raw/Unified Diff-Ansicht
+- `frontend/src/components/ai/SpecEditor.vue` — Toolbar für .roboscope Dateien (Validierung)
+
+**Ablauf:**
+1. User erstellt/editiert `.roboscope` YAML-Datei im Explorer
+2. Klickt "Generate" → Backend dispatcht LLM-Aufruf als Background-Task
+3. Frontend pollt Job-Status alle 2s
+4. Bei Abschluss: DiffPreview zeigt generiertes `.robot` vs. bestehendes
+5. User akzeptiert → Datei wird geschrieben, `generation_hash` aktualisiert
+6. Drift-Erkennung: SHA256-Vergleich zwischen `.roboscope` Hash und aktuellem `.robot` Inhalt
+
+**Unterstützte LLM-Anbieter:**
+- OpenAI (GPT-4o), Anthropic (Claude), OpenRouter (beliebige Modelle), Ollama (lokale Modelle)
+- API-Keys werden mit Fernet verschlüsselt in der DB gespeichert
 
 ### Default Admin User + Examples-Projekt
 Beim ersten Start wird automatisch erstellt:

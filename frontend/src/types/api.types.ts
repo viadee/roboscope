@@ -61,3 +61,45 @@ export interface SettingUpdateRequest {
   key: string
   value: string
 }
+
+// --- AI Generation request types ---
+
+export interface AiProviderCreateRequest {
+  name: string
+  provider_type: 'openai' | 'anthropic' | 'openrouter' | 'ollama'
+  api_base_url?: string | null
+  api_key?: string | null
+  model_name: string
+  temperature?: number
+  max_tokens?: number
+  is_default?: boolean
+}
+
+export interface AiProviderUpdateRequest {
+  name?: string
+  provider_type?: string
+  api_base_url?: string | null
+  api_key?: string | null
+  model_name?: string
+  temperature?: number
+  max_tokens?: number
+  is_default?: boolean
+}
+
+export interface AiGenerateRequest {
+  repository_id: number
+  spec_path: string
+  provider_id?: number | null
+  force?: boolean
+}
+
+export interface AiReverseRequest {
+  repository_id: number
+  robot_path: string
+  provider_id?: number | null
+  output_path?: string | null
+}
+
+export interface AiValidateSpecRequest {
+  content: string
+}

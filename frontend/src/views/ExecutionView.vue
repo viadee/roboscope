@@ -392,8 +392,8 @@ function isTerminal(status: string): boolean {
 
     <!-- Runs Tab -->
     <div v-show="activeTab === 'runs' && !execution.loading" class="card">
-      <div class="table-responsive">
-      <table class="data-table" v-if="execution.runs.length">
+      <div v-if="execution.runs.length" class="table-responsive">
+      <table class="data-table">
         <thead>
           <tr>
             <th>{{ t('common.id') }}</th>

@@ -8,6 +8,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
+import ProviderConfig from '@/components/ai/ProviderConfig.vue'
 import type { AppSetting, User, Role, DockerStatus } from '@/types/domain.types'
 import { formatDateTime } from '@/utils/formatDate'
 
@@ -20,7 +21,7 @@ const settings = ref<AppSetting[]>([])
 const users = ref<User[]>([])
 const loading = ref(true)
 const saving = ref(false)
-const activeTab = ref<'general' | 'users' | 'docker'>('general')
+const activeTab = ref<'general' | 'users' | 'docker' | 'ai'>('general')
 const editedValues = ref<Record<string, string>>({})
 
 // Docker status
@@ -207,6 +208,9 @@ function formatSize(bytes: number): string {
       <button class="tab" :class="{ active: activeTab === 'docker' }" @click="activeTab = 'docker'; if (!dockerStatus) loadDockerStatus()">
         {{ t('settings.docker.docker') }}
       </button>
+      <button class="tab" :class="{ active: activeTab === 'ai' }" @click="activeTab = 'ai'">
+        {{ t('ai.settingsTab') }}
+      </button>
     </div>
 
     <BaseSpinner v-if="loading" />
@@ -379,6 +383,19 @@ function formatSize(bytes: number): string {
           </div>
         </div>
       </template>
+    </template>
+
+    <!-- AI & Generation Tab -->
+    <template v-else-if="activeTab === 'ai'">
+      <div class="card">
+        <div class="card-header">
+          <h3>{{ t('ai.settingsTitle') }}</h3>
+        </div>
+        <div style="padding: 16px 20px">
+          <p class="text-muted text-sm mb-4">{{ t('ai.settingsDescription') }}</p>
+          <ProviderConfig />
+        </div>
+      </div>
     </template>
 
     <!-- Create User Dialog -->

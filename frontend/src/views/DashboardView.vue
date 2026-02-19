@@ -66,8 +66,8 @@ onMounted(async () => {
           <h3>{{ t('dashboard.recentRuns') }}</h3>
           <router-link to="/runs" class="text-sm">{{ t('dashboard.showAll') }}</router-link>
         </div>
-        <div class="table-responsive">
-        <table class="data-table" v-if="execution.runs.length">
+        <div v-if="execution.runs.length" class="table-responsive">
+        <table class="data-table">
           <thead>
             <tr>
               <th>{{ t('common.id') }}</th>

@@ -10,6 +10,8 @@ import { createRun } from '@/api/execution.api'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
+import GenerateModal from '@/components/ai/GenerateModal.vue'
+import SpecEditor from '@/components/ai/SpecEditor.vue'
 import type { TreeNode } from '@/types/domain.types'
 
 // CodeMirror imports
@@ -53,6 +55,11 @@ const showEnvPrompt = ref(false)
 const settingUpDefaultEnv = ref(false)
 const pendingRunNode = ref<TreeNode | null>(null)
 
+// AI Generation
+const showGenerateModal = ref(false)
+const aiMode = ref<'generate' | 'reverse'>('generate')
+const aiFilePath = ref('')
+
 // Breadcrumb
 const breadcrumb = computed(() => {
   if (!explorer.selectedFile) return []
@@ -67,11 +74,12 @@ const breadcrumb = computed(() => {
 const isEditable = computed(() => {
   if (!explorer.selectedFile) return false
   const ext = explorer.selectedFile.extension?.toLowerCase()
-  const editableExtensions = ['.robot', '.resource', '.py', '.txt', '.yaml', '.yml', '.json', '.xml', '.csv', '.tsv', '.cfg', '.ini', '.toml', '.md', '.rst', '.html', '.css', '.js', '.ts', '.sh', '.bat', '.ps1', '.env', '.gitignore']
+  const editableExtensions = ['.robot', '.resource', '.py', '.txt', '.yaml', '.yml', '.json', '.xml', '.csv', '.tsv', '.cfg', '.ini', '.toml', '.md', '.rst', '.html', '.css', '.js', '.ts', '.sh', '.bat', '.ps1', '.env', '.gitignore', '.roboscope']
   return ext ? editableExtensions.includes(ext) : true
 })
 
 const isRobot = computed(() => explorer.selectedFile?.extension?.toLowerCase() === '.robot')
+const isRoboscope = computed(() => explorer.selectedFile?.extension?.toLowerCase() === '.roboscope')
 
 const isLocalhost = computed(() =>
   ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
@@ -607,6 +615,36 @@ function goToExecution() {
   router.push({ path: '/runs', query: runId ? { run: String(runId) } : undefined })
 }
 
+function handleGenerate(node: TreeNode) {
+  if (!selectedRepoId.value) return
+  aiFilePath.value = node.path
+  aiMode.value = 'generate'
+  showGenerateModal.value = true
+}
+
+function handleExtractSpec(node: TreeNode) {
+  if (!selectedRepoId.value) return
+  aiFilePath.value = node.path
+  aiMode.value = 'reverse'
+  showGenerateModal.value = true
+}
+
+function handleGenerateFromEditor() {
+  if (!selectedRepoId.value || !explorer.selectedFile) return
+  aiFilePath.value = explorer.selectedFile.path
+  aiMode.value = isRoboscope.value ? 'generate' : 'reverse'
+  showGenerateModal.value = true
+}
+
+async function onAiAccepted(targetPath: string) {
+  if (!selectedRepoId.value) return
+  await explorer.fetchTree(selectedRepoId.value)
+  await explorer.openFile(selectedRepoId.value, targetPath)
+  editorContent.value = explorer.selectedFile?.content || ''
+  await nextTick()
+  initEditor()
+}
+
 async function handleSearch() {
   if (!selectedRepoId.value || !searchQuery.value) return
   await explorer.searchInRepo(selectedRepoId.value, searchQuery.value)
@@ -627,6 +665,7 @@ function getFileIcon(node: TreeNode): string {
   if (ext === '.robot') return '\uD83E\uDD16'
   if (ext === '.resource') return '\uD83D\uDD27'
   if (ext === '.py') return '\uD83D\uDC0D'
+  if (ext === '.roboscope') return '\uD83E\uDDE0'
   if (ext === '.yaml' || ext === '.yml') return '\uD83D\uDCDD'
   if (ext === '.json') return '{ }'
   if (ext === '.xml') return '\uD83D\uDCCB'
@@ -714,6 +753,18 @@ const flatNodes = computed(() => {
             <!-- Action buttons on hover -->
             <span class="node-actions" @click.stop>
               <button
+                v-if="node.type === 'file' && node.extension === '.roboscope'"
+                class="node-action-btn ai"
+                @click="handleGenerate(node)"
+                :title="t('ai.generateRobot')"
+              >⚡</button>
+              <button
+                v-if="node.type === 'file' && node.extension === '.robot'"
+                class="node-action-btn ai"
+                @click="handleExtractSpec(node)"
+                :title="t('ai.extractSpec')"
+              >🧠</button>
+              <button
                 v-if="node.type === 'file' && node.extension === '.robot'"
                 class="node-action-btn run"
                 @click="handleRunRobot(node)"
@@ -799,6 +850,12 @@ const flatNodes = computed(() => {
                 {{ saving ? t('explorer.saving') : t('common.save') }}
               </BaseButton>
               <button
+                v-if="isRoboscope || isRobot"
+                class="action-btn ai-btn"
+                @click="handleGenerateFromEditor"
+                :title="isRoboscope ? t('ai.generateRobot') : t('ai.extractSpec')"
+              >⚡ {{ isRoboscope ? t('ai.generate') : t('ai.extractSpecShort') }}</button>
+              <button
                 v-if="isRobot"
                 class="action-btn run-btn"
                 @click="handleRunRobot({ path: explorer.selectedFile.path, name: explorer.selectedFile.name, type: 'file', extension: explorer.selectedFile.extension, test_count: 0 } as TreeNode)"
@@ -807,6 +864,13 @@ const flatNodes = computed(() => {
               >▶ {{ t('explorer.run') }}</button>
             </div>
           </div>
+          <!-- Spec validation toolbar for .roboscope files -->
+          <SpecEditor
+            v-if="isRoboscope"
+            :content="editorContent"
+            :file-path="explorer.selectedFile.path"
+            @save="handleSave"
+          />
           <!-- CodeMirror editor for editable files -->
           <div v-if="isEditable" ref="editorContainer" class="editor-container"></div>
           <!-- Fallback for non-editable files -->
@@ -880,6 +944,17 @@ const flatNodes = computed(() => {
         <BaseButton :loading="settingUpDefaultEnv" @click="setupDefaultFromExplorer">{{ t('execution.envPrompt.setup') }}</BaseButton>
       </template>
     </BaseModal>
+
+    <!-- AI Generate/Reverse Modal -->
+    <GenerateModal
+      v-if="selectedRepoId"
+      v-model="showGenerateModal"
+      :repo-id="selectedRepoId"
+      :file-path="aiFilePath"
+      :mode="aiMode"
+      :existing-content="explorer.selectedFile?.content"
+      @accepted="onAiAccepted"
+    />
 
     <!-- Run Overlay -->
     <BaseModal v-model="runOverlay.show" :title="runOverlay.error ? t('explorer.runOverlay.error') : t('explorer.runOverlay.started')" size="sm">
@@ -1019,6 +1094,8 @@ const flatNodes = computed(() => {
 .node-action-btn.danger:hover { background: rgba(220, 53, 69, 0.15); }
 .node-action-btn.run { color: var(--color-primary); }
 .node-action-btn.run:hover { background: rgba(60, 181, 161, 0.15); }
+.node-action-btn.ai { color: #7c3aed; }
+.node-action-btn.ai:hover { background: rgba(124, 58, 237, 0.12); }
 
 .empty-state-sm {
   padding: 24px;
@@ -1122,6 +1199,12 @@ const flatNodes = computed(() => {
 
 .run-btn:hover { filter: brightness(0.9); }
 .run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ai-btn {
+  background: #7c3aed;
+  color: white;
+}
+.ai-btn:hover { filter: brightness(0.9); }
 
 .editor-container {
   flex: 1;

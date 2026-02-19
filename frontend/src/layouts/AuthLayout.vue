@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import roboscopeLogo from '@/assets/roboscope.png'
+import roboscopeLogo from '@/assets/roboscope_white.png'
 
 const { t } = useI18n()
 </script>

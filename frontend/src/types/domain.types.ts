@@ -388,3 +388,58 @@ export interface LibraryCheckResponse {
   builtin_count: number
   libraries: LibraryCheckItem[]
 }
+
+// --- AI Generation types ---
+
+export type AiProviderType = 'openai' | 'anthropic' | 'openrouter' | 'ollama'
+export type AiJobStatus = 'pending' | 'running' | 'completed' | 'failed'
+export type AiJobType = 'generate' | 'reverse'
+
+export interface AiProvider {
+  id: number
+  name: string
+  provider_type: AiProviderType
+  api_base_url: string | null
+  has_api_key: boolean
+  model_name: string
+  temperature: number
+  max_tokens: number
+  is_default: boolean
+  created_by: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AiJob {
+  id: number
+  job_type: AiJobType
+  status: AiJobStatus
+  repository_id: number
+  provider_id: number
+  spec_path: string
+  target_path: string | null
+  result_preview: string | null
+  error_message: string | null
+  token_usage: number | null
+  triggered_by: number
+  started_at: string | null
+  completed_at: string | null
+  created_at: string
+}
+
+export interface DriftResult {
+  spec_file: string
+  target_file: string
+  status: 'in_sync' | 'drifted' | 'missing'
+}
+
+export interface DriftResponse {
+  repository_id: number
+  results: DriftResult[]
+}
+
+export interface ValidateSpecResponse {
+  valid: boolean
+  errors: string[]
+  test_count: number
+}

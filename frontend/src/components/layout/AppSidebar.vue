@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useExecutionStore } from '@/stores/execution.store'
 import { computed } from 'vue'
-import roboscopeLogo from '@/assets/roboscope.png'
+import roboscopeLogo from '@/assets/roboscope_white.png'
 
 const route = useRoute()
 const auth = useAuthStore()

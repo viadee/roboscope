@@ -15,8 +15,8 @@ test.describe('Responsive Design — Mobile', () => {
 
   test('sidebar is hidden by default on mobile', async ({ page }) => {
     const sidebar = page.locator('.sidebar');
-    // Sidebar should be off-screen (translated left)
-    await expect(sidebar).toHaveCSS('transform', /translateX/);
+    // Sidebar should be off-screen (translated left) — browsers compute matrix() form
+    await expect(sidebar).toHaveCSS('transform', /matrix.*-250/);
   });
 
   test('hamburger menu opens sidebar as overlay', async ({ page }) => {
@@ -102,13 +102,13 @@ test.describe('Responsive Design — Tablet', () => {
     await expect(page.locator('h1')).toBeVisible({ timeout: 10_000 });
   });
 
-  test('KPI grid shows 2 columns on tablet', async ({ page }) => {
+  test('KPI grid shows 1 column on tablet (768px)', async ({ page }) => {
     const kpiGrid = page.locator('.grid.grid-4');
     if (await kpiGrid.count() > 0) {
       const gridStyle = await kpiGrid.evaluate(el => getComputedStyle(el).gridTemplateColumns);
       const columns = gridStyle.split(' ').filter(v => v !== '');
-      // At 768px, grid-4 should have 2 columns (1024px breakpoint)
-      expect(columns.length).toBe(2);
+      // At 768px, max-width:768px media query applies → 1 column
+      expect(columns.length).toBe(1);
     }
   });
 });
@@ -151,10 +151,9 @@ test.describe('Responsive Design — Desktop', () => {
   test('sidebar toggle collapses to icon-only mode', async ({ page }) => {
     await page.locator('.toggle-btn').click();
 
-    // Main area should now have 60px margin
+    // Wait for CSS transition (margin-left: 0.2s ease)
     const mainArea = page.locator('.main-area');
-    const marginLeft = await mainArea.evaluate(el => getComputedStyle(el).marginLeft);
-    expect(parseInt(marginLeft)).toBe(60);
+    await expect(mainArea).toHaveCSS('margin-left', '60px', { timeout: 3_000 });
 
     // Nav labels should be hidden
     await expect(page.locator('.nav-label').first()).not.toBeVisible();
