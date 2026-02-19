@@ -581,4 +581,9 @@ export default {
     runError: 'Test Run Fehler',
     runErrorMsg: 'Run #{id} ist fehlerhaft',
   },
+  notifications: {
+    enabled: 'Browser-Benachrichtigungen aktiviert — klicken zum Deaktivieren',
+    disabled: 'Browser-Benachrichtigungen deaktiviert — klicken zum Aktivieren',
+    denied: 'Browser-Benachrichtigungen sind blockiert. Bitte erlauben Sie Benachrichtigungen in Ihren Browser-Einstellungen.',
+  },
 }

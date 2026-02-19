@@ -581,4 +581,9 @@ export default {
     runError: 'Test Run Error',
     runErrorMsg: 'Run #{id} is faulty',
   },
+  notifications: {
+    enabled: 'Browser notifications enabled — click to disable',
+    disabled: 'Browser notifications disabled — click to enable',
+    denied: 'Browser notifications are blocked. Please allow notifications in your browser settings.',
+  },
 }

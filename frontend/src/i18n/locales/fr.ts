@@ -581,4 +581,9 @@ export default {
     runError: 'Erreur de test',
     runErrorMsg: 'Run #{id} est défaillant',
   },
+  notifications: {
+    enabled: 'Notifications navigateur activées — cliquer pour désactiver',
+    disabled: 'Notifications navigateur désactivées — cliquer pour activer',
+    denied: 'Les notifications navigateur sont bloquées. Veuillez les autoriser dans les paramètres de votre navigateur.',
+  },
 }

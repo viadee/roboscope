@@ -69,10 +69,25 @@ export function useWebSocket() {
         execution.updateRunFromWs(data.run_id, data.status)
         if (data.status === 'passed') {
           ui.success(t('websocket.runPassed'), t('websocket.runPassedMsg', { id: data.run_id }))
+          ui.sendBrowserNotification(
+            t('websocket.runPassed'),
+            t('websocket.runPassedMsg', { id: data.run_id }),
+            `run-${data.run_id}`,
+          )
         } else if (data.status === 'failed') {
           ui.warning(t('websocket.runFailed'), t('websocket.runFailedMsg', { id: data.run_id }))
+          ui.sendBrowserNotification(
+            t('websocket.runFailed'),
+            t('websocket.runFailedMsg', { id: data.run_id }),
+            `run-${data.run_id}`,
+          )
         } else if (data.status === 'error') {
           ui.error(t('websocket.runError'), t('websocket.runErrorMsg', { id: data.run_id }))
+          ui.sendBrowserNotification(
+            t('websocket.runError'),
+            t('websocket.runErrorMsg', { id: data.run_id }),
+            `run-${data.run_id}`,
+          )
         }
         break
 

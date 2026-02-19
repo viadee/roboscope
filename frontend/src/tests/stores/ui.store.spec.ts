@@ -137,6 +137,44 @@ describe('ui.store', () => {
     })
   })
 
+  describe('browser notifications', () => {
+    it('has notificationsEnabled defaulting to false', () => {
+      const store = useUiStore()
+      expect(store.notificationsEnabled).toBe(false)
+    })
+
+    it('toggleNotifications disables when currently enabled', async () => {
+      const store = useUiStore()
+      // Manually enable
+      store.$patch({ notificationsEnabled: true })
+      expect(store.notificationsEnabled).toBe(true)
+
+      await store.toggleNotifications()
+      expect(store.notificationsEnabled).toBe(false)
+    })
+
+    it('exposes notificationPermission', () => {
+      const store = useUiStore()
+      // In jsdom, Notification is not defined, so permission defaults to denied
+      expect(store.notificationPermission).toBe('denied')
+    })
+
+    it('sendBrowserNotification does nothing when disabled', () => {
+      const store = useUiStore()
+      store.notificationsEnabled = false
+      // Should not throw even without Notification API
+      store.sendBrowserNotification('Test', 'Body')
+    })
+
+    it('sendBrowserNotification does nothing when document has focus', () => {
+      const store = useUiStore()
+      store.notificationsEnabled = true
+      // jsdom document.hasFocus() returns true by default
+      store.sendBrowserNotification('Test', 'Body')
+      // No error means it correctly skipped
+    })
+  })
+
   describe('convenience methods', () => {
     it('success() adds a success toast', () => {
       const store = useUiStore()

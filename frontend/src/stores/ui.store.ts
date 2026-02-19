@@ -19,6 +19,40 @@ export const useUiStore = defineStore('ui', () => {
 
   const isMobile = computed(() => windowWidth.value < MOBILE_BREAKPOINT)
 
+  // Browser notification state
+  const notificationsEnabled = ref(localStorage.getItem('notifications_enabled') === 'true')
+  const notificationPermission = ref<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied',
+  )
+
+  async function requestNotificationPermission(): Promise<boolean> {
+    if (typeof Notification === 'undefined') return false
+    const result = await Notification.requestPermission()
+    notificationPermission.value = result
+    return result === 'granted'
+  }
+
+  async function toggleNotifications() {
+    if (notificationsEnabled.value) {
+      notificationsEnabled.value = false
+      localStorage.setItem('notifications_enabled', 'false')
+      return
+    }
+    if (notificationPermission.value !== 'granted') {
+      const granted = await requestNotificationPermission()
+      if (!granted) return
+    }
+    notificationsEnabled.value = true
+    localStorage.setItem('notifications_enabled', 'true')
+  }
+
+  function sendBrowserNotification(title: string, body: string, tag?: string) {
+    if (!notificationsEnabled.value) return
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    if (document.hasFocus()) return // don't notify if user is already looking at the app
+    new Notification(title, { body, tag, icon: '/favicon.ico' })
+  }
+
   function handleResize() {
     windowWidth.value = window.innerWidth
     if (windowWidth.value < MOBILE_BREAKPOINT) {
@@ -67,5 +101,5 @@ export const useUiStore = defineStore('ui', () => {
     addToast(title, message, 'warning')
   }
 
-  return { sidebarOpen, isMobile, windowWidth, toasts, toggleSidebar, closeSidebarOnMobile, addToast, removeToast, success, error, info, warning }
+  return { sidebarOpen, isMobile, windowWidth, toasts, notificationsEnabled, notificationPermission, toggleSidebar, closeSidebarOnMobile, addToast, removeToast, success, error, info, warning, toggleNotifications, sendBrowserNotification }
 })

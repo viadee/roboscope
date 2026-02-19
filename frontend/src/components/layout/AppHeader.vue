@@ -42,6 +42,15 @@ function logout() {
           {{ lang.toUpperCase() }}
         </button>
       </div>
+      <button
+        class="notification-btn"
+        :class="{ active: ui.notificationsEnabled }"
+        :title="ui.notificationsEnabled ? t('notifications.enabled') : t('notifications.disabled')"
+        @click="ui.toggleNotifications()"
+      >
+        <span v-if="ui.notificationsEnabled">&#128276;</span>
+        <span v-else>&#128277;</span>
+      </button>
       <span class="header-user">{{ auth.user?.username }}</span>
       <BaseButton variant="ghost" size="sm" @click="logout">{{ t('common.logout') }}</BaseButton>
     </div>
@@ -126,6 +135,28 @@ function logout() {
 .lang-btn.active {
   background: var(--color-primary);
   color: white;
+}
+
+.notification-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  transition: all 0.15s;
+}
+
+.notification-btn:hover {
+  background: var(--color-border-light);
+  color: var(--color-text);
+}
+
+.notification-btn.active {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 @media (max-width: 768px) {
