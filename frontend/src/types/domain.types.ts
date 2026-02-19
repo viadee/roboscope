@@ -45,6 +45,16 @@ export interface Branch {
   is_active: boolean
 }
 
+export interface ProjectMember {
+  id: number
+  user_id: number
+  repository_id: number
+  role: 'viewer' | 'runner' | 'editor'
+  username: string
+  email: string
+  created_at: string
+}
+
 export interface TreeNode {
   name: string
   path: string

@@ -232,3 +232,177 @@ class TestDeleteRepo:
     def test_delete_unauthenticated(self, client, seed_repo):
         response = client.delete(f"/api/v1/repos/{seed_repo.id}")
         assert response.status_code == 401
+
+
+class TestProjectMembers:
+    """Tests for project member CRUD endpoints."""
+
+    def test_list_members_empty(self, client, admin_user, seed_repo):
+        response = client.get(
+            f"/api/v1/repos/{seed_repo.id}/members",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_add_member(self, client, admin_user, seed_repo, viewer_user):
+        response = client.post(
+            f"/api/v1/repos/{seed_repo.id}/members",
+            json={"user_id": viewer_user.id, "role": "viewer"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["user_id"] == viewer_user.id
+        assert data["role"] == "viewer"
+        assert data["username"] == "viewer"
+        assert data["email"] == "viewer@test.com"
+        assert data["repository_id"] == seed_repo.id
+
+    def test_add_member_as_editor(self, client, editor_user, seed_repo, viewer_user):
+        response = client.post(
+            f"/api/v1/repos/{seed_repo.id}/members",
+            json={"user_id": viewer_user.id, "role": "runner"},
+            headers=auth_header(editor_user),
+        )
+        assert response.status_code == 201
+        assert response.json()["role"] == "runner"
+
+    def test_add_member_as_viewer_forbidden(self, client, viewer_user, seed_repo):
+        response = client.post(
+            f"/api/v1/repos/{seed_repo.id}/members",
+            json={"user_id": viewer_user.id, "role": "viewer"},
+            headers=auth_header(viewer_user),
+        )
+        assert response.status_code == 403
+
+    def test_add_member_user_not_found(self, client, admin_user, seed_repo):
+        response = client.post(
+            f"/api/v1/repos/{seed_repo.id}/members",
+            json={"user_id": 99999, "role": "viewer"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 404
+
+    def test_add_member_repo_not_found(self, client, admin_user, viewer_user):
+        response = client.post(
+            "/api/v1/repos/99999/members",
+            json={"user_id": viewer_user.id, "role": "viewer"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 404
+
+    def test_list_members_after_add(self, client, admin_user, seed_repo, viewer_user):
+        # Add a member first
+        client.post(
+            f"/api/v1/repos/{seed_repo.id}/members",
+            json={"user_id": viewer_user.id, "role": "editor"},
+            headers=auth_header(admin_user),
+        )
+        response = client.get(
+            f"/api/v1/repos/{seed_repo.id}/members",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        members = response.json()
+        assert len(members) == 1
+        assert members[0]["username"] == "viewer"
+        assert members[0]["role"] == "editor"
+
+    def test_update_member_role(self, client, admin_user, seed_repo, viewer_user):
+        # Add member
+        add_resp = client.post(
+            f"/api/v1/repos/{seed_repo.id}/members",
+            json={"user_id": viewer_user.id, "role": "viewer"},
+            headers=auth_header(admin_user),
+        )
+        member_id = add_resp.json()["id"]
+        # Update role
+        response = client.patch(
+            f"/api/v1/repos/{seed_repo.id}/members/{member_id}",
+            json={"role": "editor"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        assert response.json()["role"] == "editor"
+
+    def test_update_member_not_found(self, client, admin_user, seed_repo):
+        response = client.patch(
+            f"/api/v1/repos/{seed_repo.id}/members/99999",
+            json={"role": "editor"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 404
+
+    def test_delete_member(self, client, admin_user, seed_repo, viewer_user):
+        # Add member
+        add_resp = client.post(
+            f"/api/v1/repos/{seed_repo.id}/members",
+            json={"user_id": viewer_user.id, "role": "viewer"},
+            headers=auth_header(admin_user),
+        )
+        member_id = add_resp.json()["id"]
+        # Delete member
+        response = client.delete(
+            f"/api/v1/repos/{seed_repo.id}/members/{member_id}",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 204
+        # Verify removed
+        list_resp = client.get(
+            f"/api/v1/repos/{seed_repo.id}/members",
+            headers=auth_header(admin_user),
+        )
+        assert len(list_resp.json()) == 0
+
+    def test_delete_member_not_found(self, client, admin_user, seed_repo):
+        response = client.delete(
+            f"/api/v1/repos/{seed_repo.id}/members/99999",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 404
+
+    def test_delete_member_as_viewer_forbidden(self, client, admin_user, seed_repo, viewer_user):
+        # Add member as admin
+        add_resp = client.post(
+            f"/api/v1/repos/{seed_repo.id}/members",
+            json={"user_id": viewer_user.id, "role": "viewer"},
+            headers=auth_header(admin_user),
+        )
+        member_id = add_resp.json()["id"]
+        # Try to delete as viewer
+        response = client.delete(
+            f"/api/v1/repos/{seed_repo.id}/members/{member_id}",
+            headers=auth_header(viewer_user),
+        )
+        assert response.status_code == 403
+
+    @patch("src.repos.router.dispatch_task")
+    def test_create_repo_auto_adds_creator_as_member(self, mock_dispatch, client, editor_user):
+        """Creating a repo should auto-add the creator as an editor member."""
+        mock_dispatch.return_value = MagicMock(id="fake-task-id")
+        payload = {
+            "name": "auto-member-repo",
+            "git_url": "https://github.com/org/auto.git",
+        }
+        create_resp = client.post(
+            "/api/v1/repos",
+            json=payload,
+            headers=auth_header(editor_user),
+        )
+        assert create_resp.status_code == 201
+        repo_id = create_resp.json()["id"]
+        # Check members
+        members_resp = client.get(
+            f"/api/v1/repos/{repo_id}/members",
+            headers=auth_header(editor_user),
+        )
+        assert members_resp.status_code == 200
+        members = members_resp.json()
+        assert len(members) == 1
+        assert members[0]["user_id"] == editor_user.id
+        assert members[0]["role"] == "editor"
+
+    def test_list_members_unauthenticated(self, client, seed_repo):
+        response = client.get(f"/api/v1/repos/{seed_repo.id}/members")
+        assert response.status_code == 401

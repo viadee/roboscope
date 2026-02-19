@@ -112,6 +112,21 @@ export default {
       noLibraries: 'No libraries found in this project.',
       summary: '{total} libraries: {installed} installed, {missing} missing, {builtin} built-in',
     },
+    members: {
+      title: 'Members',
+      dialogTitle: 'Members — {name}',
+      selectUser: 'Select user...',
+      noMembers: 'No members added yet.',
+      confirmRemove: 'Remove {name} from this project?',
+      toasts: {
+        added: 'Member added',
+        addError: 'Could not add member',
+        updated: 'Role updated',
+        updateError: 'Could not update role',
+        removed: 'Member removed',
+        removeError: 'Could not remove member',
+      },
+    },
     toasts: {
       added: 'Project added',
       cloning: '{name} is being cloned...',

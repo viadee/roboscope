@@ -62,3 +62,24 @@ class SyncResponse(BaseModel):
     status: str
     message: str
     task_id: str | None = None
+
+
+class ProjectMemberCreate(BaseModel):
+    user_id: int
+    role: Literal["viewer", "runner", "editor"] = "viewer"
+
+
+class ProjectMemberUpdate(BaseModel):
+    role: Literal["viewer", "runner", "editor"]
+
+
+class ProjectMemberResponse(BaseModel):
+    id: int
+    user_id: int
+    repository_id: int
+    role: str
+    username: str = ""
+    email: str = ""
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

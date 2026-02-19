@@ -108,11 +108,11 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] fix: HTML Report Fragment-Navigation 404 + iframe Toolbar (Back/Reload)
 
 **Offen / Roadmap (priorisiert):**
-- [ ] **Responsive Design** — Sidebar, Tabellen, iframe-Layout für kleinere Bildschirme optimieren
-- [ ] **Test-Ergebnis-Historie pro Testfall** — Klick auf einzelnen Test zeigt Pass/Fail-Verlauf über Zeit (hilfreich für Flaky-Debugging)
-- [ ] **Benachrichtigungen** — Browser-Notifications bei Testlauf-Abschluss; optional Slack/Email-Integration bei Fehlschlägen
-- [ ] **Scheduling UX** — Cron-artiges Scheduling mit visuellem Editor im Frontend prominenter machen
-- [ ] **Benutzer-/Projekt-Scoping** — Projekt-Level-Berechtigungen / Multi-Tenancy für wachsende Teams
+- [x] **Responsive Design** — Sidebar, Tabellen, iframe-Layout für kleinere Bildschirme optimieren
+- [x] **Test-Ergebnis-Historie pro Testfall** — Klick auf einzelnen Test zeigt Pass/Fail-Verlauf über Zeit (hilfreich für Flaky-Debugging)
+- [x] **Benachrichtigungen** — Browser-Notifications bei Testlauf-Abschluss; optional Slack/Email-Integration bei Fehlschlägen
+- [x] **Scheduling UX** — Cron-artiges Scheduling mit visuellem Editor im Frontend prominenter machen
+- [x] **Benutzer-/Projekt-Scoping** — Projekt-Level-Berechtigungen / Multi-Tenancy für wachsende Teams
 - [ ] **Offline-Archiv-Analyse** — Upload alter Report-ZIPs zur Analyse ohne Git-Repo/Environment
 - [ ] **UI-Verfeinerungen** — Allgemeine Polish-Runde (Ladeanimationen, Error-States, leere Zustände)
 

@@ -8,13 +8,26 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.config import settings
-from src.repos.models import Repository
+from src.repos.models import ProjectMember, Repository
 from src.repos.schemas import RepoCreate, RepoUpdate
 
 
-def list_repositories(db: Session) -> list[Repository]:
-    """List all repositories."""
-    result = db.execute(select(Repository).order_by(Repository.name))
+def list_repositories(db: Session, user_id: int | None = None, is_admin: bool = False) -> list[Repository]:
+    """List repositories. Admins see all; others see only projects they are members of."""
+    if is_admin or user_id is None:
+        result = db.execute(select(Repository).order_by(Repository.name))
+        return list(result.scalars().all())
+    # Return repos where user is creator OR member
+    member_repo_ids = db.execute(
+        select(ProjectMember.repository_id).where(ProjectMember.user_id == user_id)
+    ).scalars().all()
+    result = db.execute(
+        select(Repository)
+        .where(
+            (Repository.created_by == user_id) | Repository.id.in_(member_repo_ids)
+        )
+        .order_by(Repository.name)
+    )
     return list(result.scalars().all())
 
 
@@ -153,3 +166,97 @@ def checkout_branch(local_path: str, branch: str) -> str:
         return f"checked out {branch}"
     except GitCommandError as e:
         return f"error: {e}"
+
+
+# ---------------------------------------------------------------------------
+# Project Members
+# ---------------------------------------------------------------------------
+
+
+def list_project_members(db: Session, repo_id: int) -> list[dict]:
+    """List all members of a project with user info."""
+    import src.auth.models  # noqa: F401
+
+    from src.auth.models import User
+
+    members = db.execute(
+        select(ProjectMember, User.username, User.email)
+        .join(User, ProjectMember.user_id == User.id)
+        .where(ProjectMember.repository_id == repo_id)
+        .order_by(User.username)
+    ).all()
+    result = []
+    for member, username, email in members:
+        result.append({
+            "id": member.id,
+            "user_id": member.user_id,
+            "repository_id": member.repository_id,
+            "role": member.role,
+            "username": username,
+            "email": email,
+            "created_at": member.created_at,
+        })
+    return result
+
+
+def add_project_member(
+    db: Session, repo_id: int, user_id: int, role: str = "viewer"
+) -> ProjectMember:
+    """Add a user as a member of a project."""
+    existing = db.execute(
+        select(ProjectMember).where(
+            ProjectMember.user_id == user_id,
+            ProjectMember.repository_id == repo_id,
+        )
+    ).scalar_one_or_none()
+    if existing:
+        existing.role = role
+        db.flush()
+        db.refresh(existing)
+        return existing
+    member = ProjectMember(user_id=user_id, repository_id=repo_id, role=role)
+    db.add(member)
+    db.flush()
+    db.refresh(member)
+    return member
+
+
+def update_project_member_role(
+    db: Session, member_id: int, role: str
+) -> ProjectMember | None:
+    """Update a project member's role."""
+    member = db.execute(
+        select(ProjectMember).where(ProjectMember.id == member_id)
+    ).scalar_one_or_none()
+    if not member:
+        return None
+    member.role = role
+    db.flush()
+    db.refresh(member)
+    return member
+
+
+def remove_project_member(db: Session, member_id: int) -> bool:
+    """Remove a user from a project."""
+    member = db.execute(
+        select(ProjectMember).where(ProjectMember.id == member_id)
+    ).scalar_one_or_none()
+    if not member:
+        return False
+    db.delete(member)
+    db.flush()
+    return True
+
+
+def is_project_member(db: Session, repo_id: int, user_id: int) -> bool:
+    """Check if a user has access to a project (member or creator)."""
+    repo = get_repository(db, repo_id)
+    if repo and repo.created_by == user_id:
+        return True
+    member = db.execute(
+        select(ProjectMember).where(
+            ProjectMember.user_id == user_id,
+            ProjectMember.repository_id == repo_id,
+        )
+    ).scalar_one_or_none()
+    return member is not None

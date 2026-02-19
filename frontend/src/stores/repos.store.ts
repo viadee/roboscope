@@ -1,13 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as reposApi from '@/api/repos.api'
-import type { Branch, Repository } from '@/types/domain.types'
+import type { Branch, ProjectMember, Repository } from '@/types/domain.types'
 import type { RepoCreateRequest } from '@/types/api.types'
 
 export const useReposStore = defineStore('repos', () => {
   const repos = ref<Repository[]>([])
   const loading = ref(false)
   const branches = ref<Record<number, Branch[]>>({})
+  const members = ref<Record<number, ProjectMember[]>>({})
 
   async function fetchRepos() {
     loading.value = true
@@ -48,5 +49,32 @@ export const useReposStore = defineStore('repos', () => {
     return repos.value.find((r) => r.id === id)
   }
 
-  return { repos, loading, branches, fetchRepos, addRepo, updateRepo, syncRepo, removeRepo, fetchBranches, getRepo }
+  async function fetchMembers(repoId: number) {
+    members.value[repoId] = await reposApi.getProjectMembers(repoId)
+  }
+
+  async function addMember(repoId: number, userId: number, role: string) {
+    const member = await reposApi.addProjectMember(repoId, userId, role)
+    if (!members.value[repoId]) members.value[repoId] = []
+    const idx = members.value[repoId].findIndex((m) => m.user_id === userId)
+    if (idx >= 0) members.value[repoId][idx] = member
+    else members.value[repoId].push(member)
+    return member
+  }
+
+  async function updateMember(repoId: number, memberId: number, role: string) {
+    const member = await reposApi.updateProjectMember(repoId, memberId, role)
+    const idx = members.value[repoId]?.findIndex((m) => m.id === memberId)
+    if (idx !== undefined && idx >= 0) members.value[repoId][idx] = member
+    return member
+  }
+
+  async function removeMember(repoId: number, memberId: number) {
+    await reposApi.removeProjectMember(repoId, memberId)
+    if (members.value[repoId]) {
+      members.value[repoId] = members.value[repoId].filter((m) => m.id !== memberId)
+    }
+  }
+
+  return { repos, loading, branches, members, fetchRepos, addRepo, updateRepo, syncRepo, removeRepo, fetchBranches, getRepo, fetchMembers, addMember, updateMember, removeMember }
 })

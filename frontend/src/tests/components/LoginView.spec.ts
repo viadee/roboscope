@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { createI18n } from 'vue-i18n'
 import LoginView from '@/views/LoginView.vue'
 import { useAuthStore } from '@/stores/auth.store'
+import de from '@/i18n/locales/de'
+import en from '@/i18n/locales/en'
 
 // Mock vue-router
 vi.mock('vue-router', () => ({
@@ -20,6 +23,15 @@ vi.mock('@/api/auth.api', () => ({
   getMe: vi.fn(),
 }))
 
+function createTestI18n() {
+  return createI18n({
+    legacy: false,
+    locale: 'de',
+    fallbackLocale: 'de',
+    messages: { de, en },
+  })
+}
+
 describe('LoginView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -29,6 +41,7 @@ describe('LoginView', () => {
   const mountLoginView = () => {
     return mount(LoginView, {
       global: {
+        plugins: [createTestI18n()],
         stubs: {
           BaseButton: {
             template: '<button :disabled="$attrs.disabled || loading" @click="$emit(\'click\', $event)"><slot /></button>',

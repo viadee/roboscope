@@ -112,6 +112,21 @@ export default {
       noLibraries: 'Aucune bibliothèque trouvée dans ce projet.',
       summary: '{total} bibliothèques : {installed} installées, {missing} manquantes, {builtin} intégrées',
     },
+    members: {
+      title: 'Membres',
+      dialogTitle: 'Membres — {name}',
+      selectUser: 'Sélectionner un utilisateur...',
+      noMembers: 'Aucun membre ajouté.',
+      confirmRemove: 'Retirer {name} de ce projet ?',
+      toasts: {
+        added: 'Membre ajouté',
+        addError: 'Impossible d\'ajouter le membre',
+        updated: 'Rôle mis à jour',
+        updateError: 'Impossible de mettre à jour le rôle',
+        removed: 'Membre retiré',
+        removeError: 'Impossible de retirer le membre',
+      },
+    },
     toasts: {
       added: 'Projet ajouté',
       cloning: '{name} est en cours de clonage...',

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 import src.environments.models  # noqa: F401 — FK resolution
@@ -29,3 +29,19 @@ class Repository(Base, TimestampMixin):
     environment_id: Mapped[int | None] = mapped_column(
         ForeignKey("environments.id", ondelete="SET NULL"), nullable=True, default=None
     )
+
+
+class ProjectMember(Base, TimestampMixin):
+    """User membership in a project (repository) with per-project role."""
+
+    __tablename__ = "project_members"
+    __table_args__ = (
+        UniqueConstraint("user_id", "repository_id", name="uq_project_member"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    repository_id: Mapped[int] = mapped_column(
+        ForeignKey("repositories.id", ondelete="CASCADE"), index=True
+    )
+    role: Mapped[str] = mapped_column(String(20), default="viewer")

@@ -12,18 +12,25 @@ from src.celery_app import TaskDispatchError, dispatch_task
 from src.database import get_db
 from src.repos.schemas import (
     BranchResponse,
+    ProjectMemberCreate,
+    ProjectMemberResponse,
+    ProjectMemberUpdate,
     RepoCreate,
     RepoResponse,
     RepoUpdate,
     SyncResponse,
 )
 from src.repos.service import (
+    add_project_member,
     create_repository,
     delete_repository,
     get_repository,
     get_repository_by_name,
     list_branches,
+    list_project_members,
     list_repositories,
+    remove_project_member,
+    update_project_member_role,
     update_repository,
 )
 
@@ -35,10 +42,11 @@ router = APIRouter()
 @router.get("", response_model=list[RepoResponse])
 def get_repos(
     db: Session = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    """List all repositories."""
-    return list_repositories(db)
+    """List repositories visible to the current user."""
+    is_admin = current_user.role == Role.ADMIN
+    return list_repositories(db, user_id=current_user.id, is_admin=is_admin)
 
 
 @router.post("", response_model=RepoResponse, status_code=status.HTTP_201_CREATED)
@@ -55,6 +63,8 @@ def add_repo(
             detail="Repository with this name already exists",
         )
     repo = create_repository(db, data, current_user.id)
+    # Auto-add creator as editor member
+    add_project_member(db, repo.id, current_user.id, role="editor")
     db.commit()
     # Trigger async clone only for git repos
     if repo.repo_type == "git":
@@ -150,3 +160,83 @@ def get_branches(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
     branches = list_branches(repo.local_path)
     return [BranchResponse(**b) for b in branches]
+
+
+# ---------------------------------------------------------------------------
+# Project Members
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{repo_id}/members", response_model=list[ProjectMemberResponse])
+def get_members(
+    repo_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """List all members of a project."""
+    repo = get_repository(db, repo_id)
+    if repo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+    return list_project_members(db, repo_id)
+
+
+@router.post(
+    "/{repo_id}/members",
+    response_model=ProjectMemberResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_member(
+    repo_id: int,
+    data: ProjectMemberCreate,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Add a user to a project."""
+    repo = get_repository(db, repo_id)
+    if repo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+    from src.auth.service import get_user_by_id
+
+    user = get_user_by_id(db, data.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    member = add_project_member(db, repo_id, data.user_id, data.role)
+    return {
+        **{c.key: getattr(member, c.key) for c in member.__table__.columns},
+        "username": user.username,
+        "email": user.email,
+    }
+
+
+@router.patch("/{repo_id}/members/{member_id}", response_model=ProjectMemberResponse)
+def patch_member(
+    repo_id: int,
+    member_id: int,
+    data: ProjectMemberUpdate,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Update a project member's role."""
+    member = update_project_member_role(db, member_id, data.role)
+    if member is None or member.repository_id != repo_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+    from src.auth.service import get_user_by_id
+
+    user = get_user_by_id(db, member.user_id)
+    return {
+        **{c.key: getattr(member, c.key) for c in member.__table__.columns},
+        "username": user.username if user else "",
+        "email": user.email if user else "",
+    }
+
+
+@router.delete("/{repo_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_member(
+    repo_id: int,
+    member_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Remove a user from a project."""
+    if not remove_project_member(db, member_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")

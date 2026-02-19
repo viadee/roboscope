@@ -12,8 +12,9 @@ import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import { formatTimeAgo } from '@/utils/formatDate'
 import { checkLibraries } from '@/api/explorer.api'
 import { installPackage } from '@/api/environments.api'
-import type { LibraryCheckItem, LibraryCheckResponse } from '@/types/domain.types'
+import type { LibraryCheckItem, LibraryCheckResponse, ProjectMember, User } from '@/types/domain.types'
 import type { RepoCreateRequest } from '@/types/api.types'
+import { getUsers } from '@/api/auth.api'
 
 const repos = useReposStore()
 const auth = useAuthStore()
@@ -47,6 +48,15 @@ const libCheckInstallingPkg = ref<string | null>(null)
 const libCheckInstallingAll = ref(false)
 const settingUpDefaultEnv = ref(false)
 const showLibCheckEnvPrompt = ref(false)
+
+// Member management state
+const showMembersDialog = ref(false)
+const membersRepoId = ref<number | null>(null)
+const membersRepoName = ref('')
+const allUsers = ref<User[]>([])
+const addMemberUserId = ref<number | null>(null)
+const addMemberRole = ref('viewer')
+const addingMember = ref(false)
 
 function toggleSelect(id: number) {
   if (selectedRepoIds.value.has(id)) {
@@ -276,6 +286,64 @@ function getDefaultEnvId(): number | null {
   const defaultEnv = envStore.environments.find(e => e.is_default)
   return defaultEnv?.id ?? null
 }
+
+// Member management functions
+async function openMembersDialog(repoId: number, repoName: string) {
+  membersRepoId.value = repoId
+  membersRepoName.value = repoName
+  addMemberUserId.value = null
+  addMemberRole.value = 'viewer'
+  showMembersDialog.value = true
+  await repos.fetchMembers(repoId)
+  try {
+    allUsers.value = await getUsers()
+  } catch {
+    allUsers.value = []
+  }
+}
+
+function availableUsers(): User[] {
+  if (!membersRepoId.value) return []
+  const currentMembers = repos.members[membersRepoId.value] || []
+  const memberUserIds = new Set(currentMembers.map(m => m.user_id))
+  return allUsers.value.filter(u => !memberUserIds.has(u.id))
+}
+
+async function addMember() {
+  if (!membersRepoId.value || !addMemberUserId.value) return
+  addingMember.value = true
+  try {
+    await repos.addMember(membersRepoId.value, addMemberUserId.value, addMemberRole.value)
+    addMemberUserId.value = null
+    addMemberRole.value = 'viewer'
+    toast.success(t('repos.members.toasts.added'))
+  } catch (e: any) {
+    toast.error(t('common.error'), e.response?.data?.detail || t('repos.members.toasts.addError'))
+  } finally {
+    addingMember.value = false
+  }
+}
+
+async function updateMemberRole(member: ProjectMember, newRole: string) {
+  if (!membersRepoId.value) return
+  try {
+    await repos.updateMember(membersRepoId.value, member.id, newRole)
+    toast.success(t('repos.members.toasts.updated'))
+  } catch {
+    toast.error(t('repos.members.toasts.updateError'))
+  }
+}
+
+async function removeMember(member: ProjectMember) {
+  if (!membersRepoId.value) return
+  if (!confirm(t('repos.members.confirmRemove', { name: member.username }))) return
+  try {
+    await repos.removeMember(membersRepoId.value, member.id)
+    toast.success(t('repos.members.toasts.removed'))
+  } catch {
+    toast.error(t('repos.members.toasts.removeError'))
+  }
+}
 </script>
 
 <template>
@@ -396,6 +464,13 @@ function getDefaultEnvId(): number | null {
             @click="openLibCheck(repo.id, repo.environment_id)"
           >
             {{ t('repos.libraryCheck.title') }}
+          </BaseButton>
+          <BaseButton
+            v-if="auth.hasMinRole('editor')"
+            variant="secondary" size="sm"
+            @click="openMembersDialog(repo.id, repo.name)"
+          >
+            {{ t('repos.members.title') }}
           </BaseButton>
           <BaseButton
             v-if="auth.hasMinRole('editor') && repo.repo_type === 'git'"
@@ -582,6 +657,71 @@ function getDefaultEnvId(): number | null {
         <BaseButton :loading="settingUpDefaultEnv" @click="setupDefaultFromLibCheck">{{ t('execution.envPrompt.setup') }}</BaseButton>
       </template>
     </BaseModal>
+
+    <!-- Members Dialog -->
+    <BaseModal v-model="showMembersDialog" :title="t('repos.members.dialogTitle', { name: membersRepoName })" size="lg">
+      <div class="members-section">
+        <!-- Add Member Form -->
+        <div class="members-add-row">
+          <select v-model="addMemberUserId" class="form-input members-user-select">
+            <option :value="null" disabled>{{ t('repos.members.selectUser') }}</option>
+            <option v-for="user in availableUsers()" :key="user.id" :value="user.id">
+              {{ user.username }} ({{ user.email }})
+            </option>
+          </select>
+          <select v-model="addMemberRole" class="form-input members-role-select">
+            <option value="viewer">Viewer</option>
+            <option value="runner">Runner</option>
+            <option value="editor">Editor</option>
+          </select>
+          <BaseButton size="sm" :loading="addingMember" :disabled="!addMemberUserId" @click="addMember">
+            {{ t('common.add') }}
+          </BaseButton>
+        </div>
+
+        <!-- Members List -->
+        <div v-if="membersRepoId && repos.members[membersRepoId]?.length" class="members-list">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>{{ t('settings.username') }}</th>
+                <th>{{ t('settings.email') }}</th>
+                <th>{{ t('settings.role') }}</th>
+                <th>{{ t('common.actions') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="member in repos.members[membersRepoId]" :key="member.id">
+                <td>{{ member.username }}</td>
+                <td class="text-muted text-sm">{{ member.email }}</td>
+                <td>
+                  <select
+                    class="form-input members-role-select"
+                    :value="member.role"
+                    @change="updateMemberRole(member, ($event.target as HTMLSelectElement).value)"
+                  >
+                    <option value="viewer">Viewer</option>
+                    <option value="runner">Runner</option>
+                    <option value="editor">Editor</option>
+                  </select>
+                </td>
+                <td>
+                  <BaseButton variant="danger" size="sm" @click="removeMember(member)">
+                    {{ t('common.remove') }}
+                  </BaseButton>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else class="text-muted text-center" style="padding: 16px 0;">
+          {{ t('repos.members.noMembers') }}
+        </p>
+      </div>
+      <template #footer>
+        <BaseButton variant="secondary" @click="showMembersDialog = false">{{ t('common.close') }}</BaseButton>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -754,5 +894,36 @@ function getDefaultEnvId(): number | null {
   text-align: center;
   padding: 24px 16px;
   gap: 16px;
+}
+
+/* Members dialog styles */
+.members-add-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.members-user-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.members-role-select {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.members-list {
+  margin-top: 8px;
+}
+
+.members-list .data-table td {
+  vertical-align: middle;
+}
+
+.members-list .members-role-select {
+  padding: 4px 8px;
+  font-size: 13px;
 }
 </style>

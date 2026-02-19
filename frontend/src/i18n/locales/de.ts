@@ -112,6 +112,21 @@ export default {
       noLibraries: 'Keine Libraries in diesem Projekt gefunden.',
       summary: '{total} Libraries: {installed} installiert, {missing} fehlend, {builtin} built-in',
     },
+    members: {
+      title: 'Mitglieder',
+      dialogTitle: 'Mitglieder — {name}',
+      selectUser: 'Benutzer auswählen...',
+      noMembers: 'Noch keine Mitglieder hinzugefügt.',
+      confirmRemove: '{name} aus diesem Projekt entfernen?',
+      toasts: {
+        added: 'Mitglied hinzugefügt',
+        addError: 'Mitglied konnte nicht hinzugefügt werden',
+        updated: 'Rolle aktualisiert',
+        updateError: 'Rolle konnte nicht aktualisiert werden',
+        removed: 'Mitglied entfernt',
+        removeError: 'Mitglied konnte nicht entfernt werden',
+      },
+    },
     toasts: {
       added: 'Projekt hinzugefügt',
       cloning: '{name} wird geklont...',
