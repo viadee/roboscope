@@ -30,7 +30,7 @@ test.describe('Imprint Page & Footer', () => {
 
     // Imprint page should show viadee company info
     await expect(page.locator('h1')).toBeVisible();
-    await expect(page.getByText('viadee Unternehmensberatung AG')).toBeVisible();
+    await expect(page.getByText('viadee Unternehmensberatung AG', { exact: true })).toBeVisible();
     await expect(page.getByText('Anton-Bruchausen')).toBeVisible();
     await expect(page.getByText('48147')).toBeVisible();
   });
@@ -65,7 +65,7 @@ test.describe('Imprint Page & Footer', () => {
     await page.goto('/imprint');
     await page.waitForLoadState('networkidle');
 
-    const mateoLink = page.locator('a[href="https://www.mateo-automation.com"]');
+    const mateoLink = page.locator('a[href="https://www.mateo-automation.com"]').first();
     await expect(mateoLink).toBeVisible();
   });
 });

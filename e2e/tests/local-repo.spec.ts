@@ -15,7 +15,7 @@ async function getAuthToken(page: Page): Promise<string> {
 
 async function goToRepos(page: Page) {
   await page.goto('/repos');
-  await expect(page.locator('h1', { hasText: 'Repositories' })).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('h1', { hasText: 'Projekte' })).toBeVisible({ timeout: 10_000 });
 }
 
 test.describe('Local Repository — E2E', () => {
@@ -122,7 +122,7 @@ test.describe('Local Repository — E2E', () => {
 
   test('add repo dialog should have type toggle', async ({ page }) => {
     await goToRepos(page);
-    await page.getByRole('button', { name: /Repository hinzufügen/ }).click();
+    await page.getByRole('button', { name: /Projekt hinzufügen/ }).click();
 
     // Type toggle should be visible
     await expect(page.getByText('Git Repository')).toBeVisible({ timeout: 3_000 });
@@ -134,7 +134,7 @@ test.describe('Local Repository — E2E', () => {
     const localPath = `/tmp/mateox-ui-${Date.now()}`;
 
     await goToRepos(page);
-    await page.getByRole('button', { name: /Repository hinzufügen/ }).click();
+    await page.getByRole('button', { name: /Projekt hinzufügen/ }).click();
 
     // Switch to local type
     await page.getByText('Lokaler Ordner').click();

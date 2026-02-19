@@ -15,7 +15,7 @@ test.describe('Sidebar Navigation', () => {
    */
   const corePages = [
     { label: 'Dashboard', heading: 'Dashboard', path: '/dashboard' },
-    { label: 'Repositories', heading: 'Repositories', path: '/repos' },
+    { label: 'Projekte', heading: 'Projekte', path: '/repos' },
     { label: 'Explorer', heading: 'Explorer', path: '/explorer' },
     { label: 'Ausführung', heading: 'Ausführung', path: '/runs' },
     { label: 'Statistiken', heading: 'Statistiken', path: '/stats' },
@@ -42,13 +42,13 @@ test.describe('Sidebar Navigation', () => {
     await expect(dashboardLink).toBeVisible();
     await expect(dashboardLink.locator('.nav-label')).toHaveText('Dashboard');
 
-    // Navigate to Repositories
-    await page.locator('.nav-item', { hasText: 'Repositories' }).click();
+    // Navigate to Projekte
+    await page.locator('.nav-item', { hasText: 'Projekte' }).click();
     await page.waitForURL('**/repos');
 
-    // Now Repositories should be the active link
+    // Now Projekte should be the active link
     const activeLink = page.locator('.nav-item.active');
-    await expect(activeLink.locator('.nav-label')).toHaveText('Repositories');
+    await expect(activeLink.locator('.nav-label')).toHaveText('Projekte');
   });
 
   test('should show admin-only nav items for admin user', async ({ page }) => {
@@ -56,12 +56,12 @@ test.describe('Sidebar Navigation', () => {
     const allLabels = page.locator('.nav-label');
     const labels = await allLabels.allTextContents();
 
-    expect(labels).toContain('Umgebungen');
+    expect(labels).toContain('Paket-Manager');
     expect(labels).toContain('Einstellungen');
   });
 
-  test('should navigate to Umgebungen (admin only)', async ({ page }) => {
-    const navItem = page.locator('.nav-item', { hasText: 'Umgebungen' });
+  test('should navigate to Paket-Manager (admin only)', async ({ page }) => {
+    const navItem = page.locator('.nav-item', { hasText: 'Paket-Manager' });
     await navItem.click();
     await page.waitForURL('**/environments', { timeout: 5_000 });
     await expect(page.locator('h1', { hasText: 'Umgebungen' })).toBeVisible({ timeout: 10_000 });
@@ -80,7 +80,6 @@ test.describe('Sidebar Navigation', () => {
   });
 
   test('should display logo in sidebar header', async ({ page }) => {
-    await expect(page.locator('.logo-text')).toBeVisible();
-    await expect(page.locator('.logo-x')).toHaveText('X');
+    await expect(page.locator('.logo-img')).toBeVisible();
   });
 });

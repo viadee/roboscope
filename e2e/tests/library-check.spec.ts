@@ -61,10 +61,10 @@ test.describe('Library Check Feature', () => {
     });
 
     await page.goto('/repos');
-    await expect(page.locator('h1', { hasText: 'Repositories' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('h1', { hasText: 'Projekte' })).toBeVisible({ timeout: 10_000 });
 
     // Library Check button should be visible
-    const libCheckButton = page.getByRole('button', { name: /Library Check/i });
+    const libCheckButton = page.getByRole('button', { name: /Library.Check/i });
     await expect(libCheckButton).toBeVisible();
   });
 
@@ -163,13 +163,13 @@ test.describe('Library Check Feature', () => {
     });
 
     await page.goto('/repos');
-    await expect(page.locator('h1', { hasText: 'Repositories' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('h1', { hasText: 'Projekte' })).toBeVisible({ timeout: 10_000 });
 
     // Click Library Check button
-    await page.getByRole('button', { name: /Library Check/i }).click();
+    await page.getByRole('button', { name: /Library.Check/i }).click();
 
-    // Modal should open
-    await expect(page.getByText('Library Check')).toBeVisible({ timeout: 5_000 });
+    // Modal should open (title is "Library-Check" with hyphen)
+    await expect(page.getByRole('heading', { name: 'Library-Check' })).toBeVisible({ timeout: 5_000 });
 
     // Environment dropdown should be visible
     const envSelect = page.locator('select');
@@ -178,22 +178,22 @@ test.describe('Library Check Feature', () => {
     // Click Scan button
     await page.getByRole('button', { name: /Scan/i }).click();
 
-    // Results should appear
-    await expect(page.getByText('Browser')).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByText('SeleniumLibrary')).toBeVisible();
-    await expect(page.getByText('Collections')).toBeVisible();
+    // Results should appear (use exact to avoid matching pypi package names)
+    await expect(page.getByText('Browser', { exact: true })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('SeleniumLibrary', { exact: true })).toBeVisible();
+    await expect(page.getByText('Collections', { exact: true })).toBeVisible();
 
-    // Status badges should be visible
-    await expect(page.getByText('Installed')).toBeVisible();
-    await expect(page.getByText('Missing')).toBeVisible();
-    await expect(page.getByText('Built-in')).toBeVisible();
+    // Status badges should be visible (German UI: Installiert, Fehlt, Built-in)
+    await expect(page.locator('.lib-check-status', { hasText: /Installiert|Installed/i })).toBeVisible();
+    await expect(page.locator('.lib-check-status', { hasText: /Fehlt|Missing/i })).toBeVisible();
+    await expect(page.locator('.lib-check-status', { hasText: /Built-in/i })).toBeVisible();
 
-    // Install button should appear for missing library
-    const installButtons = page.getByRole('button', { name: 'Install' });
+    // Install button should appear for missing library (German: "Installieren")
+    const installButtons = page.getByRole('button', { name: /Install/i });
     await expect(installButtons.first()).toBeVisible();
 
-    // Summary should show
-    await expect(page.getByText(/3 libraries/)).toBeVisible();
+    // Summary should show (German: "3 Libraries: 1 installiert...")
+    await expect(page.getByText(/3 Libraries/i)).toBeVisible();
   });
 
   test('should show environment dropdown in add repo dialog', async ({ page }) => {
@@ -233,10 +233,10 @@ test.describe('Library Check Feature', () => {
     });
 
     await page.goto('/repos');
-    await expect(page.locator('h1', { hasText: 'Repositories' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('h1', { hasText: 'Projekte' })).toBeVisible({ timeout: 10_000 });
 
     // Open add dialog
-    await page.getByRole('button', { name: /Add Repository|Repository hinzufügen/i }).click();
+    await page.getByRole('button', { name: '+ Projekt hinzufügen' }).click();
 
     // Environment dropdown should be in the form
     await expect(page.getByText(/Default Environment|Standard-Umgebung/i)).toBeVisible({ timeout: 3_000 });

@@ -45,11 +45,10 @@ test.describe('Authentication', () => {
     await page.getByPlaceholder('Passwort').fill('wrongpassword123');
     await page.getByRole('button', { name: 'Anmelden' }).click();
 
-    // Error message should appear — either .error-text or inline text
-    // The backend may reject with 401 or 422, the frontend shows "Anmeldung fehlgeschlagen"
-    await expect(
-      page.getByText(/fehlgeschlagen|Invalid|credentials|Fehler/i)
-    ).toBeVisible({ timeout: 8_000 });
+    // Error message should appear as .error-text
+    // The backend rejects with 401 "Invalid email or password"
+    await expect(page.locator('.error-text')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('.error-text')).toContainText(/Invalid|fehlgeschlagen/i);
   });
 
   test('should prevent submission with empty fields (HTML5 validation)', async ({ page }) => {

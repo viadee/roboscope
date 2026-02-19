@@ -38,7 +38,7 @@ async function createRepoViaApi(page: Page, token: string, name: string, gitUrl:
  */
 async function goToRepos(page: Page) {
   await page.goto('/repos');
-  await expect(page.locator('h1', { hasText: 'Repositories' })).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('h1', { hasText: 'Projekte' })).toBeVisible({ timeout: 10_000 });
 }
 
 test.describe('Git Sync — E2E', () => {
@@ -197,8 +197,11 @@ test.describe('Git Sync — E2E', () => {
     await goToRepos(page);
 
     // Open modal and fill the form
-    await page.getByRole('button', { name: /Repository hinzufügen/ }).click();
+    await page.getByRole('button', { name: /Projekt hinzufügen/ }).click();
     await expect(page.getByPlaceholder('mein-projekt')).toBeVisible({ timeout: 3_000 });
+
+    // Switch to Git type (default is local)
+    await page.getByText('Git Repository').click();
 
     await page.getByPlaceholder('mein-projekt').fill(repoName);
     await page.getByPlaceholder('https://github.com/user/repo.git').fill(gitUrl);

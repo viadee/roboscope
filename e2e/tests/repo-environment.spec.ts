@@ -34,7 +34,7 @@ test.describe('Project Environment Selector', () => {
       const envSelect = cards.first().locator('.env-inline-select');
       // The "Keine" (None) option should always be available
       const noEnvOption = envSelect.locator('option').first();
-      await expect(noEnvOption).toBeVisible();
+      await expect(noEnvOption).toHaveText('Keine');
     }
   });
 

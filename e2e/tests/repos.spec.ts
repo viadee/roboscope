@@ -29,8 +29,12 @@ test.describe('Repository Management', () => {
     // Click add button
     await page.getByRole('button', { name: /Projekt hinzufügen/ }).click();
 
-    // Modal should open with the form
+    // Modal should open with the form (default is local folder type)
     await expect(page.getByPlaceholder('mein-projekt')).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByPlaceholder('/pfad/zum/ordner')).toBeVisible();
+
+    // Switch to Git type
+    await page.getByText('Git Repository').click();
     await expect(page.getByPlaceholder('https://github.com/user/repo.git')).toBeVisible();
     await expect(page.getByPlaceholder('main')).toBeVisible();
 
@@ -47,6 +51,9 @@ test.describe('Repository Management', () => {
     await page.getByRole('button', { name: /Projekt hinzufügen/ }).click();
     await expect(page.getByPlaceholder('mein-projekt')).toBeVisible({ timeout: 3_000 });
 
+    // Switch to Git type (default is local folder)
+    await page.getByText('Git Repository').click();
+
     // Fill form
     const repoName = `test-repo-${Date.now()}`;
     await page.getByPlaceholder('mein-projekt').fill(repoName);
@@ -58,8 +65,8 @@ test.describe('Repository Management', () => {
     // Modal should close
     await expect(page.getByPlaceholder('mein-projekt')).not.toBeVisible({ timeout: 5_000 });
 
-    // New repo should appear in the list
-    await expect(page.getByText(repoName)).toBeVisible({ timeout: 5_000 });
+    // New repo should appear in the list (heading contains the name)
+    await expect(page.getByRole('heading', { name: repoName })).toBeVisible({ timeout: 5_000 });
   });
 
   test('should show empty state when no repos exist', async ({ page }) => {

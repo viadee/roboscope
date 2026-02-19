@@ -21,7 +21,10 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Skip token refresh/redirect for login requests — 401 means invalid credentials
+    const isLoginRequest = originalRequest.url?.includes('/auth/login')
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isLoginRequest) {
       originalRequest._retry = true
 
       const refreshToken = localStorage.getItem('refresh_token')

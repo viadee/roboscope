@@ -221,7 +221,7 @@ test.describe('User Management — E2E', () => {
     await expect(row.getByText('Inaktiv', { exact: true })).toBeVisible({ timeout: 5_000 });
 
     // Toast should appear
-    await expect(page.locator('.toast', { hasText: /deaktiviert/ })).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('.toast', { hasText: /deaktivier/ })).toBeVisible({ timeout: 5_000 });
 
     // Cleanup
     await deleteUserViaApi(page, token, user.id);

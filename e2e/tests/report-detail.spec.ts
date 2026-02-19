@@ -191,14 +191,20 @@ test.describe('Report Detail Page', () => {
     await page.locator('.tab-btn').nth(2).click();
     await expect(page.locator('.xml-tree')).toBeVisible({ timeout: 10_000 });
 
-    // Root suite should be auto-expanded, showing child suite
-    await expect(page.getByText('Login Suite')).toBeVisible();
+    const xmlTree = page.locator('.xml-tree');
 
-    // Click on Login Suite to expand it
-    await page.getByText('Login Suite').click();
+    // Root Suite should be auto-expanded (showing doc text)
+    await expect(xmlTree.locator('.tree-doc')).toContainText('Root test suite');
 
-    // Should show the test inside
-    await expect(page.getByText('Valid Login')).toBeVisible();
+    // Click Root Suite to collapse it
+    await xmlTree.locator('.suite-header').first().click();
+
+    // Doc text should now be hidden (collapsed)
+    await expect(xmlTree.locator('.tree-doc')).not.toBeVisible({ timeout: 3_000 });
+
+    // Click again to re-expand
+    await xmlTree.locator('.suite-header').first().click();
+    await expect(xmlTree.locator('.tree-doc')).toBeVisible({ timeout: 3_000 });
   });
 
   test('should have Download ZIP button', async ({ page }) => {

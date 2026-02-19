@@ -288,8 +288,8 @@ test.describe('Explorer — E2E', () => {
   test('UI: create new file via dialog', async ({ page }) => {
     await goToExplorer(page, repoId);
 
-    // Click the + button in tree header
-    await page.locator('.tree-header .icon-btn').click();
+    // Click the + button (Neue Datei) in tree header
+    await page.getByRole('button', { name: '+' }).click();
     await page.waitForTimeout(300);
 
     // Modal should appear

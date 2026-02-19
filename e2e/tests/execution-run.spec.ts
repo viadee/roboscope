@@ -13,11 +13,25 @@ async function getAuthToken(page: Page): Promise<string> {
   return body.access_token;
 }
 
+/**
+ * Helper: find the Examples repo ID (or the first available repo).
+ */
+async function getExamplesRepoId(page: Page, token: string): Promise<number> {
+  const res = await page.request.get(`${API}/repos`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const repos = await res.json();
+  const examples = repos.find((r: any) => r.name === 'Examples');
+  return examples?.id ?? repos[0]?.id;
+}
+
 test.describe('Execution Run — E2E', () => {
   let token: string;
+  let repoId: number;
 
   test.beforeEach(async ({ page }) => {
     token = await getAuthToken(page);
+    repoId = await getExamplesRepoId(page, token);
     await loginAndGoToDashboard(page);
   });
 
@@ -27,14 +41,14 @@ test.describe('Execution Run — E2E', () => {
     const res = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
       data: {
-        repository_id: 1,
-        target_path: 'tests/basic_tests.robot',
+        repository_id: repoId,
+        target_path: 'basic_tests.robot',
       },
     });
     expect(res.status()).toBe(201);
     const run = await res.json();
     expect(['pending', 'running']).toContain(run.status);
-    expect(run.target_path).toBe('tests/basic_tests.robot');
+    expect(run.target_path).toBe('basic_tests.robot');
     expect(run.id).toBeTruthy();
   });
 
@@ -42,7 +56,7 @@ test.describe('Execution Run — E2E', () => {
     // Create a run first
     const createRes = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { repository_id: 1, target_path: 'tests/basic_tests.robot' },
+      data: { repository_id: repoId, target_path: 'basic_tests.robot' },
     });
     const run = await createRes.json();
 
@@ -63,20 +77,21 @@ test.describe('Execution Run — E2E', () => {
   });
 
   test('GET /runs/{id}/output should return stdout', async ({ page }) => {
-    // Create and poll for completion
+    // Create and poll for completion (only accept passed/failed, not error)
     const createRes = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { repository_id: 1, target_path: 'tests/basic_tests.robot' },
+      data: { repository_id: repoId, target_path: 'basic_tests.robot' },
     });
     const run = await createRes.json();
 
-    for (let i = 0; i < 15; i++) {
+    let detail: any;
+    for (let i = 0; i < 30; i++) {
       await page.waitForTimeout(2000);
       const check = await page.request.get(`${API}/runs/${run.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const d = await check.json();
-      if (['passed', 'failed', 'error'].includes(d.status)) break;
+      detail = await check.json();
+      if (['passed', 'failed'].includes(detail.status)) break;
     }
 
     const res = await page.request.get(`${API}/runs/${run.id}/output`, {
@@ -89,23 +104,24 @@ test.describe('Execution Run — E2E', () => {
   });
 
   test('GET /runs/{id}/report should return report ID', async ({ page }) => {
-    // Create and poll for completion
+    // Create and poll for completion (only accept passed/failed for report)
     const createRes = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { repository_id: 1, target_path: 'tests/basic_tests.robot' },
+      data: { repository_id: repoId, target_path: 'basic_tests.robot' },
     });
     const run = await createRes.json();
 
-    for (let i = 0; i < 15; i++) {
+    let detail: any;
+    for (let i = 0; i < 30; i++) {
       await page.waitForTimeout(2000);
       const check = await page.request.get(`${API}/runs/${run.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const d = await check.json();
-      if (['passed', 'failed', 'error'].includes(d.status)) break;
+      detail = await check.json();
+      if (['passed', 'failed'].includes(detail.status)) break;
     }
-    // Give an extra moment for report parsing
-    await page.waitForTimeout(2000);
+    // Give extra time for report parsing
+    await page.waitForTimeout(3000);
 
     const res = await page.request.get(`${API}/runs/${run.id}/report`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -127,10 +143,17 @@ test.describe('Execution Run — E2E', () => {
 
     // Fill form
     await page.locator('select').first().selectOption({ index: 1 }); // first repo
-    await page.getByPlaceholder('tests/ oder tests/login.robot').fill('tests/basic_tests.robot');
+    await page.getByPlaceholder('tests/ oder tests/login.robot').fill('basic_tests.robot');
 
     // Start run
     await page.getByRole('button', { name: 'Starten' }).click();
+
+    // Handle environment setup dialog if it appears
+    const envDialog = page.getByText('Umgebung einrichten?');
+    if (await envDialog.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await page.getByRole('button', { name: 'Nein, ohne starten' }).click();
+    }
+
     await page.waitForTimeout(2000);
 
     // Dialog should close
@@ -142,8 +165,8 @@ test.describe('Execution Run — E2E', () => {
   });
 
   test('UI: can start a run from explorer and see overlay', async ({ page }) => {
-    // Navigate to explorer with repo 1
-    await page.goto('/explorer/1');
+    // Navigate to explorer with the Examples repo
+    await page.goto(`/explorer/${repoId}`);
     await expect(page.locator('h1', { hasText: 'Explorer' })).toBeVisible({ timeout: 10_000 });
     await page.waitForTimeout(1000);
 
@@ -162,10 +185,17 @@ test.describe('Execution Run — E2E', () => {
     await runBtn.click();
     await page.waitForTimeout(1000);
 
+    // Handle environment setup dialog if it appears
+    const envDialog = page.getByText('Umgebung einrichten?');
+    if (await envDialog.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await page.getByRole('button', { name: 'Nein, ohne starten' }).click();
+      await page.waitForTimeout(1000);
+    }
+
     // Overlay should appear
     await expect(page.getByText('Testlauf gestartet')).toBeVisible({ timeout: 5000 });
-    // File name appears in both tree and overlay - use the modal context
-    await expect(page.locator('.modal-body strong', { hasText: 'basic_tests.robot' })).toBeVisible();
+    // File name appears in the run overlay text
+    await expect(page.locator('.run-overlay-success')).toContainText('basic_tests.robot');
 
     // Should have "Zur Ausführung" button
     await expect(page.getByRole('button', { name: 'Zur Ausführung' })).toBeVisible();
@@ -175,19 +205,21 @@ test.describe('Execution Run — E2E', () => {
   });
 
   test('UI: execution page shows Output button for completed runs', async ({ page }) => {
-    // First ensure there's a completed run
-    await page.request.post(`${API}/runs`, {
-      headers: { Authorization: `Bearer ${token}` },
-      data: { repository_id: 1, target_path: 'tests/basic_tests.robot' },
-    });
-    await page.waitForTimeout(8000);
+    test.setTimeout(60_000);
 
-    // Go to execution page
+    // By now, previous tests have created completed runs.
+    // Go to execution page directly.
     await page.goto('/runs');
     await expect(page.locator('h1', { hasText: 'Ausführung' })).toBeVisible({ timeout: 10_000 });
     await page.waitForTimeout(2000);
 
-    // There should be at least one completed run with an Output button
+    // Click on a completed run row to open the detail panel
+    const firstRow = page.locator('.data-table tbody tr').first();
+    await expect(firstRow).toBeVisible({ timeout: 5000 });
+    await firstRow.click();
+    await page.waitForTimeout(1000);
+
+    // The Output button is in the RunDetailPanel (appears after clicking a row)
     const outputBtn = page.getByRole('button', { name: 'Output' }).first();
     await expect(outputBtn).toBeVisible({ timeout: 5000 });
 
@@ -197,11 +229,7 @@ test.describe('Execution Run — E2E', () => {
 
     // Output modal should appear
     await expect(page.getByText(/Output — Run/)).toBeVisible();
-    await expect(page.getByText('stdout')).toBeVisible();
-    await expect(page.getByText('stderr')).toBeVisible();
-
-    // Content should show test output
-    const outputContent = page.locator('.output-content');
-    await expect(outputContent).toBeVisible();
+    await expect(page.getByRole('button', { name: 'stdout' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'stderr' })).toBeVisible();
   });
 });

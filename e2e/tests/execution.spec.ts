@@ -31,7 +31,7 @@ test.describe('Execution Page', () => {
     const hasTable = await page.locator('.data-table').isVisible().catch(() => false);
     if (hasTable) {
       const headers = await page.locator('.data-table thead th').allTextContents();
-      expect(headers).toHaveLength(5);
+      expect(headers).toHaveLength(7);
     }
   });
 

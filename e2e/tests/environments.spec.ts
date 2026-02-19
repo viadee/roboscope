@@ -7,7 +7,7 @@ test.describe('Environments Page', () => {
   });
 
   test('should load environments page with heading', async ({ page }) => {
-    await page.locator('.nav-item', { hasText: 'Umgebungen' }).click();
+    await page.locator('.nav-item', { hasText: 'Paket-Manager' }).click();
     await page.waitForURL('**/environments');
 
     await expect(page.locator('h1', { hasText: 'Umgebungen' })).toBeVisible({ timeout: 10_000 });
