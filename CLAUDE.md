@@ -2,7 +2,7 @@
 
 Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausführung, Report-Analyse, Environment-Management und Container-Runtime.
 
-## Aktueller Projektstatus (Stand: 2026-02-18)
+## Aktueller Projektstatus (Stand: 2026-02-19)
 
 ### Was ist implementiert
 
@@ -108,6 +108,10 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] greenlet>=3.1.0 als explizite Dependency (Windows/Python 3.13 Kompatibilität)
 - [x] fix: HTML Report Fragment-Navigation 404 + iframe Toolbar (Back/Reload)
 - [x] AI-Modul: .roboscope Spec ↔ .robot Generierung (LLM-Anbindung, Drift-Erkennung, Provider-Management)
+- [x] SpecEditor: Visueller Editor für .roboscope Dateien (Dual-Tab: Visual Form + YAML, Collapsible Sections, Library-Autocomplete aus Environment-Paketen)
+- [x] ProviderConfig: Modell-Dropdown mit kuratierten Modelllisten pro Anbieter, aktualisierte Default-Modelle
+- [x] LLM-Client: API-Antwort-Body in Fehlermeldungen, Anthropic-Temperature-Clamping (0.0–1.0)
+- [x] ExplorerView: v-if/v-else-Chain-Fix (kein doppeltes Rendering bei .roboscope Dateien)
 
 **Offen / Roadmap (priorisiert):**
 - [x] **Responsive Design** — Sidebar, Tabellen, iframe-Layout für kleinere Bildschirme optimieren
@@ -115,6 +119,7 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] **Benachrichtigungen** — Browser-Notifications bei Testlauf-Abschluss; optional Slack/Email-Integration bei Fehlschlägen
 - [x] **Scheduling UX** — Cron-artiges Scheduling mit visuellem Editor im Frontend prominenter machen
 - [x] **Benutzer-/Projekt-Scoping** — Projekt-Level-Berechtigungen / Multi-Tenancy für wachsende Teams
+- [ ] **Visueller Editor für .robot/.resource Dateien** — Strukturierter Form-Editor (Settings, Variables, Test Cases, Keywords) analog zum .roboscope SpecEditor
 - [ ] **Offline-Archiv-Analyse** — Upload alter Report-ZIPs zur Analyse ohne Git-Repo/Environment
 - [ ] **UI-Verfeinerungen** — Allgemeine Polish-Runde (Ladeanimationen, Error-States, leere Zustände)
 
@@ -196,7 +201,7 @@ RoboScope/
 ## Tech-Stack
 
 - **Backend**: FastAPI, SQLAlchemy 2.0 (sync), Pydantic v2, ThreadPoolExecutor (Background Tasks), GitPython, Docker SDK
-- **Frontend**: Vue 3.5, Pinia, Vue Router 4, Axios, Chart.js, TypeScript, Vite
+- **Frontend**: Vue 3.5, Pinia, Vue Router 4, Axios, Chart.js, CodeMirror 6, js-yaml, TypeScript, Vite
 - **Datenbank**: SQLite (Standard/Dev) oder PostgreSQL (Production), konfigurierbar via `DATABASE_URL`
 - **Tests**: pytest, Vitest + @vue/test-utils, Playwright
 - **Kein Redis/Celery nötig** — alle Background-Tasks laufen in-process via ThreadPoolExecutor
@@ -392,7 +397,7 @@ LLM-gestütztes Modul zur bidirektionalen Synchronisation zwischen `.roboscope` 
 - `frontend/src/components/ai/ProviderConfig.vue` — LLM-Provider Verwaltung (Settings-Tab)
 - `frontend/src/components/ai/GenerateModal.vue` — Generierungs-Modal mit Fortschritt + DiffPreview
 - `frontend/src/components/ai/DiffPreview.vue` — Raw/Unified Diff-Ansicht
-- `frontend/src/components/ai/SpecEditor.vue` — Toolbar für .roboscope Dateien (Validierung)
+- `frontend/src/components/ai/SpecEditor.vue` — Dual-Tab-Editor für .roboscope Dateien (Visual Form + YAML mit CodeMirror, Library-Autocomplete, Environment-Auswahl)
 
 **Ablauf:**
 1. User erstellt/editiert `.roboscope` YAML-Datei im Explorer
@@ -403,8 +408,9 @@ LLM-gestütztes Modul zur bidirektionalen Synchronisation zwischen `.roboscope` 
 6. Drift-Erkennung: SHA256-Vergleich zwischen `.roboscope` Hash und aktuellem `.robot` Inhalt
 
 **Unterstützte LLM-Anbieter:**
-- OpenAI (GPT-4o), Anthropic (Claude), OpenRouter (beliebige Modelle), Ollama (lokale Modelle)
+- OpenAI (GPT-4.1, GPT-4o, o3, o4-mini), Anthropic (Claude Sonnet/Opus 4.6, Haiku 4.5), OpenRouter (beliebige Modelle), Ollama (lokale Modelle)
 - API-Keys werden mit Fernet verschlüsselt in der DB gespeichert
+- ProviderConfig bietet kuratierte Modell-Dropdowns pro Anbieter (statt freier Texteingabe)
 
 ### Default Admin User + Examples-Projekt
 Beim ersten Start wird automatisch erstellt:
