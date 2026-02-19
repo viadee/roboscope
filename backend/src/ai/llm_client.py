@@ -76,7 +76,8 @@ def _call_openai_compatible(
 
     with httpx.Client(timeout=300) as client:
         response = client.post(url, json=payload, headers=headers)
-        response.raise_for_status()
+        if response.status_code >= 400:
+            _raise_with_body(response)
         data = response.json()
 
     content = data["choices"][0]["message"]["content"]
@@ -104,12 +105,15 @@ def _call_anthropic(
     if api_key:
         headers["x-api-key"] = api_key
 
+    # Clamp temperature to Anthropic's valid range (0.0–1.0)
+    temperature = min(max(provider.temperature, 0.0), 1.0)
+
     payload = {
         "model": provider.model_name,
         "max_tokens": provider.max_tokens,
         "system": system_prompt,
         "messages": [{"role": "user", "content": user_prompt}],
-        "temperature": provider.temperature,
+        "temperature": temperature,
     }
 
     logger.info(
@@ -120,7 +124,8 @@ def _call_anthropic(
 
     with httpx.Client(timeout=300) as client:
         response = client.post(url, json=payload, headers=headers)
-        response.raise_for_status()
+        if response.status_code >= 400:
+            _raise_with_body(response)
         data = response.json()
 
     content = ""
@@ -133,3 +138,15 @@ def _call_anthropic(
     )
 
     return LlmResponse(content=content, tokens_used=tokens)
+
+
+def _raise_with_body(response) -> None:
+    """Raise an error that includes the API response body for debugging."""
+    try:
+        body = response.json()
+        detail = body.get("error", {}).get("message", "") or str(body)
+    except Exception:
+        detail = response.text[:500]
+    raise RuntimeError(
+        f"LLM API error {response.status_code}: {detail}"
+    )

@@ -864,15 +864,16 @@ const flatNodes = computed(() => {
               >▶ {{ t('explorer.run') }}</button>
             </div>
           </div>
-          <!-- Spec validation toolbar for .roboscope files -->
+          <!-- Two-tab spec editor for .roboscope files (replaces CodeMirror) -->
           <SpecEditor
             v-if="isRoboscope"
             :content="editorContent"
             :file-path="explorer.selectedFile.path"
             @save="handleSave"
+            @update:content="editorContent = $event; isDirty = editorContent !== explorer.selectedFile?.content"
           />
-          <!-- CodeMirror editor for editable files -->
-          <div v-if="isEditable" ref="editorContainer" class="editor-container"></div>
+          <!-- CodeMirror editor for non-.roboscope editable files -->
+          <div v-else-if="isEditable" ref="editorContainer" class="editor-container"></div>
           <!-- Fallback for non-editable files -->
           <pre v-else class="code-preview"><code>{{ explorer.selectedFile.content }}</code></pre>
         </template>

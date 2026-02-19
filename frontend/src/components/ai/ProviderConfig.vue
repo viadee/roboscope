@@ -34,11 +34,37 @@ const providerTypes = [
   { value: 'ollama', label: 'Ollama (Local)' },
 ]
 
+const providerModels: Record<string, string[]> = {
+  openai: [
+    'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano',
+    'gpt-4o', 'gpt-4o-mini',
+    'o3', 'o4-mini', 'o3-mini',
+  ],
+  anthropic: [
+    'claude-sonnet-4-6', 'claude-opus-4-6', 'claude-haiku-4-5-20251001',
+    'claude-sonnet-4-5-20250929', 'claude-opus-4-5-20251101',
+    'claude-sonnet-4-20250514', 'claude-opus-4-20250514',
+    'claude-3-7-sonnet-20250219',
+  ],
+  openrouter: [
+    'anthropic/claude-sonnet-4-6', 'anthropic/claude-opus-4-6',
+    'openai/gpt-4.1', 'openai/gpt-4o',
+    'google/gemini-2.5-pro-preview', 'google/gemini-2.0-flash-001',
+    'deepseek/deepseek-r1', 'deepseek/deepseek-v3.2',
+    'meta-llama/llama-3.3-70b-instruct',
+  ],
+  ollama: [
+    'llama3.3', 'llama3.1', 'deepseek-r1', 'qwen3',
+    'phi4', 'gemma2', 'mistral', 'mixtral',
+    'codellama', 'deepseek-coder-v2',
+  ],
+}
+
 const defaultModels: Record<string, string> = {
-  openai: 'gpt-4o',
-  anthropic: 'claude-sonnet-4-20250514',
-  openrouter: 'anthropic/claude-sonnet-4-20250514',
-  ollama: 'llama3',
+  openai: 'gpt-4.1',
+  anthropic: 'claude-sonnet-4-6',
+  openrouter: 'anthropic/claude-sonnet-4-6',
+  ollama: 'llama3.3',
 }
 
 onMounted(async () => {
@@ -195,7 +221,9 @@ async function handleSetDefault(provider: AiProvider) {
         </div>
         <div class="form-group">
           <label>{{ t('ai.model') }}</label>
-          <input v-model="form.model_name" class="form-input" />
+          <select v-model="form.model_name" class="form-select">
+            <option v-for="m in providerModels[form.provider_type] || []" :key="m" :value="m">{{ m }}</option>
+          </select>
         </div>
         <div class="form-group">
           <label>{{ t('ai.apiKey') }}</label>
@@ -242,7 +270,9 @@ async function handleSetDefault(provider: AiProvider) {
         </div>
         <div class="form-group">
           <label>{{ t('ai.model') }}</label>
-          <input v-model="form.model_name" class="form-input" />
+          <select v-model="form.model_name" class="form-select">
+            <option v-for="m in providerModels[form.provider_type] || []" :key="m" :value="m">{{ m }}</option>
+          </select>
         </div>
         <div class="form-group">
           <label>{{ t('ai.apiKey') }} <span class="text-muted text-sm">({{ t('ai.leaveBlankKeep') }})</span></label>

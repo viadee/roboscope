@@ -61,7 +61,7 @@ watch(() => route.path, () => {
     <div class="sidebar-header">
       <router-link to="/dashboard" class="logo">
         <img :src="roboscopeLogo" alt="RoboScope" class="logo-img" v-if="ui.sidebarOpen" />
-        <span class="logo-collapsed" v-else>m</span>
+        <span class="logo-collapsed" v-else>R</span>
       </router-link>
     </div>
 
@@ -142,14 +142,14 @@ watch(() => route.path, () => {
 }
 
 .logo-img {
-  height: 54px;
+  height: 90px;
   width: auto;
 }
 
 .logo-collapsed {
   font-size: 24px;
   font-weight: 800;
-  color: var(--color-primary);
+  color: #ffffff;
 }
 
 .sidebar-nav {

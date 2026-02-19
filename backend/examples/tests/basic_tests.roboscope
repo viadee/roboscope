@@ -1,0 +1,69 @@
+version: '1'
+metadata:
+  title: Robot Framework Grundlegende Operationen Tests
+  author: ''
+  created: '2025-01-30'
+  last_generated: '2026-02-19T18:16:13.356723+00:00'
+  generation_hash: 86500636f5f73fca5275c2abd501c08e372c737c25a7a3507d3ff8782ddbb78d
+  target_file: example.robot
+  libraries:
+  - String
+  - Collections
+test_sets:
+- name: Grundlegende Robot Framework Tests
+  description: Beispiel-Testfälle zur Demonstration grundlegender Robot Framework
+    Funktionen, einschließlich Assertions, String-Operationen, mathematischer Operationen
+    und Listen-Operationen
+  tags: []
+  setup: null
+  teardown: null
+  test_cases:
+  - name: Einfacher Test mit Assertions
+    description: Demonstriert grundlegende Assertions, indem geprüft wird, ob die
+      Variable GREETING den Wert 'Hallo Welt' hat, die Variable NUMBER den Wert 42
+      hat und NUMBER größer als 0 ist
+    priority: medium
+    steps:
+    - Prüfe, ob die Variable GREETING als Zeichenkette gleich 'Hallo Welt' ist
+    - Prüfe, ob die Variable NUMBER als Zahl gleich 42 ist
+    - Prüfe, ob die Bedingung NUMBER > 0 wahr ist
+    expected_result: Alle drei Assertions werden erfolgreich ausgeführt ohne Fehler
+  - name: String-Operationen Test
+    description: Testet verschiedene String-Operationen auf der Variable GREETING,
+      einschließlich Umwandlung in Großbuchstaben, Längenermittlung und Teilstring-Prüfung
+    priority: medium
+    steps:
+    - Wandle den Wert der Variable GREETING in Großbuchstaben um und speichere das
+      Ergebnis
+    - Prüfe, ob das Ergebnis der Großbuchstabenumwandlung gleich 'HALLO WELT' ist
+    - Ermittle die Länge der Variable GREETING und speichere sie
+    - Prüfe, ob die Länge von GREETING gleich 10 ist
+    - Prüfe, ob GREETING den Teilstring 'Welt' enthält
+    expected_result: GREETING wird korrekt in 'HALLO WELT' umgewandelt, die Länge
+      beträgt 10 Zeichen und der Teilstring 'Welt' ist enthalten
+  - name: Mathematische Operationen Test
+    description: Testet grundlegende mathematische Operationen (Addition, Multiplikation,
+      Division) mit der Variable NUMBER (Wert 42)
+    priority: medium
+    steps:
+    - Berechne die Summe von NUMBER und 8 und speichere das Ergebnis
+    - Prüfe, ob die Summe gleich 50 ist
+    - Berechne das Produkt von NUMBER und 2 und speichere das Ergebnis
+    - Prüfe, ob das Produkt gleich 84 ist
+    - Berechne den Quotienten von NUMBER geteilt durch 6 und speichere das Ergebnis
+    - Prüfe, ob der Quotient gleich 7 ist
+    expected_result: 'Alle mathematischen Berechnungen liefern die erwarteten Ergebnisse:
+      42+8=50, 42*2=84, 42/6=7'
+  - name: Listen-Operationen Test
+    description: Testet Operationen auf einer Liste mit drei Früchten, einschließlich
+      Längenprüfung, Enthaltensein eines Elements und Zugriff auf das erste Element
+    priority: medium
+    steps:
+    - Erstelle eine Liste mit den Elementen 'Apfel', 'Banane' und 'Orange' und speichere
+      sie
+    - Ermittle die Länge der Liste und speichere sie
+    - Prüfe, ob die Länge der Liste gleich 3 ist
+    - Prüfe, ob die Liste den Wert 'Banane' enthält
+    - Prüfe, ob das erste Element der Liste gleich 'Apfel' ist
+    expected_result: Die Liste enthält genau 3 Elemente, 'Banane' ist in der Liste
+      enthalten und das erste Element ist 'Apfel'
