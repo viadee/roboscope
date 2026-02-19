@@ -185,16 +185,30 @@ def get_report_html(
             detail="HTML report file not found on disk",
         )
 
-    # Read and inject <base> tag so relative asset references resolve to the asset endpoint
+    # Read and inject <base> tag so relative asset references resolve to the asset endpoint.
+    # Also inject a script to fix fragment-only links (href="#...") which would otherwise
+    # navigate to the base URL + fragment, causing 404 errors.
     html_content = html_path.read_text(encoding="utf-8", errors="replace")
     base_tag = f'<base href="/api/v1/reports/{report_id}/assets/">'
+    fragment_fix_script = (
+        "<script>"
+        "document.addEventListener('click',function(e){"
+        "var a=e.target.closest('a[href^=\"#\"]');"
+        "if(a){e.preventDefault();"
+        "var hash=a.getAttribute('href');"
+        "if(a.onclick)a.onclick(e);"
+        "window.location.hash=hash.substring(1);}"
+        "});"
+        "</script>"
+    )
+    injected = base_tag + fragment_fix_script
     if "<head>" in html_content:
-        html_content = html_content.replace("<head>", f"<head>{base_tag}", 1)
+        html_content = html_content.replace("<head>", f"<head>{injected}", 1)
     elif "<HEAD>" in html_content:
-        html_content = html_content.replace("<HEAD>", f"<HEAD>{base_tag}", 1)
+        html_content = html_content.replace("<HEAD>", f"<HEAD>{injected}", 1)
     else:
         # Prepend if no <head> tag found
-        html_content = base_tag + html_content
+        html_content = injected + html_content
 
     return Response(content=html_content, media_type="text/html")
 

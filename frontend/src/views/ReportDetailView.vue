@@ -31,6 +31,11 @@ const passedTests = computed(() =>
 
 const htmlReportUrl = computed(() => getReportHtmlUrl(reportId.value))
 const zipDownloadUrl = computed(() => getReportZipUrl(reportId.value))
+const iframeKey = ref(0)
+
+function reloadIframe() {
+  iframeKey.value++
+}
 
 function downloadZip() {
   window.open(zipDownloadUrl.value, '_blank')
@@ -155,8 +160,17 @@ function downloadZip() {
 
       <!-- HTML Report Tab -->
       <div v-show="activeTab === 'html'" class="tab-content">
+        <div class="iframe-toolbar">
+          <BaseButton variant="secondary" size="sm" @click="activeTab = 'summary'">
+            &larr; {{ t('reportDetail.tabs.summary') }}
+          </BaseButton>
+          <BaseButton variant="ghost" size="sm" @click="reloadIframe">
+            &#8635; {{ t('reportDetail.reloadReport') }}
+          </BaseButton>
+        </div>
         <div class="card html-report-card">
           <iframe
+            :key="iframeKey"
             :src="htmlReportUrl"
             class="html-report-iframe"
             sandbox="allow-scripts allow-same-origin"
@@ -226,6 +240,14 @@ function downloadZip() {
 
 .tab-content {
   min-height: 300px;
+}
+
+/* HTML Report toolbar */
+.iframe-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 /* HTML Report iframe */

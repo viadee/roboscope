@@ -343,6 +343,7 @@ export default {
       xmlView: 'XML Ansicht',
     },
     downloadZip: 'ZIP herunterladen',
+    reloadReport: 'Neu laden',
     noHtmlReport: 'Kein HTML-Report für diesen Lauf verfügbar.',
     loadingXml: 'XML-Daten werden geladen...',
     noXmlData: 'Keine XML-Daten verfügbar.',
