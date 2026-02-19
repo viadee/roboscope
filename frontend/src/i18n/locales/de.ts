@@ -362,6 +362,18 @@ export default {
       noKeywords: 'Keine Keywords',
     },
   },
+  testHistory: {
+    title: 'Test-Verlauf',
+    searchPlaceholder: 'Tests suchen...',
+    noTests: 'Keine Tests gefunden.',
+    selectTest: 'Wählen Sie einen Test aus der Liste, um seinen Verlauf anzuzeigen.',
+    totalRuns: 'Läufe gesamt',
+    passRate: 'Erfolgsrate',
+    timeline: 'Zeitverlauf',
+    runs: 'Lauf-Historie',
+    date: 'Datum',
+    report: 'Report',
+  },
   stats: {
     title: 'Statistiken',
     refresh: 'Aktualisieren',

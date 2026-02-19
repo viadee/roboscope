@@ -26,14 +26,18 @@ from src.reports.schemas import (
     ReportCompareResponse,
     ReportDetailResponse,
     ReportResponse,
+    TestHistoryResponse,
     TestResultResponse,
+    UniqueTestResponse,
     XmlReportDataResponse,
 )
 from src.reports.service import (
     compare_reports,
     get_report,
+    get_test_history,
     get_test_results,
     list_reports,
+    list_unique_tests,
 )
 
 logger = logging.getLogger("mateox.reports")
@@ -138,6 +142,29 @@ def compare(
         return compare_reports(db, report_a, report_b)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.get("/tests/unique", response_model=list[UniqueTestResponse])
+def get_unique_tests(
+    search: str | None = Query(default=None, description="Filter by test name"),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """List unique test names with latest status and run count."""
+    return list_unique_tests(db, search=search, limit=limit)
+
+
+@router.get("/tests/history", response_model=TestHistoryResponse)
+def get_test_history_endpoint(
+    test_name: str = Query(..., description="Exact test name"),
+    suite_name: str | None = Query(default=None, description="Filter by suite name"),
+    days: int = Query(default=90, ge=1, le=365),
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Get pass/fail history for a specific test over time."""
+    return get_test_history(db, test_name=test_name, suite_name=suite_name, days=days)
 
 
 @router.get("/{report_id}", response_model=ReportDetailResponse)

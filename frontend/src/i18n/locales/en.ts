@@ -362,6 +362,18 @@ export default {
       noKeywords: 'No keywords',
     },
   },
+  testHistory: {
+    title: 'Test History',
+    searchPlaceholder: 'Search tests...',
+    noTests: 'No tests found.',
+    selectTest: 'Select a test from the list to view its history.',
+    totalRuns: 'Total Runs',
+    passRate: 'Pass Rate',
+    timeline: 'Timeline',
+    runs: 'Run History',
+    date: 'Date',
+    report: 'Report',
+  },
   stats: {
     title: 'Statistics',
     refresh: 'Refresh',

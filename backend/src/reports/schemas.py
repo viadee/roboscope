@@ -40,6 +40,31 @@ class ReportDetailResponse(BaseModel):
     test_results: list[TestResultResponse]
 
 
+class TestHistoryPoint(BaseModel):
+    report_id: int
+    date: datetime
+    status: str
+    duration_seconds: float
+    error_message: str | None = None
+
+
+class TestHistoryResponse(BaseModel):
+    test_name: str
+    suite_name: str
+    history: list[TestHistoryPoint]
+    total_runs: int
+    pass_count: int
+    fail_count: int
+    pass_rate: float
+
+
+class UniqueTestResponse(BaseModel):
+    test_name: str
+    suite_name: str
+    last_status: str
+    run_count: int
+
+
 class ReportCompareResponse(BaseModel):
     report_a: ReportResponse
     report_b: ReportResponse

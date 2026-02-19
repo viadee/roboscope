@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Report, ReportDetail, TestResult, XmlReportData } from '@/types/domain.types'
+import type { Report, ReportDetail, TestHistory, TestResult, UniqueTest, XmlReportData } from '@/types/domain.types'
 
 export async function getReports(params: {
   page?: number
@@ -41,6 +41,24 @@ export async function getReportTests(id: number, status?: string): Promise<TestR
 
 export async function deleteAllReports(): Promise<{ deleted: number; dirs_cleaned: number }> {
   const response = await apiClient.delete<{ deleted: number; dirs_cleaned: number }>('/reports/all')
+  return response.data
+}
+
+export async function getUniqueTests(search?: string, limit = 50): Promise<UniqueTest[]> {
+  const response = await apiClient.get<UniqueTest[]>('/reports/tests/unique', {
+    params: { search, limit },
+  })
+  return response.data
+}
+
+export async function getTestHistory(
+  testName: string,
+  suiteName?: string,
+  days = 90,
+): Promise<TestHistory> {
+  const response = await apiClient.get<TestHistory>('/reports/tests/history', {
+    params: { test_name: testName, suite_name: suiteName, days },
+  })
   return response.data
 }
 

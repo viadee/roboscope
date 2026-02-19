@@ -1,10 +1,18 @@
-"""Report service: CRUD, comparison."""
+"""Report service: CRUD, comparison, test history."""
+
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.reports.models import Report, TestResult
-from src.reports.schemas import ReportCompareResponse, ReportResponse
+from src.reports.schemas import (
+    ReportCompareResponse,
+    ReportResponse,
+    TestHistoryPoint,
+    TestHistoryResponse,
+    UniqueTestResponse,
+)
 
 
 def get_report(db: Session, report_id: int) -> Report | None:
@@ -145,3 +153,111 @@ def create_report_from_parsed(
 
     db.flush()
     return report
+
+
+def get_test_history(
+    db: Session,
+    test_name: str,
+    suite_name: str | None = None,
+    days: int = 90,
+) -> TestHistoryResponse:
+    """Get pass/fail history for a specific test across all reports."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    query = (
+        select(TestResult, Report.created_at)
+        .join(Report, TestResult.report_id == Report.id)
+        .where(TestResult.test_name == test_name)
+        .where(Report.created_at >= cutoff)
+        .order_by(Report.created_at.asc())
+    )
+
+    if suite_name:
+        query = query.where(TestResult.suite_name == suite_name)
+
+    result = db.execute(query)
+    rows = list(result.all())
+
+    history = []
+    pass_count = 0
+    fail_count = 0
+    actual_suite = suite_name or ""
+
+    for test_result, report_created_at in rows:
+        history.append(
+            TestHistoryPoint(
+                report_id=test_result.report_id,
+                date=report_created_at,
+                status=test_result.status,
+                duration_seconds=test_result.duration_seconds,
+                error_message=test_result.error_message,
+            )
+        )
+        if test_result.status == "PASS":
+            pass_count += 1
+        elif test_result.status == "FAIL":
+            fail_count += 1
+        if not actual_suite:
+            actual_suite = test_result.suite_name
+
+    total = len(history)
+    return TestHistoryResponse(
+        test_name=test_name,
+        suite_name=actual_suite,
+        history=history,
+        total_runs=total,
+        pass_count=pass_count,
+        fail_count=fail_count,
+        pass_rate=round((pass_count / total * 100) if total > 0 else 0, 1),
+    )
+
+
+def list_unique_tests(
+    db: Session,
+    search: str | None = None,
+    limit: int = 50,
+) -> list[UniqueTestResponse]:
+    """List unique test names with their latest status and run count."""
+    # Subquery: latest report_id per test_name
+    latest_sub = (
+        select(
+            TestResult.test_name,
+            TestResult.suite_name,
+            func.max(TestResult.report_id).label("latest_report_id"),
+            func.count(TestResult.id).label("run_count"),
+        )
+        .group_by(TestResult.test_name, TestResult.suite_name)
+    )
+
+    if search:
+        latest_sub = latest_sub.where(TestResult.test_name.ilike(f"%{search}%"))
+
+    latest_sub = latest_sub.limit(limit).subquery()
+
+    # Join back to get the status from the latest run
+    query = (
+        select(
+            latest_sub.c.test_name,
+            latest_sub.c.suite_name,
+            latest_sub.c.run_count,
+            TestResult.status.label("last_status"),
+        )
+        .join(
+            TestResult,
+            (TestResult.test_name == latest_sub.c.test_name)
+            & (TestResult.suite_name == latest_sub.c.suite_name)
+            & (TestResult.report_id == latest_sub.c.latest_report_id),
+        )
+        .order_by(latest_sub.c.run_count.desc())
+    )
+
+    result = db.execute(query)
+    return [
+        UniqueTestResponse(
+            test_name=row.test_name,
+            suite_name=row.suite_name,
+            last_status=row.last_status,
+            run_count=row.run_count,
+        )
+        for row in result.all()
+    ]

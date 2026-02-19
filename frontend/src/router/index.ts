@@ -51,6 +51,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/test-history',
+      name: 'test-history',
+      component: () => import('@/views/TestHistoryView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/stats',
       name: 'stats',
       component: () => import('@/views/StatsView.vue'),

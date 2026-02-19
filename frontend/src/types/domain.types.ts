@@ -188,6 +188,31 @@ export interface ReportDetail {
   test_results: TestResult[]
 }
 
+export interface TestHistoryPoint {
+  report_id: number
+  date: string
+  status: string
+  duration_seconds: number
+  error_message: string | null
+}
+
+export interface TestHistory {
+  test_name: string
+  suite_name: string
+  history: TestHistoryPoint[]
+  total_runs: number
+  pass_count: number
+  fail_count: number
+  pass_rate: number
+}
+
+export interface UniqueTest {
+  test_name: string
+  suite_name: string
+  last_status: string
+  run_count: number
+}
+
 export interface OverviewKpi {
   total_runs: number
   passed_runs: number

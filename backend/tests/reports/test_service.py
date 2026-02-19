@@ -9,8 +9,10 @@ from src.reports.service import (
     compare_reports,
     get_report,
     get_report_by_run,
+    get_test_history,
     get_test_results,
     list_reports,
+    list_unique_tests,
 )
 
 
@@ -426,3 +428,135 @@ class TestCompareReports:
         """Comparing two nonexistent reports raises ValueError."""
         with pytest.raises(ValueError, match="One or both reports not found"):
             compare_reports(db_session, 99999, 88888)
+
+
+class TestGetTestHistory:
+    def _create_reports_with_test(self, db_session, admin_user, test_name, statuses):
+        """Create multiple reports each with a test result of the given statuses."""
+        repo = _make_repo(admin_user.id)
+        db_session.add(repo)
+        db_session.flush()
+        db_session.refresh(repo)
+
+        for status in statuses:
+            run = _make_run(repo.id, admin_user.id)
+            db_session.add(run)
+            db_session.flush()
+            db_session.refresh(run)
+
+            report = _make_report(run.id)
+            db_session.add(report)
+            db_session.flush()
+            db_session.refresh(report)
+
+            tr = _make_test_result(
+                report.id,
+                test_name=test_name,
+                suite_name="My Suite",
+                status=status,
+                duration_seconds=1.5,
+            )
+            db_session.add(tr)
+
+        db_session.flush()
+
+    def test_history_returns_all_runs(self, db_session, admin_user):
+        """History includes all reports where the test appeared."""
+        self._create_reports_with_test(
+            db_session, admin_user, "Login Test", ["PASS", "FAIL", "PASS"]
+        )
+
+        result = get_test_history(db_session, "Login Test")
+
+        assert result.test_name == "Login Test"
+        assert result.total_runs == 3
+        assert result.pass_count == 2
+        assert result.fail_count == 1
+        assert result.pass_rate == pytest.approx(66.7)
+        assert len(result.history) == 3
+
+    def test_history_with_suite_filter(self, db_session, admin_user):
+        """History can be filtered by suite name."""
+        self._create_reports_with_test(
+            db_session, admin_user, "Login Test", ["PASS", "FAIL"]
+        )
+
+        result = get_test_history(db_session, "Login Test", suite_name="My Suite")
+        assert result.total_runs == 2
+
+        result_wrong_suite = get_test_history(
+            db_session, "Login Test", suite_name="Other Suite"
+        )
+        assert result_wrong_suite.total_runs == 0
+
+    def test_history_empty_for_unknown_test(self, db_session):
+        """History for an unknown test name returns zero runs."""
+        result = get_test_history(db_session, "Nonexistent Test")
+
+        assert result.total_runs == 0
+        assert result.pass_count == 0
+        assert result.fail_count == 0
+        assert result.pass_rate == 0
+        assert result.history == []
+
+    def test_history_pass_rate_100(self, db_session, admin_user):
+        """A test that always passes has 100% pass rate."""
+        self._create_reports_with_test(
+            db_session, admin_user, "Stable Test", ["PASS", "PASS", "PASS"]
+        )
+
+        result = get_test_history(db_session, "Stable Test")
+        assert result.pass_rate == 100.0
+        assert result.fail_count == 0
+
+
+class TestListUniqueTests:
+    def test_list_unique_tests(self, db_session, admin_user):
+        """Lists unique test names with run counts."""
+        repo, run = _setup_repo_and_run(db_session, admin_user)
+
+        report = _make_report(run.id)
+        db_session.add(report)
+        db_session.flush()
+        db_session.refresh(report)
+
+        db_session.add(
+            _make_test_result(report.id, test_name="Test A", suite_name="Suite 1", status="PASS")
+        )
+        db_session.add(
+            _make_test_result(report.id, test_name="Test B", suite_name="Suite 1", status="FAIL")
+        )
+        db_session.flush()
+
+        results = list_unique_tests(db_session)
+
+        assert len(results) >= 2
+        names = [r.test_name for r in results]
+        assert "Test A" in names
+        assert "Test B" in names
+
+    def test_list_unique_tests_with_search(self, db_session, admin_user):
+        """Search filters tests by name."""
+        repo, run = _setup_repo_and_run(db_session, admin_user)
+
+        report = _make_report(run.id)
+        db_session.add(report)
+        db_session.flush()
+        db_session.refresh(report)
+
+        db_session.add(
+            _make_test_result(report.id, test_name="Login Test", suite_name="Auth")
+        )
+        db_session.add(
+            _make_test_result(report.id, test_name="Dashboard Load", suite_name="UI")
+        )
+        db_session.flush()
+
+        results = list_unique_tests(db_session, search="Login")
+        assert len(results) == 1
+        assert results[0].test_name == "Login Test"
+
+    def test_list_unique_tests_empty(self, db_session):
+        """Empty database returns empty list."""
+        results = list_unique_tests(db_session)
+        assert results == []

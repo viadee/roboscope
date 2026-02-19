@@ -362,6 +362,18 @@ export default {
       noKeywords: 'Sin palabras clave',
     },
   },
+  testHistory: {
+    title: 'Historial de tests',
+    searchPlaceholder: 'Buscar tests...',
+    noTests: 'No se encontraron tests.',
+    selectTest: 'Seleccione un test de la lista para ver su historial.',
+    totalRuns: 'Ejecuciones totales',
+    passRate: 'Tasa de éxito',
+    timeline: 'Línea de tiempo',
+    runs: 'Historial de ejecuciones',
+    date: 'Fecha',
+    report: 'Informe',
+  },
   stats: {
     title: 'Estadísticas',
     refresh: 'Actualizar',

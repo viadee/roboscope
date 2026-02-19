@@ -317,3 +317,114 @@ class TestCompareReportsEndpoint:
         )
 
         assert response.status_code == 401
+
+
+class TestUniqueTestsEndpoint:
+    def test_list_unique_tests(self, client, db_session, admin_user):
+        """GET /api/v1/reports/tests/unique returns unique test names."""
+        report = _setup_report(db_session, admin_user)
+        db_session.add(
+            _make_test_result(report.id, test_name="Login Test", suite_name="Auth")
+        )
+        db_session.add(
+            _make_test_result(report.id, test_name="Search Test", suite_name="UI")
+        )
+        db_session.flush()
+
+        response = client.get(
+            "/api/v1/reports/tests/unique",
+            headers=auth_header(admin_user),
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) >= 2
+        names = [t["test_name"] for t in data]
+        assert "Login Test" in names
+
+    def test_list_unique_tests_with_search(self, client, db_session, admin_user):
+        """GET /api/v1/reports/tests/unique?search=Login filters by name."""
+        report = _setup_report(db_session, admin_user)
+        db_session.add(
+            _make_test_result(report.id, test_name="Login Test", suite_name="Auth")
+        )
+        db_session.add(
+            _make_test_result(report.id, test_name="Search Test", suite_name="UI")
+        )
+        db_session.flush()
+
+        response = client.get(
+            "/api/v1/reports/tests/unique",
+            params={"search": "Login"},
+            headers=auth_header(admin_user),
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["test_name"] == "Login Test"
+
+    def test_list_unique_tests_unauthenticated(self, client):
+        """GET /api/v1/reports/tests/unique without token returns 401."""
+        response = client.get("/api/v1/reports/tests/unique")
+        assert response.status_code == 401
+
+
+class TestTestHistoryEndpoint:
+    def test_get_test_history(self, client, db_session, admin_user):
+        """GET /api/v1/reports/tests/history returns history for a test."""
+        report = _setup_report(db_session, admin_user)
+        db_session.add(
+            _make_test_result(
+                report.id, test_name="Login Test", suite_name="Auth", status="PASS",
+                duration_seconds=2.5,
+            )
+        )
+        db_session.flush()
+
+        response = client.get(
+            "/api/v1/reports/tests/history",
+            params={"test_name": "Login Test"},
+            headers=auth_header(admin_user),
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["test_name"] == "Login Test"
+        assert data["total_runs"] == 1
+        assert data["pass_count"] == 1
+        assert data["fail_count"] == 0
+        assert data["pass_rate"] == 100.0
+        assert len(data["history"]) == 1
+        assert data["history"][0]["status"] == "PASS"
+
+    def test_get_test_history_empty(self, client, admin_user):
+        """GET /api/v1/reports/tests/history for unknown test returns empty history."""
+        response = client.get(
+            "/api/v1/reports/tests/history",
+            params={"test_name": "Nonexistent Test"},
+            headers=auth_header(admin_user),
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_runs"] == 0
+        assert data["history"] == []
+
+    def test_get_test_history_requires_test_name(self, client, admin_user):
+        """GET /api/v1/reports/tests/history without test_name returns 422."""
+        response = client.get(
+            "/api/v1/reports/tests/history",
+            headers=auth_header(admin_user),
+        )
+
+        assert response.status_code == 422
+
+    def test_get_test_history_unauthenticated(self, client):
+        """GET /api/v1/reports/tests/history without token returns 401."""
+        response = client.get(
+            "/api/v1/reports/tests/history",
+            params={"test_name": "Test"},
+        )
+        assert response.status_code == 401

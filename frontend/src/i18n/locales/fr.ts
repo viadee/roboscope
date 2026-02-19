@@ -362,6 +362,18 @@ export default {
       noKeywords: 'Aucun mot-clé',
     },
   },
+  testHistory: {
+    title: 'Historique des tests',
+    searchPlaceholder: 'Rechercher des tests...',
+    noTests: 'Aucun test trouvé.',
+    selectTest: 'Sélectionnez un test pour afficher son historique.',
+    totalRuns: 'Exécutions totales',
+    passRate: 'Taux de réussite',
+    timeline: 'Chronologie',
+    runs: 'Historique des exécutions',
+    date: 'Date',
+    report: 'Rapport',
+  },
   stats: {
     title: 'Statistiques',
     refresh: 'Actualiser',

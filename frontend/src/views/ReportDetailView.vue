@@ -122,7 +122,7 @@ function downloadZip() {
             </thead>
             <tbody>
               <tr v-for="test in failedTests" :key="test.id">
-                <td><strong>{{ test.test_name }}</strong></td>
+                <td><router-link :to="{ path: '/test-history', query: { test: test.test_name, suite: test.suite_name } }" class="test-link"><strong>{{ test.test_name }}</strong></router-link></td>
                 <td class="text-muted text-sm">{{ test.suite_name }}</td>
                 <td>{{ formatDuration(test.duration_seconds) }}</td>
                 <td class="text-sm error-cell">{{ test.error_message || '-' }}</td>
@@ -151,7 +151,7 @@ function downloadZip() {
             <tbody>
               <tr v-for="test in reports.activeReport.test_results" :key="test.id">
                 <td><BaseBadge :status="test.status" /></td>
-                <td>{{ test.test_name }}</td>
+                <td><router-link :to="{ path: '/test-history', query: { test: test.test_name, suite: test.suite_name } }" class="test-link">{{ test.test_name }}</router-link></td>
                 <td class="text-muted text-sm">{{ test.suite_name }}</td>
                 <td>{{ formatDuration(test.duration_seconds) }}</td>
                 <td class="text-sm text-muted">{{ test.tags || '-' }}</td>
@@ -210,6 +210,8 @@ function downloadZip() {
 .kpi-value.text-danger { color: var(--color-danger); }
 .kpi-label { font-size: 12px; color: var(--color-text-muted); margin-top: 4px; text-transform: uppercase; }
 .error-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-danger); }
+.test-link { color: var(--color-text); text-decoration: none; }
+.test-link:hover { color: var(--color-primary); }
 
 /* Tabs */
 .tab-nav {
