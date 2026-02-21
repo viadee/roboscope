@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────
-# RoboScope — Build script for standalone distribution
+# RoboScope — Build script for online distribution
 #
-# Creates a self-contained directory 'dist/roboscope/' that can be
-# zipped and deployed on any machine with Python 3.12+.
+# Creates a lightweight directory 'dist/roboscope-online/' that
+# requires internet access during install (pip downloads from PyPI).
+# Much smaller than the offline build (~5 MB vs ~100 MB).
 #
-# Usage:  ./scripts/build.sh
+# Usage:  ./scripts/build-online-mac-and-linux.sh
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DIST="$ROOT/dist/roboscope"
+DIST="$ROOT/dist/roboscope-online"
 
-echo "==> RoboScope Build"
+echo "==> RoboScope Build (online)"
 echo "    Root: $ROOT"
 echo ""
 
@@ -51,14 +52,10 @@ fi
 cp "$ROOT/scripts/dist-README.md" "$DIST/README.md"
 echo "    README: $DIST/README.md"
 
-# ── 4. Download Python wheels for offline install ─────────────
-echo "==> Downloading Python wheels..."
-mkdir -p "$DIST/wheels"
-
-# Helper: extract dependencies from pyproject.toml (works with Python 3.10+)
-_read_deps() {
-  cd "$ROOT/backend"
-  python3 -c "
+# ── 4. Extract requirements ───────────────────────────────────
+echo "==> Extracting requirements..."
+cd "$ROOT/backend"
+python3 -c "
 import pathlib
 try:
     import tomllib
@@ -84,58 +81,8 @@ except ModuleNotFoundError:
 data = tomllib.loads(pathlib.Path('pyproject.toml').read_text())
 for dep in data['project']['dependencies']:
     print(dep)
-"
-}
-
-DEPS_FILE=$(mktemp)
-_read_deps > "$DEPS_FILE"
-
-# Windows: uvicorn[standard] includes uvloop which is Unix-only; strip extras
-WIN_DEPS_FILE=$(mktemp)
-sed 's/uvicorn\[standard\]/uvicorn/' "$DEPS_FILE" > "$WIN_DEPS_FILE"
-
-# Download platform-specific binary wheels for all targets and Python versions
-for plat in manylinux2014_x86_64 macosx_11_0_arm64 macosx_11_0_x86_64 win_amd64; do
-  # Use Windows-specific deps (no uvloop) for win_amd64
-  if [ "$plat" = "win_amd64" ]; then
-    REQ_FILE="$WIN_DEPS_FILE"
-  else
-    REQ_FILE="$DEPS_FILE"
-  fi
-  for pyver in 3.10 3.11 3.12 3.13 3.14; do
-    abi="cp${pyver//./}"
-    echo "    Downloading wheels for $plat (Python $pyver)..."
-    python3 -m pip download \
-      -r "$REQ_FILE" \
-      -d "$DIST/wheels" \
-      --platform "$plat" \
-      --python-version "$pyver" \
-      --implementation cp \
-      --abi "$abi" \
-      --only-binary :all: \
-      2>&1 | grep -i "error\|saved" || true
-  done
-done
-rm -f "$WIN_DEPS_FILE"
-
-# Download for host platform (catches deps the cross-platform pass missed)
-echo "    Downloading wheels for host platform..."
-python3 -m pip download \
-  -r "$DEPS_FILE" \
-  -d "$DIST/wheels" \
-  2>/dev/null || true
-
-# Ensure conditional transitive deps are included
-# (e.g., tomli is needed by alembic on Python <3.11 but not on 3.12+)
-echo "    Downloading conditional dependencies..."
-for pkg in "tomli>=2.0.0" "exceptiongroup>=1.0.0" "typing_extensions>=4.0.0"; do
-  python3 -m pip download "$pkg" -d "$DIST/wheels" --no-deps 2>/dev/null || true
-done
-
-# Save requirements for install script
-cp "$DEPS_FILE" "$DIST/requirements.txt"
-rm -f "$DEPS_FILE"
-echo "    Wheels: $(ls "$DIST/wheels" | wc -l | tr -d ' ') packages"
+" > "$DIST/requirements.txt"
+echo "    Requirements: $(wc -l < "$DIST/requirements.txt" | tr -d ' ') packages"
 
 # ── 5. Create .env template ──────────────────────────────────
 cat > "$DIST/.env.example" << 'ENVEOF'
@@ -163,7 +110,7 @@ LOG_LEVEL=INFO
 ENVEOF
 
 # ── 6. Create install script ─────────────────────────────────
-cat > "$DIST/install.sh" << 'INSTALLEOF'
+cat > "$DIST/install-mac-and-linux.sh" << 'INSTALLEOF'
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -174,20 +121,20 @@ echo "==> Installing RoboScope..."
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install dependencies offline (pip picks the correct platform wheels)
-pip install --no-index --find-links=wheels -r requirements.txt
+# Install dependencies from PyPI
+pip install -r requirements.txt
 
 # Copy default config if not exists
 [ -f .env ] || cp .env.example .env
 
 echo ""
 echo "==> RoboScope installed successfully!"
-echo "    Start with: ./start.sh"
+echo "    Start with: ./start-mac-and-linux.sh"
 INSTALLEOF
-chmod +x "$DIST/install.sh"
+chmod +x "$DIST/install-mac-and-linux.sh"
 
 # ── 7. Create start script ───────────────────────────────────
-cat > "$DIST/start.sh" << 'STARTEOF'
+cat > "$DIST/start-mac-and-linux.sh" << 'STARTEOF'
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -209,7 +156,7 @@ if lsof -i :"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
   fi
   echo ""
   echo "Options:"
-  echo "  1. Stop the other process:  ./stop.sh"
+  echo "  1. Stop the other process:  ./stop-mac-and-linux.sh"
   echo "  2. Change the port in .env: PORT=9000"
   exit 1
 fi
@@ -218,7 +165,7 @@ fi
 if [ -d ".venv" ]; then
   source .venv/bin/activate
 else
-  echo "Error: Run ./install.sh first."
+  echo "Error: Run ./install-mac-and-linux.sh first."
   exit 1
 fi
 
@@ -230,10 +177,10 @@ echo ""
 
 python -m uvicorn src.main:app --host "${HOST:-0.0.0.0}" --port "${PORT}"
 STARTEOF
-chmod +x "$DIST/start.sh"
+chmod +x "$DIST/start-mac-and-linux.sh"
 
 # ── 7b. Create stop script ───────────────────────────────────
-cat > "$DIST/stop.sh" << 'STOPEOF'
+cat > "$DIST/stop-mac-and-linux.sh" << 'STOPEOF'
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -278,10 +225,10 @@ fi
 
 echo "    RoboScope stopped."
 STOPEOF
-chmod +x "$DIST/stop.sh"
+chmod +x "$DIST/stop-mac-and-linux.sh"
 
 # ── 8. Create Windows install script ─────────────────────────
-cat > "$DIST/install.bat" << 'BATEOF'
+cat > "$DIST/install-windows.bat" << 'BATEOF'
 @echo off
 echo ==> Installing RoboScope...
 
@@ -290,17 +237,17 @@ cd /d "%~dp0"
 python -m venv .venv
 call .venv\Scripts\activate.bat
 
-pip install --no-index --find-links=wheels -r requirements.txt
+pip install -r requirements.txt
 
 if not exist .env copy .env.example .env
 
 echo.
 echo ==> RoboScope installed successfully!
-echo     Start with: start.bat
+echo     Start with: start-windows.bat
 BATEOF
 
 # ── 9. Create Windows start script ───────────────────────────
-cat > "$DIST/start.bat" << 'BATEOF'
+cat > "$DIST/start-windows.bat" << 'BATEOF'
 @echo off
 cd /d "%~dp0"
 
@@ -321,13 +268,13 @@ if %errorlevel%==0 (
     netstat -ano | findstr ":%PORT% " | findstr "LISTENING"
     echo.
     echo Options:
-    echo   1. Stop the other process:  stop.bat
+    echo   1. Stop the other process:  stop-windows.bat
     echo   2. Change the port in .env: PORT=9000
     exit /b 1
 )
 
 if not exist .venv (
-    echo Error: Run install.bat first.
+    echo Error: Run install-windows.bat first.
     exit /b 1
 )
 
@@ -343,7 +290,7 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port %PORT%
 BATEOF
 
 # ── 9b. Create Windows stop script ──────────────────────────
-cat > "$DIST/stop.bat" << 'BATEOF'
+cat > "$DIST/stop-windows.bat" << 'BATEOF'
 @echo off
 cd /d "%~dp0"
 
@@ -375,13 +322,13 @@ BATEOF
 echo ""
 echo "==> Creating ZIP archive..."
 cd "$ROOT/dist"
-zip -r "roboscope.zip" roboscope/ -x "roboscope/.venv/*" "roboscope/__pycache__/*"
+zip -r "roboscope-online.zip" roboscope-online/ -x "roboscope-online/.venv/*" "roboscope-online/__pycache__/*"
 echo ""
 echo "==> Build complete!"
-echo "    Distribution: $ROOT/dist/roboscope.zip"
+echo "    Distribution: $ROOT/dist/roboscope-online.zip"
 echo "    Directory:    $DIST"
 echo ""
-echo "To deploy:"
-echo "  1. Extract roboscope.zip"
-echo "  2. Run install.sh (Linux/Mac) or install.bat (Windows)"
-echo "  3. Run start.sh (Linux/Mac) or start.bat (Windows)"
+echo "To deploy (requires internet access):"
+echo "  1. Extract roboscope-online.zip"
+echo "  2. Run install-mac-and-linux.sh (Linux/Mac) or install-windows.bat (Windows)"
+echo "  3. Run start-mac-and-linux.sh (Linux/Mac) or start-windows.bat (Windows)"

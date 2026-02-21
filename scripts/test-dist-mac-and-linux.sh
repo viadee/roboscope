@@ -6,9 +6,9 @@
 # and runs HTTP-based E2E checks to verify everything works.
 #
 # Usage:
-#   ./scripts/test-dist.sh              # test offline dist
-#   ./scripts/test-dist.sh online       # test online dist
-#   ./scripts/test-dist.sh --skip-build # test existing dist without rebuilding
+#   ./scripts/test-dist-mac-and-linux.sh              # test offline dist
+#   ./scripts/test-dist-mac-and-linux.sh online       # test online dist
+#   ./scripts/test-dist-mac-and-linux.sh --skip-build # test existing dist without rebuilding
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -29,10 +29,10 @@ done
 
 if [ "$MODE" = "online" ]; then
   DIST="$ROOT/dist/roboscope-online"
-  BUILD_SCRIPT="$ROOT/scripts/build-online.sh"
+  BUILD_SCRIPT="$ROOT/scripts/build-online-mac-and-linux.sh"
 else
   DIST="$ROOT/dist/roboscope"
-  BUILD_SCRIPT="$ROOT/scripts/build.sh"
+  BUILD_SCRIPT="$ROOT/scripts/build-mac-and-linux.sh"
 fi
 
 BASE_URL="http://127.0.0.1:$PORT"
@@ -143,12 +143,12 @@ echo "==> Step 2: Checking dist contents..."
 [ -f "$DIST/frontend_dist/index.html" ] && pass "frontend_dist/index.html" || fail "index.html missing"
 [ -d "$DIST/frontend_dist/assets" ] && pass "frontend_dist/assets/" || fail "assets/ missing"
 [ -f "$DIST/requirements.txt" ] && pass "requirements.txt" || fail "requirements.txt missing"
-[ -f "$DIST/install.sh" ] && pass "install.sh" || fail "install.sh missing"
-[ -f "$DIST/start.sh" ] && pass "start.sh" || fail "start.sh missing"
-[ -f "$DIST/install.bat" ] && pass "install.bat" || fail "install.bat missing"
-[ -f "$DIST/start.bat" ] && pass "start.bat" || fail "start.bat missing"
-[ -f "$DIST/stop.sh" ] && pass "stop.sh" || fail "stop.sh missing"
-[ -f "$DIST/stop.bat" ] && pass "stop.bat" || fail "stop.bat missing"
+[ -f "$DIST/install-mac-and-linux.sh" ] && pass "install-mac-and-linux.sh" || fail "install-mac-and-linux.sh missing"
+[ -f "$DIST/start-mac-and-linux.sh" ] && pass "start-mac-and-linux.sh" || fail "start-mac-and-linux.sh missing"
+[ -f "$DIST/install-windows.bat" ] && pass "install-windows.bat" || fail "install-windows.bat missing"
+[ -f "$DIST/start-windows.bat" ] && pass "start-windows.bat" || fail "start-windows.bat missing"
+[ -f "$DIST/stop-mac-and-linux.sh" ] && pass "stop-mac-and-linux.sh" || fail "stop-mac-and-linux.sh missing"
+[ -f "$DIST/stop-windows.bat" ] && pass "stop-windows.bat" || fail "stop-windows.bat missing"
 [ -f "$DIST/.env.example" ] && pass ".env.example" || fail ".env.example missing"
 [ -f "$DIST/pyproject.toml" ] && pass "pyproject.toml" || fail "pyproject.toml missing"
 [ -f "$DIST/README.md" ] && pass "README.md" || fail "README.md missing"

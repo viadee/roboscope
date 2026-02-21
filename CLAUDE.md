@@ -58,7 +58,7 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 - 3 Compose-Files: production (PostgreSQL+Nginx), dev (SQLite), test
 
 **Build/Distribution**
-- `scripts/build.sh` — Erstellt standalone ZIP-Archiv für Offline-Deployment (Windows, Mac, Linux)
+- `scripts/build-mac-and-linux.sh` — Erstellt standalone ZIP-Archiv für Offline-Deployment (Windows, Mac, Linux)
 - Enthält: Frontend-Build, Backend-Source, Python-Wheels, Install/Start-Skripte
 
 ### Wichtige Architekturentscheidung: Task-Ausführung

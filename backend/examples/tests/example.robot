@@ -11,13 +11,15 @@ ${NUMBER}      ${42}
 
 *** Test Cases ***
 Einfacher Test mit Assertions
-    [Documentation]    Demonstriert grundlegende Assertions, indem geprüft wird, ob die Variable GREETING den Wert 'Hallo Welt' hat, die Variable NUMBER den Wert 42 hat und NUMBER größer als 0 ist
+    [Documentation]    Ein einfacher Test, der grundlegende Assertions demonstriert. Überprüft, ob die Variable GREETING den Wert 'Hallo Welt' hat, NUMBER gleich 42 ist und NUMBER größer als 0 ist.
+    [Tags]    RF-BASIC-101
     Prüfe Ob Variable Als Zeichenkette Gleich Ist    ${GREETING}    Hallo Welt
     Prüfe Ob Variable Als Zahl Gleich Ist    ${NUMBER}    42
     Prüfe Ob Bedingung Wahr Ist    ${NUMBER} > 0
 
 String-Operationen Test
-    [Documentation]    Testet verschiedene String-Operationen auf der Variable GREETING, einschließlich Umwandlung in Großbuchstaben, Längenermittlung und Teilstring-Prüfung
+    [Documentation]    Test für verschiedene String-Operationen auf der Variable GREETING ('Hallo Welt'). Prüft Großschreibung, Länge und Teilstring-Erkennung.
+    [Tags]    RF-BASIC-102
     ${UPPER_GREETING}=    Wandle String In Großbuchstaben Um    ${GREETING}
     Prüfe Ob Variable Als Zeichenkette Gleich Ist    ${UPPER_GREETING}    HALLO WELT
     ${GREETING_LENGTH}=    Ermittle Länge Von Variable    ${GREETING}
@@ -25,7 +27,8 @@ String-Operationen Test
     Prüfe Ob String Teilstring Enthält    ${GREETING}    Welt
 
 Mathematische Operationen Test
-    [Documentation]    Testet grundlegende mathematische Operationen (Addition, Multiplikation, Division) mit der Variable NUMBER (Wert 42)
+    [Documentation]    Test für grundlegende mathematische Operationen mit der Variable NUMBER (42). Prüft Addition, Multiplikation und Division.
+    [Tags]    RF-BASIC-103
     ${SUMME}=    Berechne Summe    ${NUMBER}    8
     Prüfe Ob Variable Als Zahl Gleich Ist    ${SUMME}    50
     ${PRODUKT}=    Berechne Produkt    ${NUMBER}    2
@@ -34,7 +37,8 @@ Mathematische Operationen Test
     Prüfe Ob Variable Als Zahl Gleich Ist    ${QUOTIENT}    7
 
 Listen-Operationen Test
-    [Documentation]    Testet Operationen auf einer Liste mit drei Früchten, einschließlich Längenprüfung, Enthaltensein eines Elements und Zugriff auf das erste Element
+    [Documentation]    Test für Operationen mit Listen. Erstellt eine Liste mit drei Früchten und prüft Länge, Inhalt und Indexzugriff.
+    [Tags]    RF-BASIC-104
     ${FRUCHT_LISTE}=    Erstelle Liste Mit Elementen    Apfel    Banane    Orange
     ${LISTEN_LÄNGE}=    Ermittle Länge Von Variable    ${FRUCHT_LISTE}
     Prüfe Ob Länge Gleich Ist    ${LISTEN_LÄNGE}    3

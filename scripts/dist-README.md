@@ -8,13 +8,13 @@ Web-based Robot Framework Test Management Tool with Git integration, test execut
 
 **Linux / macOS:**
 ```bash
-chmod +x install.sh
-./install.sh
+chmod +x install-mac-and-linux.sh
+./install-mac-and-linux.sh
 ```
 
 **Windows:**
 ```
-install.bat
+install-windows.bat
 ```
 
 This creates a Python virtual environment and installs all dependencies.
@@ -23,24 +23,24 @@ This creates a Python virtual environment and installs all dependencies.
 
 **Linux / macOS:**
 ```bash
-./start.sh
+./start-mac-and-linux.sh
 ```
 
 **Windows:**
 ```
-start.bat
+start-windows.bat
 ```
 
 ### 3. Stop
 
 **Linux / macOS:**
 ```bash
-./stop.sh
+./stop-mac-and-linux.sh
 ```
 
 **Windows:**
 ```
-stop.bat
+stop-windows.bat
 ```
 
 ### 4. Open
@@ -76,7 +76,7 @@ Edit `.env` and change `PORT`:
 PORT=9000
 ```
 
-Then restart with `./start.sh` (or `start.bat`).
+Then restart with `./start-mac-and-linux.sh` (or `start-windows.bat`).
 
 ### Using PostgreSQL Instead of SQLite
 
@@ -102,7 +102,7 @@ Note: PostgreSQL requires the `psycopg2` driver. Install it with:
 python3 --version
 ```
 
-If you have multiple Python versions, you can specify which one to use before running `install.sh`:
+If you have multiple Python versions, you can specify which one to use before running `install-mac-and-linux.sh`:
 ```bash
 # Use a specific Python version
 python3.12 -m venv .venv
@@ -168,7 +168,7 @@ Another process is using port 8145. Either:
 1. Stop the other process: `kill $(lsof -ti:8145)` (Linux/macOS)
 2. Change the port in `.env`: `PORT=9000`
 
-### "Error: Run ./install.sh first."
+### "Error: Run ./install-mac-and-linux.sh first."
 
 You need to run the install script before starting. It creates the virtual environment and installs dependencies.
 
@@ -197,7 +197,7 @@ Log in as admin, go to **Settings > Users**, and use the password reset button. 
 ```bash
 # Delete the database and restart (creates fresh admin)
 rm roboscope.db
-./start.sh
+./start-mac-and-linux.sh
 ```
 
 ### How do I back up my data?
@@ -211,8 +211,8 @@ cp roboscope.db roboscope-backup-$(date +%Y%m%d).db
 
 1. Back up your `roboscope.db` and `.env` files
 2. Extract the new release over the existing directory
-3. Run `./install.sh` again to update dependencies
-4. Run `./start.sh`
+3. Run `./install-mac-and-linux.sh` again to update dependencies
+4. Run `./start-mac-and-linux.sh`
 
 Your database and configuration will be preserved.
 
@@ -226,16 +226,16 @@ roboscope/
 ├── migrations/       # Database migration scripts
 ├── wheels/           # Python wheels for offline install (offline version only)
 ├── .env.example      # Configuration template
-├── .env              # Your configuration (created by install.sh)
+├── .env              # Your configuration (created by install script)
 ├── requirements.txt  # Python dependencies
-├── install.sh        # Install script (Linux/macOS)
-├── install.bat       # Install script (Windows)
-├── start.sh          # Start script (Linux/macOS)
-├── start.bat         # Start script (Windows)
-├── stop.sh           # Stop script (Linux/macOS)
-├── stop.bat          # Stop script (Windows)
+├── install-mac-and-linux.sh   # Install script (Linux/macOS)
+├── install-windows.bat        # Install script (Windows)
+├── start-mac-and-linux.sh     # Start script (Linux/macOS)
+├── start-windows.bat          # Start script (Windows)
+├── stop-mac-and-linux.sh      # Stop script (Linux/macOS)
+├── stop-windows.bat           # Stop script (Windows)
 ├── roboscope.db         # SQLite database (created on first run)
-└── .venv/            # Python virtual environment (created by install.sh)
+└── .venv/            # Python virtual environment (created by install script)
 ```
 
 ## License

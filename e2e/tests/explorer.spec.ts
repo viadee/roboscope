@@ -354,4 +354,79 @@ test.describe('Explorer — E2E', () => {
     await expect(page.getByText('Suchergebnisse')).toBeVisible();
     await expect(page.locator('.search-item').first()).toBeVisible();
   });
+
+  // ─── Robot Visual Editor Tests ─────────────────────────────────────
+
+  /** Helper: open sample.robot in the visual editor */
+  async function openRobotVisualEditor(page: Page) {
+    await goToExplorer(page, repoId);
+    // Expand tests directory
+    await page.locator('.tree-node .node-name', { hasText: /^tests$/ }).click();
+    await page.waitForTimeout(300);
+    // Click sample.robot
+    await page.locator('.node-name', { hasText: 'sample.robot' }).click();
+    await page.waitForTimeout(500);
+    // Visual editor should be visible (default tab)
+    await expect(page.locator('.visual-editor')).toBeVisible({ timeout: 5_000 });
+  }
+
+  test('UI: robot visual editor setting type dropdown contains Documentation', async ({ page }) => {
+    await openRobotVisualEditor(page);
+
+    // Settings section should be visible with the existing "Library Collections" setting
+    await expect(page.locator('.setting-row').first()).toBeVisible();
+
+    // The existing setting type dropdown should be present
+    const settingSelect = page.locator('.setting-type-select').first();
+    await expect(settingSelect).toBeVisible();
+
+    // Verify "Dokumentation" option exists in the select (German locale)
+    const docOption = settingSelect.locator('option', { hasText: 'Dokumentation' });
+    await expect(docOption).toBeAttached();
+
+    // Click "Einstellung hinzufügen" to add a new setting
+    await page.getByRole('button', { name: /Einstellung hinzufügen/ }).click();
+    await page.waitForTimeout(200);
+
+    // A new setting row should appear — change its type to Documentation
+    const newSelect = page.locator('.setting-type-select').last();
+    await newSelect.selectOption('Documentation');
+    await expect(newSelect).toHaveValue('Documentation');
+  });
+
+  test('UI: robot visual editor Library setting shows autocomplete dropdown', async ({ page }) => {
+    await openRobotVisualEditor(page);
+
+    // The first setting is Library (from sample.robot: Library    Collections)
+    const settingSelect = page.locator('.setting-type-select').first();
+    await expect(settingSelect).toHaveValue('Library');
+
+    // The value field for Library settings should be inside a keyword-autocomplete-wrapper
+    const libraryInput = page.locator('.setting-row').first().locator('.setting-library-input');
+    await expect(libraryInput).toBeVisible();
+
+    // Focus the library input — dropdown should appear
+    await libraryInput.click();
+    await page.waitForTimeout(200);
+    const dropdown = page.locator('.keyword-dropdown');
+    await expect(dropdown).toBeVisible();
+
+    // Dropdown should contain known RF libraries
+    await expect(dropdown.locator('.keyword-dropdown-item', { hasText: 'BuiltIn' })).toBeVisible();
+    await expect(dropdown.locator('.keyword-dropdown-item', { hasText: 'SeleniumLibrary' })).toBeVisible();
+
+    // Type to filter — "Brow" should show "Browser"
+    await libraryInput.fill('Brow');
+    await page.waitForTimeout(200);
+    await expect(dropdown.locator('.keyword-dropdown-item', { hasText: 'Browser' })).toBeVisible();
+    // BuiltIn should no longer be shown (filtered out)
+    await expect(dropdown.locator('.keyword-dropdown-item', { hasText: 'BuiltIn' })).not.toBeVisible();
+
+    // Click "Browser" to select it
+    await dropdown.locator('.keyword-dropdown-item', { hasText: 'Browser' }).click();
+    await page.waitForTimeout(200);
+    await expect(libraryInput).toHaveValue('Browser');
+    // Dropdown should close after selection
+    await expect(dropdown).not.toBeVisible();
+  });
 });

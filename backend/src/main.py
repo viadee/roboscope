@@ -152,7 +152,7 @@ def create_app() -> FastAPI:
     # The frontend dist/ folder is expected next to the backend package.
     frontend_dist = Path(__file__).resolve().parent.parent / "frontend_dist"
     if not frontend_dist.is_dir():
-        # Fallback: check relative to current working directory (start.sh cd's to dist root)
+        # Fallback: check relative to current working directory (start script cd's to dist root)
         frontend_dist = Path.cwd() / "frontend_dist"
     if frontend_dist.is_dir():
         # Serve assets (JS, CSS, images) under /assets

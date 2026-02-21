@@ -26,10 +26,10 @@ jobs:
           python-version: '3.12'
 
       - name: Build distribution
-        run: bash scripts/build.sh
+        run: bash scripts/build-mac-and-linux.sh
 
       - name: Test install (dry-run)
-        run: bash scripts/test-install.sh
+        run: bash scripts/test-install-mac-and-linux.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -58,7 +58,7 @@ jobs:
           python-version: '3.12'
 
       - name: Build distribution
-        run: bash scripts/build-online.sh
+        run: bash scripts/build-online-mac-and-linux.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

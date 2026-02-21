@@ -58,11 +58,11 @@ Download the latest `roboscope.zip` from [GitHub Actions](../../actions/workflow
 ```bash
 unzip roboscope.zip
 cd roboscope
-./install.sh       # Creates venv, installs dependencies offline
-./start.sh         # Starts server at http://localhost:8000
+./install-mac-and-linux.sh       # Creates venv, installs dependencies offline
+./start-mac-and-linux.sh         # Starts server at http://localhost:8000
 ```
 
-On Windows, use `install.bat` and `start.bat` instead.
+On Windows, use `install-windows.bat` and `start-windows.bat` instead.
 
 Default login: `admin@roboscope.local` / `admin123`
 
@@ -115,7 +115,7 @@ make test               # All tests
 
 ```bash
 # Build standalone offline distribution
-bash scripts/build.sh
+bash scripts/build-mac-and-linux.sh
 
 # Output: dist/roboscope.zip (includes wheels for Linux, macOS, Windows)
 ```

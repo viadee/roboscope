@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────
-# Test script: verifies the install.sh inside dist/roboscope works
+# Test script: verifies the install-mac-and-linux.sh inside dist/roboscope works
 #
-# Usage:  ./scripts/test-install.sh
+# Usage:  ./scripts/test-install-mac-and-linux.sh
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -10,14 +10,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist/roboscope"
 TEST_DIR=$(mktemp -d)
 
-echo "==> Test: install.sh from dist"
+echo "==> Test: install-mac-and-linux.sh from dist"
 echo "    Dist:    $DIST"
 echo "    Temp:    $TEST_DIR"
 echo ""
 
 # Verify dist exists
 if [ ! -d "$DIST" ]; then
-  echo "ERROR: $DIST does not exist. Run scripts/build.sh first."
+  echo "ERROR: $DIST does not exist. Run scripts/build-mac-and-linux.sh first."
   exit 1
 fi
 

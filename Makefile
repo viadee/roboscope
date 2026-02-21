@@ -94,7 +94,7 @@ db-downgrade: ## Rollback last migration
 # --- Build / Distribution ---
 
 build-dist: ## Build standalone distribution ZIP
-	./scripts/build.sh
+	./scripts/build-mac-and-linux.sh
 
 # --- Cleanup ---
 
