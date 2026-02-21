@@ -134,3 +134,85 @@ class ValidateSpecResponse(BaseModel):
     valid: bool
     errors: list[str] = []
     test_count: int = 0
+
+
+# --- rf-mcp knowledge schemas ---
+
+
+class RfKnowledgeStatusResponse(BaseModel):
+    """rf-mcp availability status."""
+
+    available: bool
+    url: str = ""
+
+
+class RfKeywordResult(BaseModel):
+    """A single keyword search result."""
+
+    name: str
+    library: str = ""
+    doc: str = ""
+
+
+class RfKeywordSearchResponse(BaseModel):
+    """Keyword search results."""
+
+    results: list[RfKeywordResult] = []
+
+
+class RfRecommendRequest(BaseModel):
+    """Request body for library recommendation."""
+
+    description: str = Field(..., min_length=1)
+
+
+class RfRecommendResponse(BaseModel):
+    """Library recommendation results."""
+
+    libraries: list[str] = []
+
+
+# --- rf-mcp server management schemas ---
+
+
+class RfMcpSetupRequest(BaseModel):
+    """Request to install and start the rf-mcp server."""
+
+    environment_id: int
+    port: int = Field(default=9090, ge=1024, le=65535)
+
+
+class RfMcpDetailedStatus(BaseModel):
+    """Detailed rf-mcp server status."""
+
+    status: str  # stopped, installing, starting, running, error
+    running: bool = False
+    port: int | None = None
+    pid: int | None = None
+    url: str = ""
+    environment_id: int | None = None
+    environment_name: str | None = None
+    error_message: str = ""
+    installed_version: str | None = None
+
+
+# --- Xray bridge schemas ---
+
+
+class XrayExportRequest(BaseModel):
+    """Request to export .roboscope spec as Xray JSON."""
+
+    content: str = Field(..., min_length=1)
+
+
+class XrayImportRequest(BaseModel):
+    """Request to import Xray JSON as .roboscope YAML."""
+
+    info: dict = Field(default_factory=dict)
+    tests: list[dict] = Field(default_factory=list)
+
+
+class XrayImportResponse(BaseModel):
+    """Response with converted .roboscope YAML content."""
+
+    content: str

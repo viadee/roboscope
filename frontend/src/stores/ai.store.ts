@@ -11,6 +11,21 @@ export const useAiStore = defineStore('ai', () => {
   const loading = ref(false)
   const pollInterval = ref<ReturnType<typeof setInterval> | null>(null)
 
+  // rf-mcp state
+  const rfMcpAvailable = ref(false)
+  const rfMcpUrl = ref('')
+
+  // rf-mcp server management state
+  const rfMcpStatus = ref<string>('stopped')
+  const rfMcpRunning = ref(false)
+  const rfMcpPort = ref<number | null>(null)
+  const rfMcpPid = ref<number | null>(null)
+  const rfMcpEnvId = ref<number | null>(null)
+  const rfMcpEnvName = ref<string | null>(null)
+  const rfMcpError = ref('')
+  const rfMcpInstalledVersion = ref<string | null>(null)
+  const rfMcpPolling = ref<ReturnType<typeof setInterval> | null>(null)
+
   const defaultProvider = computed(() => providers.value.find((p) => p.is_default) || null)
   const hasProviders = computed(() => providers.value.length > 0)
 
@@ -123,6 +138,98 @@ export const useAiStore = defineStore('ai', () => {
     return driftResults.value
   }
 
+  // --- rf-mcp knowledge ---
+
+  async function fetchRfKnowledgeStatus() {
+    try {
+      const status = await aiApi.getRfKnowledgeStatus()
+      rfMcpAvailable.value = status.available
+      rfMcpUrl.value = status.url
+    } catch {
+      rfMcpAvailable.value = false
+      rfMcpUrl.value = ''
+    }
+  }
+
+  async function searchKeywords(query: string) {
+    return await aiApi.searchKeywords(query)
+  }
+
+  async function recommendLibraries(description: string) {
+    return await aiApi.recommendLibraries(description)
+  }
+
+  // --- rf-mcp server management ---
+
+  async function fetchRfMcpStatus() {
+    try {
+      const status = await aiApi.getRfMcpStatus()
+      rfMcpStatus.value = status.status
+      rfMcpRunning.value = status.running
+      rfMcpPort.value = status.port
+      rfMcpPid.value = status.pid
+      rfMcpUrl.value = status.url
+      rfMcpEnvId.value = status.environment_id
+      rfMcpEnvName.value = status.environment_name
+      rfMcpError.value = status.error_message
+      rfMcpInstalledVersion.value = status.installed_version
+      rfMcpAvailable.value = status.running
+    } catch {
+      rfMcpStatus.value = 'stopped'
+      rfMcpRunning.value = false
+    }
+  }
+
+  async function setupRfMcpServer(environmentId: number, port: number = 9090) {
+    try {
+      await aiApi.setupRfMcp(environmentId, port)
+      // Start polling for status updates
+      startRfMcpPolling()
+    } catch (e: any) {
+      rfMcpError.value = e.response?.data?.detail || 'Setup failed'
+      rfMcpStatus.value = 'error'
+      throw e
+    }
+  }
+
+  async function stopRfMcpServer() {
+    try {
+      await aiApi.stopRfMcp()
+      stopRfMcpPolling()
+      await fetchRfMcpStatus()
+    } catch (e: any) {
+      rfMcpError.value = e.response?.data?.detail || 'Stop failed'
+      throw e
+    }
+  }
+
+  function startRfMcpPolling() {
+    stopRfMcpPolling()
+    rfMcpPolling.value = setInterval(async () => {
+      await fetchRfMcpStatus()
+      if (rfMcpStatus.value === 'running' || rfMcpStatus.value === 'error' || rfMcpStatus.value === 'stopped') {
+        stopRfMcpPolling()
+      }
+    }, 2000)
+  }
+
+  function stopRfMcpPolling() {
+    if (rfMcpPolling.value) {
+      clearInterval(rfMcpPolling.value)
+      rfMcpPolling.value = null
+    }
+  }
+
+  // --- Xray bridge ---
+
+  async function exportToXray(content: string) {
+    return await aiApi.exportToXray(content)
+  }
+
+  async function importFromXray(xrayData: Record<string, unknown>) {
+    return await aiApi.importFromXray(xrayData)
+  }
+
   return {
     providers,
     activeJob,
@@ -130,6 +237,16 @@ export const useAiStore = defineStore('ai', () => {
     loading,
     defaultProvider,
     hasProviders,
+    rfMcpAvailable,
+    rfMcpUrl,
+    rfMcpStatus,
+    rfMcpRunning,
+    rfMcpPort,
+    rfMcpPid,
+    rfMcpEnvId,
+    rfMcpEnvName,
+    rfMcpError,
+    rfMcpInstalledVersion,
     fetchProviders,
     addProvider,
     editProvider,
@@ -141,5 +258,15 @@ export const useAiStore = defineStore('ai', () => {
     stopPolling,
     validateSpec,
     fetchDrift,
+    fetchRfKnowledgeStatus,
+    fetchRfMcpStatus,
+    setupRfMcpServer,
+    stopRfMcpServer,
+    startRfMcpPolling,
+    stopRfMcpPolling,
+    searchKeywords,
+    recommendLibraries,
+    exportToXray,
+    importFromXray,
   }
 })

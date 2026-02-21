@@ -1,8 +1,10 @@
 """Background tasks for AI generation and reverse-engineering."""
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
+import yaml
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
@@ -16,8 +18,8 @@ from src.ai.models import AiJob, AiProvider
 from src.ai.prompts import (
     SYSTEM_PROMPT_GENERATE,
     SYSTEM_PROMPT_REVERSE,
-    build_generate_user_prompt,
     build_reverse_user_prompt,
+    enrich_generate_prompt,
 )
 from src.repos.models import Repository
 
@@ -29,6 +31,121 @@ _sync_engine = create_engine(_sync_url)
 
 def _get_sync_session() -> Session:
     return Session(_sync_engine)
+
+
+def _run_async(coro):
+    """Run an async coroutine from a sync context (background thread)."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # We're in a thread with a running loop — create a new one
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                return pool.submit(asyncio.run, coro).result()
+        return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
+
+
+async def _gather_rf_knowledge(spec_content: str) -> tuple[list[dict], list[str]]:
+    """Gather keyword docs and library recommendations from rf-mcp.
+
+    Returns (keyword_docs, library_recommendations). Both empty if rf-mcp unavailable.
+    """
+    from src.ai import rf_knowledge
+
+    if not rf_knowledge.is_available():
+        return [], []
+
+    keyword_docs: list[dict] = []
+    library_recs: list[str] = []
+
+    try:
+        spec = yaml.safe_load(spec_content)
+        if not isinstance(spec, dict):
+            return [], []
+
+        # Extract libraries and step text for keyword search
+        metadata = spec.get("metadata", {})
+        libraries = metadata.get("libraries", [])
+        description = metadata.get("title", "")
+
+        # Gather steps from all test cases
+        all_steps: list[str] = []
+        for ts in spec.get("test_sets", []):
+            for tc in ts.get("test_cases", []):
+                for step in tc.get("steps", []):
+                    if isinstance(step, str):
+                        all_steps.append(step)
+                    elif isinstance(step, dict):
+                        all_steps.append(step.get("action", ""))
+
+        # Search keywords based on first few steps
+        search_terms = all_steps[:5]
+        for term in search_terms:
+            results = await rf_knowledge.search_keywords(term)
+            keyword_docs.extend(results[:3])  # Limit per search
+
+        # Deduplicate keyword_docs by name
+        seen = set()
+        unique_docs = []
+        for kw in keyword_docs:
+            name = kw.get("name", "")
+            if name not in seen:
+                seen.add(name)
+                unique_docs.append(kw)
+        keyword_docs = unique_docs[:15]  # Cap total
+
+        # Get library recommendations
+        if description or all_steps:
+            rec_text = description
+            if all_steps:
+                rec_text += "\nSteps: " + "; ".join(all_steps[:10])
+            library_recs = await rf_knowledge.recommend_libraries(rec_text)
+
+    except Exception:
+        logger.debug("rf-mcp enrichment failed, continuing without it", exc_info=True)
+
+    return keyword_docs, library_recs
+
+
+async def _gather_reverse_knowledge(robot_content: str) -> list[dict]:
+    """Gather keyword docs for reverse-engineering enrichment."""
+    from src.ai import rf_knowledge
+
+    if not rf_knowledge.is_available():
+        return []
+
+    keyword_docs: list[dict] = []
+    try:
+        # Extract keyword names from robot content (basic parsing)
+        keywords: list[str] = []
+        for line in robot_content.splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and not stripped.startswith("***"):
+                # Lines that start with spaces are keyword calls
+                if line.startswith("    ") and stripped:
+                    # First word/phrase before spaces is often the keyword
+                    parts = stripped.split("    ")
+                    if parts:
+                        keywords.append(parts[0].strip())
+
+        # Search for up to 5 unique keywords
+        seen = set()
+        for kw in keywords[:10]:
+            if kw in seen or not kw:
+                continue
+            seen.add(kw)
+            doc = await rf_knowledge.get_keyword_docs(kw)
+            if doc:
+                keyword_docs.append({"name": kw, "doc": doc})
+            if len(keyword_docs) >= 5:
+                break
+
+    except Exception:
+        logger.debug("rf-mcp reverse enrichment failed", exc_info=True)
+
+    return keyword_docs
 
 
 def run_generate(job_id: int) -> None:
@@ -65,8 +182,6 @@ def run_generate(job_id: int) -> None:
                     existing_robot = target_file.read_text(encoding="utf-8")
             else:
                 # Derive target_path from spec metadata
-                import yaml
-
                 spec = yaml.safe_load(spec_content)
                 target = spec.get("metadata", {}).get("target_file")
                 if target:
@@ -75,7 +190,14 @@ def run_generate(job_id: int) -> None:
                     if target_file.exists():
                         existing_robot = target_file.read_text(encoding="utf-8")
 
-            user_prompt = build_generate_user_prompt(spec_content, existing_robot)
+            # Gather rf-mcp enrichment (optional)
+            keyword_docs, library_recs = _run_async(
+                _gather_rf_knowledge(spec_content)
+            )
+
+            user_prompt = enrich_generate_prompt(
+                spec_content, existing_robot, keyword_docs, library_recs
+            )
             result = call_llm(provider, SYSTEM_PROMPT_GENERATE, user_prompt)
 
             # Strip markdown fences if LLM wrapped them
@@ -123,7 +245,21 @@ def run_reverse(job_id: int) -> None:
             robot_file = repo_path / job.spec_path  # spec_path stores source .robot path
             robot_content = robot_file.read_text(encoding="utf-8")
 
+            # Gather rf-mcp keyword docs for better natural-language step generation
+            keyword_docs = _run_async(_gather_reverse_knowledge(robot_content))
+
             user_prompt = build_reverse_user_prompt(robot_content)
+
+            # Append keyword docs if available
+            if keyword_docs:
+                docs_text = "\n".join(
+                    f"- {kw.get('name', '')}: {kw.get('doc', '')}" for kw in keyword_docs
+                )
+                user_prompt += (
+                    "\n\n--- RF Keyword Documentation (via rf-mcp by Many Kasiriha) ---\n\n"
+                    + docs_text
+                )
+
             result = call_llm(provider, SYSTEM_PROMPT_REVERSE, user_prompt)
 
             content = _strip_code_fences(result.content)

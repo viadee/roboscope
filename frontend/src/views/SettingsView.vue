@@ -9,11 +9,15 @@ import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import ProviderConfig from '@/components/ai/ProviderConfig.vue'
+import { useAiStore } from '@/stores/ai.store'
+import { useEnvironmentsStore } from '@/stores/environments.store'
 import type { AppSetting, User, Role, DockerStatus } from '@/types/domain.types'
 import { formatDateTime } from '@/utils/formatDate'
 
 const toast = useToast()
 const { t } = useI18n()
+const aiStore = useAiStore()
+const envStore = useEnvironmentsStore()
 
 const allRoles: Role[] = ['viewer', 'runner', 'editor', 'admin']
 
@@ -45,6 +49,52 @@ const showResetPwDialog = ref(false)
 const resettingPw = ref(false)
 const resetPwUser = ref<{ id: number; username: string }>({ id: 0, username: '' })
 const resetPwValue = ref('')
+
+// rf-mcp server
+const rfMcpEnvId = ref<number | null>(null)
+const rfMcpSetupLoading = ref(false)
+
+async function loadRfMcpTab() {
+  await Promise.all([
+    aiStore.fetchRfMcpStatus(),
+    envStore.fetchEnvironments(),
+  ])
+  if (aiStore.rfMcpEnvId) {
+    rfMcpEnvId.value = aiStore.rfMcpEnvId
+  } else if (!rfMcpEnvId.value) {
+    // Auto-select first environment with a venv
+    const withVenv = envStore.environments.filter(e => e.venv_path)
+    if (withVenv.length > 0) {
+      rfMcpEnvId.value = withVenv[0].id
+    }
+  }
+}
+
+async function handleRfMcpSetup() {
+  if (!rfMcpEnvId.value) {
+    toast.error(t('ai.rfMcp.selectEnvFirst'))
+    return
+  }
+  rfMcpSetupLoading.value = true
+  try {
+    await aiStore.setupRfMcpServer(rfMcpEnvId.value)
+    toast.success(t('ai.rfMcp.setupStarted'))
+  } catch (e: any) {
+    const detail = e.response?.data?.detail || t('ai.rfMcp.setupFailed')
+    toast.error(detail)
+  } finally {
+    rfMcpSetupLoading.value = false
+  }
+}
+
+async function handleRfMcpStop() {
+  try {
+    await aiStore.stopRfMcpServer()
+    toast.success(t('ai.rfMcp.stopped'))
+  } catch {
+    toast.error(t('ai.rfMcp.stopFailed'))
+  }
+}
 
 onMounted(async () => {
   loading.value = true
@@ -208,7 +258,7 @@ function formatSize(bytes: number): string {
       <button class="tab" :class="{ active: activeTab === 'docker' }" @click="activeTab = 'docker'; if (!dockerStatus) loadDockerStatus()">
         {{ t('settings.docker.docker') }}
       </button>
-      <button class="tab" :class="{ active: activeTab === 'ai' }" @click="activeTab = 'ai'">
+      <button class="tab" :class="{ active: activeTab === 'ai' }" @click="activeTab = 'ai'; loadRfMcpTab()">
         {{ t('ai.settingsTab') }}
       </button>
     </div>
@@ -387,6 +437,93 @@ function formatSize(bytes: number): string {
 
     <!-- AI & Generation Tab -->
     <template v-else-if="activeTab === 'ai'">
+      <!-- rf-mcp Server Management -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3>{{ t('ai.rfMcp.title') }}</h3>
+          <BaseBadge
+            :variant="aiStore.rfMcpRunning ? 'success' : aiStore.rfMcpStatus === 'error' ? 'danger' : 'default'"
+          >
+            {{ aiStore.rfMcpRunning ? t('ai.rfMcp.running')
+              : aiStore.rfMcpStatus === 'installing' ? t('ai.rfMcp.installing')
+              : aiStore.rfMcpStatus === 'starting' ? t('ai.rfMcp.starting')
+              : aiStore.rfMcpStatus === 'error' ? t('ai.rfMcp.error')
+              : t('ai.rfMcp.notRunning') }}
+          </BaseBadge>
+        </div>
+        <div style="padding: 16px 20px">
+          <p class="text-muted text-sm mb-3">{{ t('ai.rfMcp.description') }}</p>
+
+          <!-- Status info when running -->
+          <div v-if="aiStore.rfMcpRunning" class="rf-mcp-info mb-3">
+            <div class="setting-row">
+              <div class="setting-info"><strong>URL</strong></div>
+              <code class="text-sm">{{ aiStore.rfMcpUrl }}</code>
+            </div>
+            <div class="setting-row">
+              <div class="setting-info"><strong>{{ t('ai.rfMcp.environment') }}</strong></div>
+              <span class="text-sm">{{ aiStore.rfMcpEnvName }}</span>
+            </div>
+            <div v-if="aiStore.rfMcpInstalledVersion" class="setting-row">
+              <div class="setting-info"><strong>{{ t('ai.rfMcp.version') }}</strong></div>
+              <span class="text-sm">{{ aiStore.rfMcpInstalledVersion }}</span>
+            </div>
+            <div class="setting-row">
+              <div class="setting-info"><strong>PID</strong></div>
+              <span class="text-sm">{{ aiStore.rfMcpPid }}</span>
+            </div>
+          </div>
+
+          <!-- Error message -->
+          <div v-if="aiStore.rfMcpStatus === 'error' && aiStore.rfMcpError" class="alert alert-danger mb-3">
+            {{ aiStore.rfMcpError }}
+          </div>
+
+          <!-- Installing/starting spinner -->
+          <div v-if="aiStore.rfMcpStatus === 'installing' || aiStore.rfMcpStatus === 'starting'" class="rf-mcp-progress mb-3">
+            <BaseSpinner />
+            <span class="text-muted text-sm">
+              {{ aiStore.rfMcpStatus === 'installing' ? t('ai.rfMcp.installingMsg') : t('ai.rfMcp.startingMsg') }}
+            </span>
+          </div>
+
+          <!-- Environment selector + action (when not running) -->
+          <div v-if="!aiStore.rfMcpRunning && aiStore.rfMcpStatus !== 'installing' && aiStore.rfMcpStatus !== 'starting'" class="rf-mcp-setup">
+            <div class="form-group mb-3">
+              <label class="form-label">{{ t('ai.rfMcp.environment') }}</label>
+              <select v-model="rfMcpEnvId" class="form-select" style="max-width: 300px">
+                <option :value="null" disabled>{{ t('ai.rfMcp.selectEnv') }}</option>
+                <option v-for="env in envStore.environments.filter(e => e.venv_path)" :key="env.id" :value="env.id">
+                  {{ env.name }}
+                </option>
+              </select>
+              <p v-if="!envStore.environments.filter(e => e.venv_path).length" class="text-warning text-sm mt-1">
+                {{ t('ai.rfMcp.noEnvs') }}
+              </p>
+            </div>
+            <BaseButton
+              :disabled="!rfMcpEnvId"
+              :loading="rfMcpSetupLoading"
+              @click="handleRfMcpSetup"
+            >
+              {{ t('ai.rfMcp.installAndStart') }}
+            </BaseButton>
+          </div>
+
+          <!-- Stop button when running -->
+          <BaseButton v-if="aiStore.rfMcpRunning" variant="danger" @click="handleRfMcpStop">
+            {{ t('ai.rfMcp.stop') }}
+          </BaseButton>
+
+          <!-- Attribution -->
+          <p class="text-muted text-sm mt-3">
+            <a href="https://github.com/manykarim/rf-mcp" target="_blank" rel="noopener noreferrer" class="rf-mcp-link">rf-mcp</a>
+            {{ t('ai.rfMcpBy') }}
+          </p>
+        </div>
+      </div>
+
+      <!-- LLM Providers -->
       <div class="card">
         <div class="card-header">
           <h3>{{ t('ai.settingsTitle') }}</h3>
@@ -516,4 +653,46 @@ function formatSize(bytes: number): string {
   display: flex;
   gap: 6px;
 }
+
+/* rf-mcp */
+.rf-mcp-info {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 4px 16px;
+}
+
+.rf-mcp-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.rf-mcp-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.rf-mcp-link:hover {
+  text-decoration: underline;
+}
+
+.alert-danger {
+  background: #fce4e4;
+  color: var(--color-danger);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.mb-3 { margin-bottom: 12px; }
+.mb-4 { margin-bottom: 16px; }
+.mt-1 { margin-top: 4px; }
+.mt-3 { margin-top: 12px; }
+.text-warning { color: var(--color-warning); }
 </style>

@@ -26,6 +26,7 @@ const selectedProviderId = ref<number | null>(null)
 const force = ref(false)
 const error = ref('')
 const accepted = ref(false)
+const rfMcpChecked = ref(false)
 
 const isRunning = computed(() =>
   aiStore.activeJob?.status === 'pending' || aiStore.activeJob?.status === 'running'
@@ -34,15 +35,18 @@ const isCompleted = computed(() => aiStore.activeJob?.status === 'completed')
 const isFailed = computed(() => aiStore.activeJob?.status === 'failed')
 const resultPreview = computed(() => aiStore.activeJob?.result_preview || '')
 
-watch(() => props.modelValue, (v) => {
+watch(() => props.modelValue, async (v) => {
   if (v) {
     error.value = ''
     accepted.value = false
+    rfMcpChecked.value = false
     aiStore.activeJob = null
     aiStore.fetchProviders()
     if (aiStore.defaultProvider) {
       selectedProviderId.value = aiStore.defaultProvider.id
     }
+    await aiStore.fetchRfKnowledgeStatus()
+    rfMcpChecked.value = true
   } else {
     aiStore.stopPolling()
   }
@@ -120,6 +124,21 @@ function close() {
           <input v-model="force" type="checkbox" />
           {{ t('ai.forceOverwrite') }}
         </label>
+      </div>
+
+      <!-- rf-mcp status -->
+      <div v-if="rfMcpChecked" class="rf-mcp-status" :class="{ active: aiStore.rfMcpAvailable }">
+        <span class="rf-mcp-dot"></span>
+        <span v-if="aiStore.rfMcpAvailable" class="rf-mcp-text">
+          {{ t('ai.rfMcpConnected') }}
+        </span>
+        <span v-else class="rf-mcp-text">
+          {{ t('ai.rfMcpNotConfigured') }}
+        </span>
+        <a href="https://github.com/manykarim/rf-mcp" target="_blank" rel="noopener noreferrer" class="rf-mcp-link">
+          rf-mcp
+        </a>
+        <span class="rf-mcp-author">{{ t('ai.rfMcpBy') }}</span>
       </div>
 
       <div v-if="error" class="alert alert-danger">{{ error }}</div>
@@ -269,4 +288,54 @@ function close() {
 .text-muted { color: var(--color-text-muted); }
 .text-sm { font-size: 12px; }
 .mt-1 { margin-top: 4px; }
+
+/* rf-mcp status */
+.rf-mcp-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-bottom: 12px;
+}
+
+.rf-mcp-status.active {
+  background: #e8f5e9;
+  border-color: #c8e6c9;
+}
+
+.rf-mcp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.rf-mcp-status.active .rf-mcp-dot {
+  background: var(--color-success, #2e7d32);
+}
+
+.rf-mcp-text {
+  flex-shrink: 0;
+}
+
+.rf-mcp-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.rf-mcp-link:hover {
+  text-decoration: underline;
+}
+
+.rf-mcp-author {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
 </style>

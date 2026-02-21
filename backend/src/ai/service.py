@@ -170,7 +170,7 @@ def parse_spec(content: str) -> dict:
 
 
 def validate_spec(content: str) -> tuple[bool, list[str], int]:
-    """Validate a .roboscope YAML spec.
+    """Validate a .roboscope YAML spec (v1 and v2).
 
     Returns (is_valid, error_messages, test_count).
     """
@@ -187,6 +187,8 @@ def validate_spec(content: str) -> tuple[bool, list[str], int]:
 
     if "version" not in spec:
         errors.append("Missing 'version' field")
+    elif str(spec["version"]) not in ("1", "2"):
+        errors.append("version must be '1' or '2'")
 
     metadata = spec.get("metadata")
     if not isinstance(metadata, dict):
@@ -196,6 +198,10 @@ def validate_spec(content: str) -> tuple[bool, list[str], int]:
             errors.append("metadata.title is required")
         if "target_file" not in metadata:
             errors.append("metadata.target_file is required")
+        # v2: external_id is optional string
+        ext_id = metadata.get("external_id")
+        if ext_id is not None and not isinstance(ext_id, str):
+            errors.append("metadata.external_id must be a string")
 
     test_sets = spec.get("test_sets")
     if not isinstance(test_sets, list):
@@ -207,6 +213,17 @@ def validate_spec(content: str) -> tuple[bool, list[str], int]:
                 continue
             if "name" not in ts:
                 errors.append(f"test_sets[{i}].name is required")
+            # v2: external_id is optional string
+            ts_ext = ts.get("external_id")
+            if ts_ext is not None and not isinstance(ts_ext, str):
+                errors.append(f"test_sets[{i}].external_id must be a string")
+            # v2: preconditions is optional list of strings
+            ts_pre = ts.get("preconditions")
+            if ts_pre is not None:
+                if not isinstance(ts_pre, list):
+                    errors.append(f"test_sets[{i}].preconditions must be a list")
+                elif not all(isinstance(p, str) for p in ts_pre):
+                    errors.append(f"test_sets[{i}].preconditions must contain only strings")
             cases = ts.get("test_cases")
             if not isinstance(cases, list):
                 errors.append(f"test_sets[{i}].test_cases must be a list")
@@ -217,6 +234,46 @@ def validate_spec(content: str) -> tuple[bool, list[str], int]:
                         continue
                     if "name" not in tc:
                         errors.append(f"test_sets[{i}].test_cases[{j}].name is required")
+                    # v2: external_id
+                    tc_ext = tc.get("external_id")
+                    if tc_ext is not None and not isinstance(tc_ext, str):
+                        errors.append(
+                            f"test_sets[{i}].test_cases[{j}].external_id must be a string"
+                        )
+                    # v2: preconditions
+                    tc_pre = tc.get("preconditions")
+                    if tc_pre is not None:
+                        if not isinstance(tc_pre, list):
+                            errors.append(
+                                f"test_sets[{i}].test_cases[{j}].preconditions must be a list"
+                            )
+                        elif not all(isinstance(p, str) for p in tc_pre):
+                            errors.append(
+                                f"test_sets[{i}].test_cases[{j}].preconditions must "
+                                f"contain only strings"
+                            )
+                    # v2: steps can be strings or structured objects
+                    steps = tc.get("steps")
+                    if steps is not None:
+                        if not isinstance(steps, list):
+                            errors.append(
+                                f"test_sets[{i}].test_cases[{j}].steps must be a list"
+                            )
+                        else:
+                            for k, step in enumerate(steps):
+                                if isinstance(step, str):
+                                    continue
+                                if isinstance(step, dict):
+                                    if "action" not in step:
+                                        errors.append(
+                                            f"test_sets[{i}].test_cases[{j}].steps[{k}]: "
+                                            f"structured step must have 'action'"
+                                        )
+                                else:
+                                    errors.append(
+                                        f"test_sets[{i}].test_cases[{j}].steps[{k}]: "
+                                        f"step must be a string or object with 'action'"
+                                    )
                     test_count += 1
 
     return len(errors) == 0, errors, test_count

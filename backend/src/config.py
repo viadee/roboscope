@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
+    # rf-mcp (optional Robot Framework knowledge server)
+    RF_MCP_URL: str = ""
+    RF_MCP_TIMEOUT: int = 30
+    RF_MCP_PORT: int = 9090
+
     # Retention
     REPORT_RETENTION_DAYS: int = 90
     LOG_RETENTION_DAYS: int = 30

@@ -78,12 +78,24 @@ const libraryInputRef = ref<HTMLInputElement | null>(null)
 const libraryDropdownRef = ref<HTMLElement | null>(null)
 
 // --- Form State ---
+
+// v2: structured step
+interface StructuredStep {
+  action: string
+  data: string
+  expected_result: string
+}
+
+type StepItem = string | StructuredStep
+
 interface TestCase {
   name: string
   description: string
   priority: 'high' | 'medium' | 'low'
-  steps: string[]
+  steps: StepItem[]
   expected_result: string
+  external_id: string
+  preconditions: string[]
 }
 
 interface TestSet {
@@ -93,6 +105,8 @@ interface TestSet {
   setup: string
   teardown: string
   test_cases: TestCase[]
+  external_id: string
+  preconditions: string[]
 }
 
 interface SpecForm {
@@ -106,12 +120,13 @@ interface SpecForm {
     target_file: string
     environment: string | null
     libraries: string[]
+    external_id: string
   }
   test_sets: TestSet[]
 }
 
 const form = reactive<SpecForm>({
-  version: '1',
+  version: '2',
   metadata: {
     title: '',
     author: '',
@@ -121,6 +136,7 @@ const form = reactive<SpecForm>({
     target_file: '',
     environment: null,
     libraries: [],
+    external_id: '',
   },
   test_sets: [],
 })
@@ -129,6 +145,8 @@ const form = reactive<SpecForm>({
 const newLibrary = ref('')
 // New tag inputs per test set
 const newTagInputs = ref<Map<number, string>>(new Map())
+// New precondition inputs per test set and test case
+const newPreconditionInputs = ref<Map<string, string>>(new Map())
 
 // --- Computed ---
 const testCount = computed(() => {
@@ -279,19 +297,43 @@ function yamlLanguage() {
   })
 }
 
+// --- Step helpers ---
+function isStructuredStep(step: StepItem): step is StructuredStep {
+  return typeof step === 'object' && step !== null && 'action' in step
+}
+
+function getStepAction(step: StepItem): string {
+  return isStructuredStep(step) ? step.action : step
+}
+
+function toggleStepType(tsIndex: number, tcIndex: number, stepIdx: number) {
+  const step = form.test_sets[tsIndex].test_cases[tcIndex].steps[stepIdx]
+  if (isStructuredStep(step)) {
+    // Convert to simple string
+    form.test_sets[tsIndex].test_cases[tcIndex].steps[stepIdx] = step.action
+  } else {
+    // Convert to structured
+    form.test_sets[tsIndex].test_cases[tcIndex].steps[stepIdx] = {
+      action: step,
+      data: '',
+      expected_result: '',
+    }
+  }
+}
+
 // --- Parse/Serialize ---
 function parseYamlToForm(yamlContent: string): boolean {
   try {
     const parsed = yaml.load(yamlContent) as any
     if (!parsed || typeof parsed !== 'object') {
-      form.version = '1'
-      form.metadata = { title: '', author: '', created: '', last_generated: null, generation_hash: null, target_file: '', environment: null, libraries: [] }
+      form.version = '2'
+      form.metadata = { title: '', author: '', created: '', last_generated: null, generation_hash: null, target_file: '', environment: null, libraries: [], external_id: '' }
       form.test_sets = []
       parseError.value = null
       return true
     }
 
-    form.version = String(parsed.version || '1')
+    form.version = String(parsed.version || '2')
     const m = parsed.metadata || {}
     form.metadata.title = m.title || ''
     form.metadata.author = m.author || ''
@@ -301,6 +343,7 @@ function parseYamlToForm(yamlContent: string): boolean {
     form.metadata.target_file = m.target_file || ''
     form.metadata.environment = m.environment || null
     form.metadata.libraries = Array.isArray(m.libraries) ? [...m.libraries] : []
+    form.metadata.external_id = m.external_id || ''
 
     form.test_sets = Array.isArray(parsed.test_sets) ? parsed.test_sets.map((ts: any) => ({
       name: ts.name || '',
@@ -308,12 +351,26 @@ function parseYamlToForm(yamlContent: string): boolean {
       tags: Array.isArray(ts.tags) ? [...ts.tags] : [],
       setup: ts.setup || '',
       teardown: ts.teardown || '',
+      external_id: ts.external_id || '',
+      preconditions: Array.isArray(ts.preconditions) ? [...ts.preconditions] : [],
       test_cases: Array.isArray(ts.test_cases) ? ts.test_cases.map((tc: any) => ({
         name: tc.name || '',
         description: tc.description || '',
         priority: ['high', 'medium', 'low'].includes(tc.priority) ? tc.priority : 'medium',
-        steps: Array.isArray(tc.steps) ? [...tc.steps] : [],
+        steps: Array.isArray(tc.steps) ? tc.steps.map((step: any) => {
+          if (typeof step === 'string') return step
+          if (typeof step === 'object' && step !== null && 'action' in step) {
+            return {
+              action: step.action || '',
+              data: step.data || '',
+              expected_result: step.expected_result || '',
+            }
+          }
+          return String(step)
+        }) : [],
         expected_result: tc.expected_result || '',
+        external_id: tc.external_id || '',
+        preconditions: Array.isArray(tc.preconditions) ? [...tc.preconditions] : [],
       })) : [],
     })) : []
 
@@ -340,6 +397,11 @@ function serializeFormToYaml(): string {
     },
   }
 
+  // v2: external_id at metadata level
+  if (form.metadata.external_id) {
+    obj.metadata.external_id = form.metadata.external_id
+  }
+
   // Clean metadata: remove undefined/null keys for cleanliness
   if (!obj.metadata.last_generated) delete obj.metadata.last_generated
   if (!obj.metadata.generation_hash) delete obj.metadata.generation_hash
@@ -353,12 +415,24 @@ function serializeFormToYaml(): string {
       if (ts.tags.length) tsObj.tags = [...ts.tags]
       if (ts.setup) tsObj.setup = ts.setup
       if (ts.teardown) tsObj.teardown = ts.teardown
+      if (ts.external_id) tsObj.external_id = ts.external_id
+      if (ts.preconditions.length) tsObj.preconditions = [...ts.preconditions]
       if (ts.test_cases.length) {
         tsObj.test_cases = ts.test_cases.map(tc => {
           const tcObj: any = { name: tc.name }
           if (tc.description) tcObj.description = tc.description
           if (tc.priority && tc.priority !== 'medium') tcObj.priority = tc.priority
-          if (tc.steps.length) tcObj.steps = [...tc.steps]
+          if (tc.external_id) tcObj.external_id = tc.external_id
+          if (tc.preconditions.length) tcObj.preconditions = [...tc.preconditions]
+          if (tc.steps.length) {
+            tcObj.steps = tc.steps.map(step => {
+              if (typeof step === 'string') return step
+              const stepObj: any = { action: step.action }
+              if (step.data) stepObj.data = step.data
+              if (step.expected_result) stepObj.expected_result = step.expected_result
+              return stepObj
+            })
+          }
           if (tc.expected_result) tcObj.expected_result = tc.expected_result
           return tcObj
         })
@@ -519,6 +593,19 @@ function removeTag(tsIndex: number, tagIndex: number) {
   form.test_sets[tsIndex].tags.splice(tagIndex, 1)
 }
 
+// --- Preconditions ---
+function addPrecondition(key: string, target: string[]) {
+  const text = (newPreconditionInputs.value.get(key) || '').trim()
+  if (text && !target.includes(text)) {
+    target.push(text)
+  }
+  newPreconditionInputs.value.set(key, '')
+}
+
+function removePrecondition(arr: string[], index: number) {
+  arr.splice(index, 1)
+}
+
 // --- Test Sets ---
 function addTestSet() {
   form.test_sets.push({
@@ -528,6 +615,8 @@ function addTestSet() {
     setup: '',
     teardown: '',
     test_cases: [],
+    external_id: '',
+    preconditions: [],
   })
 }
 
@@ -552,6 +641,8 @@ function addTestCase(tsIndex: number) {
     priority: 'medium',
     steps: [],
     expected_result: '',
+    external_id: '',
+    preconditions: [],
   })
 }
 
@@ -592,6 +683,17 @@ function moveStep(tsIndex: number, tcIndex: number, stepIndex: number, direction
   const temp = steps[stepIndex]
   steps[stepIndex] = steps[newIndex]
   steps[newIndex] = temp
+}
+
+function updateSimpleStep(tsIndex: number, tcIndex: number, stepIdx: number, value: string) {
+  form.test_sets[tsIndex].test_cases[tcIndex].steps[stepIdx] = value
+}
+
+function updateStructuredStep(tsIndex: number, tcIndex: number, stepIdx: number, field: 'action' | 'data' | 'expected_result', value: string) {
+  const step = form.test_sets[tsIndex].test_cases[tcIndex].steps[stepIdx]
+  if (isStructuredStep(step)) {
+    (step as any)[field] = value
+  }
 }
 
 // --- Initialize ---
@@ -708,7 +810,7 @@ watch(() => props.content, (newContent) => {
             </div>
             <div class="form-group" style="width: 80px">
               <label class="form-label">Version</label>
-              <input v-model="form.version" class="form-input" placeholder="1" />
+              <input v-model="form.version" class="form-input" placeholder="2" />
             </div>
           </div>
           <div class="form-row">
@@ -732,6 +834,13 @@ watch(() => props.content, (newContent) => {
                   {{ env.name }}{{ env.is_default ? ` (${t('ai.specEditor.defaultEnvironment')})` : '' }}
                 </option>
               </select>
+            </div>
+          </div>
+          <!-- v2: External ID -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">{{ t('ai.specEditor.externalId') }}</label>
+              <input v-model="form.metadata.external_id" class="form-input" :placeholder="t('ai.specEditor.externalIdPlaceholder')" />
             </div>
           </div>
           <div class="form-group">
@@ -807,6 +916,10 @@ watch(() => props.content, (newContent) => {
                 <label class="form-label">{{ t('ai.specEditor.name') }} <span class="required">*</span></label>
                 <input v-model="ts.name" class="form-input" :placeholder="t('ai.specEditor.testSetNamePlaceholder')" />
               </div>
+              <div class="form-group" style="width: 180px">
+                <label class="form-label">{{ t('ai.specEditor.externalId') }}</label>
+                <input v-model="ts.external_id" class="form-input" :placeholder="t('ai.specEditor.externalIdPlaceholder')" />
+              </div>
             </div>
             <div class="form-group">
               <label class="form-label">{{ t('ai.specEditor.description') }}</label>
@@ -830,6 +943,27 @@ watch(() => props.content, (newContent) => {
                     @keydown.enter.prevent="addTag(tsIndex)"
                   />
                   <button v-if="(newTagInputs.get(tsIndex) || '').trim()" class="chip-add-btn" @click="addTag(tsIndex)">+</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- v2: Preconditions -->
+            <div class="form-group">
+              <label class="form-label">{{ t('ai.specEditor.preconditions') }}</label>
+              <div class="chips-container">
+                <span v-for="(pre, preIdx) in ts.preconditions" :key="preIdx" class="chip chip-precondition">
+                  {{ pre }}
+                  <button class="chip-remove" @click="removePrecondition(ts.preconditions, preIdx)">&times;</button>
+                </span>
+                <div class="chip-input-wrapper">
+                  <input
+                    :value="newPreconditionInputs.get(`ts-${tsIndex}`) || ''"
+                    @input="newPreconditionInputs.set(`ts-${tsIndex}`, ($event.target as HTMLInputElement).value)"
+                    class="chip-input"
+                    :placeholder="t('ai.specEditor.addPrecondition')"
+                    @keydown.enter.prevent="addPrecondition(`ts-${tsIndex}`, ts.preconditions)"
+                  />
+                  <button v-if="(newPreconditionInputs.get(`ts-${tsIndex}`) || '').trim()" class="chip-add-btn" @click="addPrecondition(`ts-${tsIndex}`, ts.preconditions)">+</button>
                 </div>
               </div>
             </div>
@@ -884,27 +1018,93 @@ watch(() => props.content, (newContent) => {
                         <option value="low">{{ t('ai.specEditor.priorityLow') }}</option>
                       </select>
                     </div>
+                    <div class="form-group" style="width: 180px">
+                      <label class="form-label">{{ t('ai.specEditor.externalId') }}</label>
+                      <input v-model="tc.external_id" class="form-input" :placeholder="t('ai.specEditor.externalIdPlaceholder')" />
+                    </div>
                   </div>
                   <div class="form-group">
                     <label class="form-label">{{ t('ai.specEditor.description') }}</label>
                     <textarea v-model="tc.description" class="form-input form-textarea" rows="2" :placeholder="t('ai.specEditor.descriptionPlaceholder')"></textarea>
                   </div>
 
-                  <!-- Steps -->
+                  <!-- v2: Test case preconditions -->
+                  <div class="form-group">
+                    <label class="form-label">{{ t('ai.specEditor.preconditions') }}</label>
+                    <div class="chips-container">
+                      <span v-for="(pre, preIdx) in tc.preconditions" :key="preIdx" class="chip chip-precondition">
+                        {{ pre }}
+                        <button class="chip-remove" @click="removePrecondition(tc.preconditions, preIdx)">&times;</button>
+                      </span>
+                      <div class="chip-input-wrapper">
+                        <input
+                          :value="newPreconditionInputs.get(`tc-${tsIndex}-${tcIndex}`) || ''"
+                          @input="newPreconditionInputs.set(`tc-${tsIndex}-${tcIndex}`, ($event.target as HTMLInputElement).value)"
+                          class="chip-input"
+                          :placeholder="t('ai.specEditor.addPrecondition')"
+                          @keydown.enter.prevent="addPrecondition(`tc-${tsIndex}-${tcIndex}`, tc.preconditions)"
+                        />
+                        <button v-if="(newPreconditionInputs.get(`tc-${tsIndex}-${tcIndex}`) || '').trim()" class="chip-add-btn" @click="addPrecondition(`tc-${tsIndex}-${tcIndex}`, tc.preconditions)">+</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Steps (v2: mixed string + structured) -->
                   <div class="form-group">
                     <label class="form-label">{{ t('ai.specEditor.steps') }}</label>
                     <div class="steps-list">
-                      <div v-for="(step, stepIdx) in tc.steps" :key="stepIdx" class="step-row">
-                        <span class="step-number">{{ stepIdx + 1 }}.</span>
-                        <input
-                          :value="step"
-                          @input="tc.steps[stepIdx] = ($event.target as HTMLInputElement).value"
-                          class="form-input flex-1"
-                          :placeholder="t('ai.specEditor.stepPlaceholder')"
-                        />
-                        <button class="step-btn" @click="moveStep(tsIndex, tcIndex, stepIdx, -1)" :disabled="stepIdx === 0" title="Move up">↑</button>
-                        <button class="step-btn" @click="moveStep(tsIndex, tcIndex, stepIdx, 1)" :disabled="stepIdx === tc.steps.length - 1" title="Move down">↓</button>
-                        <button class="step-btn danger" @click="removeStep(tsIndex, tcIndex, stepIdx)" :title="t('common.delete')">&times;</button>
+                      <div v-for="(step, stepIdx) in tc.steps" :key="stepIdx" class="step-row-wrapper">
+                        <div class="step-row">
+                          <span class="step-number">{{ stepIdx + 1 }}.</span>
+                          <template v-if="!isStructuredStep(step)">
+                            <input
+                              :value="step as string"
+                              @input="updateSimpleStep(tsIndex, tcIndex, stepIdx, ($event.target as HTMLInputElement).value)"
+                              class="form-input flex-1"
+                              :placeholder="t('ai.specEditor.stepPlaceholder')"
+                            />
+                          </template>
+                          <template v-else>
+                            <input
+                              :value="(step as StructuredStep).action"
+                              @input="updateStructuredStep(tsIndex, tcIndex, stepIdx, 'action', ($event.target as HTMLInputElement).value)"
+                              class="form-input flex-1"
+                              :placeholder="t('ai.specEditor.stepActionPlaceholder')"
+                            />
+                          </template>
+                          <button
+                            class="step-btn"
+                            :class="{ active: isStructuredStep(step) }"
+                            @click="toggleStepType(tsIndex, tcIndex, stepIdx)"
+                            :title="t('ai.specEditor.toggleStructured')"
+                          >
+                            &#9776;
+                          </button>
+                          <button class="step-btn" @click="moveStep(tsIndex, tcIndex, stepIdx, -1)" :disabled="stepIdx === 0" title="Move up">↑</button>
+                          <button class="step-btn" @click="moveStep(tsIndex, tcIndex, stepIdx, 1)" :disabled="stepIdx === tc.steps.length - 1" title="Move down">↓</button>
+                          <button class="step-btn danger" @click="removeStep(tsIndex, tcIndex, stepIdx)" :title="t('common.delete')">&times;</button>
+                        </div>
+                        <!-- Structured step extra fields -->
+                        <div v-if="isStructuredStep(step)" class="structured-step-fields">
+                          <div class="form-group flex-1">
+                            <label class="form-label-sm">{{ t('ai.specEditor.stepData') }}</label>
+                            <input
+                              :value="(step as StructuredStep).data"
+                              @input="updateStructuredStep(tsIndex, tcIndex, stepIdx, 'data', ($event.target as HTMLInputElement).value)"
+                              class="form-input"
+                              :placeholder="t('ai.specEditor.stepDataPlaceholder')"
+                            />
+                          </div>
+                          <div class="form-group flex-1">
+                            <label class="form-label-sm">{{ t('ai.specEditor.stepExpectedResult') }}</label>
+                            <input
+                              :value="(step as StructuredStep).expected_result"
+                              @input="updateStructuredStep(tsIndex, tcIndex, stepIdx, 'expected_result', ($event.target as HTMLInputElement).value)"
+                              class="form-input"
+                              :placeholder="t('ai.specEditor.stepExpectedResultPlaceholder')"
+                            />
+                          </div>
+                        </div>
                       </div>
                       <button class="add-step-btn" @click="addStep(tsIndex, tcIndex)">
                         + {{ t('ai.specEditor.addStep') }}
@@ -1112,6 +1312,12 @@ watch(() => props.content, (newContent) => {
   color: var(--color-text-muted);
 }
 
+.form-label-sm {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
 .required {
   color: var(--color-danger);
 }
@@ -1161,6 +1367,11 @@ watch(() => props.content, (newContent) => {
 .chip-tag {
   background: #f0e6ff;
   color: #7c3aed;
+}
+
+.chip-precondition {
+  background: #fff3e0;
+  color: #e65100;
 }
 
 .chip-remove {
@@ -1344,6 +1555,12 @@ watch(() => props.content, (newContent) => {
   gap: 6px;
 }
 
+.step-row-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .step-row {
   display: flex;
   align-items: center;
@@ -1386,6 +1603,22 @@ watch(() => props.content, (newContent) => {
 .step-btn.danger:hover {
   color: var(--color-danger);
   border-color: var(--color-danger);
+}
+
+.step-btn.active {
+  background: rgba(59, 125, 216, 0.1);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.structured-step-fields {
+  display: flex;
+  gap: 8px;
+  margin-left: 26px;
+  padding: 6px 8px;
+  background: var(--color-bg);
+  border-radius: 6px;
+  border: 1px dashed var(--color-border);
 }
 
 .add-step-btn {

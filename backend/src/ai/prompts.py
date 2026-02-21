@@ -27,15 +27,18 @@ a complete, syntactically correct .robot file from a YAML test specification.
 - Add `[Setup]` / `[Teardown]` from the spec's test set setup/teardown
 - Add `[Documentation]` from the spec's descriptions
 - Generate sensible Robot Framework keywords for each natural-language step
+- Steps can be simple strings or structured objects with action/data/expected_result fields
+- For structured steps, focus on the 'action' field to generate the keyword
+- Ignore external_id and preconditions fields (they are for Xray/test management only)
 """
 
 SYSTEM_PROMPT_REVERSE = """\
 You are a Robot Framework test automation expert. Your task is to analyze \
-a .robot file and produce a YAML test specification in the .roboscope format.
+a .robot file and produce a YAML test specification in the .roboscope v2 format.
 
-## .roboscope YAML Format
+## .roboscope v2 YAML Format
 ```yaml
-version: "1"
+version: "2"
 metadata:
   title: "<descriptive title>"
   author: ""
@@ -64,10 +67,12 @@ test_sets:
 ```
 
 ## Instructions
+- Always use version: "2"
 - Group related test cases into test_sets by analyzing tags, setup/teardown, and naming
 - Convert Robot Framework keywords back into natural-language step descriptions
 - Infer priority from tags or naming conventions (smoke → high, etc.)
 - Extract libraries from *** Settings ***
+- Steps should be simple strings (natural language descriptions)
 - Output ONLY valid YAML, no explanations or markdown fences
 """
 
@@ -89,6 +94,49 @@ def build_generate_user_prompt(
 def build_reverse_user_prompt(robot_content: str) -> str:
     """Build the user prompt for robot→spec extraction."""
     return (
-        "Analyze this .robot file and produce a .roboscope YAML specification:\n\n"
+        "Analyze this .robot file and produce a .roboscope v2 YAML specification:\n\n"
         + robot_content
     )
+
+
+def enrich_generate_prompt(
+    spec_content: str,
+    existing_robot: str | None = None,
+    keyword_docs: list[dict] | None = None,
+    library_recommendations: list[str] | None = None,
+) -> str:
+    """Build an enriched user prompt for spec→robot generation.
+
+    When rf-mcp data is available, appends RF keyword documentation and
+    library recommendations to help the LLM generate better .robot code.
+
+    rf-mcp by Many Kasiriha — https://github.com/manykarim/rf-mcp
+    """
+    prompt = build_generate_user_prompt(spec_content, existing_robot)
+
+    enrichment_parts: list[str] = []
+
+    if keyword_docs:
+        docs_text = "\n".join(
+            f"- {kw.get('name', 'Unknown')} ({kw.get('library', '?')}): "
+            f"{kw.get('doc', 'No documentation')}"
+            for kw in keyword_docs
+        )
+        enrichment_parts.append(
+            f"## Relevant Robot Framework Keywords\n"
+            f"(sourced via rf-mcp by Many Kasiriha)\n\n{docs_text}"
+        )
+
+    if library_recommendations:
+        libs_text = ", ".join(library_recommendations)
+        enrichment_parts.append(
+            f"## Recommended Libraries\n"
+            f"(sourced via rf-mcp by Many Kasiriha)\n\n"
+            f"Consider using: {libs_text}"
+        )
+
+    if enrichment_parts:
+        prompt += "\n\n--- RF KNOWLEDGE ENRICHMENT ---\n\n"
+        prompt += "\n\n".join(enrichment_parts)
+
+    return prompt

@@ -23,8 +23,17 @@ from src.ai.schemas import (
     GenerateRequest,
     JobAcceptRequest,
     ReverseRequest,
+    RfKeywordSearchResponse,
+    RfKnowledgeStatusResponse,
+    RfMcpDetailedStatus,
+    RfMcpSetupRequest,
+    RfRecommendRequest,
+    RfRecommendResponse,
     ValidateSpecRequest,
     ValidateSpecResponse,
+    XrayExportRequest,
+    XrayImportRequest,
+    XrayImportResponse,
 )
 from src.ai.service import (
     check_drift,
@@ -293,6 +302,193 @@ def drift_check(
     repo = _get_repo(db, repo_id)
     results = check_drift(Path(repo.local_path))
     return DriftResponse(repository_id=repo_id, results=results)
+
+
+# ---------------------------------------------------------------------------
+# rf-mcp knowledge endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/rf-knowledge/status", response_model=RfKnowledgeStatusResponse)
+def rf_knowledge_status(
+    _current_user: User = Depends(get_current_user),
+):
+    """Check if the rf-mcp server is configured and available."""
+    from src.ai import rf_knowledge
+    from src.ai.rf_mcp_manager import get_effective_url
+
+    return RfKnowledgeStatusResponse(
+        available=rf_knowledge.is_available(),
+        url=get_effective_url(),
+    )
+
+
+@router.get("/rf-knowledge/keywords", response_model=RfKeywordSearchResponse)
+async def rf_knowledge_keywords(
+    q: str,
+    _current_user: User = Depends(get_current_user),
+):
+    """Search for Robot Framework keywords via rf-mcp."""
+    from src.ai import rf_knowledge
+
+    results = await rf_knowledge.search_keywords(q)
+    return RfKeywordSearchResponse(
+        results=[
+            {"name": r.get("name", ""), "library": r.get("library", ""), "doc": r.get("doc", "")}
+            for r in results
+        ]
+    )
+
+
+@router.post("/rf-knowledge/recommend", response_model=RfRecommendResponse)
+async def rf_knowledge_recommend(
+    data: RfRecommendRequest,
+    _current_user: User = Depends(get_current_user),
+):
+    """Get library recommendations for a test description via rf-mcp."""
+    from src.ai import rf_knowledge
+
+    libraries = await rf_knowledge.recommend_libraries(data.description)
+    return RfRecommendResponse(libraries=libraries)
+
+
+# ---------------------------------------------------------------------------
+# rf-mcp server management
+# ---------------------------------------------------------------------------
+
+
+@router.get("/rf-mcp/status", response_model=RfMcpDetailedStatus)
+def rf_mcp_status(
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Get detailed rf-mcp server status including install/running state."""
+    from src.ai import rf_mcp_manager
+
+    status = rf_mcp_manager.get_status()
+
+    # Resolve environment name if we have an env_id
+    env_name = None
+    env_id = status.get("environment_id")
+    if env_id:
+        from sqlalchemy import select as sa_select
+        from src.environments.models import Environment
+
+        env = db.execute(
+            sa_select(Environment).where(Environment.id == env_id)
+        ).scalar_one_or_none()
+        if env:
+            env_name = env.name
+
+    return RfMcpDetailedStatus(
+        status=status["status"],
+        running=status["running"],
+        port=status.get("port"),
+        pid=status.get("pid"),
+        url=status.get("url", ""),
+        environment_id=env_id,
+        environment_name=env_name,
+        error_message=status.get("error_message", ""),
+        installed_version=status.get("installed_version"),
+    )
+
+
+@router.post("/rf-mcp/setup", response_model=RfMcpDetailedStatus)
+def rf_mcp_setup(
+    data: RfMcpSetupRequest,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_role(Role.ADMIN)),
+):
+    """Install rf-mcp (if needed) and start the server. Runs as background task."""
+    from sqlalchemy import select as sa_select
+    from src.environments.models import Environment
+    from src.ai import rf_mcp_manager
+
+    # Validate environment exists
+    env = db.execute(
+        sa_select(Environment).where(Environment.id == data.environment_id)
+    ).scalar_one_or_none()
+    if not env:
+        raise HTTPException(status_code=404, detail="Environment not found")
+    if not env.venv_path:
+        raise HTTPException(status_code=400, detail="Environment has no virtual environment")
+
+    # Stop any running instance first
+    rf_mcp_manager.stop_server()
+
+    # Dispatch setup as background task
+    try:
+        dispatch_task(rf_mcp_manager.setup, data.environment_id, data.port)
+    except TaskDispatchError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to dispatch setup task: {e}")
+
+    # Return current status (will be "installing" or "starting" soon)
+    return RfMcpDetailedStatus(
+        status="installing",
+        running=False,
+        environment_id=data.environment_id,
+        environment_name=env.name,
+    )
+
+
+@router.post("/rf-mcp/stop", response_model=RfMcpDetailedStatus)
+def rf_mcp_stop(
+    _current_user: User = Depends(require_role(Role.ADMIN)),
+):
+    """Stop the managed rf-mcp server."""
+    from src.ai import rf_mcp_manager
+
+    rf_mcp_manager.stop_server()
+    status = rf_mcp_manager.get_status()
+
+    return RfMcpDetailedStatus(
+        status=status["status"],
+        running=status["running"],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Xray bridge endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post("/xray/export")
+def xray_export(
+    data: XrayExportRequest,
+    _current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Convert .roboscope spec content to Xray JSON format."""
+    import yaml as yaml_lib
+
+    from src.ai.xray_bridge import roboscope_to_xray
+
+    try:
+        spec = yaml_lib.safe_load(data.content)
+    except yaml_lib.YAMLError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}")
+
+    if not isinstance(spec, dict):
+        raise HTTPException(status_code=400, detail="Spec must be a YAML mapping")
+
+    return roboscope_to_xray(spec)
+
+
+@router.post("/xray/import", response_model=XrayImportResponse)
+def xray_import(
+    data: XrayImportRequest,
+    _current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Convert Xray JSON to .roboscope v2 YAML format."""
+    import yaml as yaml_lib
+
+    from src.ai.xray_bridge import xray_to_roboscope
+
+    xray_data = {"info": data.info, "tests": data.tests}
+    spec = xray_to_roboscope(xray_data)
+    yaml_content = yaml_lib.dump(
+        spec, default_flow_style=False, allow_unicode=True, sort_keys=False
+    )
+    return XrayImportResponse(content=yaml_content)
 
 
 # ---------------------------------------------------------------------------

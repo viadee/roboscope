@@ -1,14 +1,15 @@
-version: '1'
+version: '2'
 metadata:
   title: Robot Framework Grundlegende Operationen Tests
   author: ''
   created: '2025-01-30'
-  last_generated: '2026-02-19T18:16:13.356723+00:00'
-  generation_hash: 86500636f5f73fca5275c2abd501c08e372c737c25a7a3507d3ff8782ddbb78d
+  last_generated: '2026-02-21T19:12:03.184591+00:00'
+  generation_hash: 05ca8c2333c49cf8df1c627dea594e31cecc21bdc1263be77fb9af9ff89fde06
   target_file: example.robot
   libraries:
   - String
   - Collections
+  external_id: RF-BASIC-100
 test_sets:
 - name: Grundlegende Robot Framework Tests
   description: Beispiel-Testfälle zur Demonstration grundlegender Robot Framework
@@ -17,53 +18,64 @@ test_sets:
   tags: []
   setup: null
   teardown: null
+  external_id: RF-BASIC-50
+  preconditions:
+  - Robot Framework ist installiert
+  - String- und Collections-Bibliotheken sind verfügbar
   test_cases:
   - name: Einfacher Test mit Assertions
-    description: Demonstriert grundlegende Assertions, indem geprüft wird, ob die
-      Variable GREETING den Wert 'Hallo Welt' hat, die Variable NUMBER den Wert 42
-      hat und NUMBER größer als 0 ist
+    description: Ein einfacher Test, der grundlegende Assertions demonstriert. Überprüft,
+      ob die Variable GREETING den Wert 'Hallo Welt' hat, NUMBER gleich 42 ist und
+      NUMBER größer als 0 ist.
     priority: medium
+    external_id: RF-BASIC-101
+    preconditions:
+    - Variablen GREETING und NUMBER sind definiert
     steps:
-    - Prüfe, ob die Variable GREETING als Zeichenkette gleich 'Hallo Welt' ist
+    - Prüfe, ob die Variable GREETING als String gleich 'Hallo Welt' ist
     - Prüfe, ob die Variable NUMBER als Zahl gleich 42 ist
-    - Prüfe, ob die Bedingung NUMBER > 0 wahr ist
-    expected_result: Alle drei Assertions werden erfolgreich ausgeführt ohne Fehler
+    - action: Prüfe, ob NUMBER größer als 0 ist
+      data: NUMBER=42, Schwellwert=0
+      expected_result: Assertion ist erfolgreich
+    expected_result: 'Alle drei Assertions sind erfolgreich: GREETING entspricht ''Hallo
+      Welt'', NUMBER entspricht 42 und NUMBER ist positiv'
   - name: String-Operationen Test
-    description: Testet verschiedene String-Operationen auf der Variable GREETING,
-      einschließlich Umwandlung in Großbuchstaben, Längenermittlung und Teilstring-Prüfung
+    description: Test für verschiedene String-Operationen auf der Variable GREETING
+      ('Hallo Welt'). Prüft Großschreibung, Länge und Teilstring-Erkennung.
     priority: medium
+    external_id: RF-BASIC-102
     steps:
-    - Wandle den Wert der Variable GREETING in Großbuchstaben um und speichere das
-      Ergebnis
-    - Prüfe, ob das Ergebnis der Großbuchstabenumwandlung gleich 'HALLO WELT' ist
-    - Ermittle die Länge der Variable GREETING und speichere sie
-    - Prüfe, ob die Länge von GREETING gleich 10 ist
+    - Konvertiere den Wert von GREETING in Großbuchstaben und speichere das Ergebnis
+    - Prüfe, ob das Ergebnis der Großschreibung gleich 'HALLO WELT' ist
+    - Ermittle die Länge des Strings GREETING und speichere sie
+    - Prüfe, ob die Länge des Strings gleich 10 ist
     - Prüfe, ob GREETING den Teilstring 'Welt' enthält
-    expected_result: GREETING wird korrekt in 'HALLO WELT' umgewandelt, die Länge
-      beträgt 10 Zeichen und der Teilstring 'Welt' ist enthalten
+    expected_result: GREETING wird korrekt in 'HALLO WELT' umgewandelt, hat eine Länge
+      von 10 Zeichen und enthält den Teilstring 'Welt'
   - name: Mathematische Operationen Test
-    description: Testet grundlegende mathematische Operationen (Addition, Multiplikation,
-      Division) mit der Variable NUMBER (Wert 42)
+    description: Test für grundlegende mathematische Operationen mit der Variable
+      NUMBER (42). Prüft Addition, Multiplikation und Division.
     priority: medium
+    external_id: RF-BASIC-103
     steps:
-    - Berechne die Summe von NUMBER und 8 und speichere das Ergebnis
+    - Berechne die Summe von NUMBER (42) und 8 und speichere das Ergebnis
     - Prüfe, ob die Summe gleich 50 ist
-    - Berechne das Produkt von NUMBER und 2 und speichere das Ergebnis
+    - Berechne das Produkt von NUMBER (42) und 2 und speichere das Ergebnis
     - Prüfe, ob das Produkt gleich 84 ist
-    - Berechne den Quotienten von NUMBER geteilt durch 6 und speichere das Ergebnis
+    - Berechne den Quotienten von NUMBER (42) geteilt durch 6 und speichere das Ergebnis
     - Prüfe, ob der Quotient gleich 7 ist
-    expected_result: 'Alle mathematischen Berechnungen liefern die erwarteten Ergebnisse:
-      42+8=50, 42*2=84, 42/6=7'
+    expected_result: 'Alle mathematischen Operationen liefern korrekte Ergebnisse:
+      42+8=50, 42*2=84 und 42/6=7'
   - name: Listen-Operationen Test
-    description: Testet Operationen auf einer Liste mit drei Früchten, einschließlich
-      Längenprüfung, Enthaltensein eines Elements und Zugriff auf das erste Element
+    description: Test für Operationen mit Listen. Erstellt eine Liste mit drei Früchten
+      und prüft Länge, Inhalt und Indexzugriff.
     priority: medium
+    external_id: RF-BASIC-104
     steps:
-    - Erstelle eine Liste mit den Elementen 'Apfel', 'Banane' und 'Orange' und speichere
-      sie
+    - Erstelle eine Liste mit den Elementen 'Apfel', 'Banane' und 'Orange'
     - Ermittle die Länge der Liste und speichere sie
-    - Prüfe, ob die Länge der Liste gleich 3 ist
+    - Prüfe, ob die Liste genau 3 Elemente enthält
     - Prüfe, ob die Liste den Wert 'Banane' enthält
-    - Prüfe, ob das erste Element der Liste gleich 'Apfel' ist
-    expected_result: Die Liste enthält genau 3 Elemente, 'Banane' ist in der Liste
-      enthalten und das erste Element ist 'Apfel'
+    - Prüfe, ob das erste Element der Liste (Index 0) gleich 'Apfel' ist
+    expected_result: Die Liste enthält genau 3 Elemente, beinhaltet 'Banane' und hat
+      'Apfel' als erstes Element
