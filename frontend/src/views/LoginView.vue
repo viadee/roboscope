@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth.store'
@@ -14,6 +14,25 @@ const email = ref('')
 const password = ref('')
 const error = ref('')
 const loading = ref(false)
+
+const DEFAULT_EMAIL = 'admin@roboscope.local'
+const DEFAULT_PASSWORD = 'admin123'
+
+onMounted(async () => {
+  try {
+    const res = await fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: DEFAULT_EMAIL, password: DEFAULT_PASSWORD }),
+    })
+    if (res.ok) {
+      email.value = DEFAULT_EMAIL
+      password.value = DEFAULT_PASSWORD
+    }
+  } catch {
+    // default credentials not active — leave fields empty
+  }
+})
 
 async function handleLogin() {
   error.value = ''
