@@ -20,7 +20,7 @@ async function globalSetup(_config: FullConfig): Promise<void> {
     const loginResponse = await apiContext.post('/api/v1/auth/login', {
       data: {
         email: 'admin@roboscope.local',
-        password: 'admin',
+        password: 'admin123',
       },
     });
 

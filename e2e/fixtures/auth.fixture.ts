@@ -57,7 +57,7 @@ async function injectTokensIntoPage(
 async function loginViaApi(
   page: Page,
   email = 'admin@roboscope.local',
-  password = 'admin',
+  password = 'admin123',
 ): Promise<void> {
   const apiBase = process.env.API_BASE_URL || 'http://localhost:8000';
   const response = await page.request.post(`${apiBase}/api/v1/auth/login`, {
