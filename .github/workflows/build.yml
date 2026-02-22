@@ -82,7 +82,7 @@ jobs:
         run: cd e2e && npm ci && npx playwright install --with-deps chromium
 
       - name: Run E2E tests
-        run: cd e2e && npx playwright test --ignore=tests/take-screenshots.spec.ts
+        run: cd e2e && npx playwright test --ignore-glob=tests/take-screenshots.spec.ts
         env:
           CI: true
 
