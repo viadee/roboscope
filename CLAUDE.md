@@ -291,6 +291,7 @@ cd RoboScope/e2e && npx playwright test tests/execution-run.spec.ts  # einzelner
 - **Fixtures**: `db_session`, `client` (TestClient), `admin_user`, `runner_user`, `viewer_user`, `auth_header(user)`
 - **Frontend**: Vitest, `describe/it/expect`, Pinia mit `createPinia`/`setActivePinia`
 - **E2E**: Playwright, Page Objects, Auth-Fixture mit JWT-Injection, API-Mocking via `page.route()`
+- **E2E CI-Ausschluss**: `take-screenshots.spec.ts` wird in GitHub Actions automatisch übersprungen (`testIgnore` in `playwright.config.ts` wenn `CI=true`). Lokal werden alle Specs inklusive Screenshots ausgeführt.
 
 ## Datenbank-Migrationen
 
