@@ -240,4 +240,4 @@ roboscope/
 
 ## License
 
-Copyright (c) viadee Unternehmensberatung AG. All rights reserved.
+Licensed under the [Apache License 2.0](LICENSE). Copyright 2026 viadee Unternehmensberatung AG.
