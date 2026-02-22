@@ -182,7 +182,13 @@ export const useAiStore = defineStore('ai', () => {
 
   async function setupRfMcpServer(environmentId: number, port: number = 9090) {
     try {
-      await aiApi.setupRfMcp(environmentId, port)
+      const status = await aiApi.setupRfMcp(environmentId, port)
+      // Update state immediately from response (no 2s gap before first poll)
+      rfMcpStatus.value = status.status
+      rfMcpRunning.value = status.running
+      rfMcpEnvId.value = status.environment_id
+      rfMcpEnvName.value = status.environment_name
+      rfMcpError.value = status.error_message || ''
       // Start polling for status updates
       startRfMcpPolling()
     } catch (e: any) {

@@ -2,7 +2,7 @@
 
 Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausführung, Report-Analyse, Environment-Management und Container-Runtime.
 
-## Aktueller Projektstatus (Stand: 2026-02-19)
+## Aktueller Projektstatus (Stand: 2026-02-22)
 
 ### Was ist implementiert
 
@@ -13,7 +13,7 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 - Testausführung: SubprocessRunner + DockerRunner + In-Process TaskExecutor + WebSocket-Live-Updates
 - Environment-Management (venv, Pakete, Variablen)
 - Report-Parsing (output.xml → DB) + Vergleich
-- KPI/Statistik-Service (Trends, Flaky Detection, Heatmaps) + On-Demand Tiefenanalyse (8 KPIs) + Refresh/Staleness
+- KPI/Statistik-Service (Trends, Flaky Detection, Heatmaps) + On-Demand Tiefenanalyse (15 KPIs in 5 Kategorien) + Refresh/Staleness
 - Settings (Key-Value, Admin-only)
 - Plugin-System (Registry + Console-Logger Builtin)
 - WebSocket Connection Manager (Live-Updates bei Run-Status-Änderungen)
@@ -38,12 +38,12 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 - Execution-Tabelle: Environment-Spalte, Retry-Button, Explorer-Link, Spinner bei aktiven Runs
 
 **E2E Tests (Playwright) — UMFASSEND (~1.400 Zeilen)**
-- 12 Test-Specs: auth, dashboard, navigation, repos, execution, environments, reports, settings, stats, imprint, password-reset, repo-environment
+- 13 Test-Specs: auth, dashboard, navigation, repos, execution, environments, reports, settings, stats, stats-analysis, imprint, password-reset, repo-environment
 - Page Objects: LoginPage, DashboardPage, SidebarNav
 - Auth-Fixture mit JWT-Injection
 - API-Mocking via page.route()
 
-**Backend Tests (pytest) — ~160 Tests**
+**Backend Tests (pytest) — ~486 Tests**
 - Auth: Login, Registration, Password-Reset (5 Tests)
 - Repos: CRUD, Service (20+ Tests)
 - Explorer: File-Browser, Open-In-File-Browser (5 Tests)
@@ -51,6 +51,7 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 - Environments: CRUD, Packages (20+ Tests)
 - Reports: Parsing, Comparison (20+ Tests)
 - Stats: Overview, Aggregate, Data-Status (7 Tests)
+- Stats Analysis: Compute-Funktionen, KPI-Validation, Broadcast-Helper, Date-Filtering (26 Tests)
 - Settings: CRUD, Permissions (10+ Tests)
 
 **Docker — VOLLSTÄNDIG konfiguriert**
@@ -85,7 +86,7 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] E2E Tests für Execution (7/7 bestanden)
 - [x] In-App-Dokumentation (DocsView, EN+DE, TOC, Suche, Print/PDF, offline-fähig)
 - [x] Package Manager & Library Check (Nav umbenannt, Library-Scanner, Repo-Environment-Zuordnung, One-Click-Install)
-- [x] On-Demand Tiefenanalyse-Modul (8 KPIs in 3 Kategorien: Keyword Analytics, Test Quality, Maintenance)
+- [x] On-Demand Tiefenanalyse-Modul (15 KPIs in 5 Kategorien: Keyword Analytics, Test Quality, Maintenance, Source Analysis, Execution)
 - [x] i18n für gesamte Anwendung (DE, EN, FR, ES)
 - [x] Stats: KPI-Aggregation Fix, Refresh-Button, Staleness-Banner, Chart-Achsen (Y: 0-100%, X: Datum)
 - [x] Deep Analysis: Default all KPIs + 30-Tage-Zeitraum
@@ -112,6 +113,10 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] ProviderConfig: Modell-Dropdown mit kuratierten Modelllisten pro Anbieter, aktualisierte Default-Modelle
 - [x] LLM-Client: API-Antwort-Body in Fehlermeldungen, Anthropic-Temperature-Clamping (0.0–1.0)
 - [x] ExplorerView: v-if/v-else-Chain-Fix (kein doppeltes Rendering bei .roboscope Dateien)
+- [x] Deep Analysis: 3 Bug-Fixes (WebSocket asyncio.run→run_coroutine_threadsafe, Date-Filtering str→datetime.combine, KPI-Validation 422)
+- [x] Deep Analysis: 5 neue Execution-KPIs (test_pass_rate_trend, slowest_tests, flakiness_score, failure_heatmap, suite_duration_treemap)
+- [x] Deep Analysis: Frontend-Visualisierungen (CSS Stacked Bars, Horizontal Bars, Dot Timeline, Heatmap Grid, Treemap)
+- [x] Deep Analysis: Backend-Tests (26 Tests) + E2E-Tests (8 Tests)
 
 **Offen / Roadmap (priorisiert):**
 - [x] **Responsive Design** — Sidebar, Tabellen, iframe-Layout für kleinere Bildschirme optimieren
@@ -161,7 +166,7 @@ RoboScope/
 ├── e2e/              # Playwright E2E-Tests
 │   ├── page-objects/ # LoginPage, DashboardPage, SidebarNav
 │   ├── fixtures/     # Auth-Fixture mit Token-Injection
-│   └── tests/        # auth, navigation, repos, execution, environments, reports, settings, stats, imprint, password-reset, repo-environment
+│   └── tests/        # auth, navigation, repos, execution, environments, reports, settings, stats, stats-analysis, imprint, password-reset, repo-environment
 ├── docker/           # Dockerfiles (backend, frontend, playwright)
 ├── docker-compose.yml      # Production (PostgreSQL + Nginx)
 ├── docker-compose.dev.yml  # Development (SQLite)
@@ -348,27 +353,28 @@ Das Stats-Modul wurde um eine asynchrone Tiefenanalyse erweitert. Benutzer wähl
 **Dateien:**
 - `backend/src/stats/models.py` — `AnalysisReport` Model (status, selected_kpis, results JSON, progress)
 - `backend/src/stats/schemas.py` — `AnalysisCreate`, `AnalysisResponse`, `AnalysisListResponse`, `AVAILABLE_KPIS`
-- `backend/src/stats/analysis.py` — Kernmodul: 8 Compute-Funktionen + `run_analysis()` Orchestrator (sync, für Background-Thread)
+- `backend/src/stats/analysis.py` — Kernmodul: 13 Compute-Funktionen + `run_analysis()` Orchestrator (sync, für Background-Thread)
 - `backend/src/stats/service.py` — CRUD: `create_analysis()`, `get_analysis()`, `list_analyses()`
 - `backend/src/stats/router.py` — 4 neue Endpoints: `POST /analysis`, `GET /analysis`, `GET /analysis/{id}`, `GET /analysis/kpis`
 
-**10 KPIs in 4 Kategorien:**
+**15 KPIs in 5 Kategorien:**
 - **Keyword Analytics**: keyword_frequency, keyword_duration_impact, library_distribution
 - **Test Quality**: test_complexity, assertion_density, tag_coverage
 - **Maintenance**: error_patterns, redundancy_detection
 - **Source Analysis**: source_test_stats, source_library_distribution (analysiert .robot-Quelldateien direkt)
+- **Execution**: test_pass_rate_trend, slowest_tests, flakiness_score, failure_heatmap, suite_duration_treemap (DB-basiert, queries TestResult/ExecutionRun direkt)
 
 **Ablauf:**
 1. Frontend sendet `POST /stats/analysis` mit `selected_kpis[]`
 2. Backend erstellt `AnalysisReport` (status=pending), `db.commit()`, `dispatch_task(run_analysis, id)`
-3. `run_analysis()` läuft im Background-Thread: XML-Parsing → Flatten → Keyword-Library-Enrichment → Compute → JSON-Ergebnisse speichern
+3. `run_analysis()` läuft im Background-Thread: XML-Parsing → Flatten → Keyword-Library-Enrichment → Compute → JSON-Ergebnisse speichern (Execution-KPIs querien die DB direkt statt XML)
 4. Frontend pollt alle 3s oder empfängt WebSocket `analysis_status_changed`
 5. Ergebnisse werden als KPI-spezifische Karten im StatsView (Tab "Deep Analysis") gerendert
 
 **Frontend:**
 - `StatsView.vue` hat jetzt 2 Tabs: "Overview" (bestehend) + "Deep Analysis" (neu)
 - Analyse-Modal mit KPI-Checkboxen gruppiert nach Kategorie
-- Ergebnis-Karten: Tabellen, Balkendiagramme, Tag-Cloud, Fehler-Cluster
+- Ergebnis-Karten: Tabellen, Balkendiagramme, Tag-Cloud, Fehler-Cluster, CSS Stacked Bars, Dot Timeline, Heatmap Grid, Treemap
 - i18n: `stats.analysis.*` Keys in EN/DE/FR/ES
 
 ### WebSocket-Broadcast aus Background-Threads
@@ -378,7 +384,14 @@ Background-Tasks (execute_test_run, run_analysis) laufen in sync Threads und kö
 from src.main import _event_loop
 asyncio.run_coroutine_threadsafe(ws_manager.broadcast_run_status(run_id, status), _event_loop)
 ```
-Der Event-Loop wird in `main.py` Lifespan als `_event_loop` gespeichert. Die Helper-Funktion `_broadcast_run_status()` in `tasks.py` kapselt dieses Pattern.
+Der Event-Loop wird in `main.py` Lifespan als `_event_loop` gespeichert. Zwei Helper-Funktionen kapseln dieses Pattern:
+- `_broadcast_run_status()` in `execution/tasks.py` — für Run-Status-Updates
+- `_broadcast_analysis_status()` in `stats/analysis.py` — für Analyse-Status-Updates
+
+**Wichtig:** Niemals `asyncio.run()` aus einem Background-Thread aufrufen — das erstellt einen neuen Event-Loop und schlägt fehl. Immer `asyncio.run_coroutine_threadsafe(coro, _event_loop)` verwenden.
+
+### KPI-Validation (Stats-Router)
+`POST /stats/analysis` validiert `selected_kpis` gegen `AVAILABLE_KPIS.keys()`. Unbekannte KPI-IDs werden mit HTTP 422 abgelehnt (Detail-Nachricht enthält die ungültigen IDs).
 
 ### AI-Modul (.roboscope ↔ .robot Generierung)
 LLM-gestütztes Modul zur bidirektionalen Synchronisation zwischen `.roboscope` YAML-Spezifikationen und `.robot` Testdateien.

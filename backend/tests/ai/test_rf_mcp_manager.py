@@ -1,6 +1,9 @@
 """Unit tests for the rf-mcp server process manager."""
 
+import subprocess
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from src.ai import rf_mcp_manager
 
@@ -153,3 +156,271 @@ class TestStopServer:
         mock_proc.terminate.assert_called_once()
         assert rf_mcp_manager._process is None
         assert rf_mcp_manager._status == "stopped"
+
+
+# --- Test: _install_package ---
+
+
+class TestInstallPackage:
+    def test_successful_install(self):
+        with (
+            patch("subprocess.run") as mock_run,
+            patch("src.ai.rf_mcp_manager.Path") as mock_path,
+        ):
+            mock_path.return_value.exists.return_value = True
+            mock_path.return_value.__truediv__ = lambda self, x: mock_path.return_value
+            mock_path.return_value.__str__ = lambda self: "/fake/venv/bin/pip"
+            # pip install succeeds
+            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+            with patch.object(rf_mcp_manager, "check_installed", return_value=(True, "1.0.0")):
+                result = rf_mcp_manager._install_package("/fake/venv")
+
+            assert result["status"] == "success"
+            assert result["version"] == "1.0.0"
+
+    def test_install_failure(self):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=1, stdout="", stderr="ERROR: Could not find a version"
+            )
+            result = rf_mcp_manager._install_package("/fake/venv")
+            assert result["status"] == "error"
+            assert "Could not find" in result["message"]
+
+    def test_install_timeout(self):
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired(cmd="pip", timeout=300)
+            result = rf_mcp_manager._install_package("/fake/venv")
+            assert result["status"] == "error"
+            assert "timed out" in result["message"]
+
+
+# --- Test: _start_server ---
+
+
+class TestStartServer:
+    def test_successful_start(self):
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = None  # still running after sleep
+        mock_proc.pid = 42
+
+        with (
+            patch("src.ai.rf_mcp_manager.Path") as mock_path,
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch("time.sleep"),
+        ):
+            mock_path.return_value.exists.return_value = True
+            mock_path.return_value.__truediv__ = lambda self, x: mock_path.return_value
+            mock_path.return_value.__str__ = lambda self: "/fake/venv/bin/python"
+            rf_mcp_manager._process = None
+            rf_mcp_manager._status = "stopped"
+
+            result = rf_mcp_manager._start_server("/fake/venv", 9090)
+
+        assert result["status"] == "started"
+        assert result["port"] == 9090
+        assert result["pid"] == 42
+        assert rf_mcp_manager._status == "running"
+        # cleanup
+        rf_mcp_manager._process = None
+        rf_mcp_manager._status = "stopped"
+
+    def test_server_exits_immediately(self):
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = 1  # exited
+        mock_proc.stderr = MagicMock()
+        mock_proc.stderr.read.return_value = b"ModuleNotFoundError: robotframework_mcp"
+
+        with (
+            patch("src.ai.rf_mcp_manager.Path") as mock_path,
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch("time.sleep"),
+        ):
+            mock_path.return_value.exists.return_value = True
+            mock_path.return_value.__truediv__ = lambda self, x: mock_path.return_value
+            mock_path.return_value.__str__ = lambda self: "/fake/venv/bin/python"
+            rf_mcp_manager._process = None
+
+            result = rf_mcp_manager._start_server("/fake/venv", 9090)
+
+        assert result["status"] == "error"
+        assert "ModuleNotFoundError" in result["message"]
+        assert rf_mcp_manager._status == "error"
+        assert rf_mcp_manager._process is None
+
+    def test_python_not_found(self):
+        result = rf_mcp_manager._start_server("/nonexistent/venv", 9090)
+        assert result["status"] == "error"
+        assert "Python not found" in result["message"]
+
+    def test_already_running(self):
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = None
+        mock_proc.pid = 100
+        rf_mcp_manager._process = mock_proc
+        rf_mcp_manager._port = 9090
+        rf_mcp_manager._status = "running"
+
+        result = rf_mcp_manager._start_server("/fake/venv", 9090)
+        assert result["status"] == "already_running"
+        # cleanup
+        rf_mcp_manager._process = None
+        rf_mcp_manager._status = "stopped"
+
+    def test_race_condition_uses_local_ref(self):
+        """_start_server uses local proc ref so concurrent is_running() can't null it."""
+        mock_proc = MagicMock()
+        # First poll (from _start_server check): None (still running)
+        mock_proc.poll.return_value = None
+        mock_proc.pid = 55
+
+        with (
+            patch("src.ai.rf_mcp_manager.Path") as mock_path,
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch("time.sleep"),
+        ):
+            mock_path.return_value.exists.return_value = True
+            mock_path.return_value.__truediv__ = lambda self, x: mock_path.return_value
+            mock_path.return_value.__str__ = lambda self: "/fake/venv/bin/python"
+            rf_mcp_manager._process = None
+
+            result = rf_mcp_manager._start_server("/fake/venv", 9090)
+
+        # Should succeed even if _process was cleared by concurrent thread
+        assert result["status"] == "started"
+        assert result["pid"] == 55
+        # cleanup
+        rf_mcp_manager._process = None
+        rf_mcp_manager._status = "stopped"
+
+
+# --- Test: setup() error handling ---
+
+
+class TestSetup:
+    def test_setup_catches_unhandled_exceptions(self):
+        """setup() wraps in try/except so _status always reaches a terminal state."""
+        rf_mcp_manager._status = "stopped"
+        rf_mcp_manager._error_message = ""
+
+        with patch.object(rf_mcp_manager, "_setup_inner", side_effect=RuntimeError("DB exploded")):
+            result = rf_mcp_manager.setup(1, 9090)
+
+        assert result["status"] == "error"
+        assert "DB exploded" in result["message"]
+        assert rf_mcp_manager._status == "error"
+        assert "DB exploded" in rf_mcp_manager._error_message
+        # cleanup
+        rf_mcp_manager._status = "stopped"
+        rf_mcp_manager._error_message = ""
+
+    def test_setup_sets_environment_id(self):
+        """setup() should set _environment_id before calling _setup_inner."""
+        rf_mcp_manager._environment_id = None
+
+        with patch.object(rf_mcp_manager, "_setup_inner", return_value={"status": "started"}):
+            rf_mcp_manager.setup(42, 9090)
+
+        assert rf_mcp_manager._environment_id == 42
+        # cleanup
+        rf_mcp_manager._environment_id = None
+        rf_mcp_manager._status = "stopped"
+
+    def test_setup_inner_env_not_found(self):
+        """_setup_inner should error when environment doesn't exist."""
+        mock_engine = MagicMock()
+        mock_session = MagicMock()
+        mock_session.__enter__ = MagicMock(return_value=mock_session)
+        mock_session.__exit__ = MagicMock(return_value=False)
+        mock_session.execute.return_value.scalar_one_or_none.return_value = None
+
+        with (
+            patch("sqlalchemy.create_engine", return_value=mock_engine),
+            patch("sqlalchemy.orm.Session", return_value=mock_session),
+        ):
+            result = rf_mcp_manager._setup_inner(999, 9090)
+
+        assert result["status"] == "error"
+        assert rf_mcp_manager._status == "error"
+        assert "not found" in rf_mcp_manager._error_message
+        # cleanup
+        rf_mcp_manager._status = "stopped"
+        rf_mcp_manager._error_message = ""
+
+    def test_setup_inner_install_and_start(self):
+        """_setup_inner should install if not installed, then start."""
+        mock_engine = MagicMock()
+        mock_session = MagicMock()
+        mock_session.__enter__ = MagicMock(return_value=mock_session)
+        mock_session.__exit__ = MagicMock(return_value=False)
+        mock_env = MagicMock()
+        mock_env.venv_path = "/fake/venv"
+        mock_session.execute.return_value.scalar_one_or_none.return_value = mock_env
+
+        with (
+            patch("sqlalchemy.create_engine", return_value=mock_engine),
+            patch("sqlalchemy.orm.Session", return_value=mock_session),
+            patch.object(rf_mcp_manager, "check_installed", return_value=(False, None)),
+            patch.object(rf_mcp_manager, "_install_package", return_value={"status": "success", "version": "1.0.0"}),
+            patch.object(rf_mcp_manager, "_start_server", return_value={"status": "started", "port": 9090, "pid": 99}),
+        ):
+            result = rf_mcp_manager._setup_inner(1, 9090)
+
+        assert result["status"] == "started"
+        assert rf_mcp_manager._status == "running"
+        assert rf_mcp_manager._installed_version == "1.0.0"
+        # cleanup
+        rf_mcp_manager._status = "stopped"
+        rf_mcp_manager._installed_version = None
+
+    def test_setup_inner_already_installed(self):
+        """_setup_inner should skip install when already installed."""
+        mock_engine = MagicMock()
+        mock_session = MagicMock()
+        mock_session.__enter__ = MagicMock(return_value=mock_session)
+        mock_session.__exit__ = MagicMock(return_value=False)
+        mock_env = MagicMock()
+        mock_env.venv_path = "/fake/venv"
+        mock_session.execute.return_value.scalar_one_or_none.return_value = mock_env
+
+        with (
+            patch("sqlalchemy.create_engine", return_value=mock_engine),
+            patch("sqlalchemy.orm.Session", return_value=mock_session),
+            patch.object(rf_mcp_manager, "check_installed", return_value=(True, "2.0.0")),
+            patch.object(rf_mcp_manager, "_install_package") as mock_install,
+            patch.object(rf_mcp_manager, "_start_server", return_value={"status": "started", "port": 9090, "pid": 99}),
+        ):
+            result = rf_mcp_manager._setup_inner(1, 9090)
+
+        mock_install.assert_not_called()
+        assert rf_mcp_manager._installed_version == "2.0.0"
+        assert result["status"] == "started"
+        # cleanup
+        rf_mcp_manager._status = "stopped"
+        rf_mcp_manager._installed_version = None
+
+    def test_setup_inner_install_failure(self):
+        """_setup_inner should return error when install fails."""
+        mock_engine = MagicMock()
+        mock_session = MagicMock()
+        mock_session.__enter__ = MagicMock(return_value=mock_session)
+        mock_session.__exit__ = MagicMock(return_value=False)
+        mock_env = MagicMock()
+        mock_env.venv_path = "/fake/venv"
+        mock_session.execute.return_value.scalar_one_or_none.return_value = mock_env
+
+        with (
+            patch("sqlalchemy.create_engine", return_value=mock_engine),
+            patch("sqlalchemy.orm.Session", return_value=mock_session),
+            patch.object(rf_mcp_manager, "check_installed", return_value=(False, None)),
+            patch.object(rf_mcp_manager, "_install_package", return_value={"status": "error", "message": "pip failed"}),
+        ):
+            result = rf_mcp_manager._setup_inner(1, 9090)
+
+        assert result["status"] == "error"
+        assert rf_mcp_manager._status == "error"
+        assert "pip failed" in rf_mcp_manager._error_message
+        # cleanup
+        rf_mcp_manager._status = "stopped"
+        rf_mcp_manager._error_message = ""

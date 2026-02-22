@@ -43,9 +43,10 @@ def get_effective_url() -> str:
 def is_running() -> bool:
     """Check if the managed rf-mcp server process is alive."""
     global _process, _status
-    if _process is None:
+    proc = _process  # Local ref to avoid race with concurrent threads
+    if proc is None:
         return False
-    if _process.poll() is not None:
+    if proc.poll() is not None:
         # Process has exited
         _status = "stopped"
         _process = None
@@ -106,7 +107,8 @@ def _start_server(venv_path: str, port: int = 9090) -> dict:
     global _process, _port, _status
 
     if is_running():
-        return {"status": "already_running", "port": _port, "pid": _process.pid}
+        proc = _process  # Local ref after is_running confirmed non-None
+        return {"status": "already_running", "port": _port, "pid": proc.pid if proc else 0}
 
     python = _get_python_path(venv_path)
     if not Path(python).exists():
@@ -120,27 +122,29 @@ def _start_server(venv_path: str, port: int = 9090) -> dict:
         env["PATH"] = bin_dir + ":" + env.get("PATH", "")
         env["VIRTUAL_ENV"] = venv_path
 
-        _process = subprocess.Popen(
+        proc = subprocess.Popen(
             [python, "-m", "robotframework_mcp", "--port", str(port)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=env,
         )
+        _process = proc  # Publish to global after creation
 
         # Give server a moment to start (or fail)
         time.sleep(2)
 
-        if _process.poll() is not None:
+        # Use local ref to avoid race with concurrent is_running() calls
+        if proc.poll() is not None:
             stderr = ""
-            if _process.stderr:
-                stderr = _process.stderr.read().decode(errors="replace")
+            if proc.stderr:
+                stderr = proc.stderr.read().decode(errors="replace")
             _process = None
             _status = "error"
             return {"status": "error", "message": f"Server exited immediately: {stderr[:500]}"}
 
         _status = "running"
-        logger.info("Started rf-mcp on port %d (PID: %d)", port, _process.pid)
-        return {"status": "started", "port": port, "pid": _process.pid}
+        logger.info("Started rf-mcp on port %d (PID: %d)", port, proc.pid)
+        return {"status": "started", "port": port, "pid": proc.pid}
     except FileNotFoundError:
         _status = "error"
         msg = f"Could not start rf-mcp. Ensure '{RF_MCP_PACKAGE}' is properly installed."
@@ -156,21 +160,22 @@ def stop_server() -> dict:
     """Stop the managed rf-mcp server."""
     global _process, _status, _error_message
 
-    if not is_running():
+    proc = _process  # Local ref to avoid race with concurrent threads
+    if proc is None or not is_running():
         _process = None
         _status = "stopped"
         _error_message = ""
         return {"status": "stopped"}
 
     try:
-        _process.terminate()
+        proc.terminate()
         try:
-            _process.wait(timeout=5)
+            proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
-            _process.kill()
-            _process.wait(timeout=5)
+            proc.kill()
+            proc.wait(timeout=5)
 
-        pid = _process.pid
+        pid = proc.pid
         _process = None
         _status = "stopped"
         _error_message = ""
@@ -211,6 +216,19 @@ def setup(env_id: int, port: int = 9090) -> dict:
 
     _environment_id = env_id
     _error_message = ""
+
+    try:
+        return _setup_inner(env_id, port)
+    except Exception as e:
+        logger.exception("rf-mcp setup failed unexpectedly")
+        _status = "error"
+        _error_message = str(e)
+        return {"status": "error", "message": str(e)}
+
+
+def _setup_inner(env_id: int, port: int) -> dict:
+    """Inner setup logic, called by setup() with error handling."""
+    global _status, _error_message, _venv_path, _installed_version
 
     # Get environment venv path from DB
     from sqlalchemy import create_engine, select

@@ -1,6 +1,6 @@
 """API tests for AI module endpoints."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from tests.conftest import auth_header
 
@@ -99,6 +99,132 @@ class TestRfKnowledgeStatus:
         assert "available" in data
         assert "url" in data
         assert data["available"] is False  # Not configured in tests
+
+
+class TestRfMcpStatusEndpoint:
+    def test_returns_status(self, client, admin_user):
+        """GET /rf-mcp/status should return detailed status."""
+        with patch("src.ai.rf_mcp_manager.get_status", return_value={
+            "status": "stopped",
+            "running": False,
+            "port": None,
+            "pid": None,
+            "url": "",
+            "environment_id": None,
+            "error_message": "",
+            "installed_version": None,
+        }):
+            resp = client.get("/api/v1/ai/rf-mcp/status", headers=auth_header(admin_user))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "stopped"
+        assert data["running"] is False
+
+    def test_running_status_with_env_name(self, client, admin_user, db_session):
+        """GET /rf-mcp/status resolves environment name when running."""
+        from src.environments.models import Environment
+
+        env = Environment(name="test-env", venv_path="/tmp/venv", created_by=admin_user.id)
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+
+        with patch("src.ai.rf_mcp_manager.get_status", return_value={
+            "status": "running",
+            "running": True,
+            "port": 9090,
+            "pid": 123,
+            "url": "http://localhost:9090/mcp",
+            "environment_id": env.id,
+            "error_message": "",
+            "installed_version": "1.0.0",
+        }):
+            resp = client.get("/api/v1/ai/rf-mcp/status", headers=auth_header(admin_user))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "running"
+        assert data["environment_name"] == "test-env"
+        assert data["installed_version"] == "1.0.0"
+
+
+class TestRfMcpSetupEndpoint:
+    def test_setup_with_valid_env(self, client, admin_user, db_session):
+        """POST /rf-mcp/setup should dispatch setup task and return installing status."""
+        from src.environments.models import Environment
+
+        env = Environment(name="setup-env", venv_path="/tmp/venv", created_by=admin_user.id)
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+        db_session.commit()
+
+        with (
+            patch("src.ai.rf_mcp_manager.stop_server", return_value={"status": "stopped"}),
+            patch("src.ai.router.dispatch_task") as mock_dispatch,
+        ):
+            resp = client.post(
+                "/api/v1/ai/rf-mcp/setup",
+                json={"environment_id": env.id, "port": 9090},
+                headers=auth_header(admin_user),
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "installing"
+        assert data["environment_name"] == "setup-env"
+        mock_dispatch.assert_called_once()
+
+    def test_setup_env_not_found(self, client, admin_user):
+        """POST /rf-mcp/setup with nonexistent env should return 404."""
+        resp = client.post(
+            "/api/v1/ai/rf-mcp/setup",
+            json={"environment_id": 99999, "port": 9090},
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 404
+
+    def test_setup_env_without_venv(self, client, admin_user, db_session):
+        """POST /rf-mcp/setup with env that has no venv_path should return 400."""
+        from src.environments.models import Environment
+
+        env = Environment(name="no-venv-env", venv_path=None, created_by=admin_user.id)
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+        db_session.commit()
+
+        resp = client.post(
+            "/api/v1/ai/rf-mcp/setup",
+            json={"environment_id": env.id, "port": 9090},
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 400
+
+    def test_setup_requires_admin(self, client, runner_user):
+        """POST /rf-mcp/setup should require ADMIN role."""
+        resp = client.post(
+            "/api/v1/ai/rf-mcp/setup",
+            json={"environment_id": 1, "port": 9090},
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 403
+
+
+class TestRfMcpStopEndpoint:
+    def test_stop_server(self, client, admin_user):
+        """POST /rf-mcp/stop should stop the server."""
+        with patch("src.ai.rf_mcp_manager.stop_server", return_value={"status": "stopped"}), \
+             patch("src.ai.rf_mcp_manager.get_status", return_value={
+                 "status": "stopped", "running": False, "port": None, "pid": None,
+                 "url": "", "environment_id": None, "error_message": "", "installed_version": None,
+             }):
+            resp = client.post("/api/v1/ai/rf-mcp/stop", headers=auth_header(admin_user))
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "stopped"
+
+    def test_stop_requires_admin(self, client, runner_user):
+        """POST /rf-mcp/stop should require ADMIN role."""
+        resp = client.post("/api/v1/ai/rf-mcp/stop", headers=auth_header(runner_user))
+        assert resp.status_code == 403
 
 
 class TestXrayExportEndpoint:
