@@ -193,4 +193,34 @@ AVAILABLE_KPIS: dict[str, dict] = {
         "category": "source",
         "description": "Library import distribution across .robot/.resource source files",
     },
+    "test_pass_rate_trend": {
+        "id": "test_pass_rate_trend",
+        "name": "Test Pass Rate",
+        "category": "execution",
+        "description": "Pass/fail rate per test across runs",
+    },
+    "slowest_tests": {
+        "id": "slowest_tests",
+        "name": "Slowest Tests",
+        "category": "execution",
+        "description": "Top tests ranked by average execution duration",
+    },
+    "flakiness_score": {
+        "id": "flakiness_score",
+        "name": "Flakiness Score",
+        "category": "execution",
+        "description": "Tests ranked by status transition frequency",
+    },
+    "failure_heatmap": {
+        "id": "failure_heatmap",
+        "name": "Failure Heatmap",
+        "category": "execution",
+        "description": "Test x date matrix showing pass/fail status",
+    },
+    "suite_duration_treemap": {
+        "id": "suite_duration_treemap",
+        "name": "Suite Duration",
+        "category": "execution",
+        "description": "Execution time breakdown by test suite",
+    },
 }

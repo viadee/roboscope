@@ -46,6 +46,7 @@ const categoryLabels: Record<string, string> = {
   quality: 'stats.analysis.categoryQuality',
   maintenance: 'stats.analysis.categoryMaintenance',
   source: 'stats.analysis.categorySource',
+  execution: 'stats.analysis.categoryExecution',
 }
 
 const isStale = computed(() => {
@@ -636,6 +637,127 @@ function formatDate(d: string | null) {
               </div>
             </div>
           </div>
+
+          <!-- Test Pass Rate Trend -->
+          <div v-if="stats.currentAnalysis.results.test_pass_rate_trend" class="card mb-3">
+            <div class="card-header"><h3>{{ t('stats.analysis.kpiTestPassRate') }}</h3></div>
+            <div class="p-3">
+              <div class="text-sm text-muted mb-2">
+                {{ t('stats.analysis.totalTests') }}: {{ stats.currentAnalysis.results.test_pass_rate_trend.total_tests }}
+              </div>
+              <div v-for="test in stats.currentAnalysis.results.test_pass_rate_trend.tests" :key="test.test_name" class="pass-rate-row">
+                <div class="pass-rate-label" :title="test.test_name">{{ test.test_name }}</div>
+                <div class="pass-rate-bar-track">
+                  <div class="pass-rate-bar pass-bar" :style="{ width: `${test.pass_rate}%` }"></div>
+                  <div class="pass-rate-bar fail-bar" :style="{ width: `${100 - test.pass_rate}%` }"></div>
+                </div>
+                <div class="pass-rate-value">{{ test.pass_rate }}%</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Slowest Tests -->
+          <div v-if="stats.currentAnalysis.results.slowest_tests" class="card mb-3">
+            <div class="card-header"><h3>{{ t('stats.analysis.kpiSlowestTests') }}</h3></div>
+            <div class="p-3">
+              <div v-for="test in stats.currentAnalysis.results.slowest_tests.tests" :key="test.test_name" class="duration-bar-row">
+                <div class="duration-bar-label" :title="test.test_name">{{ test.test_name }}</div>
+                <div class="duration-bar-track">
+                  <div class="duration-bar-fill" :style="{ width: `${Math.min(test.avg_duration / Math.max(...stats.currentAnalysis!.results!.slowest_tests.tests.map((t: any) => t.avg_duration), 1) * 100, 100)}%` }"></div>
+                </div>
+                <div class="duration-bar-value">{{ formatDuration(test.avg_duration) }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Flakiness Score -->
+          <div v-if="stats.currentAnalysis.results.flakiness_score" class="card mb-3">
+            <div class="card-header"><h3>{{ t('stats.analysis.kpiFlakinessScore') }}</h3></div>
+            <div class="p-3">
+              <div v-if="stats.currentAnalysis.results.flakiness_score.tests.length">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>{{ t('stats.analysis.testName') }}</th>
+                      <th>{{ t('stats.analysis.flakinessScoreLabel') }}</th>
+                      <th>{{ t('stats.analysis.transitions') }}</th>
+                      <th>{{ t('stats.runs') }}</th>
+                      <th>{{ t('stats.analysis.timeline') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="test in stats.currentAnalysis.results.flakiness_score.tests" :key="test.test_name">
+                      <td><strong>{{ test.test_name }}</strong><br><span class="text-sm text-muted">{{ test.suite_name }}</span></td>
+                      <td><BaseBadge variant="warning">{{ (test.flakiness_score * 100).toFixed(0) }}%</BaseBadge></td>
+                      <td>{{ test.transitions }}</td>
+                      <td>{{ test.total_runs }}</td>
+                      <td>
+                        <div class="status-timeline">
+                          <span v-for="(run, i) in test.timeline" :key="i"
+                            class="status-dot"
+                            :class="run.status === 'PASS' ? 'dot-pass' : run.status === 'FAIL' ? 'dot-fail' : 'dot-skip'"
+                            :title="run.status"
+                          ></span>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p v-else class="text-muted text-center p-3">{{ t('stats.analysis.noFlakiness') }}</p>
+            </div>
+          </div>
+
+          <!-- Failure Heatmap -->
+          <div v-if="stats.currentAnalysis.results.failure_heatmap" class="card mb-3">
+            <div class="card-header"><h3>{{ t('stats.analysis.kpiFailureHeatmap') }}</h3></div>
+            <div class="p-3">
+              <div v-if="stats.currentAnalysis.results.failure_heatmap.tests.length" class="heatmap-container">
+                <!-- Date header row -->
+                <div class="heatmap-row heatmap-header">
+                  <div class="heatmap-label"></div>
+                  <div class="heatmap-cells">
+                    <div v-for="d in stats.currentAnalysis.results.failure_heatmap.dates" :key="d" class="heatmap-cell heatmap-date-label" :title="d">
+                      {{ d.slice(5) }}
+                    </div>
+                  </div>
+                </div>
+                <!-- Test rows -->
+                <div v-for="test in stats.currentAnalysis.results.failure_heatmap.tests" :key="test.test_name" class="heatmap-row">
+                  <div class="heatmap-label" :title="test.test_name">{{ test.test_name }}</div>
+                  <div class="heatmap-cells">
+                    <div v-for="cell in test.cells" :key="cell.date"
+                      class="heatmap-cell"
+                      :class="cell.status === 'PASS' ? 'cell-pass' : cell.status === 'FAIL' ? 'cell-fail' : 'cell-none'"
+                      :title="`${test.test_name} — ${cell.date}: ${cell.status}`"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+              <p v-else class="text-muted text-center p-3">{{ t('stats.analysis.noHeatmapData') }}</p>
+            </div>
+          </div>
+
+          <!-- Suite Duration Treemap -->
+          <div v-if="stats.currentAnalysis.results.suite_duration_treemap" class="card mb-3">
+            <div class="card-header"><h3>{{ t('stats.analysis.kpiSuiteDuration') }}</h3></div>
+            <div class="p-3">
+              <div class="text-sm text-muted mb-2">
+                {{ t('stats.analysis.totalDuration') }}: {{ formatDuration(stats.currentAnalysis.results.suite_duration_treemap.total_duration) }}
+              </div>
+              <div class="treemap-container">
+                <div v-for="suite in stats.currentAnalysis.results.suite_duration_treemap.suites" :key="suite.suite_name"
+                  class="treemap-block"
+                  :style="{ flexBasis: `${Math.max(suite.percentage, 5)}%` }"
+                  :title="`${suite.suite_name}: ${formatDuration(suite.total_duration)} (${suite.percentage}%)`"
+                >
+                  <div class="treemap-label">{{ suite.suite_name }}</div>
+                  <div class="treemap-value">{{ formatDuration(suite.total_duration) }}</div>
+                  <div class="treemap-pct">{{ suite.percentage }}%</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </template>
 
         <p v-else-if="viewingAnalysis.status === 'completed'" class="text-muted text-center p-4">{{ t('stats.analysis.noResults') }}</p>
@@ -964,6 +1086,83 @@ function formatDate(d: string | null) {
   border-bottom: 1px solid var(--color-border, #e2e8f0);
 }
 .error-pattern-item:last-child { border-bottom: none; }
+
+/* Pass Rate Trend (stacked horizontal bars) */
+.pass-rate-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.pass-rate-label { width: 180px; font-size: 12px; text-align: right; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pass-rate-bar-track { flex: 1; height: 18px; display: flex; border-radius: 3px; overflow: hidden; }
+.pass-rate-bar { height: 100%; transition: width 0.3s; }
+.pass-bar { background: var(--color-success); }
+.fail-bar { background: var(--color-danger); opacity: 0.7; }
+.pass-rate-value { width: 50px; font-size: 12px; color: var(--color-text-muted); text-align: right; }
+
+/* Duration Bar (slowest tests) */
+.duration-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.duration-bar-label { width: 180px; font-size: 12px; text-align: right; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.duration-bar-track { flex: 1; height: 18px; background: var(--color-bg, #f4f7fa); border-radius: 3px; overflow: hidden; }
+.duration-bar-fill { height: 100%; background: var(--color-accent, #D4883E); border-radius: 3px; transition: width 0.3s; }
+.duration-bar-value { width: 80px; font-size: 12px; color: var(--color-text-muted); }
+
+/* Status Timeline (flakiness) */
+.status-timeline { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; }
+.status-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+.dot-pass { background: var(--color-success); }
+.dot-fail { background: var(--color-danger); }
+.dot-skip { background: var(--color-text-muted); opacity: 0.4; }
+
+/* Failure Heatmap */
+.heatmap-container { overflow-x: auto; }
+.heatmap-row { display: flex; align-items: center; margin-bottom: 2px; }
+.heatmap-header { margin-bottom: 4px; }
+.heatmap-label { width: 160px; font-size: 11px; text-align: right; flex-shrink: 0; padding-right: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.heatmap-cells { display: flex; gap: 2px; flex: 1; }
+.heatmap-cell { width: 20px; height: 20px; border-radius: 3px; flex-shrink: 0; }
+.heatmap-date-label { font-size: 9px; color: var(--color-text-muted); text-align: center; line-height: 20px; background: none !important; }
+.cell-pass { background: var(--color-success); opacity: 0.7; }
+.cell-fail { background: var(--color-danger); opacity: 0.8; }
+.cell-none { background: var(--color-bg, #f4f7fa); }
+
+/* Suite Duration Treemap */
+.treemap-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 80px;
+}
+.treemap-block {
+  background: var(--color-primary, #3B7DD8);
+  color: white;
+  border-radius: 6px;
+  padding: 10px;
+  min-width: 60px;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  flex-grow: 1;
+  cursor: default;
+  transition: opacity 0.2s;
+}
+.treemap-block:hover { opacity: 0.85; }
+.treemap-block:nth-child(2n) { background: var(--color-accent, #D4883E); }
+.treemap-block:nth-child(3n) { background: var(--color-navy, #1A2D50); }
+.treemap-label { font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.treemap-value { font-size: 13px; font-weight: 700; }
+.treemap-pct { font-size: 10px; opacity: 0.8; }
 
 /* Form */
 .form-group { display: flex; flex-direction: column; gap: 4px; }

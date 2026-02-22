@@ -1,13 +1,14 @@
 """Core KPI computation engine for on-demand analysis."""
 
+import asyncio
 import json
 import logging
 import re
-from collections import Counter
-from datetime import datetime
+from collections import Counter, defaultdict
+from datetime import date, datetime, time
 from pathlib import Path
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from src.config import settings
@@ -16,6 +17,7 @@ import src.auth.models  # noqa: F401
 import src.repos.models  # noqa: F401
 import src.execution.models  # noqa: F401
 
+from src.execution.models import ExecutionRun
 from src.reports.models import Report, TestResult
 from src.reports.parser import parse_output_xml_deep
 from src.stats.keyword_library_map import resolve_keyword_library
@@ -29,6 +31,24 @@ _sync_engine = create_engine(_sync_url)
 
 def _get_sync_session() -> Session:
     return Session(_sync_engine)
+
+
+def _broadcast_analysis_status(analysis_id: int, status: str, progress: int = 0) -> None:
+    """Broadcast analysis status change from a sync background thread."""
+    from src.websocket.manager import ws_manager
+    from src.main import _event_loop
+
+    coro = ws_manager.broadcast({
+        "type": "analysis_status_changed",
+        "analysis_id": analysis_id,
+        "status": status,
+        "progress": progress,
+    })
+
+    if _event_loop and _event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(coro, _event_loop)
+    else:
+        logger.warning("No event loop available to broadcast analysis %d status", analysis_id)
 
 
 # --- Helpers ---
@@ -615,6 +635,278 @@ def compute_source_library_distribution(base_path: str) -> dict:
     }
 
 
+# --- Execution KPI Compute Functions ---
+
+
+def _build_execution_query(
+    session: Session,
+    repo_id: int | None,
+    dt_from: datetime | None,
+    dt_to: datetime | None,
+):
+    """Build base query for TestResult with optional filters."""
+    query = select(TestResult)
+    if repo_id:
+        query = (
+            query.join(Report, TestResult.report_id == Report.id)
+            .join(ExecutionRun, Report.execution_run_id == ExecutionRun.id)
+            .where(ExecutionRun.repository_id == repo_id)
+        )
+    if dt_from:
+        query = query.where(TestResult.start_time >= str(dt_from))
+    if dt_to:
+        query = query.where(TestResult.start_time <= str(dt_to))
+    return query
+
+
+def compute_test_pass_rate_trend(
+    session: Session,
+    repo_id: int | None,
+    dt_from: datetime | None,
+    dt_to: datetime | None,
+) -> dict:
+    """Pass/fail rate per test across runs. Shows which tests are consistently failing."""
+    query = _build_execution_query(session, repo_id, dt_from, dt_to)
+    results = session.execute(query).scalars().all()
+
+    test_stats: dict[str, dict] = {}
+    for tr in results:
+        key = tr.test_name
+        if key not in test_stats:
+            test_stats[key] = {
+                "test_name": tr.test_name,
+                "suite_name": tr.suite_name,
+                "pass_count": 0,
+                "fail_count": 0,
+                "skip_count": 0,
+                "total_count": 0,
+            }
+        test_stats[key]["total_count"] += 1
+        if tr.status == "PASS":
+            test_stats[key]["pass_count"] += 1
+        elif tr.status == "FAIL":
+            test_stats[key]["fail_count"] += 1
+        else:
+            test_stats[key]["skip_count"] += 1
+
+    # Sort by worst pass rate (lowest first)
+    tests = sorted(
+        test_stats.values(),
+        key=lambda t: t["pass_count"] / max(t["total_count"], 1),
+    )
+
+    for t in tests:
+        total = max(t["total_count"], 1)
+        t["pass_rate"] = round(t["pass_count"] / total * 100, 1)
+
+    return {
+        "total_tests": len(tests),
+        "tests": tests[:50],
+    }
+
+
+def compute_slowest_tests(
+    session: Session,
+    repo_id: int | None,
+    dt_from: datetime | None,
+    dt_to: datetime | None,
+) -> dict:
+    """Top 20 slowest tests by average duration with min/max range."""
+    query = _build_execution_query(session, repo_id, dt_from, dt_to)
+    results = session.execute(query).scalars().all()
+
+    duration_map: dict[str, list[float]] = {}
+    suite_map: dict[str, str] = {}
+    for tr in results:
+        if tr.duration_seconds is None:
+            continue
+        key = tr.test_name
+        if key not in duration_map:
+            duration_map[key] = []
+            suite_map[key] = tr.suite_name
+        duration_map[key].append(tr.duration_seconds)
+
+    tests = []
+    for name, durations in duration_map.items():
+        avg_d = sum(durations) / len(durations)
+        tests.append({
+            "test_name": name,
+            "suite_name": suite_map[name],
+            "avg_duration": round(avg_d, 2),
+            "min_duration": round(min(durations), 2),
+            "max_duration": round(max(durations), 2),
+            "run_count": len(durations),
+        })
+
+    tests.sort(key=lambda t: t["avg_duration"], reverse=True)
+    return {
+        "total_tests": len(tests),
+        "tests": tests[:20],
+    }
+
+
+def compute_flakiness_score(
+    session: Session,
+    repo_id: int | None,
+    dt_from: datetime | None,
+    dt_to: datetime | None,
+) -> dict:
+    """Tests that flip between PASS and FAIL, ranked by flakiness score."""
+    query = _build_execution_query(session, repo_id, dt_from, dt_to)
+    results = session.execute(query).scalars().all()
+
+    # Group results by test name, ordered by start_time
+    test_runs: dict[str, list[dict]] = defaultdict(list)
+    suite_map: dict[str, str] = {}
+    for tr in results:
+        test_runs[tr.test_name].append({
+            "status": tr.status,
+            "start_time": tr.start_time or "",
+        })
+        suite_map[tr.test_name] = tr.suite_name
+
+    tests = []
+    for name, runs in test_runs.items():
+        if len(runs) < 2:
+            continue
+        # Sort by start_time
+        runs.sort(key=lambda r: r["start_time"])
+        statuses = [r["status"] for r in runs]
+
+        # Count transitions (PASS→FAIL or FAIL→PASS)
+        transitions = 0
+        for i in range(1, len(statuses)):
+            prev, curr = statuses[i - 1], statuses[i]
+            if (prev == "PASS" and curr == "FAIL") or (prev == "FAIL" and curr == "PASS"):
+                transitions += 1
+
+        score = round(transitions / (len(runs) - 1), 3) if len(runs) > 1 else 0.0
+
+        # Build status timeline (last 20 runs)
+        timeline = [
+            {"status": r["status"]} for r in runs[-20:]
+        ]
+
+        tests.append({
+            "test_name": name,
+            "suite_name": suite_map.get(name, ""),
+            "total_runs": len(runs),
+            "transitions": transitions,
+            "flakiness_score": score,
+            "timeline": timeline,
+        })
+
+    tests.sort(key=lambda t: t["flakiness_score"], reverse=True)
+    return {
+        "total_tests": len(tests),
+        "tests": [t for t in tests[:30] if t["flakiness_score"] > 0],
+    }
+
+
+def compute_failure_heatmap(
+    session: Session,
+    repo_id: int | None,
+    dt_from: datetime | None,
+    dt_to: datetime | None,
+) -> dict:
+    """Matrix of tests x dates showing pass/fail status per day."""
+    # Get test results joined with execution run for dates
+    base_query = (
+        select(
+            TestResult.test_name,
+            TestResult.status,
+            ExecutionRun.created_at,
+        )
+        .join(Report, TestResult.report_id == Report.id)
+        .join(ExecutionRun, Report.execution_run_id == ExecutionRun.id)
+    )
+    if repo_id:
+        base_query = base_query.where(ExecutionRun.repository_id == repo_id)
+    if dt_from:
+        base_query = base_query.where(ExecutionRun.created_at >= dt_from)
+    if dt_to:
+        base_query = base_query.where(ExecutionRun.created_at <= dt_to)
+
+    rows = session.execute(base_query).all()
+
+    # Group by (test_name, date)
+    cell_data: dict[tuple[str, str], dict] = {}
+    test_fail_counts: Counter = Counter()
+
+    for row in rows:
+        run_date = row.created_at
+        if hasattr(run_date, "date"):
+            day_str = run_date.date().isoformat()
+        else:
+            day_str = str(run_date)[:10]
+
+        key = (row.test_name, day_str)
+        if key not in cell_data:
+            cell_data[key] = {"status": row.status}
+        elif row.status == "FAIL":
+            cell_data[key]["status"] = "FAIL"
+
+        if row.status == "FAIL":
+            test_fail_counts[row.test_name] += 1
+
+    # Pick top-N most-failing tests
+    top_tests = [name for name, _ in test_fail_counts.most_common(20)]
+
+    # Collect unique dates
+    all_dates = sorted({k[1] for k in cell_data.keys()})
+
+    # Build matrix
+    matrix = []
+    for test_name in top_tests:
+        row_cells = []
+        for d in all_dates:
+            key = (test_name, d)
+            if key in cell_data:
+                row_cells.append({"date": d, "status": cell_data[key]["status"]})
+            else:
+                row_cells.append({"date": d, "status": "NONE"})
+        matrix.append({
+            "test_name": test_name,
+            "cells": row_cells,
+        })
+
+    return {
+        "dates": all_dates,
+        "tests": matrix,
+    }
+
+
+def compute_suite_duration_treemap(
+    session: Session,
+    repo_id: int | None,
+    dt_from: datetime | None,
+    dt_to: datetime | None,
+) -> dict:
+    """Duration breakdown by test suite — which suites consume the most execution time."""
+    query = _build_execution_query(session, repo_id, dt_from, dt_to)
+    results = session.execute(query).scalars().all()
+
+    suite_data: dict[str, dict] = {}
+    for tr in results:
+        suite = tr.suite_name or "Unknown"
+        if suite not in suite_data:
+            suite_data[suite] = {"suite_name": suite, "total_duration": 0.0, "test_count": 0}
+        suite_data[suite]["total_duration"] += tr.duration_seconds or 0.0
+        suite_data[suite]["test_count"] += 1
+
+    suites = sorted(suite_data.values(), key=lambda s: s["total_duration"], reverse=True)
+    total = sum(s["total_duration"] for s in suites) or 1.0
+
+    for s in suites:
+        s["total_duration"] = round(s["total_duration"], 2)
+        s["percentage"] = round(s["total_duration"] / total * 100, 1)
+
+    return {
+        "total_duration": round(total, 2),
+        "suites": suites[:30],
+    }
+
+
 # --- Orchestrator ---
 
 
@@ -632,20 +924,34 @@ def run_analysis(analysis_id: int) -> None:
             analysis.progress = 0
             session.commit()
 
+            try:
+                _broadcast_analysis_status(analysis_id, "running", 0)
+            except Exception:
+                logger.debug("Could not broadcast running status for analysis %d", analysis_id)
+
             selected = json.loads(analysis.selected_kpis)
+
+            # Convert date filters to proper datetime objects
+            dt_from = (
+                datetime.combine(analysis.date_from, time.min)
+                if analysis.date_from else None
+            )
+            dt_to = (
+                datetime.combine(analysis.date_to, time.max)
+                if analysis.date_to else None
+            )
 
             # Query reports matching filters
             query = select(Report)
             if analysis.repository_id:
-                from src.execution.models import ExecutionRun
                 query = (
                     query.join(ExecutionRun, Report.execution_run_id == ExecutionRun.id)
                     .where(ExecutionRun.repository_id == analysis.repository_id)
                 )
-            if analysis.date_from:
-                query = query.where(Report.created_at >= str(analysis.date_from))
-            if analysis.date_to:
-                query = query.where(Report.created_at <= str(analysis.date_to))
+            if dt_from:
+                query = query.where(Report.created_at >= dt_from)
+            if dt_to:
+                query = query.where(Report.created_at <= dt_to)
 
             reports = session.execute(query).scalars().all()
             total_reports = len(reports)
@@ -675,19 +981,23 @@ def run_analysis(analysis_id: int) -> None:
             all_tests = _flatten_tests(all_suites)
 
             # Also load DB test results for tag_coverage / error_patterns
-            if "tag_coverage" in selected or "error_patterns" in selected:
+            # Determine which KPIs need DB test results
+            needs_db_results = {"tag_coverage", "error_patterns",
+                                "test_pass_rate_trend", "slowest_tests",
+                                "flakiness_score", "failure_heatmap",
+                                "suite_duration_treemap"}
+            if needs_db_results & set(selected):
                 tr_query = select(TestResult)
                 if analysis.repository_id:
-                    from src.execution.models import ExecutionRun
                     tr_query = (
                         tr_query.join(Report, TestResult.report_id == Report.id)
                         .join(ExecutionRun, Report.execution_run_id == ExecutionRun.id)
                         .where(ExecutionRun.repository_id == analysis.repository_id)
                     )
-                if analysis.date_from:
-                    tr_query = tr_query.where(TestResult.start_time >= str(analysis.date_from))
-                if analysis.date_to:
-                    tr_query = tr_query.where(TestResult.start_time <= str(analysis.date_to))
+                if dt_from:
+                    tr_query = tr_query.where(TestResult.start_time >= str(dt_from))
+                if dt_to:
+                    tr_query = tr_query.where(TestResult.start_time <= str(dt_to))
 
                 db_results = session.execute(tr_query).scalars().all()
 
@@ -727,6 +1037,23 @@ def run_analysis(analysis_id: int) -> None:
                 "redundancy_detection": lambda: compute_redundancy_detection(all_tests),
             }
 
+            # Execution KPIs (query DB test results directly)
+            compute_map["test_pass_rate_trend"] = lambda: compute_test_pass_rate_trend(
+                session, analysis.repository_id, dt_from, dt_to,
+            )
+            compute_map["slowest_tests"] = lambda: compute_slowest_tests(
+                session, analysis.repository_id, dt_from, dt_to,
+            )
+            compute_map["flakiness_score"] = lambda: compute_flakiness_score(
+                session, analysis.repository_id, dt_from, dt_to,
+            )
+            compute_map["failure_heatmap"] = lambda: compute_failure_heatmap(
+                session, analysis.repository_id, dt_from, dt_to,
+            )
+            compute_map["suite_duration_treemap"] = lambda: compute_suite_duration_treemap(
+                session, analysis.repository_id, dt_from, dt_to,
+            )
+
             # Source analysis KPIs (require repo with local_path)
             if repo_local_path:
                 _path = repo_local_path  # capture for lambda
@@ -752,14 +1079,7 @@ def run_analysis(analysis_id: int) -> None:
 
             # Broadcast WebSocket notification
             try:
-                import asyncio
-                from src.websocket.manager import ws_manager
-                asyncio.run(ws_manager.broadcast({
-                    "type": "analysis_status_changed",
-                    "analysis_id": analysis_id,
-                    "status": "completed",
-                    "progress": 100,
-                }))
+                _broadcast_analysis_status(analysis_id, "completed", 100)
             except Exception:
                 logger.debug("Could not broadcast WS notification for analysis %d", analysis_id)
 

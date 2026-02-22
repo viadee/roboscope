@@ -3,7 +3,7 @@
 import asyncio
 import json
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
@@ -145,6 +145,12 @@ def create_analysis_endpoint(
     current_user: User = Depends(require_role(Role.RUNNER)),
 ):
     """Create a new analysis and dispatch background computation."""
+    invalid = set(data.selected_kpis) - set(AVAILABLE_KPIS.keys())
+    if invalid:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown KPI IDs: {', '.join(sorted(invalid))}",
+        )
     analysis = create_analysis(db, data, current_user.id)
     db.commit()
     dispatch_task(run_analysis, analysis.id)
