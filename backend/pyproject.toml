@@ -47,6 +47,7 @@ all = [
 dev = [
     "roboscope-backend[all]",
     "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
     "httpx>=0.28.0",
     "factory-boy>=3.3.0",
@@ -58,6 +59,7 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+asyncio_mode = "auto"
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
