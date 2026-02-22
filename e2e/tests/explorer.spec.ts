@@ -279,10 +279,10 @@ test.describe('Explorer — E2E', () => {
 
     // Editor should show with file content
     await expect(page.locator('.breadcrumb-current')).toHaveText('sample.robot');
-    // CodeMirror editor should be present
-    await expect(page.locator('.cm-editor')).toBeVisible();
-    // Content should include our test case
-    await expect(page.locator('.cm-content')).toContainText('Sample Test');
+    // RobotEditor visual editor should be present (.robot files use RobotEditor, not CodeMirror)
+    await expect(page.locator('.robot-editor')).toBeVisible();
+    // Content should include our test case name in the visual editor
+    await expect(page.locator('.visual-editor')).toContainText('Sample Test');
   });
 
   test('UI: create new file via dialog', async ({ page }) => {
@@ -405,8 +405,8 @@ test.describe('Explorer — E2E', () => {
     const libraryInput = page.locator('.setting-row').first().locator('.setting-library-input');
     await expect(libraryInput).toBeVisible();
 
-    // Focus the library input — dropdown should appear
-    await libraryInput.click();
+    // Clear input and focus — dropdown should appear with all libraries
+    await libraryInput.clear();
     await page.waitForTimeout(200);
     const dropdown = page.locator('.keyword-dropdown');
     await expect(dropdown).toBeVisible();
