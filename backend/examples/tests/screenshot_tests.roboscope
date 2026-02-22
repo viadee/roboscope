@@ -1,0 +1,45 @@
+version: '1'
+metadata:
+  title: Screenshot Capabilities Tests
+  created: '2025-01-30'
+  target_file: tests/screenshot_tests.robot
+  libraries:
+    - OperatingSystem
+    - Screenshot
+test_sets:
+  - name: Screenshot Directory Management
+    description: Tests related to creating and verifying directories used for storing screenshots
+    test_cases:
+      - name: Create and Verify Screenshot Directory
+        description: Creates a screenshots directory relative to the test file location and verifies it exists on the file system
+        steps:
+          - Create the screenshots directory at the path one level above the current test directory
+          - Verify that the screenshots directory exists on the file system
+        expected_result: The screenshots directory is successfully created and confirmed to exist
+  - name: Screenshot File System Operations
+    description: Tests that validate file system interactions involved in capturing and storing screenshots
+    test_cases:
+      - name: File System Screenshot Test
+        description: Creates a test file simulating a screenshot artifact, takes a screenshot, verifies the file exists with correct content, then cleans up
+        priority: high
+        steps:
+          - Define the target screenshot file path within the screenshots directory
+          - Create a file at the defined path with the content 'Test screenshot data'
+          - Take a screenshot using the Screenshot library
+          - Verify that the created file exists at the expected path
+          - Read the content of the file
+          - Assert that the file content contains 'Test screenshot data'
+          - Remove the test file to clean up after the test
+        expected_result: The screenshot file is created with correct content, a screenshot is captured, and the file is successfully removed after verification
+  - name: Screenshot Metadata Handling
+    description: Tests that validate the generation and format of screenshot metadata such as timestamped filenames
+    test_cases:
+      - name: Screenshot Metadata Test
+        description: Generates a Unix timestamp, constructs a screenshot name using the timestamp, and validates the name is non-empty and follows the expected naming convention
+        priority: low
+        steps:
+          - Evaluate the current Unix timestamp as an integer using Python's time module
+          - Construct a screenshot name by prefixing the timestamp with 'screenshot_'
+          - Assert that the constructed screenshot name is not empty
+          - Assert that the screenshot name contains the prefix 'screenshot_'
+        expected_result: The screenshot name is successfully generated, is non-empty, and contains the expected 'screenshot_' prefix
