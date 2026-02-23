@@ -25,19 +25,57 @@ async function getExamplesRepoId(page: Page, token: string): Promise<number> {
   return examples?.id ?? repos[0]?.id;
 }
 
-test.describe('Execution Run — E2E', () => {
+/**
+ * Helper: cancel all running/pending runs and wait for the executor to drain.
+ */
+async function cancelAllRuns(page: Page, token: string): Promise<void> {
+  await page.request.post(`${API}/runs/cancel-all`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  // Give the executor a moment to process cancellations
+  await page.waitForTimeout(2000);
+}
+
+/**
+ * Helper: poll a run until it reaches a terminal state.
+ * Returns the run detail object.
+ */
+async function pollRunToCompletion(
+  page: Page,
+  token: string,
+  runId: number,
+  maxIterations = 60,
+): Promise<any> {
+  let detail: any;
+  for (let i = 0; i < maxIterations; i++) {
+    await page.waitForTimeout(2000);
+    const res = await page.request.get(`${API}/runs/${runId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    detail = await res.json();
+    if (['passed', 'failed', 'error', 'timeout', 'cancelled'].includes(detail.status)) {
+      return detail;
+    }
+  }
+  return detail;
+}
+
+// ─── API Tests (serial — share a single run to avoid executor queue buildup) ──
+
+test.describe.serial('Execution Run — API Tests', () => {
   let token: string;
   let repoId: number;
-
-  test.beforeEach(async ({ page }) => {
-    token = await getAuthToken(page);
-    repoId = await getExamplesRepoId(page, token);
-    await loginAndGoToDashboard(page);
-  });
-
-  // ─── API Tests ─────────────────────────────────────────────────────
+  let runId: number;
+  let completedDetail: any;
 
   test('POST /runs should start a test run', async ({ page }) => {
+    test.setTimeout(180_000);
+    token = await getAuthToken(page);
+    repoId = await getExamplesRepoId(page, token);
+
+    // Cancel any leftover runs from previous specs
+    await cancelAllRuns(page, token);
+
     const res = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
       data: {
@@ -50,53 +88,27 @@ test.describe('Execution Run — E2E', () => {
     expect(['pending', 'running']).toContain(run.status);
     expect(run.target_path).toBe('calculator/basic_math.robot');
     expect(run.id).toBeTruthy();
+    runId = run.id;
+
+    // Poll until the run completes (shared across subsequent tests)
+    completedDetail = await pollRunToCompletion(page, token, runId);
+    expect(['passed', 'failed']).toContain(completedDetail.status);
   });
 
   test('GET /runs/{id} should return run details after completion', async ({ page }) => {
-    test.setTimeout(120_000);
-    // Create a run first
-    const createRes = await page.request.post(`${API}/runs`, {
+    // Re-fetch to prove the endpoint works (run already completed above)
+    const res = await page.request.get(`${API}/runs/${runId}`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { repository_id: repoId, target_path: 'calculator/basic_math.robot' },
     });
-    const run = await createRes.json();
+    const detail = await res.json();
 
-    // Poll until complete (max ~100s — CI queues runs with max_workers=1)
-    let detail: any;
-    for (let i = 0; i < 50; i++) {
-      await page.waitForTimeout(2000);
-      const res = await page.request.get(`${API}/runs/${run.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      detail = await res.json();
-      if (['passed', 'failed', 'error', 'timeout'].includes(detail.status)) break;
-    }
-
-    expect(detail.id).toBe(run.id);
+    expect(detail.id).toBe(runId);
     expect(['passed', 'failed']).toContain(detail.status);
     expect(detail.duration_seconds).toBeGreaterThan(0);
   });
 
   test('GET /runs/{id}/output should return stdout', async ({ page }) => {
-    test.setTimeout(120_000);
-    // Create and poll for completion (only accept passed/failed, not error)
-    const createRes = await page.request.post(`${API}/runs`, {
-      headers: { Authorization: `Bearer ${token}` },
-      data: { repository_id: repoId, target_path: 'calculator/basic_math.robot' },
-    });
-    const run = await createRes.json();
-
-    let detail: any;
-    for (let i = 0; i < 50; i++) {
-      await page.waitForTimeout(2000);
-      const check = await page.request.get(`${API}/runs/${run.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      detail = await check.json();
-      if (['passed', 'failed'].includes(detail.status)) break;
-    }
-
-    const res = await page.request.get(`${API}/runs/${run.id}/output`, {
+    const res = await page.request.get(`${API}/runs/${runId}/output`, {
       headers: { Authorization: `Bearer ${token}` },
       params: { stream: 'stdout' },
     });
@@ -106,35 +118,29 @@ test.describe('Execution Run — E2E', () => {
   });
 
   test('GET /runs/{id}/report should return report ID', async ({ page }) => {
-    test.setTimeout(120_000);
-    // Create and poll for completion (only accept passed/failed for report)
-    const createRes = await page.request.post(`${API}/runs`, {
-      headers: { Authorization: `Bearer ${token}` },
-      data: { repository_id: repoId, target_path: 'calculator/basic_math.robot' },
-    });
-    const run = await createRes.json();
-
-    let detail: any;
-    for (let i = 0; i < 50; i++) {
-      await page.waitForTimeout(2000);
-      const check = await page.request.get(`${API}/runs/${run.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      detail = await check.json();
-      if (['passed', 'failed'].includes(detail.status)) break;
-    }
     // Give extra time for report parsing
     await page.waitForTimeout(3000);
 
-    const res = await page.request.get(`${API}/runs/${run.id}/report`, {
+    const res = await page.request.get(`${API}/runs/${runId}/report`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status()).toBe(200);
     const data = await res.json();
     expect(data.report_id).toBeTruthy();
   });
+});
 
-  // ─── UI Tests ─────────────────────────────────────────────────────
+// ─── UI Tests ─────────────────────────────────────────────────────────────────
+
+test.describe('Execution Run — UI Tests', () => {
+  let token: string;
+  let repoId: number;
+
+  test.beforeEach(async ({ page }) => {
+    token = await getAuthToken(page);
+    repoId = await getExamplesRepoId(page, token);
+    await loginAndGoToDashboard(page);
+  });
 
   test('UI: can start a run from the execution page', async ({ page }) => {
     await page.goto('/runs');
@@ -208,24 +214,18 @@ test.describe('Execution Run — E2E', () => {
   });
 
   test('UI: execution page shows Output button for completed runs', async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
 
-    // Create a run and wait for it to complete
+    // Cancel any queued runs to free the executor
+    await cancelAllRuns(page, token);
+
+    // Create a run and poll until it completes
     const createRes = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
       data: { repository_id: repoId, target_path: 'calculator/basic_math.robot' },
     });
     const run = await createRes.json();
-
-    // Poll this specific run until it reaches a terminal state
-    for (let i = 0; i < 50; i++) {
-      await page.waitForTimeout(2000);
-      const res = await page.request.get(`${API}/runs/${run.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const detail = await res.json();
-      if (['passed', 'failed', 'error'].includes(detail.status)) break;
-    }
+    await pollRunToCompletion(page, token, run.id);
 
     // Go to execution page
     await page.goto('/runs');
