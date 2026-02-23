@@ -766,7 +766,12 @@ const en: DocsContent = [
 </ul>
 <h4>How to Use</h4>
 <ol>
-  <li>Navigate to a report with failed tests (Reports &gt; click a report).</li>
+  <li>Navigate to a report with failed tests. The analysis card is available in <strong>two places</strong>:
+      <ul>
+        <li><strong>Reports page</strong> &mdash; click a report to open the detail view.</li>
+        <li><strong>Execution page</strong> &mdash; click a completed run to expand its detail panel.</li>
+      </ul>
+  </li>
   <li>Scroll down to the <strong>AI Failure Analysis</strong> card in the Summary tab.</li>
   <li>Click <strong>Analyze Failures</strong>. The analysis typically takes 10&ndash;30 seconds
       depending on the number of failures and the LLM provider speed.</li>
@@ -793,8 +798,17 @@ const en: DocsContent = [
   The analysis runs as a background job and does not block other operations.
   Each analysis is an independent LLM call &mdash; re-analyzing may produce
   different results.
+</p>
+<h4>rf-mcp Knowledge Enrichment</h4>
+<p>
+  If the <strong>rf-mcp server</strong> is running (configured in Settings &gt; Robot Framework Knowledge),
+  the analysis is automatically enriched with Robot Framework keyword documentation.
+  The system extracts keyword names from error messages (e.g., &ldquo;No keyword with name
+  &lsquo;Click Element&rsquo; found&rdquo;) and looks up their documentation via rf-mcp.
+  This provides the LLM with accurate keyword signatures and usage examples, resulting
+  in more precise fix suggestions.
 </p>`,
-        tip: 'The AI analysis works best with descriptive error messages. If your tests use custom failure messages, the LLM can provide more specific fix suggestions.'
+        tip: 'The AI analysis works best with descriptive error messages. If your tests use custom failure messages, the LLM can provide more specific fix suggestions. Enable the rf-mcp server for even better results.'
       }
     ]
   },
@@ -1391,7 +1405,7 @@ const en: DocsContent = [
 </p>
 <ul>
   <li>The <strong>copyright notice</strong> for viadee Unternehmensberatung AG.</li>
-  <li>A link to the <strong>mateo-automation.com</strong> website.</li>
+  <li>A link to the <strong>viadee.de</strong> website.</li>
   <li>A link to the <strong>Imprint</strong> (legal notice) page.</li>
 </ul>`
       },

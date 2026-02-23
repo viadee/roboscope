@@ -37,7 +37,7 @@ onUnmounted(() => {
       <footer class="app-footer">
         <span>&copy; {{ new Date().getFullYear() }} viadee Unternehmensberatung AG</span>
         <span class="footer-sep">|</span>
-        <a href="https://www.mateo-automation.com" target="_blank" rel="noopener">mateo-automation.com</a>
+        <a href="https://www.viadee.de" target="_blank" rel="noopener">viadee.de</a>
         <span class="footer-sep">|</span>
         <router-link to="/imprint">{{ t('imprint.title') }}</router-link>
       </footer>

@@ -812,7 +812,12 @@ const es: DocsContent = [
 </ul>
 <h4>C\u00F3mo usar</h4>
 <ol>
-  <li>Navegue a un informe con tests fallidos (Informes &gt; haga clic en un informe).</li>
+  <li>Navegue a un informe con tests fallidos. La tarjeta de an\u00E1lisis est\u00E1 disponible en <strong>dos lugares</strong>:
+      <ul>
+        <li><strong>P\u00E1gina de Informes</strong> &mdash; Haga clic en un informe para abrir la vista detallada.</li>
+        <li><strong>P\u00E1gina de Ejecuci\u00F3n</strong> &mdash; Haga clic en un run completado para abrir el panel de detalles.</li>
+      </ul>
+  </li>
   <li>Despl\u00E1cese hacia abajo hasta la tarjeta <strong>An\u00E1lisis IA de fallos</strong>
       en la pesta\u00F1a Resumen.</li>
   <li>Haga clic en <strong>Analizar fallos</strong>. El an\u00E1lisis suele tardar entre
@@ -840,8 +845,17 @@ const es: DocsContent = [
   El an\u00E1lisis se ejecuta como una tarea en segundo plano y no bloquea otras operaciones.
   Cada an\u00E1lisis es una llamada LLM independiente &mdash; un rean\u00E1lisis puede producir
   resultados diferentes.
+</p>
+<h4>Enriquecimiento rf-mcp</h4>
+<p>
+  Si el <strong>servidor rf-mcp</strong> est\u00E1 en ejecuci\u00F3n (configurado en Configuraci\u00F3n &gt; Robot Framework Knowledge),
+  el an\u00E1lisis se enriquece autom\u00E1ticamente con documentaci\u00F3n de palabras clave de Robot Framework.
+  El sistema extrae nombres de palabras clave de los mensajes de error (p. ej., \u00ABNo keyword with name
+  \u2018Click Element\u2019 found\u00BB) y busca su documentaci\u00F3n a trav\u00E9s de rf-mcp.
+  Esto proporciona al LLM firmas de palabras clave precisas y ejemplos de uso,
+  lo que mejora la calidad de las sugerencias de correcci\u00F3n.
 </p>`,
-        tip: 'El an\u00E1lisis de IA funciona mejor con mensajes de error descriptivos. Si sus tests usan mensajes de fallo personalizados, el LLM puede proporcionar sugerencias m\u00E1s espec\u00EDficas.'
+        tip: 'El an\u00E1lisis de IA funciona mejor con mensajes de error descriptivos. Si sus tests usan mensajes de fallo personalizados, el LLM puede proporcionar sugerencias m\u00E1s espec\u00EDficas. Active el servidor rf-mcp para obtener mejores resultados.'
       }
     ]
   },
@@ -1468,7 +1482,7 @@ const es: DocsContent = [
 </p>
 <ul>
   <li>El <strong>aviso de copyright</strong> de viadee Unternehmensberatung AG.</li>
-  <li>Un enlace al sitio web de <strong>mateo-automation.com</strong>.</li>
+  <li>Un enlace al sitio web de <strong>viadee.de</strong>.</li>
   <li>Un enlace a la p\u00E1gina de <strong>Aviso legal</strong> (Impressum).</li>
 </ul>`
       },

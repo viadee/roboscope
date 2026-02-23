@@ -13,8 +13,8 @@ test.describe('Imprint Page & Footer', () => {
     await expect(footer).toContainText(new Date().getFullYear().toString());
   });
 
-  test('should show mateo-automation link in footer', async ({ page }) => {
-    const link = page.locator('.app-footer a[href*="mateo-automation"]');
+  test('should show viadee link in footer', async ({ page }) => {
+    const link = page.locator('.app-footer a[href*="viadee.de"]');
     await expect(link).toBeVisible();
     await expect(link).toHaveAttribute('target', '_blank');
   });
@@ -65,7 +65,7 @@ test.describe('Imprint Page & Footer', () => {
     await page.goto('/imprint');
     await page.waitForLoadState('networkidle');
 
-    const productLink = page.locator('a[href="https://www.mateo-automation.com"]').first();
+    const productLink = page.locator('a[href="https://www.viadee.de"]').first();
     await expect(productLink).toBeVisible();
   });
 });

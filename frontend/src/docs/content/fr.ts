@@ -780,7 +780,12 @@ const fr: DocsContent = [
 </ul>
 <h4>Utilisation</h4>
 <ol>
-  <li>Acc\u00E9dez \u00E0 un rapport contenant des tests \u00E9chou\u00E9s (Rapports &gt; cliquez sur un rapport).</li>
+  <li>Acc\u00E9dez \u00E0 un rapport contenant des tests \u00E9chou\u00E9s. La carte d\u2019analyse est disponible \u00E0 <strong>deux endroits</strong>\u00A0:
+      <ul>
+        <li><strong>Page Rapports</strong> &mdash; Cliquez sur un rapport pour ouvrir la vue d\u00E9taill\u00E9e.</li>
+        <li><strong>Page Ex\u00E9cution</strong> &mdash; Cliquez sur un run termin\u00E9 pour ouvrir le panneau de d\u00E9tails.</li>
+      </ul>
+  </li>
   <li>Faites d\u00E9filer vers le bas jusqu\u2019\u00E0 la carte <strong>Analyse IA des erreurs</strong>
       dans l\u2019onglet R\u00E9sum\u00E9.</li>
   <li>Cliquez sur <strong>Analyser les erreurs</strong>. L\u2019analyse prend g\u00E9n\u00E9ralement
@@ -808,8 +813,17 @@ const fr: DocsContent = [
   L\u2019analyse s\u2019ex\u00E9cute en t\u00E2che de fond et ne bloque pas les autres op\u00E9rations.
   Chaque analyse est un appel LLM ind\u00E9pendant &mdash; une r\u00E9analyse peut produire
   des r\u00E9sultats diff\u00E9rents.
+</p>
+<h4>Enrichissement rf-mcp</h4>
+<p>
+  Si le <strong>serveur rf-mcp</strong> est en cours d\u2019ex\u00E9cution (configur\u00E9 dans Param\u00E8tres &gt; Robot Framework Knowledge),
+  l\u2019analyse est automatiquement enrichie avec la documentation des mots-cl\u00E9s Robot Framework.
+  Le syst\u00E8me extrait les noms de mots-cl\u00E9s des messages d\u2019erreur (par ex. \u00AB\u00A0No keyword with name
+  \u2018Click Element\u2019 found\u00A0\u00BB) et recherche leur documentation via rf-mcp.
+  Cela fournit au LLM des signatures de mots-cl\u00E9s pr\u00E9cises et des exemples d\u2019utilisation,
+  ce qui am\u00E9liore la qualit\u00E9 des suggestions de correctifs.
 </p>`,
-        tip: 'L\u2019analyse IA fonctionne mieux avec des messages d\u2019erreur descriptifs. Si vos tests utilisent des messages d\u2019\u00E9chec personnalis\u00E9s, le LLM peut fournir des suggestions plus sp\u00E9cifiques.'
+        tip: 'L\u2019analyse IA fonctionne mieux avec des messages d\u2019erreur descriptifs. Si vos tests utilisent des messages d\u2019\u00E9chec personnalis\u00E9s, le LLM peut fournir des suggestions plus sp\u00E9cifiques. Activez le serveur rf-mcp pour de meilleurs r\u00E9sultats.'
       }
     ]
   },
@@ -1419,7 +1433,7 @@ const fr: DocsContent = [
 </p>
 <ul>
   <li>L\u2019<strong>avis de copyright</strong> de viadee Unternehmensberatung AG.</li>
-  <li>Un lien vers le site <strong>mateo-automation.com</strong>.</li>
+  <li>Un lien vers le site <strong>viadee.de</strong>.</li>
   <li>Un lien vers la page de <strong>Mentions l\u00E9gales</strong>.</li>
 </ul>`
       },

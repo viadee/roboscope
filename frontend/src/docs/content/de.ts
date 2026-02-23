@@ -77,7 +77,7 @@ const de: DocsContent = [
   </li>
 </ol>
 <p>
-  Das Design orientiert sich am <em>mateo-automation.com</em>-Branding mit den
+  Das Design orientiert sich am <em>viadee.de</em>-Branding mit den
   Hauptfarben Steel Blue (<code>#3B7DD8</code>) und Amber (<code>#D4883E</code>)
   auf dunklem Navy-Hintergrund in der Sidebar.
 </p>`
@@ -731,7 +731,12 @@ const de: DocsContent = [
 </ul>
 <h4>Verwendung</h4>
 <ol>
-  <li>Navigieren Sie zu einem Report mit fehlgeschlagenen Tests (Reports &gt; Report anklicken).</li>
+  <li>Navigieren Sie zu einem Report mit fehlgeschlagenen Tests. Die Analyse-Karte ist an <strong>zwei Stellen</strong> verf\u00FCgbar:
+      <ul>
+        <li><strong>Reports-Seite</strong> &mdash; Klicken Sie auf einen Report f\u00FCr die Detailansicht.</li>
+        <li><strong>Ausf\u00FChrungs-Seite</strong> &mdash; Klicken Sie auf einen abgeschlossenen Run, um das Detail-Panel zu \u00F6ffnen.</li>
+      </ul>
+  </li>
   <li>Scrollen Sie nach unten zur <strong>KI-Fehleranalyse</strong>-Karte im Zusammenfassungs-Tab.</li>
   <li>Klicken Sie auf <strong>Fehler analysieren</strong>. Die Analyse dauert je nach Anzahl
       der Fehler und LLM-Anbieter typischerweise 10&ndash;30 Sekunden.</li>
@@ -758,8 +763,17 @@ const de: DocsContent = [
   Die Analyse l\u00E4uft als Hintergrund-Job und blockiert keine anderen Operationen.
   Jede Analyse ist ein unabh\u00E4ngiger LLM-Aufruf &mdash; eine erneute Analyse kann
   unterschiedliche Ergebnisse liefern.
+</p>
+<h4>rf-mcp Wissensanreicherung</h4>
+<p>
+  Wenn der <strong>rf-mcp-Server</strong> l\u00E4uft (konfiguriert unter Einstellungen &gt; Robot Framework Knowledge),
+  wird die Analyse automatisch mit Robot-Framework-Keyword-Dokumentation angereichert.
+  Das System extrahiert Keyword-Namen aus Fehlermeldungen (z.\u202FB. \u201ENo keyword with name
+  \u2018Click Element\u2019 found\u201C) und schl\u00E4gt deren Dokumentation \u00FCber rf-mcp nach.
+  So erh\u00E4lt das LLM genaue Keyword-Signaturen und Nutzungsbeispiele, was zu
+  pr\u00E4ziseren L\u00F6sungsvorschl\u00E4gen f\u00FChrt.
 </p>`,
-        tip: 'Die KI-Analyse funktioniert am besten mit aussagekr\u00E4ftigen Fehlermeldungen. Wenn Ihre Tests eigene Failure-Messages verwenden, kann das LLM spezifischere L\u00F6sungsvorschl\u00E4ge liefern.'
+        tip: 'Die KI-Analyse funktioniert am besten mit aussagekr\u00E4ftigen Fehlermeldungen. Wenn Ihre Tests eigene Failure-Messages verwenden, kann das LLM spezifischere L\u00F6sungsvorschl\u00E4ge liefern. Aktivieren Sie den rf-mcp-Server f\u00FCr noch bessere Ergebnisse.'
       }
     ]
   },
@@ -1332,7 +1346,7 @@ const de: DocsContent = [
 </p>
 <ul>
   <li>Der <strong>Copyright-Hinweis</strong> der viadee Unternehmensberatung AG.</li>
-  <li>Ein Link zur <strong>mateo-automation.com</strong>-Website.</li>
+  <li>Ein Link zur <strong>viadee.de</strong>-Website.</li>
   <li>Ein Link zum <strong>Impressum</strong>.</li>
 </ul>`
       },

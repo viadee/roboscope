@@ -52,7 +52,7 @@ const { t } = useI18n()
         <h2>{{ t('imprint.product') }}</h2>
         <p>
           {{ t('imprint.productText') }}<br />
-          <a href="https://www.mateo-automation.com" target="_blank" rel="noopener">www.mateo-automation.com</a>
+          <a href="https://www.viadee.de" target="_blank" rel="noopener">www.viadee.de</a>
         </p>
       </div>
     </div>

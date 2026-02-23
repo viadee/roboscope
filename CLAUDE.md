@@ -34,7 +34,7 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 - i18n: vollständig in 4 Sprachen (EN, DE, FR, ES)
 - Vue Router mit rollenbasierten Guards
 - TypeScript Domain + API Types
-- Footer: Copyright, mateo-automation.com Link, Impressum
+- Footer: Copyright, viadee.de Link, Impressum
 - Execution-Tabelle: Environment-Spalte, Retry-Button, Explorer-Link, Spinner bei aktiven Runs
 
 **E2E Tests (Playwright) — UMFASSEND (~1.400 Zeilen)**
