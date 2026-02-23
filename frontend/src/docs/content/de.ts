@@ -712,6 +712,54 @@ const de: DocsContent = [
   <strong>Berechtigung:</strong> Nur Benutzer mit der Rolle <em>Admin</em>
   k\u00F6nnen diese Aktion ausf\u00FChren.
 </p>`
+      },
+      {
+        id: 'ai-failure-analysis',
+        title: 'KI-Fehleranalyse',
+        content: `
+<p>
+  Wenn ein Report fehlgeschlagene Tests enth\u00E4lt, wird im Zusammenfassungs-Tab
+  unten eine <strong>KI-Fehleranalyse</strong>-Karte angezeigt. Diese Funktion nutzt
+  einen konfigurierten LLM-Anbieter, um Testfehler automatisch zu analysieren und
+  Ursachen sowie L\u00F6sungsvorschl\u00E4ge zu liefern.
+</p>
+<h4>Voraussetzungen</h4>
+<ul>
+  <li>Mindestens ein <strong>KI-Anbieter</strong> muss unter
+      <strong>Einstellungen &gt; KI-Anbieter</strong> konfiguriert sein (erfordert Admin-Rolle).</li>
+  <li>Der Report muss mindestens einen fehlgeschlagenen Test enthalten.</li>
+</ul>
+<h4>Verwendung</h4>
+<ol>
+  <li>Navigieren Sie zu einem Report mit fehlgeschlagenen Tests (Reports &gt; Report anklicken).</li>
+  <li>Scrollen Sie nach unten zur <strong>KI-Fehleranalyse</strong>-Karte im Zusammenfassungs-Tab.</li>
+  <li>Klicken Sie auf <strong>Fehler analysieren</strong>. Die Analyse dauert je nach Anzahl
+      der Fehler und LLM-Anbieter typischerweise 10&ndash;30 Sekunden.</li>
+  <li>Nach Abschluss wird die Analyse als formatiertes Markdown angezeigt:
+      <ul>
+        <li><strong>Ursachenanalyse</strong> &mdash; Diagnose pro Fehler</li>
+        <li><strong>Mustererkennung</strong> &mdash; gemeinsame Themen \u00FCber Fehler hinweg</li>
+        <li><strong>L\u00F6sungsvorschl\u00E4ge</strong> &mdash; konkrete Code- oder Konfigurations\u00E4nderungen</li>
+        <li><strong>Priorit\u00E4tsranking</strong> &mdash; CRITICAL / HIGH / MEDIUM / LOW</li>
+      </ul>
+  </li>
+</ol>
+<h4>Zust\u00E4nde</h4>
+<ul>
+  <li><strong>Kein Anbieter</strong> &mdash; Wenn kein KI-Anbieter konfiguriert ist, wird ein
+      Hinweis auf die Einstellungsseite angezeigt.</li>
+  <li><strong>Laden</strong> &mdash; W\u00E4hrend der LLM-Verarbeitung wird ein Spinner angezeigt.</li>
+  <li><strong>Fehler</strong> &mdash; Bei fehlgeschlagener Analyse (z.\u202FB. API-Ratenlimit) wird die
+      Fehlermeldung mit einem Wiederholen-Button angezeigt.</li>
+  <li><strong>Abgeschlossen</strong> &mdash; Das Analyseergebnis wird mit Token-Z\u00E4hler und einem
+      Button zur erneuten Analyse dargestellt.</li>
+</ul>
+<p>
+  Die Analyse l\u00E4uft als Hintergrund-Job und blockiert keine anderen Operationen.
+  Jede Analyse ist ein unabh\u00E4ngiger LLM-Aufruf &mdash; eine erneute Analyse kann
+  unterschiedliche Ergebnisse liefern.
+</p>`,
+        tip: 'Die KI-Analyse funktioniert am besten mit aussagekr\u00E4ftigen Fehlermeldungen. Wenn Ihre Tests eigene Failure-Messages verwenden, kann das LLM spezifischere L\u00F6sungsvorschl\u00E4ge liefern.'
       }
     ]
   },

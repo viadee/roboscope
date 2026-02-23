@@ -20,7 +20,7 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 - Alembic Migrationen (SQLite + PostgreSQL)
 - Bulk-Operationen: Cancel all runs (RUNNER+), Delete all reports (ADMIN)
 - Seed: Default-Admin + "Examples"-Projekt beim ersten Start
-- AI-Modul: LLM-gestützte .roboscope ↔ .robot Generierung (OpenAI, Anthropic, OpenRouter, Ollama)
+- AI-Modul: LLM-gestützte .roboscope ↔ .robot Generierung + KI-Fehleranalyse für Reports (OpenAI, Anthropic, OpenRouter, Ollama)
 
 **Frontend (Vue 3 + TypeScript) — VOLLSTÄNDIG implementiert (~5.500 Zeilen)**
 - 12 Views: Login, Dashboard, Repos, Explorer, Execution, Environments, Reports, ReportDetail, Stats, Settings, Docs, Imprint
@@ -118,6 +118,7 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] Deep Analysis: Frontend-Visualisierungen (CSS Stacked Bars, Horizontal Bars, Dot Timeline, Heatmap Grid, Treemap)
 - [x] Deep Analysis: Backend-Tests (26 Tests) + E2E-Tests (8 Tests)
 - [x] Explorer: Binärdatei-Erkennung (Null-Byte-Check, `is_binary` Flag, `force` Query-Param, Placeholder + "Trotzdem öffnen" Button, i18n EN/DE/FR/ES, Backend+Router+E2E Tests)
+- [x] AI-Fehleranalyse: LLM-gestützte Root-Cause-Analyse für fehlgeschlagene Tests (POST /ai/analyze, run_analyze Task, ReportDetailView-Integration, E2E-Tests)
 
 **Offen / Roadmap (priorisiert):**
 - [x] **Responsive Design** — Sidebar, Tabellen, iframe-Layout für kleinere Bildschirme optimieren
@@ -142,7 +143,7 @@ RoboScope/
 │   │   ├── environments/ # venv + Pakete + Variablen
 │   │   ├── reports/  # output.xml Parser + Vergleich
 │   │   ├── stats/    # KPI Dashboard, Flaky Detection, Heatmap, On-Demand Tiefenanalyse
-│   │   ├── ai/       # LLM-gestützte .roboscope ↔ .robot Generierung
+│   │   ├── ai/       # LLM-gestützte .roboscope ↔ .robot Generierung + Fehleranalyse
 │   │   ├── settings/ # Key-Value App-Settings (Admin)
 │   │   ├── plugins/  # Plugin-System (Analyzer, Runner, Integration, KPI)
 │   │   ├── websocket/# WebSocket Connection Manager
@@ -229,7 +230,7 @@ Alle unter `/api/v1/`:
 | `/stats` | KPIs, Trends, Flaky, Heatmap | Authentifiziert |
 | `/stats/analysis` | On-Demand Tiefenanalyse (CRUD + KPI-Metadaten) | RUNNER+ für POST, sonst Auth |
 | `/settings` | App-Settings | ADMIN only |
-| `/ai` | LLM-Provider CRUD, Spec→Robot Generierung, Robot→Spec Reverse, Drift-Erkennung | EDITOR+ |
+| `/ai` | LLM-Provider CRUD, Spec→Robot Generierung, Robot→Spec Reverse, Drift-Erkennung, Fehleranalyse | EDITOR+ (Analyze: Auth) |
 
 Swagger UI: `http://localhost:8000/api/v1/docs`
 
@@ -394,33 +395,43 @@ Der Event-Loop wird in `main.py` Lifespan als `_event_loop` gespeichert. Zwei He
 ### KPI-Validation (Stats-Router)
 `POST /stats/analysis` validiert `selected_kpis` gegen `AVAILABLE_KPIS.keys()`. Unbekannte KPI-IDs werden mit HTTP 422 abgelehnt (Detail-Nachricht enthält die ungültigen IDs).
 
-### AI-Modul (.roboscope ↔ .robot Generierung)
-LLM-gestütztes Modul zur bidirektionalen Synchronisation zwischen `.roboscope` YAML-Spezifikationen und `.robot` Testdateien.
+### AI-Modul (.roboscope ↔ .robot Generierung + Fehleranalyse)
+LLM-gestütztes Modul zur bidirektionalen Synchronisation zwischen `.roboscope` YAML-Spezifikationen und `.robot` Testdateien, sowie KI-gestützte Fehleranalyse für Reports.
 
 **Dateien:**
-- `backend/src/ai/models.py` — `AiProvider` (LLM-Konfiguration), `AiJob` (Generierungs-Jobs)
-- `backend/src/ai/schemas.py` — Pydantic Request/Response Schemas
+- `backend/src/ai/models.py` — `AiProvider` (LLM-Konfiguration), `AiJob` (Jobs: generate, reverse, analyze)
+- `backend/src/ai/schemas.py` — Pydantic Request/Response Schemas (inkl. `AnalyzeRequest`)
 - `backend/src/ai/service.py` — CRUD, Spec-Parsing, Drift-Erkennung (SHA256)
-- `backend/src/ai/router.py` — 10 API-Endpoints (Provider CRUD, Generate, Reverse, Accept, Validate, Drift)
+- `backend/src/ai/router.py` — 11 API-Endpoints (Provider CRUD, Generate, Reverse, **Analyze**, Accept, Validate, Drift)
 - `backend/src/ai/llm_client.py` — Einheitlicher LLM-Client (OpenAI/Anthropic/OpenRouter/Ollama via httpx)
-- `backend/src/ai/prompts.py` — System/User Prompt Templates für Generierung und Reverse
-- `backend/src/ai/tasks.py` — Background-Tasks: `run_generate()`, `run_reverse()`
+- `backend/src/ai/prompts.py` — System/User Prompt Templates für Generierung, Reverse und **Fehleranalyse**
+- `backend/src/ai/tasks.py` — Background-Tasks: `run_generate()`, `run_reverse()`, **`run_analyze()`**
 - `backend/src/ai/encryption.py` — Fernet-Verschlüsselung für API-Keys (abgeleitet von SECRET_KEY)
 - `backend/src/ai/rf_knowledge.py` — Stub für optionale rf-mcp Integration
-- `frontend/src/api/ai.api.ts` — API-Client
-- `frontend/src/stores/ai.store.ts` — Pinia Store (Provider-Management, Job-Polling, Drift)
+- `frontend/src/api/ai.api.ts` — API-Client (inkl. `analyzeFailures()`)
+- `frontend/src/stores/ai.store.ts` — Pinia Store (Provider-Management, Job-Polling, Drift, **analysisJob**)
 - `frontend/src/components/ai/ProviderConfig.vue` — LLM-Provider Verwaltung (Settings-Tab)
 - `frontend/src/components/ai/GenerateModal.vue` — Generierungs-Modal mit Fortschritt + DiffPreview
 - `frontend/src/components/ai/DiffPreview.vue` — Raw/Unified Diff-Ansicht
 - `frontend/src/components/ai/SpecEditor.vue` — Dual-Tab-Editor für .roboscope Dateien (Visual Form + YAML mit CodeMirror, Library-Autocomplete, Environment-Auswahl)
+- `frontend/src/views/ReportDetailView.vue` — **AI Failure Analysis Card** im Summary-Tab
 
-**Ablauf:**
+**Ablauf Generierung:**
 1. User erstellt/editiert `.roboscope` YAML-Datei im Explorer
 2. Klickt "Generate" → Backend dispatcht LLM-Aufruf als Background-Task
 3. Frontend pollt Job-Status alle 2s
 4. Bei Abschluss: DiffPreview zeigt generiertes `.robot` vs. bestehendes
 5. User akzeptiert → Datei wird geschrieben, `generation_hash` aktualisiert
 6. Drift-Erkennung: SHA256-Vergleich zwischen `.roboscope` Hash und aktuellem `.robot` Inhalt
+
+**Ablauf Fehleranalyse:**
+1. User öffnet Report-Detailansicht eines Reports mit fehlgeschlagenen Tests
+2. Klickt "Fehler analysieren" → `POST /ai/analyze` erstellt `AiJob(type="analyze", report_id=X)`
+3. `run_analyze()` im Background-Thread: lädt Report + fehlgeschlagene TestResults, baut Prompt, ruft LLM auf
+4. Frontend pollt `analysisJob` alle 2s via `GET /ai/status/{job_id}`
+5. Bei Abschluss: Markdown-Analyse wird gerendert (Root-Cause, Pattern-Erkennung, Fix-Vorschläge, Prioritäten)
+6. Fehlerbehandlung: Error-State mit Retry-Button, "No Provider"-Hinweis wenn kein LLM konfiguriert
+7. `AiJob.report_id` FK verknüpft den Analyse-Job mit dem Report
 
 **Unterstützte LLM-Anbieter:**
 - OpenAI (GPT-4.1, GPT-4o, o3, o4-mini), Anthropic (Claude Sonnet/Opus 4.6, Haiku 4.5), OpenRouter (beliebige Modelle), Ollama (lokale Modelle)

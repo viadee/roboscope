@@ -793,6 +793,55 @@ const es: DocsContent = [
   informe asociados se eliminan del directorio <code>REPORTS_DIR</code> en el servidor.
 </p>`,
         tip: 'Considere descargar los informes importantes como ZIP antes de realizar una eliminaci\u00F3n masiva.'
+      },
+      {
+        id: 'ai-failure-analysis',
+        title: 'An\u00E1lisis IA de fallos',
+        content: `
+<p>
+  Cuando un informe contiene tests fallidos, la pesta\u00F1a Resumen muestra una
+  tarjeta de <strong>An\u00E1lisis IA de fallos</strong> en la parte inferior. Esta
+  funci\u00F3n utiliza un proveedor LLM configurado para analizar autom\u00E1ticamente
+  los fallos de tests y sugerir causas ra\u00EDz y correcciones.
+</p>
+<h4>Requisitos previos</h4>
+<ul>
+  <li>Al menos un <strong>proveedor de IA</strong> debe estar configurado en
+      <strong>Configuraci\u00F3n &gt; Proveedores de IA</strong> (requiere rol Admin).</li>
+  <li>El informe debe contener al menos un test fallido.</li>
+</ul>
+<h4>C\u00F3mo usar</h4>
+<ol>
+  <li>Navegue a un informe con tests fallidos (Informes &gt; haga clic en un informe).</li>
+  <li>Despl\u00E1cese hacia abajo hasta la tarjeta <strong>An\u00E1lisis IA de fallos</strong>
+      en la pesta\u00F1a Resumen.</li>
+  <li>Haga clic en <strong>Analizar fallos</strong>. El an\u00E1lisis suele tardar entre
+      10 y 30 segundos seg\u00FAn la cantidad de fallos y la velocidad del proveedor LLM.</li>
+  <li>Una vez completado, el an\u00E1lisis se muestra como markdown formateado que incluye:
+      <ul>
+        <li><strong>An\u00E1lisis de causa ra\u00EDz</strong> &mdash; diagn\u00F3stico por fallo</li>
+        <li><strong>Detecci\u00F3n de patrones</strong> &mdash; temas comunes entre fallos</li>
+        <li><strong>Correcciones sugeridas</strong> &mdash; cambios de c\u00F3digo o configuraci\u00F3n</li>
+        <li><strong>Clasificaci\u00F3n por prioridad</strong> &mdash; CRITICAL / HIGH / MEDIUM / LOW</li>
+      </ul>
+  </li>
+</ol>
+<h4>Estados</h4>
+<ul>
+  <li><strong>Sin proveedor</strong> &mdash; Si no hay ning\u00FAn proveedor de IA configurado,
+      se muestra un mensaje que dirige a la p\u00E1gina de Configuraci\u00F3n.</li>
+  <li><strong>Cargando</strong> &mdash; Se muestra un indicador de progreso durante el procesamiento.</li>
+  <li><strong>Error</strong> &mdash; Si el an\u00E1lisis falla (ej.: l\u00EDmite de tasa de API), se muestra
+      el mensaje de error con un bot\u00F3n de Reintentar.</li>
+  <li><strong>Completado</strong> &mdash; El resultado se muestra con un contador de tokens
+      y un bot\u00F3n para volver a analizar.</li>
+</ul>
+<p>
+  El an\u00E1lisis se ejecuta como una tarea en segundo plano y no bloquea otras operaciones.
+  Cada an\u00E1lisis es una llamada LLM independiente &mdash; un rean\u00E1lisis puede producir
+  resultados diferentes.
+</p>`,
+        tip: 'El an\u00E1lisis de IA funciona mejor con mensajes de error descriptivos. Si sus tests usan mensajes de fallo personalizados, el LLM puede proporcionar sugerencias m\u00E1s espec\u00EDficas.'
       }
     ]
   },

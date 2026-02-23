@@ -761,6 +761,55 @@ const fr: DocsContent = [
   de rapport associ\u00E9s sont supprim\u00E9s du r\u00E9pertoire <code>REPORTS_DIR</code> sur le serveur.
 </p>`,
         tip: 'Pensez \u00E0 t\u00E9l\u00E9charger les rapports importants en ZIP avant d\u2019effectuer une suppression en masse.'
+      },
+      {
+        id: 'ai-failure-analysis',
+        title: 'Analyse IA des erreurs',
+        content: `
+<p>
+  Lorsqu\u2019un rapport contient des tests \u00E9chou\u00E9s, l\u2019onglet R\u00E9sum\u00E9 affiche une
+  carte <strong>Analyse IA des erreurs</strong> en bas de page. Cette fonctionnalit\u00E9
+  utilise un fournisseur LLM configur\u00E9 pour analyser automatiquement les \u00E9checs
+  de tests et sugg\u00E9rer des causes et des correctifs.
+</p>
+<h4>Pr\u00E9requis</h4>
+<ul>
+  <li>Au moins un <strong>fournisseur IA</strong> doit \u00EAtre configur\u00E9 dans
+      <strong>Param\u00E8tres &gt; Fournisseurs IA</strong> (r\u00F4le Admin requis).</li>
+  <li>Le rapport doit contenir au moins un test \u00E9chou\u00E9.</li>
+</ul>
+<h4>Utilisation</h4>
+<ol>
+  <li>Acc\u00E9dez \u00E0 un rapport contenant des tests \u00E9chou\u00E9s (Rapports &gt; cliquez sur un rapport).</li>
+  <li>Faites d\u00E9filer vers le bas jusqu\u2019\u00E0 la carte <strong>Analyse IA des erreurs</strong>
+      dans l\u2019onglet R\u00E9sum\u00E9.</li>
+  <li>Cliquez sur <strong>Analyser les erreurs</strong>. L\u2019analyse prend g\u00E9n\u00E9ralement
+      10 \u00E0 30 secondes selon le nombre d\u2019\u00E9checs et la vitesse du fournisseur LLM.</li>
+  <li>Une fois termin\u00E9e, l\u2019analyse est affich\u00E9e en markdown format\u00E9 incluant\u00A0:
+      <ul>
+        <li><strong>Analyse des causes</strong> &mdash; diagnostic par \u00E9chec</li>
+        <li><strong>D\u00E9tection de motifs</strong> &mdash; th\u00E8mes communs entre les \u00E9checs</li>
+        <li><strong>Correctifs sugg\u00E9r\u00E9s</strong> &mdash; modifications de code ou de configuration</li>
+        <li><strong>Classement par priorit\u00E9</strong> &mdash; CRITICAL / HIGH / MEDIUM / LOW</li>
+      </ul>
+  </li>
+</ol>
+<h4>\u00C9tats</h4>
+<ul>
+  <li><strong>Aucun fournisseur</strong> &mdash; Si aucun fournisseur IA n\u2019est configur\u00E9,
+      un message vous dirige vers la page Param\u00E8tres.</li>
+  <li><strong>Chargement</strong> &mdash; Un indicateur de progression est affich\u00E9 pendant le traitement.</li>
+  <li><strong>Erreur</strong> &mdash; Si l\u2019analyse \u00E9choue (ex. : limite de d\u00E9bit API), le message
+      d\u2019erreur est affich\u00E9 avec un bouton R\u00E9essayer.</li>
+  <li><strong>Termin\u00E9e</strong> &mdash; Le r\u00E9sultat est affich\u00E9 avec un compteur de tokens
+      et un bouton pour relancer l\u2019analyse.</li>
+</ul>
+<p>
+  L\u2019analyse s\u2019ex\u00E9cute en t\u00E2che de fond et ne bloque pas les autres op\u00E9rations.
+  Chaque analyse est un appel LLM ind\u00E9pendant &mdash; une r\u00E9analyse peut produire
+  des r\u00E9sultats diff\u00E9rents.
+</p>`,
+        tip: 'L\u2019analyse IA fonctionne mieux avec des messages d\u2019erreur descriptifs. Si vos tests utilisent des messages d\u2019\u00E9chec personnalis\u00E9s, le LLM peut fournir des suggestions plus sp\u00E9cifiques.'
       }
     ]
   },

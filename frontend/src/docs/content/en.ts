@@ -747,6 +747,54 @@ const en: DocsContent = [
   removed from the <code>REPORTS_DIR</code> directory on the server.
 </p>`,
         tip: 'Consider downloading important reports as ZIP before performing a bulk delete.'
+      },
+      {
+        id: 'ai-failure-analysis',
+        title: 'AI Failure Analysis',
+        content: `
+<p>
+  When a report contains failed tests, the Summary tab shows an
+  <strong>AI Failure Analysis</strong> card at the bottom. This feature uses a
+  configured LLM provider to automatically analyze test failures and suggest
+  root causes and fixes.
+</p>
+<h4>Prerequisites</h4>
+<ul>
+  <li>At least one <strong>AI provider</strong> must be configured in
+      <strong>Settings &gt; AI Providers</strong> (requires Admin role).</li>
+  <li>The report must contain at least one failed test.</li>
+</ul>
+<h4>How to Use</h4>
+<ol>
+  <li>Navigate to a report with failed tests (Reports &gt; click a report).</li>
+  <li>Scroll down to the <strong>AI Failure Analysis</strong> card in the Summary tab.</li>
+  <li>Click <strong>Analyze Failures</strong>. The analysis typically takes 10&ndash;30 seconds
+      depending on the number of failures and the LLM provider speed.</li>
+  <li>Once complete, the analysis is displayed as formatted markdown including:
+      <ul>
+        <li><strong>Root Cause Analysis</strong> &mdash; per-failure diagnosis</li>
+        <li><strong>Pattern Detection</strong> &mdash; common themes across failures</li>
+        <li><strong>Suggested Fixes</strong> &mdash; actionable code or configuration changes</li>
+        <li><strong>Priority Ranking</strong> &mdash; CRITICAL / HIGH / MEDIUM / LOW</li>
+      </ul>
+  </li>
+</ol>
+<h4>States</h4>
+<ul>
+  <li><strong>No provider</strong> &mdash; If no AI provider is configured, a hint message
+      directs you to the Settings page.</li>
+  <li><strong>Loading</strong> &mdash; A spinner is shown while the LLM processes the request.</li>
+  <li><strong>Error</strong> &mdash; If the analysis fails (e.g., API rate limit), the error
+      message is shown with a Retry button.</li>
+  <li><strong>Completed</strong> &mdash; The analysis result is rendered with a token usage
+      counter and a Re-analyze button to run a fresh analysis.</li>
+</ul>
+<p>
+  The analysis runs as a background job and does not block other operations.
+  Each analysis is an independent LLM call &mdash; re-analyzing may produce
+  different results.
+</p>`,
+        tip: 'The AI analysis works best with descriptive error messages. If your tests use custom failure messages, the LLM can provide more specific fix suggestions.'
       }
     ]
   },
