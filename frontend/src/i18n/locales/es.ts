@@ -196,6 +196,8 @@ export default {
       goToExecution: 'Ir a ejecución',
     },
     discardChanges: '¿Descartar cambios sin guardar?',
+    binaryFile: 'Archivo binario — no se puede mostrar como texto.',
+    openAnyway: 'Abrir de todos modos',
   },
   execution: {
     title: 'Ejecución',

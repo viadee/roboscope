@@ -196,6 +196,8 @@ export default {
       goToExecution: 'Zur Ausführung',
     },
     discardChanges: 'Ungespeicherte Änderungen verwerfen?',
+    binaryFile: 'Binärdatei — kann nicht als Text angezeigt werden.',
+    openAnyway: 'Trotzdem öffnen',
   },
   execution: {
     title: 'Ausführung',

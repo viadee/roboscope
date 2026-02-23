@@ -70,6 +70,7 @@ export interface FileContent {
   content: string
   extension: string | null
   line_count: number
+  is_binary?: boolean
 }
 
 export interface TestCaseInfo {

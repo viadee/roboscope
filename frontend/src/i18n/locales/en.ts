@@ -196,6 +196,8 @@ export default {
       goToExecution: 'Go to Execution',
     },
     discardChanges: 'Discard unsaved changes?',
+    binaryFile: 'Binary file — cannot be displayed as text.',
+    openAnyway: 'Open anyway',
   },
   execution: {
     title: 'Execution',

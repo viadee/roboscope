@@ -22,6 +22,7 @@ class FileContent(BaseModel):
     content: str
     extension: str | None = None
     line_count: int = 0
+    is_binary: bool = False
 
 
 class TestCaseInfo(BaseModel):

@@ -8,9 +8,9 @@ export async function getTree(repoId: number, path: string = ''): Promise<TreeNo
   return response.data
 }
 
-export async function getFile(repoId: number, path: string): Promise<FileContent> {
+export async function getFile(repoId: number, path: string, force?: boolean): Promise<FileContent> {
   const response = await apiClient.get<FileContent>(`/explorer/${repoId}/file`, {
-    params: { path },
+    params: { path, ...(force && { force: true }) },
   })
   return response.data
 }

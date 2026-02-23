@@ -21,10 +21,10 @@ export const useExplorerStore = defineStore('explorer', () => {
     }
   }
 
-  async function openFile(repoId: number, path: string) {
+  async function openFile(repoId: number, path: string, force?: boolean) {
     loading.value = true
     try {
-      selectedFile.value = await explorerApi.getFile(repoId, path)
+      selectedFile.value = await explorerApi.getFile(repoId, path, force)
     } finally {
       loading.value = false
     }

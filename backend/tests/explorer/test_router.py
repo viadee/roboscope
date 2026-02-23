@@ -168,6 +168,44 @@ class TestGetFile:
         assert data["name"] == "common.resource"
         assert data["extension"] == ".resource"
 
+    def test_read_binary_file_returns_empty_content(self, client, admin_user, repo_with_files, tmp_path):
+        """Binary files should return is_binary=True with empty content."""
+        (tmp_path / "image.png").write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+        response = client.get(
+            f"/api/v1/explorer/{repo_with_files.id}/file",
+            params={"path": "image.png"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_binary"] is True
+        assert data["content"] == ""
+        assert data["line_count"] == 0
+
+    def test_read_binary_file_force(self, client, admin_user, repo_with_files, tmp_path):
+        """Binary files with force=true should return content."""
+        (tmp_path / "image.png").write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+        response = client.get(
+            f"/api/v1/explorer/{repo_with_files.id}/file",
+            params={"path": "image.png", "force": True},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_binary"] is True
+        assert len(data["content"]) > 0
+
+    def test_read_text_file_not_binary(self, client, admin_user, repo_with_files):
+        """Normal text files should have is_binary=False."""
+        response = client.get(
+            f"/api/v1/explorer/{repo_with_files.id}/file",
+            params={"path": "suites/login.robot"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_binary"] is False
+
 
 class TestSearch:
     def test_search_finds_results(self, client, admin_user, repo_with_files):

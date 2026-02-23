@@ -82,6 +82,7 @@ const isEditable = computed(() => {
 const isRobot = computed(() => explorer.selectedFile?.extension?.toLowerCase() === '.robot')
 const isRoboscope = computed(() => explorer.selectedFile?.extension?.toLowerCase() === '.roboscope')
 const isRobotOrResource = computed(() => ['.robot', '.resource'].includes(explorer.selectedFile?.extension?.toLowerCase() ?? ''))
+const isBinary = computed(() => explorer.selectedFile?.is_binary === true)
 
 const isLocalhost = computed(() =>
   ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
@@ -207,10 +208,22 @@ async function onNodeClick(node: TreeNode) {
     if (isDirty.value && !confirm(t('explorer.discardChanges'))) return
     isDirty.value = false
     await explorer.openFile(selectedRepoId.value, node.path)
+    if (explorer.selectedFile?.is_binary) {
+      editorContent.value = ''
+      return
+    }
     editorContent.value = explorer.selectedFile?.content || ''
     await nextTick()
     initEditor()
   }
+}
+
+async function openBinaryAnyway() {
+  if (!selectedRepoId.value || !explorer.selectedFile) return
+  await explorer.openFile(selectedRepoId.value, explorer.selectedFile.path, true)
+  editorContent.value = explorer.selectedFile?.content || ''
+  await nextTick()
+  initEditor()
 }
 
 // --- CodeMirror editor ---
@@ -660,9 +673,16 @@ const flatNodes = computed(() => {
               >▶ {{ t('explorer.run') }}</button>
             </div>
           </div>
+          <!-- Binary file placeholder -->
+          <div v-if="isBinary && !editorContent" class="binary-placeholder">
+            <p class="binary-label">{{ t('explorer.binaryFile') }}</p>
+            <BaseButton size="sm" variant="secondary" @click="openBinaryAnyway">
+              {{ t('explorer.openAnyway') }}
+            </BaseButton>
+          </div>
           <!-- Two-tab spec editor for .roboscope files (replaces CodeMirror) -->
           <SpecEditor
-            v-if="isRoboscope"
+            v-else-if="isRoboscope"
             :content="editorContent"
             :file-path="explorer.selectedFile.path"
             @save="handleSave"
@@ -1092,6 +1112,21 @@ const flatNodes = computed(() => {
   border-radius: 20px;
   font-size: 12px;
   font-weight: 500;
+}
+
+.binary-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex: 1;
+  padding: 32px;
+}
+
+.binary-label {
+  color: var(--color-text-muted);
+  font-size: 14px;
 }
 
 .empty-state {

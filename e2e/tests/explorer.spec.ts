@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { test, expect, type Page } from '@playwright/test';
 import { loginAndGoToDashboard } from '../helpers';
 
@@ -428,5 +430,84 @@ test.describe('Explorer — E2E', () => {
     await expect(libraryInput).toHaveValue('Browser');
     // Dropdown should close after selection
     await expect(dropdown).not.toBeVisible();
+  });
+
+  // ─── Binary File Detection Tests ─────────────────────────────────
+
+  test('API: binary file returns is_binary=true with empty content', async ({ page }) => {
+    // Write a binary file directly to the repo's local path
+    const binPath = path.join(localPath, 'image.png');
+    fs.writeFileSync(binPath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]));
+
+    const res = await page.request.get(`${API}/explorer/${repoId}/file?path=image.png`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status()).toBe(200);
+    const file = await res.json();
+    expect(file.is_binary).toBe(true);
+    expect(file.content).toBe('');
+    expect(file.line_count).toBe(0);
+
+    // Clean up
+    fs.unlinkSync(binPath);
+  });
+
+  test('API: binary file with force=true returns content', async ({ page }) => {
+    const binPath = path.join(localPath, 'image.png');
+    fs.writeFileSync(binPath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]));
+
+    const res = await page.request.get(`${API}/explorer/${repoId}/file?path=image.png&force=true`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status()).toBe(200);
+    const file = await res.json();
+    expect(file.is_binary).toBe(true);
+    expect(file.content.length).toBeGreaterThan(0);
+
+    // Clean up
+    fs.unlinkSync(binPath);
+  });
+
+  test('API: text file has is_binary=false', async ({ page }) => {
+    const res = await page.request.get(`${API}/explorer/${repoId}/file?path=tests/sample.robot`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status()).toBe(200);
+    const file = await res.json();
+    expect(file.is_binary).toBe(false);
+  });
+
+  test('UI: binary file shows placeholder and Open Anyway button', async ({ page }) => {
+    // Write a binary file
+    const binPath = path.join(localPath, 'binary.dat');
+    fs.writeFileSync(binPath, Buffer.from([0x00, 0x01, 0x02, 0x03, 0x00, 0xff]));
+
+    await goToExplorer(page, repoId);
+
+    // Refresh tree to pick up the new file
+    await page.reload();
+    await expect(page.locator('h1', { hasText: 'Explorer' })).toBeVisible({ timeout: 10_000 });
+    await page.waitForTimeout(1000);
+
+    // Click binary.dat in the tree
+    await page.locator('.node-name', { hasText: 'binary.dat' }).click();
+    await page.waitForTimeout(500);
+
+    // Should show binary placeholder
+    await expect(page.locator('.binary-placeholder')).toBeVisible();
+    await expect(page.locator('.binary-label')).toBeVisible();
+
+    // Should NOT show any editor
+    await expect(page.locator('.cm-editor')).not.toBeVisible();
+
+    // Click "Open anyway" / "Trotzdem öffnen"
+    await page.locator('.binary-placeholder button').click();
+    await page.waitForTimeout(500);
+
+    // Binary placeholder should be gone, editor should appear
+    await expect(page.locator('.binary-placeholder')).not.toBeVisible();
+
+    // Clean up
+    fs.unlinkSync(binPath);
   });
 });

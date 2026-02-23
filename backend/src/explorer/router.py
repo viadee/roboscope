@@ -63,6 +63,7 @@ def get_tree(
 def get_file(
     repo_id: int,
     path: str = Query(..., description="Relative file path within repo"),
+    force: bool = Query(False, description="Force reading binary files as text"),
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
@@ -72,7 +73,7 @@ def get_file(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
 
     try:
-        return read_file(repo.local_path, path)
+        return read_file(repo.local_path, path, force=force)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

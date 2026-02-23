@@ -82,7 +82,16 @@ def _count_tests_in_file(file_path: str) -> int:
         return 0
 
 
-def read_file(base_path: str, relative_path: str) -> FileContent:
+def _is_binary_file(file_path: Path, chunk_size: int = 8192) -> bool:
+    """Detect binary files by checking for null bytes in the first chunk."""
+    try:
+        with open(file_path, "rb") as f:
+            return b"\x00" in f.read(chunk_size)
+    except Exception:
+        return False
+
+
+def read_file(base_path: str, relative_path: str, force: bool = False) -> FileContent:
     """Read a file's content safely (preventing path traversal)."""
     base = Path(base_path).resolve()
     target = (base / relative_path).resolve()
@@ -94,6 +103,18 @@ def read_file(base_path: str, relative_path: str) -> FileContent:
     if not target.exists() or not target.is_file():
         raise FileNotFoundError(f"File not found: {relative_path}")
 
+    is_binary = _is_binary_file(target)
+
+    if is_binary and not force:
+        return FileContent(
+            path=relative_path,
+            name=target.name,
+            content="",
+            extension=target.suffix.lower(),
+            line_count=0,
+            is_binary=True,
+        )
+
     content = target.read_text(encoding="utf-8", errors="replace")
     return FileContent(
         path=relative_path,
@@ -101,6 +122,7 @@ def read_file(base_path: str, relative_path: str) -> FileContent:
         content=content,
         extension=target.suffix.lower(),
         line_count=len(content.splitlines()),
+        is_binary=is_binary,
     )
 
 

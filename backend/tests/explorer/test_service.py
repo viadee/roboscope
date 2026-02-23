@@ -538,6 +538,31 @@ class TestCheckLibrariesAgainstEnv:
         custom = next(r for r in results if r["library_name"] == "./libs/custom.py")
         assert custom["status"] == "builtin"
 
+class TestBinaryFileDetection:
+    def test_binary_file_detected(self, tmp_path):
+        (tmp_path / "image.png").write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+        result = read_file(str(tmp_path), "image.png")
+
+        assert result.is_binary is True
+        assert result.content == ""
+        assert result.line_count == 0
+
+    def test_binary_file_force_read(self, tmp_path):
+        (tmp_path / "image.png").write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+        result = read_file(str(tmp_path), "image.png", force=True)
+
+        assert result.is_binary is True
+        assert len(result.content) > 0
+
+    def test_text_file_not_binary(self, tmp_path):
+        (tmp_path / "hello.txt").write_text("Hello, world!\n")
+        result = read_file(str(tmp_path), "hello.txt")
+
+        assert result.is_binary is False
+        assert "Hello, world!" in result.content
+
+
+class TestCheckLibrariesAgainstEnv:
     def test_mixed_statuses(self, tmp_path):
         (tmp_path / "test.robot").write_text(
             "*** Settings ***\n"
