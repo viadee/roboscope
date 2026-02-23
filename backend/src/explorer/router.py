@@ -31,7 +31,7 @@ from src.explorer.service import (
     search_in_repo,
     write_file,
 )
-from src.environments.service import get_environment, pip_list_installed
+from src.environments.service import docker_pip_list, get_environment, pip_list_installed
 from src.repos.service import get_repository
 
 router = APIRouter()
@@ -137,6 +137,28 @@ def library_check(
     installed_count = sum(1 for lib in libraries if lib.status == "installed")
     builtin_count = sum(1 for lib in libraries if lib.status == "builtin")
 
+    # Docker image check
+    docker_image = env.docker_image if env.docker_image else None
+    docker_missing_count = 0
+
+    if docker_image:
+        docker_packages = docker_pip_list(docker_image)
+        docker_map: dict[str, str] = {}
+        for pkg in docker_packages:
+            key = pkg.get("name", "").lower().replace("-", "_")
+            docker_map[key] = pkg.get("version", "")
+
+        for lib in libraries:
+            if lib.status == "builtin":
+                continue
+            pypi_key = (lib.pypi_package or lib.library_name).lower().replace("-", "_")
+            if pypi_key in docker_map:
+                lib.docker_status = "installed"
+                lib.docker_installed_version = docker_map[pypi_key] or None
+            else:
+                lib.docker_status = "missing"
+                docker_missing_count += 1
+
     return LibraryCheckResponse(
         repo_id=repo_id,
         environment_id=environment_id,
@@ -146,6 +168,8 @@ def library_check(
         installed_count=installed_count,
         builtin_count=builtin_count,
         libraries=libraries,
+        docker_image=docker_image,
+        docker_missing_count=docker_missing_count,
     )
 
 

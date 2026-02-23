@@ -111,6 +111,10 @@ export default {
       installing: 'Installiere...',
       noLibraries: 'Keine Libraries in diesem Projekt gefunden.',
       summary: '{total} Libraries: {installed} installiert, {missing} fehlend, {builtin} built-in',
+      dockerColumn: 'Docker Image',
+      dockerMissing: 'Docker: {count} fehlen',
+      rebuildDocker: 'Docker Image neu bauen',
+      rebuildingDocker: 'Wird gebaut...',
     },
     members: {
       title: 'Mitglieder',

@@ -89,6 +89,8 @@ class LibraryCheckItem(BaseModel):
     status: str  # "installed", "missing", "builtin"
     installed_version: str | None = None
     files: list[str] = []
+    docker_status: str | None = None  # "installed" | "missing" | None
+    docker_installed_version: str | None = None
 
 
 class LibraryCheckResponse(BaseModel):
@@ -102,3 +104,5 @@ class LibraryCheckResponse(BaseModel):
     installed_count: int
     builtin_count: int
     libraries: list[LibraryCheckItem]
+    docker_image: str | None = None
+    docker_missing_count: int = 0

@@ -11,7 +11,7 @@ import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import { formatTimeAgo } from '@/utils/formatDate'
 import { checkLibraries } from '@/api/explorer.api'
-import { installPackage } from '@/api/environments.api'
+import { buildDockerImage, installPackage } from '@/api/environments.api'
 import type { LibraryCheckItem, LibraryCheckResponse, ProjectMember, User } from '@/types/domain.types'
 import type { RepoCreateRequest } from '@/types/api.types'
 import { getUsers } from '@/api/auth.api'
@@ -46,6 +46,7 @@ const libCheckResults = ref<LibraryCheckResponse | null>(null)
 const libCheckScanning = ref(false)
 const libCheckInstallingPkg = ref<string | null>(null)
 const libCheckInstallingAll = ref(false)
+const libCheckRebuilding = ref(false)
 const settingUpDefaultEnv = ref(false)
 const showLibCheckEnvPrompt = ref(false)
 
@@ -249,6 +250,19 @@ async function installAllMissing() {
     }
   }
   libCheckInstallingAll.value = false
+}
+
+async function rebuildDocker() {
+  if (!libCheckEnvId.value) return
+  libCheckRebuilding.value = true
+  try {
+    await buildDockerImage(libCheckEnvId.value)
+    toast.success(t('environments.docker.buildStarted'), t('environments.docker.buildStartedMsg'))
+  } catch (e: any) {
+    toast.error(t('environments.docker.buildFailed'), e.response?.data?.detail || '')
+  } finally {
+    libCheckRebuilding.value = false
+  }
 }
 
 async function setupDefaultFromLibCheck() {
@@ -582,6 +596,14 @@ async function removeMember(member: ProjectMember) {
           >
             {{ t('repos.libraryCheck.installAll') }}
           </BaseButton>
+          <BaseButton
+            v-if="libCheckResults && libCheckResults.docker_missing_count > 0"
+            variant="secondary"
+            :loading="libCheckRebuilding"
+            @click="rebuildDocker"
+          >
+            {{ libCheckRebuilding ? t('repos.libraryCheck.rebuildingDocker') : t('repos.libraryCheck.rebuildDocker') }}
+          </BaseButton>
         </div>
       </div>
 
@@ -593,6 +615,9 @@ async function removeMember(member: ProjectMember) {
             missing: libCheckResults.missing_count,
             builtin: libCheckResults.builtin_count,
           }) }}
+          <template v-if="libCheckResults.docker_image">
+            {{ ' ' }}| {{ t('repos.libraryCheck.dockerMissing', { count: libCheckResults.docker_missing_count }) }}
+          </template>
         </p>
 
         <div v-if="libCheckResults.libraries.length === 0" class="text-muted text-center" style="padding: 24px;">
@@ -605,6 +630,7 @@ async function removeMember(member: ProjectMember) {
               <th>{{ t('repos.libraryCheck.library') }}</th>
               <th>{{ t('repos.libraryCheck.pypiPackage') }}</th>
               <th>{{ t('repos.libraryCheck.status') }}</th>
+              <th v-if="libCheckResults.docker_image">{{ t('repos.libraryCheck.dockerColumn') }}</th>
               <th>{{ t('common.actions') }}</th>
             </tr>
           </thead>
@@ -627,6 +653,19 @@ async function removeMember(member: ProjectMember) {
                 <span v-if="lib.installed_version" class="text-muted text-sm" style="margin-left: 4px;">
                   {{ lib.installed_version }}
                 </span>
+              </td>
+              <td v-if="libCheckResults.docker_image">
+                <template v-if="lib.docker_status">
+                  <BaseBadge
+                    :variant="lib.docker_status === 'installed' ? 'success' : 'danger'"
+                  >
+                    {{ t(`repos.libraryCheck.${lib.docker_status}`) }}
+                  </BaseBadge>
+                  <span v-if="lib.docker_installed_version" class="text-muted text-sm" style="margin-left: 4px;">
+                    {{ lib.docker_installed_version }}
+                  </span>
+                </template>
+                <span v-else class="text-muted">&mdash;</span>
               </td>
               <td>
                 <BaseButton

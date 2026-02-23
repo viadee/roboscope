@@ -287,6 +287,23 @@ def generate_dockerfile(
     return "\n".join(lines)
 
 
+def docker_pip_list(docker_image: str) -> list[dict]:
+    """List packages installed in a Docker image via 'docker run --rm <image> pip list --format=json'."""
+    try:
+        result = subprocess.run(
+            ["docker", "run", "--rm", docker_image, "pip", "list", "--format=json"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            return json.loads(result.stdout)
+    except Exception as e:
+        logger.warning("docker pip list failed for %s: %s", docker_image, e)
+
+    return []
+
+
 def pip_list_installed(venv_path: str | None) -> list[dict]:
     """List all packages installed in a venv via pip list --format=json."""
     if not venv_path:

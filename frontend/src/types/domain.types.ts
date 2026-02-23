@@ -379,6 +379,8 @@ export interface LibraryCheckItem {
   status: 'installed' | 'missing' | 'builtin'
   installed_version: string | null
   files: string[]
+  docker_status: 'installed' | 'missing' | null
+  docker_installed_version: string | null
 }
 
 export interface LibraryCheckResponse {
@@ -390,6 +392,8 @@ export interface LibraryCheckResponse {
   installed_count: number
   builtin_count: number
   libraries: LibraryCheckItem[]
+  docker_image: string | null
+  docker_missing_count: number
 }
 
 // --- AI Generation types ---
