@@ -670,23 +670,43 @@ const en: DocsContent = [
 </p>
 <h4>Summary Tab</h4>
 <p>
-  Displays a structured overview of the test execution: total tests, passed, failed,
-  skipped, critical tests, and execution timestamps. Results are broken down by suite,
-  showing individual test case outcomes in an expandable tree.
+  Displays KPI cards (total tests, passed, failed, duration), a table of failed tests
+  with error messages, and a table of all test results with status, suite, duration, and tags.
+  Clicking a test name navigates to the <strong>Test History</strong> view for that test.
 </p>
+<h4>Detailed Report Tab</h4>
+<p>
+  A rich, interactive tree view of the full test execution &mdash; similar to Robot Framework&rsquo;s
+  <code>log.html</code> but integrated directly into RoboScope. It parses the <code>output.xml</code>
+  and renders suites, tests, and keywords as an expandable tree hierarchy.
+</p>
+<p>Features of the Detailed Report tab:</p>
+<ul>
+  <li><strong>Toolbar</strong> &mdash; <em>Expand All</em> / <em>Collapse All</em> buttons to quickly
+      open or close all tree nodes, and a <em>Status Filter</em> dropdown to show All, Passed Only,
+      or Failed Only tests.</li>
+  <li><strong>Suite Statistics</strong> &mdash; Each suite header shows pass/fail counts
+      (e.g., &#10003; 5 &#10007; 2) alongside the duration.</li>
+  <li><strong>Keyword Timestamps</strong> &mdash; Keywords display their start time in
+      <code>HH:MM:SS.sss</code> format for precise timing analysis.</li>
+  <li><strong>Message Log</strong> &mdash; Each keyword&rsquo;s messages are shown with timestamp,
+      log level (INFO, WARN, FAIL, DEBUG), and message text. Messages are color-coded by level.</li>
+  <li><strong>Inline Screenshots</strong> &mdash; Robot Framework screenshots embedded in
+      messages (e.g., from SeleniumLibrary) are rendered inline with proper image display.
+      Image sources are automatically resolved to the report assets endpoint.</li>
+  <li><strong>Tags &amp; Arguments</strong> &mdash; Test tags are shown as colored chips, and
+      keyword arguments are displayed when a keyword node is expanded.</li>
+  <li><strong>Error Highlighting</strong> &mdash; Failed tests show their error message in a
+      red-highlighted box for quick identification.</li>
+</ul>
 <h4>HTML Report Tab</h4>
 <p>
-  Embeds the original Robot Framework HTML report (<code>report.html</code>) in an iframe.
-  This is the same report you would get from running <code>robot</code> on the command line,
-  complete with interactive charts, keyword details, and log links.
-</p>
-<h4>XML View Tab</h4>
-<p>
-  Renders the raw <code>output.xml</code> content with syntax highlighting. This is useful
-  for advanced users who need to inspect the machine-readable output, debug custom
-  listeners, or verify specific XML elements.
+  Embeds the original Robot Framework HTML report (<code>report.html</code>) in an iframe
+  with a toolbar for navigation (back to Summary) and reload. This is the same report you
+  would get from running <code>robot</code> on the command line, complete with interactive
+  charts, keyword details, and log links.
 </p>`,
-        tip: 'The HTML Report tab provides the richest view. Use it for investigating individual test case failures and keyword-level logs.'
+        tip: 'Use the Detailed Report tab for in-depth debugging with keyword-level timing and screenshots. The Status Filter helps focus on failures quickly.'
       },
       {
         id: 'report-download',

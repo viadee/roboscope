@@ -636,21 +636,44 @@ const de: DocsContent = [
 </p>
 <h4>Tab 1: Zusammenfassung</h4>
 <p>
-  Kompakte \u00DCbersicht mit Gesamtergebnis, Anzahl bestandener und
-  fehlgeschlagener Tests, Gesamtdauer und Fehlerdetails.
+  KPI-Karten (Gesamttests, bestanden, fehlgeschlagen, Dauer), eine Tabelle der
+  fehlgeschlagenen Tests mit Fehlermeldungen und eine Tabelle aller Testergebnisse
+  mit Status, Suite, Dauer und Tags. Ein Klick auf einen Testnamen navigiert zur
+  <strong>Test-Historie</strong> des jeweiligen Tests.
 </p>
-<h4>Tab 2: HTML Report</h4>
+<h4>Tab 2: Detailbericht</h4>
+<p>
+  Eine interaktive Baumansicht der gesamten Testausf\u00FChrung &mdash; \u00E4hnlich wie Robot Frameworks
+  <code>log.html</code>, aber direkt in RoboScope integriert. Die <code>output.xml</code> wird
+  geparst und als aufklappbare Hierarchie von Suiten, Tests und Keywords dargestellt.
+</p>
+<p>Funktionen des Detailbericht-Tabs:</p>
+<ul>
+  <li><strong>Toolbar</strong> &mdash; <em>Alle aufklappen</em> / <em>Alle zuklappen</em> Buttons
+      zum schnellen \u00D6ffnen oder Schlie\u00DFen aller Baumknoten, sowie ein <em>Status-Filter</em>
+      Dropdown (Alle, Nur bestanden, Nur fehlgeschlagen).</li>
+  <li><strong>Suite-Statistiken</strong> &mdash; Jeder Suite-Header zeigt Pass/Fail-Z\u00E4hler
+      (z.\u202FB. &#10003; 5 &#10007; 2) neben der Dauer an.</li>
+  <li><strong>Keyword-Zeitstempel</strong> &mdash; Keywords zeigen ihre Startzeit im Format
+      <code>HH:MM:SS.sss</code> f\u00FCr pr\u00E4zise Zeitanalysen.</li>
+  <li><strong>Nachrichten-Log</strong> &mdash; Die Nachrichten jedes Keywords werden mit Zeitstempel,
+      Log-Level (INFO, WARN, FAIL, DEBUG) und Nachrichtentext angezeigt, farblich nach Level codiert.</li>
+  <li><strong>Inline-Screenshots</strong> &mdash; In Nachrichten eingebettete Robot-Framework-Screenshots
+      (z.\u202FB. von SeleniumLibrary) werden inline als Bilder gerendert. Bildquellen werden automatisch
+      zum Report-Assets-Endpunkt aufgel\u00F6st.</li>
+  <li><strong>Tags & Argumente</strong> &mdash; Test-Tags werden als farbige Chips angezeigt,
+      Keyword-Argumente erscheinen beim Aufklappen eines Keyword-Knotens.</li>
+  <li><strong>Fehlerhervorhebung</strong> &mdash; Fehlgeschlagene Tests zeigen ihre Fehlermeldung
+      in einem rot hervorgehobenen Bereich zur schnellen Identifikation.</li>
+</ul>
+<h4>Tab 3: HTML Report</h4>
 <p>
   Der von Robot Framework generierte HTML-Report wird in einem eingebetteten
-  Frame dargestellt. Dieser enth\u00E4lt die vollst\u00E4ndige interaktive Ansicht
-  mit Suiten-, Test- und Keyword-Details.
-</p>
-<h4>Tab 3: XML-Ansicht</h4>
-<p>
-  Die rohe <code>output.xml</code>-Datei kann hier eingesehen werden. Diese
-  ist n\u00FCtzlich f\u00FCr Debugging-Zwecke oder zur automatisierten
-  Weiterverarbeitung.
-</p>`
+  Frame dargestellt, mit einer Toolbar f\u00FCr Navigation (zur\u00FCck zur Zusammenfassung)
+  und Neuladen. Dieser enth\u00E4lt die vollst\u00E4ndige interaktive Ansicht mit Suiten-,
+  Test- und Keyword-Details.
+</p>`,
+        tip: 'Nutzen Sie den Detailbericht-Tab f\u00FCr detailliertes Debugging mit Keyword-Zeiten und Screenshots. Der Status-Filter hilft, sich schnell auf Fehlschl\u00E4ge zu konzentrieren.'
       },
       {
         id: 'reports-download',
