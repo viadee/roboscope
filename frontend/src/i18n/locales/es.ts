@@ -396,6 +396,15 @@ export default {
       passed: 'aprobado(s)',
       failed: 'fallido(s)',
     },
+    analysis: {
+      title: 'Análisis IA de fallos',
+      analyzeButton: 'Analizar fallos',
+      noProvider: 'Configure un proveedor de IA en Configuración para habilitar el análisis de fallos.',
+      analyzing: 'Analizando fallos de tests... Esto puede tardar entre 10 y 30 segundos.',
+      failed: 'El análisis ha fallado',
+      tokensUsed: '{tokens} tokens utilizados',
+      reanalyze: 'Reanalizar',
+    },
   },
   testHistory: {
     title: 'Historial de tests',

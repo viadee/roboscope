@@ -74,6 +74,13 @@ class ReverseRequest(BaseModel):
     output_path: str | None = None  # where to save .roboscope; auto-derived if None
 
 
+class AnalyzeRequest(BaseModel):
+    """Request to analyze test failures in a report."""
+
+    report_id: int
+    provider_id: int | None = None  # None = use default provider
+
+
 class JobAcceptRequest(BaseModel):
     """Accept a completed job's result (writes file)."""
 
@@ -96,6 +103,7 @@ class AiJobResponse(BaseModel):
     status: str
     repository_id: int
     provider_id: int
+    report_id: int | None = None
     spec_path: str
     target_path: str | None = None
     result_preview: str | None = None

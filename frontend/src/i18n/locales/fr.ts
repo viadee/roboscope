@@ -396,6 +396,15 @@ export default {
       passed: 'réussi(s)',
       failed: 'échoué(s)',
     },
+    analysis: {
+      title: 'Analyse IA des erreurs',
+      analyzeButton: 'Analyser les erreurs',
+      noProvider: "Configurez un fournisseur IA dans les Paramètres pour activer l'analyse des erreurs.",
+      analyzing: "Analyse des erreurs de test en cours... Cela peut prendre 10 à 30 secondes.",
+      failed: "L'analyse a échoué",
+      tokensUsed: '{tokens} tokens utilisés',
+      reanalyze: 'Réanalyser',
+    },
   },
   testHistory: {
     title: 'Historique des tests',

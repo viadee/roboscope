@@ -31,10 +31,11 @@ class AiJob(Base, TimestampMixin):
     __tablename__ = "ai_jobs"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    job_type: Mapped[str] = mapped_column(String(20))  # generate, reverse
+    job_type: Mapped[str] = mapped_column(String(20))  # generate, reverse, analyze
     status: Mapped[str] = mapped_column(String(20), default="pending")
     repository_id: Mapped[int] = mapped_column(ForeignKey("repositories.id"))
     provider_id: Mapped[int] = mapped_column(ForeignKey("ai_providers.id"))
+    report_id: Mapped[int | None] = mapped_column(ForeignKey("reports.id"), nullable=True)
     spec_path: Mapped[str] = mapped_column(String(500))
     target_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     result_preview: Mapped[str | None] = mapped_column(Text, nullable=True)

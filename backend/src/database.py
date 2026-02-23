@@ -162,6 +162,15 @@ def _migrate_sqlite(conn) -> None:
         ))
         logger.info("Migration: added environment_id column to repositories")
 
+    # Add report_id column to ai_jobs if missing
+    result = conn.execute(text("PRAGMA table_info(ai_jobs)"))
+    ai_jobs_columns = {row[1] for row in result.fetchall()}
+    if "report_id" not in ai_jobs_columns:
+        conn.execute(text(
+            "ALTER TABLE ai_jobs ADD COLUMN report_id INTEGER REFERENCES reports(id)"
+        ))
+        logger.info("Migration: added report_id column to ai_jobs")
+
     # Migrate environments table: add default_runner_type and max_docker_containers
     result = conn.execute(text("PRAGMA table_info(environments)"))
     env_columns = {row[1] for row in result.fetchall()}
@@ -203,6 +212,18 @@ def _migrate_postgres(conn) -> None:
             "REFERENCES environments(id) ON DELETE SET NULL"
         ))
         logger.info("Migration: added environment_id column to repositories")
+
+    # Add report_id column to ai_jobs if missing
+    result = conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'ai_jobs' AND column_name = 'report_id'"
+    ))
+    if not result.fetchone():
+        conn.execute(text(
+            "ALTER TABLE ai_jobs ADD COLUMN report_id INTEGER "
+            "REFERENCES reports(id)"
+        ))
+        logger.info("Migration: added report_id column to ai_jobs")
 
     # Add default_runner_type column to environments if missing
     result = conn.execute(text(

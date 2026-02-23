@@ -19,6 +19,7 @@ from src.ai.schemas import (
     AiProviderCreate,
     AiProviderResponse,
     AiProviderUpdate,
+    AnalyzeRequest,
     DriftResponse,
     GenerateRequest,
     JobAcceptRequest,
@@ -49,7 +50,7 @@ from src.ai.service import (
     validate_spec,
     write_generated_file,
 )
-from src.ai.tasks import run_generate, run_reverse
+from src.ai.tasks import run_analyze, run_generate, run_reverse
 
 logger = logging.getLogger("roboscope.ai.router")
 
@@ -211,6 +212,61 @@ def reverse_robot(
 
     try:
         dispatch_task(run_reverse, job.id)
+    except TaskDispatchError as e:
+        job.status = "failed"
+        job.error_message = str(e)
+        db.flush()
+
+    return _job_to_response(job)
+
+
+# ---------------------------------------------------------------------------
+# Failure Analysis
+# ---------------------------------------------------------------------------
+
+
+@router.post("/analyze", response_model=AiJobResponse)
+def analyze_failures(
+    data: AnalyzeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Analyze test failures in a report using an LLM."""
+    from sqlalchemy import select as sa_select
+    from src.reports.models import Report
+
+    report = db.execute(
+        sa_select(Report).where(Report.id == data.report_id)
+    ).scalar_one_or_none()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if report.failed_tests == 0:
+        raise HTTPException(status_code=400, detail="Report has no failed tests")
+
+    provider = None
+    if data.provider_id:
+        provider = get_provider(db, data.provider_id)
+    else:
+        provider = get_default_provider(db)
+    if not provider:
+        raise HTTPException(status_code=400, detail="No LLM provider configured")
+
+    # Derive repository_id from execution run if available
+    repository_id = 0
+    if report.execution_run_id:
+        from src.execution.models import ExecutionRun
+        run = db.execute(
+            sa_select(ExecutionRun).where(ExecutionRun.id == report.execution_run_id)
+        ).scalar_one_or_none()
+        if run:
+            repository_id = run.repository_id
+
+    job = create_job(db, "analyze", repository_id, provider.id, "", None, current_user.id)
+    job.report_id = data.report_id
+    db.commit()
+
+    try:
+        dispatch_task(run_analyze, job.id)
     except TaskDispatchError as e:
         job.status = "failed"
         job.error_message = str(e)
@@ -562,6 +618,7 @@ def _job_to_response(job: AiJob) -> dict:
         "status": job.status,
         "repository_id": job.repository_id,
         "provider_id": job.provider_id,
+        "report_id": job.report_id,
         "spec_path": job.spec_path,
         "target_path": job.target_path,
         "result_preview": job.result_preview,

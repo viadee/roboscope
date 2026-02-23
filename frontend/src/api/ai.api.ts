@@ -6,6 +6,7 @@ import type {
   ValidateSpecResponse,
 } from '@/types/domain.types'
 import type {
+  AiAnalyzeRequest,
   AiGenerateRequest,
   AiProviderCreateRequest,
   AiProviderUpdateRequest,
@@ -46,6 +47,13 @@ export async function generateRobot(data: AiGenerateRequest): Promise<AiJob> {
 
 export async function reverseRobot(data: AiReverseRequest): Promise<AiJob> {
   const response = await apiClient.post<AiJob>('/ai/reverse', data)
+  return response.data
+}
+
+// --- Analysis ---
+
+export async function analyzeFailures(data: AiAnalyzeRequest): Promise<AiJob> {
+  const response = await apiClient.post<AiJob>('/ai/analyze', data)
   return response.data
 }
 

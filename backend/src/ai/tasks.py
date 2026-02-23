@@ -16,12 +16,15 @@ import src.repos.models  # noqa: F401 — FK resolution
 from src.ai.llm_client import call_llm
 from src.ai.models import AiJob, AiProvider
 from src.ai.prompts import (
+    SYSTEM_PROMPT_ANALYZE,
     SYSTEM_PROMPT_GENERATE,
     SYSTEM_PROMPT_REVERSE,
+    build_analyze_user_prompt,
     build_reverse_user_prompt,
     enrich_generate_prompt,
 )
 from src.repos.models import Repository
+from src.reports.models import Report, TestResult
 
 logger = logging.getLogger("roboscope.ai.tasks")
 
@@ -274,6 +277,84 @@ def run_reverse(job_id: int) -> None:
 
         except Exception as e:
             logger.exception("Reverse job %d failed", job_id)
+            job.status = "failed"
+            job.error_message = str(e)
+            job.completed_at = datetime.now(timezone.utc)
+            session.commit()
+
+
+def run_analyze(job_id: int) -> None:
+    """Background task: analyze test failures in a report."""
+    with _get_sync_session() as session:
+        job = session.execute(select(AiJob).where(AiJob.id == job_id)).scalar_one_or_none()
+        if not job:
+            logger.error("Job %d not found", job_id)
+            return
+
+        job.status = "running"
+        job.started_at = datetime.now(timezone.utc)
+        session.commit()
+
+        try:
+            provider = session.execute(
+                select(AiProvider).where(AiProvider.id == job.provider_id)
+            ).scalar_one()
+
+            report = session.execute(
+                select(Report).where(Report.id == job.report_id)
+            ).scalar_one()
+
+            failed_results = list(
+                session.execute(
+                    select(TestResult)
+                    .where(TestResult.report_id == report.id)
+                    .where(TestResult.status == "FAIL")
+                ).scalars().all()
+            )
+
+            if not failed_results:
+                job.result_preview = "No failed tests found in this report."
+                job.token_usage = 0
+                job.status = "completed"
+                job.completed_at = datetime.now(timezone.utc)
+                session.commit()
+                return
+
+            total = report.total_tests
+            passed = report.passed_tests
+            report_summary = {
+                "total_tests": total,
+                "passed": passed,
+                "failed": report.failed_tests,
+                "skipped": report.skipped_tests,
+                "duration": report.total_duration_seconds,
+                "pass_rate": (passed / total * 100) if total > 0 else 0.0,
+            }
+
+            failed_tests = [
+                {
+                    "name": tr.test_name,
+                    "suite": tr.suite_name,
+                    "error_message": tr.error_message,
+                    "tags": tr.tags,
+                    "duration": tr.duration_seconds,
+                }
+                for tr in failed_results
+            ]
+
+            user_prompt = build_analyze_user_prompt(report_summary, failed_tests)
+            result = call_llm(provider, SYSTEM_PROMPT_ANALYZE, user_prompt)
+
+            job.result_preview = result.content
+            job.token_usage = result.tokens_used
+            job.status = "completed"
+            job.completed_at = datetime.now(timezone.utc)
+            session.commit()
+
+            logger.info("Analyze job %d completed (%d tokens)", job_id, result.tokens_used)
+
+        except Exception as e:
+            logger.exception("Analyze job %d failed", job_id)
             job.status = "failed"
             job.error_message = str(e)
             job.completed_at = datetime.now(timezone.utc)

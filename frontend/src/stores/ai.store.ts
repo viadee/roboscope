@@ -7,9 +7,11 @@ import type { AiProviderCreateRequest, AiProviderUpdateRequest } from '@/types/a
 export const useAiStore = defineStore('ai', () => {
   const providers = ref<AiProvider[]>([])
   const activeJob = ref<AiJob | null>(null)
+  const analysisJob = ref<AiJob | null>(null)
   const driftResults = ref<DriftResponse | null>(null)
   const loading = ref(false)
   const pollInterval = ref<ReturnType<typeof setInterval> | null>(null)
+  const analysisPollInterval = ref<ReturnType<typeof setInterval> | null>(null)
 
   // rf-mcp state
   const rfMcpAvailable = ref(false)
@@ -103,6 +105,23 @@ export const useAiStore = defineStore('ai', () => {
     return await aiApi.acceptJob(jobId)
   }
 
+  // --- Analysis ---
+
+  async function analyzeFailures(reportId: number, providerId?: number) {
+    loading.value = true
+    try {
+      const job = await aiApi.analyzeFailures({
+        report_id: reportId,
+        provider_id: providerId,
+      })
+      analysisJob.value = job
+      startAnalysisPolling(job.id)
+      return job
+    } finally {
+      loading.value = false
+    }
+  }
+
   // --- Polling ---
 
   function startPolling(jobId: number) {
@@ -124,6 +143,28 @@ export const useAiStore = defineStore('ai', () => {
     if (pollInterval.value) {
       clearInterval(pollInterval.value)
       pollInterval.value = null
+    }
+  }
+
+  function startAnalysisPolling(jobId: number) {
+    stopAnalysisPolling()
+    analysisPollInterval.value = setInterval(async () => {
+      try {
+        const job = await aiApi.getJobStatus(jobId)
+        analysisJob.value = job
+        if (job.status === 'completed' || job.status === 'failed') {
+          stopAnalysisPolling()
+        }
+      } catch {
+        stopAnalysisPolling()
+      }
+    }, 2000)
+  }
+
+  function stopAnalysisPolling() {
+    if (analysisPollInterval.value) {
+      clearInterval(analysisPollInterval.value)
+      analysisPollInterval.value = null
     }
   }
 
@@ -242,6 +283,7 @@ export const useAiStore = defineStore('ai', () => {
   return {
     providers,
     activeJob,
+    analysisJob,
     driftResults,
     loading,
     defaultProvider,
@@ -263,8 +305,11 @@ export const useAiStore = defineStore('ai', () => {
     generate,
     reverse,
     acceptJob,
+    analyzeFailures,
     startPolling,
     stopPolling,
+    startAnalysisPolling,
+    stopAnalysisPolling,
     validateSpec,
     fetchDrift,
     fetchRfKnowledgeStatus,

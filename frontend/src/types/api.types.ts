@@ -100,6 +100,11 @@ export interface AiReverseRequest {
   output_path?: string | null
 }
 
+export interface AiAnalyzeRequest {
+  report_id: number
+  provider_id?: number | null
+}
+
 export interface AiValidateSpecRequest {
   content: string
 }

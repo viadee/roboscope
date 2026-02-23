@@ -396,6 +396,15 @@ export default {
       passed: 'bestanden',
       failed: 'fehlgeschlagen',
     },
+    analysis: {
+      title: 'KI-Fehleranalyse',
+      analyzeButton: 'Fehler analysieren',
+      noProvider: 'Konfigurieren Sie einen KI-Anbieter in den Einstellungen, um die Fehleranalyse zu aktivieren.',
+      analyzing: 'Testfehler werden analysiert... Dies kann 10-30 Sekunden dauern.',
+      failed: 'Analyse fehlgeschlagen',
+      tokensUsed: '{tokens} Tokens verwendet',
+      reanalyze: 'Erneut analysieren',
+    },
   },
   testHistory: {
     title: 'Test-Verlauf',

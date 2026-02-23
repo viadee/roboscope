@@ -394,7 +394,7 @@ export interface LibraryCheckResponse {
 
 export type AiProviderType = 'openai' | 'anthropic' | 'openrouter' | 'ollama'
 export type AiJobStatus = 'pending' | 'running' | 'completed' | 'failed'
-export type AiJobType = 'generate' | 'reverse'
+export type AiJobType = 'generate' | 'reverse' | 'analyze'
 
 export interface AiProvider {
   id: number
@@ -417,6 +417,7 @@ export interface AiJob {
   status: AiJobStatus
   repository_id: number
   provider_id: number
+  report_id: number | null
   spec_path: string
   target_path: string | null
   result_preview: string | null

@@ -396,6 +396,15 @@ export default {
       passed: 'passed',
       failed: 'failed',
     },
+    analysis: {
+      title: 'AI Failure Analysis',
+      analyzeButton: 'Analyze Failures',
+      noProvider: 'Configure an AI provider in Settings to enable failure analysis.',
+      analyzing: 'Analyzing test failures... This may take 10-30 seconds.',
+      failed: 'Analysis failed',
+      tokensUsed: '{tokens} tokens used',
+      reanalyze: 'Re-analyze',
+    },
   },
   testHistory: {
     title: 'Test History',
