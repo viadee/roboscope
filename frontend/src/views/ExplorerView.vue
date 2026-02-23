@@ -53,8 +53,10 @@ const runOverlay = ref<{ show: boolean; fileName: string; runId: number | null; 
   show: false, fileName: '', runId: null, error: null,
 })
 const showEnvPrompt = ref(false)
+const showSaveBeforeRunPrompt = ref(false)
 const settingUpDefaultEnv = ref(false)
 const pendingRunNode = ref<TreeNode | null>(null)
+const ignoreContentUpdates = ref(false)
 
 // AI Generation
 const showGenerateModal = ref(false)
@@ -206,24 +208,30 @@ async function onNodeClick(node: TreeNode) {
     toggleExpand(node)
   } else {
     if (isDirty.value && !confirm(t('explorer.discardChanges'))) return
+    ignoreContentUpdates.value = true
     isDirty.value = false
     await explorer.openFile(selectedRepoId.value, node.path)
     if (explorer.selectedFile?.is_binary) {
       editorContent.value = ''
+      ignoreContentUpdates.value = false
       return
     }
     editorContent.value = explorer.selectedFile?.content || ''
     await nextTick()
     initEditor()
+    setTimeout(() => { ignoreContentUpdates.value = false }, 0)
   }
 }
 
 async function openBinaryAnyway() {
   if (!selectedRepoId.value || !explorer.selectedFile) return
+  ignoreContentUpdates.value = true
+  isDirty.value = false
   await explorer.openFile(selectedRepoId.value, explorer.selectedFile.path, true)
   editorContent.value = explorer.selectedFile?.content || ''
   await nextTick()
   initEditor()
+  setTimeout(() => { ignoreContentUpdates.value = false }, 0)
 }
 
 // --- CodeMirror editor ---
@@ -275,6 +283,13 @@ function initEditor() {
   })
 }
 
+function onEditorContentUpdate(content: string) {
+  editorContent.value = content
+  if (!ignoreContentUpdates.value) {
+    isDirty.value = content !== explorer.selectedFile?.content
+  }
+}
+
 // --- File actions ---
 
 async function handleSave() {
@@ -306,10 +321,13 @@ async function handleCreate() {
     expandedPaths.value.add(parts.slice(0, i).join('/'))
   }
   // Open the newly created file
+  ignoreContentUpdates.value = true
+  isDirty.value = false
   await explorer.openFile(selectedRepoId.value, path)
   editorContent.value = explorer.selectedFile?.content || ''
   await nextTick()
   initEditor()
+  setTimeout(() => { ignoreContentUpdates.value = false }, 0)
 }
 
 function openRenameDialog(node: TreeNode) {
@@ -358,6 +376,11 @@ async function handleOpenRootFolder() {
 
 function handleRunRobot(node: TreeNode) {
   if (!selectedRepoId.value) return
+  if (isDirty.value && explorer.selectedFile?.path === node.path) {
+    pendingRunNode.value = node
+    showSaveBeforeRunPrompt.value = true
+    return
+  }
   if (envs.environments.length === 0) {
     pendingRunNode.value = node
     showEnvPrompt.value = true
@@ -418,6 +441,33 @@ function skipEnvAndRun() {
   }
 }
 
+async function saveAndRun() {
+  showSaveBeforeRunPrompt.value = false
+  await handleSave()
+  const node = pendingRunNode.value
+  if (!node) return
+  pendingRunNode.value = null
+  if (envs.environments.length === 0) {
+    pendingRunNode.value = node
+    showEnvPrompt.value = true
+    return
+  }
+  doRunRobot(node)
+}
+
+function runWithoutSaving() {
+  showSaveBeforeRunPrompt.value = false
+  const node = pendingRunNode.value
+  pendingRunNode.value = null
+  if (!node) return
+  if (envs.environments.length === 0) {
+    pendingRunNode.value = node
+    showEnvPrompt.value = true
+    return
+  }
+  doRunRobot(node)
+}
+
 function goToExecution() {
   const runId = runOverlay.value.runId
   runOverlay.value.show = false
@@ -447,11 +497,14 @@ function handleGenerateFromEditor() {
 
 async function onAiAccepted(targetPath: string) {
   if (!selectedRepoId.value) return
+  ignoreContentUpdates.value = true
+  isDirty.value = false
   await explorer.fetchTree(selectedRepoId.value)
   await explorer.openFile(selectedRepoId.value, targetPath)
   editorContent.value = explorer.selectedFile?.content || ''
   await nextTick()
   initEditor()
+  setTimeout(() => { ignoreContentUpdates.value = false }, 0)
 }
 
 async function handleSearch() {
@@ -461,11 +514,14 @@ async function handleSearch() {
 
 async function onSearchResultClick(filePath: string) {
   if (!selectedRepoId.value) return
+  ignoreContentUpdates.value = true
+  isDirty.value = false
   explorer.clearSelection()
   await explorer.openFile(selectedRepoId.value, filePath)
   editorContent.value = explorer.selectedFile?.content || ''
   await nextTick()
   initEditor()
+  setTimeout(() => { ignoreContentUpdates.value = false }, 0)
 }
 
 function getFileIcon(node: TreeNode): string {
@@ -686,7 +742,7 @@ const flatNodes = computed(() => {
             :content="editorContent"
             :file-path="explorer.selectedFile.path"
             @save="handleSave"
-            @update:content="editorContent = $event; isDirty = editorContent !== explorer.selectedFile?.content"
+            @update:content="onEditorContentUpdate($event)"
           />
           <!-- Visual editor for .robot / .resource files -->
           <RobotEditor
@@ -694,7 +750,7 @@ const flatNodes = computed(() => {
             :content="editorContent"
             :file-path="explorer.selectedFile.path"
             @save="handleSave"
-            @update:content="editorContent = $event; isDirty = editorContent !== explorer.selectedFile?.content"
+            @update:content="onEditorContentUpdate($event)"
           />
           <!-- CodeMirror editor for other editable files -->
           <div v-else-if="isEditable" ref="editorContainer" class="editor-container"></div>
@@ -780,6 +836,19 @@ const flatNodes = computed(() => {
       :existing-content="explorer.selectedFile?.content"
       @accepted="onAiAccepted"
     />
+
+    <!-- Save Before Run Prompt -->
+    <BaseModal v-model="showSaveBeforeRunPrompt" :title="t('explorer.unsaved')" size="sm">
+      <p>{{ t('explorer.saveBeforeRun') }}</p>
+      <template #footer>
+        <BaseButton variant="secondary" size="sm" @click="runWithoutSaving">
+          {{ t('explorer.runWithoutSaving') }}
+        </BaseButton>
+        <BaseButton size="sm" @click="saveAndRun">
+          {{ t('explorer.saveAndRun') }}
+        </BaseButton>
+      </template>
+    </BaseModal>
 
     <!-- Run Overlay -->
     <BaseModal v-model="runOverlay.show" :title="runOverlay.error ? t('explorer.runOverlay.error') : t('explorer.runOverlay.started')" size="sm">

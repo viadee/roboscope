@@ -510,4 +510,142 @@ test.describe('Explorer — E2E', () => {
     // Clean up
     fs.unlinkSync(binPath);
   });
+
+  // ─── Unsaved Badge & Save-Before-Run Tests ─────────────────────
+
+  test('UI: opening a .robot file does NOT show unsaved badge', async ({ page }) => {
+    await goToExplorer(page, repoId);
+
+    // Expand tests directory
+    await page.locator('.tree-node .node-name', { hasText: /^tests$/ }).click();
+    await page.waitForTimeout(300);
+
+    // Click sample.robot
+    await page.locator('.node-name', { hasText: 'sample.robot' }).click();
+    await page.waitForTimeout(1500);
+
+    // Unsaved badge should NOT be visible
+    await expect(page.locator('.unsaved-badge')).not.toBeVisible();
+  });
+
+  test('UI: opening a .py file does NOT show unsaved badge', async ({ page }) => {
+    await goToExplorer(page, repoId);
+
+    // Expand libs directory
+    await page.locator('.tree-node .node-name', { hasText: /^libs$/ }).click();
+    await page.waitForTimeout(300);
+
+    // Click helper.py
+    await page.locator('.node-name', { hasText: 'helper.py' }).click();
+    await page.waitForTimeout(1500);
+
+    // Unsaved badge should NOT be visible
+    await expect(page.locator('.unsaved-badge')).not.toBeVisible();
+  });
+
+  test('UI: editing a file shows unsaved badge', async ({ page }) => {
+    await goToExplorer(page, repoId);
+
+    // Expand libs directory and open helper.py (CodeMirror editor)
+    await page.locator('.tree-node .node-name', { hasText: /^libs$/ }).click();
+    await page.waitForTimeout(300);
+    await page.locator('.node-name', { hasText: 'helper.py' }).click();
+    await page.waitForTimeout(1000);
+
+    // Type into the CodeMirror editor
+    await page.locator('.cm-content').click();
+    await page.locator('.cm-content').pressSequentially('# test edit');
+    await page.waitForTimeout(300);
+
+    // Unsaved badge should now be visible
+    await expect(page.locator('.unsaved-badge')).toBeVisible();
+  });
+
+  test('UI: running unsaved .robot file shows save prompt', async ({ page }) => {
+    await goToExplorer(page, repoId);
+
+    // Expand tests directory and open sample.robot
+    await page.locator('.tree-node .node-name', { hasText: /^tests$/ }).click();
+    await page.waitForTimeout(300);
+    await page.locator('.node-name', { hasText: 'sample.robot' }).click();
+    await page.waitForTimeout(1000);
+
+    // Switch to code tab and make an edit via CodeMirror
+    const codeTab = page.locator('.tab-btn', { hasText: 'Code' });
+    if (await codeTab.isVisible()) {
+      await codeTab.click();
+      await page.waitForTimeout(500);
+      await page.locator('.cm-content').click();
+      await page.locator('.cm-content').pressSequentially('# edit');
+      await page.waitForTimeout(300);
+    }
+
+    // Verify unsaved badge is visible
+    await expect(page.locator('.unsaved-badge')).toBeVisible();
+
+    // Click the run button in the editor header
+    await page.locator('.run-btn').click();
+    await page.waitForTimeout(500);
+
+    // Save-before-run modal should appear
+    await expect(page.getByText(/Save before running|Vor dem Ausführen speichern|unsaved changes|Ungespeicherte Änderungen/i)).toBeVisible();
+
+    // Click "Run Without Saving" / "Ohne Speichern ausführen"
+    const runWithoutBtn = page.locator('button', { hasText: /Run Without Saving|Ohne Speichern ausführen|Ejecutar sin guardar|Exécuter sans enregistrer/i });
+    await runWithoutBtn.click();
+    await page.waitForTimeout(300);
+
+    // Modal should be gone
+    await expect(page.getByText(/Save before running|Vor dem Ausführen speichern/i)).not.toBeVisible();
+  });
+
+  test('UI: Save & Run saves file then starts run', async ({ page }) => {
+    // Create a test file via API
+    const testPath = 'tests/save_and_run_test.robot';
+    await page.request.post(`${API}/explorer/${repoId}/file`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        path: testPath,
+        content: '*** Test Cases ***\nSave Run Test\n    Log    original\n',
+      },
+    });
+
+    await goToExplorer(page, repoId);
+
+    // Expand tests directory and open the file
+    await page.locator('.tree-node .node-name', { hasText: /^tests$/ }).click();
+    await page.waitForTimeout(300);
+    await page.locator('.node-name', { hasText: 'save_and_run_test.robot' }).click();
+    await page.waitForTimeout(1000);
+
+    // Switch to code tab and make an edit
+    const codeTab = page.locator('.tab-btn', { hasText: 'Code' });
+    if (await codeTab.isVisible()) {
+      await codeTab.click();
+      await page.waitForTimeout(500);
+      await page.locator('.cm-content').click();
+      await page.locator('.cm-content').pressSequentially('# edited');
+      await page.waitForTimeout(300);
+    }
+
+    // Verify unsaved badge
+    await expect(page.locator('.unsaved-badge')).toBeVisible();
+
+    // Click run button
+    await page.locator('.run-btn').click();
+    await page.waitForTimeout(500);
+
+    // Save prompt should appear — click "Save & Run"
+    const saveAndRunBtn = page.locator('button', { hasText: /Save & Run|Speichern & Ausführen|Guardar y Ejecutar|Enregistrer & Exécuter/i });
+    await saveAndRunBtn.click();
+    await page.waitForTimeout(1000);
+
+    // Unsaved badge should be gone (file was saved)
+    await expect(page.locator('.unsaved-badge')).not.toBeVisible();
+
+    // Clean up
+    await page.request.delete(`${API}/explorer/${repoId}/file?path=${testPath}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  });
 });
