@@ -53,7 +53,7 @@ test.describe('Execution Run — E2E', () => {
   });
 
   test('GET /runs/{id} should return run details after completion', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(120_000);
     // Create a run first
     const createRes = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -61,9 +61,9 @@ test.describe('Execution Run — E2E', () => {
     });
     const run = await createRes.json();
 
-    // Poll until complete (max 30s)
+    // Poll until complete (max ~100s — CI queues runs with max_workers=1)
     let detail: any;
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 50; i++) {
       await page.waitForTimeout(2000);
       const res = await page.request.get(`${API}/runs/${run.id}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -78,7 +78,7 @@ test.describe('Execution Run — E2E', () => {
   });
 
   test('GET /runs/{id}/output should return stdout', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(120_000);
     // Create and poll for completion (only accept passed/failed, not error)
     const createRes = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -87,7 +87,7 @@ test.describe('Execution Run — E2E', () => {
     const run = await createRes.json();
 
     let detail: any;
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 50; i++) {
       await page.waitForTimeout(2000);
       const check = await page.request.get(`${API}/runs/${run.id}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -106,7 +106,7 @@ test.describe('Execution Run — E2E', () => {
   });
 
   test('GET /runs/{id}/report should return report ID', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(120_000);
     // Create and poll for completion (only accept passed/failed for report)
     const createRes = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -115,7 +115,7 @@ test.describe('Execution Run — E2E', () => {
     const run = await createRes.json();
 
     let detail: any;
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 50; i++) {
       await page.waitForTimeout(2000);
       const check = await page.request.get(`${API}/runs/${run.id}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -208,22 +208,23 @@ test.describe('Execution Run — E2E', () => {
   });
 
   test('UI: execution page shows Output button for completed runs', async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(120_000);
 
     // Create a run and wait for it to complete
-    await page.request.post(`${API}/runs`, {
+    const createRes = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
       data: { repository_id: repoId, target_path: 'calculator/basic_math.robot' },
     });
+    const run = await createRes.json();
 
-    // Poll until at least one run is in a terminal state
-    for (let i = 0; i < 30; i++) {
+    // Poll this specific run until it reaches a terminal state
+    for (let i = 0; i < 50; i++) {
       await page.waitForTimeout(2000);
-      const res = await page.request.get(`${API}/runs`, {
+      const res = await page.request.get(`${API}/runs/${run.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const runs = await res.json();
-      if (runs.some((r: any) => ['passed', 'failed', 'error'].includes(r.status))) break;
+      const detail = await res.json();
+      if (['passed', 'failed', 'error'].includes(detail.status)) break;
     }
 
     // Go to execution page
