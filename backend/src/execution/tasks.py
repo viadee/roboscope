@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 import src.auth.models  # noqa: F401
 import src.repos.models  # noqa: F401
 
+from src.config import settings
 from src.database import get_sync_session
 from src.execution.models import ExecutionRun, RunStatus, RunnerType
 from src.execution.runners.subprocess_runner import SubprocessRunner
