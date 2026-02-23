@@ -18,7 +18,7 @@ from src.config import settings
 
 logger = logging.getLogger("roboscope.ai.rf_mcp_manager")
 
-RF_MCP_PACKAGE = "robotframework-mcp"
+RF_MCP_PACKAGE = "rf-mcp"
 
 # Module-level singleton state for the managed server process
 _process: subprocess.Popen | None = None
@@ -88,7 +88,7 @@ def _install_package(venv_path: str) -> dict:
     pip = _get_pip_path(venv_path)
     try:
         result = subprocess.run(
-            [pip, "install", RF_MCP_PACKAGE],
+            [pip, "install", RF_MCP_PACKAGE, "fastmcp<3"],
             capture_output=True, text=True, timeout=300,
         )
         if result.returncode != 0:
@@ -110,9 +110,12 @@ def _start_server(venv_path: str, port: int = 9090) -> dict:
         proc = _process  # Local ref after is_running confirmed non-None
         return {"status": "already_running", "port": _port, "pid": proc.pid if proc else 0}
 
-    python = _get_python_path(venv_path)
-    if not Path(python).exists():
-        return {"status": "error", "message": f"Python not found: {python}"}
+    from src.ai.rf_knowledge import reset_session
+    reset_session()
+
+    robotmcp_bin = str(Path(venv_path) / "bin" / "robotmcp")
+    if not Path(robotmcp_bin).exists():
+        return {"status": "error", "message": f"robotmcp CLI not found: {robotmcp_bin}"}
 
     _port = port
 
@@ -123,7 +126,7 @@ def _start_server(venv_path: str, port: int = 9090) -> dict:
         env["VIRTUAL_ENV"] = venv_path
 
         proc = subprocess.Popen(
-            [python, "-m", "robotframework_mcp", "--port", str(port)],
+            [robotmcp_bin, "--transport", "http", "--port", str(port)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=env,
@@ -147,7 +150,7 @@ def _start_server(venv_path: str, port: int = 9090) -> dict:
         return {"status": "started", "port": port, "pid": proc.pid}
     except FileNotFoundError:
         _status = "error"
-        msg = f"Could not start rf-mcp. Ensure '{RF_MCP_PACKAGE}' is properly installed."
+        msg = f"Could not start rf-mcp. Ensure '{RF_MCP_PACKAGE}' is properly installed (robotmcp CLI)."
         logger.error(msg)
         return {"status": "error", "message": msg}
     except Exception as e:
@@ -159,6 +162,9 @@ def _start_server(venv_path: str, port: int = 9090) -> dict:
 def stop_server() -> dict:
     """Stop the managed rf-mcp server."""
     global _process, _status, _error_message
+
+    from src.ai.rf_knowledge import reset_session
+    reset_session()
 
     proc = _process  # Local ref to avoid race with concurrent threads
     if proc is None or not is_running():

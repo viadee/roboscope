@@ -212,7 +212,7 @@ class TestStartServer:
         ):
             mock_path.return_value.exists.return_value = True
             mock_path.return_value.__truediv__ = lambda self, x: mock_path.return_value
-            mock_path.return_value.__str__ = lambda self: "/fake/venv/bin/python"
+            mock_path.return_value.__str__ = lambda self: "/fake/venv/bin/robotmcp"
             rf_mcp_manager._process = None
             rf_mcp_manager._status = "stopped"
 
@@ -230,7 +230,7 @@ class TestStartServer:
         mock_proc = MagicMock()
         mock_proc.poll.return_value = 1  # exited
         mock_proc.stderr = MagicMock()
-        mock_proc.stderr.read.return_value = b"ModuleNotFoundError: robotframework_mcp"
+        mock_proc.stderr.read.return_value = b"ModuleNotFoundError: robotmcp"
 
         with (
             patch("src.ai.rf_mcp_manager.Path") as mock_path,
@@ -239,7 +239,7 @@ class TestStartServer:
         ):
             mock_path.return_value.exists.return_value = True
             mock_path.return_value.__truediv__ = lambda self, x: mock_path.return_value
-            mock_path.return_value.__str__ = lambda self: "/fake/venv/bin/python"
+            mock_path.return_value.__str__ = lambda self: "/fake/venv/bin/robotmcp"
             rf_mcp_manager._process = None
 
             result = rf_mcp_manager._start_server("/fake/venv", 9090)
@@ -249,10 +249,10 @@ class TestStartServer:
         assert rf_mcp_manager._status == "error"
         assert rf_mcp_manager._process is None
 
-    def test_python_not_found(self):
+    def test_robotmcp_not_found(self):
         result = rf_mcp_manager._start_server("/nonexistent/venv", 9090)
         assert result["status"] == "error"
-        assert "Python not found" in result["message"]
+        assert "not found" in result["message"]
 
     def test_already_running(self):
         mock_proc = MagicMock()
@@ -282,7 +282,7 @@ class TestStartServer:
         ):
             mock_path.return_value.exists.return_value = True
             mock_path.return_value.__truediv__ = lambda self, x: mock_path.return_value
-            mock_path.return_value.__str__ = lambda self: "/fake/venv/bin/python"
+            mock_path.return_value.__str__ = lambda self: "/fake/venv/bin/robotmcp"
             rf_mcp_manager._process = None
 
             result = rf_mcp_manager._start_server("/fake/venv", 9090)
