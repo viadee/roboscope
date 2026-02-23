@@ -257,14 +257,13 @@ def _setup_inner(env_id: int, port: int) -> dict:
     global _status, _error_message, _venv_path, _installed_version
 
     # Get environment venv path from DB
-    from sqlalchemy import create_engine, select
-    from sqlalchemy.orm import Session as SaSession
+    from sqlalchemy import select
 
     import src.auth.models  # noqa: F401
+    from src.database import get_sync_session
     from src.environments.models import Environment
 
-    engine = create_engine(settings.sync_database_url)
-    with SaSession(engine) as session:
+    with get_sync_session() as session:
         env = session.execute(
             select(Environment).where(Environment.id == env_id)
         ).scalar_one_or_none()

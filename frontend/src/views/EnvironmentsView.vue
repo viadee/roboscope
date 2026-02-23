@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
@@ -39,12 +39,18 @@ const settingUp = ref(false)
 const pipInstalled = ref<Record<number, { name: string; version: string }[]>>({})
 
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
+const activePollers = new Set<ReturnType<typeof setInterval>>()
 
 onMounted(async () => {
   await envs.fetchEnvironments()
   try {
     popularPackages.value = await envsApi.getPopularPackages()
   } catch { /* ignore */ }
+})
+
+onUnmounted(() => {
+  activePollers.forEach(id => clearInterval(id))
+  activePollers.clear()
 })
 
 async function addEnvironment() {
@@ -201,6 +207,7 @@ async function buildDockerImg(envId: number) {
         const updated = await envsApi.getEnvironment(envId)
         if (updated.docker_image === result.image_tag) {
           clearInterval(poll)
+          activePollers.delete(poll)
           dockerBuilding.value[envId] = false
           // Refresh environments list to show updated docker_image
           await envs.fetchEnvironments()
@@ -210,10 +217,12 @@ async function buildDockerImg(envId: number) {
         // keep polling
       }
     }, 3000)
+    activePollers.add(poll)
 
     // Safety timeout: stop polling after 5 minutes
     setTimeout(() => {
       clearInterval(poll)
+      activePollers.delete(poll)
       dockerBuilding.value[envId] = false
     }, 300000)
   } catch (e: any) {

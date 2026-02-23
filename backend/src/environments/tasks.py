@@ -5,23 +5,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
-
-from src.config import settings
+from sqlalchemy import select
 
 import src.auth.models  # noqa: F401
 
+from src.database import get_sync_session
 from src.environments.models import Environment, EnvironmentPackage
 
 logger = logging.getLogger("roboscope.environments.tasks")
-
-_sync_url = settings.sync_database_url
-_sync_engine = create_engine(_sync_url)
-
-
-def _get_sync_session() -> Session:
-    return Session(_sync_engine)
 
 
 def _get_pip_path(venv_path: str) -> str:
@@ -34,7 +25,7 @@ def _get_python_path(venv_path: str) -> str:
 
 def create_venv(env_id: int) -> dict:
     """Create a virtual environment."""
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         env = session.execute(
             select(Environment).where(Environment.id == env_id)
         ).scalar_one_or_none()
@@ -70,7 +61,7 @@ def create_venv(env_id: int) -> dict:
 
 def install_package(env_id: int, package_name: str, version: str | None = None) -> dict:
     """Install a pip package in an environment's virtualenv."""
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         env = session.execute(
             select(Environment).where(Environment.id == env_id)
         ).scalar_one_or_none()
@@ -125,7 +116,7 @@ def install_package(env_id: int, package_name: str, version: str | None = None) 
 
 def upgrade_package(env_id: int, package_name: str) -> dict:
     """Upgrade a pip package to its latest version."""
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         env = session.execute(
             select(Environment).where(Environment.id == env_id)
         ).scalar_one_or_none()
@@ -178,7 +169,7 @@ def upgrade_package(env_id: int, package_name: str) -> dict:
 
 def build_docker_image(env_id: int) -> dict:
     """Build a Docker image for an environment with all its packages."""
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         env = session.execute(
             select(Environment).where(Environment.id == env_id)
         ).scalar_one_or_none()
@@ -268,7 +259,7 @@ def build_docker_image(env_id: int) -> dict:
 
 def uninstall_package(env_id: int, package_name: str) -> dict:
     """Uninstall a pip package from an environment's virtualenv."""
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         env = session.execute(
             select(Environment).where(Environment.id == env_id)
         ).scalar_one_or_none()

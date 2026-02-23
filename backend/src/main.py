@@ -5,7 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
@@ -35,6 +35,14 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting RoboScope v{settings.VERSION}")
     logger.info(f"Database: {'SQLite' if settings.is_sqlite else 'PostgreSQL'}")
     logger.info("Task executor: in-process ThreadPoolExecutor (max_workers=1)")
+
+    # Warn if using default SECRET_KEY — insecure for production
+    if settings.SECRET_KEY == "CHANGE-ME-IN-PRODUCTION-use-openssl-rand-hex-32":
+        logger.warning(
+            "⚠ SECRET_KEY is set to the default value! "
+            "This is insecure for production. Set SECRET_KEY in your .env file "
+            "(generate with: openssl rand -hex 32)"
+        )
 
     # Create tables (in production, use Alembic migrations instead)
     create_tables()
@@ -111,6 +119,10 @@ async def lifespan(app: FastAPI):
         rf_mcp_manager.stop_server()
         logger.info("Stopped rf-mcp server")
 
+    # Gracefully shut down background task executor
+    from src.celery_app import shutdown_executor
+    shutdown_executor(wait=False)
+
     from src.plugins.registry import plugin_registry
     plugin_registry.shutdown_all()
 
@@ -149,9 +161,24 @@ def create_app() -> FastAPI:
             "task_executor": "in-process",
         }
 
+    # WebSocket auth helper: validate JWT token from query parameter
+    def _ws_authenticate(token: str | None) -> bool:
+        """Return True if the token is valid."""
+        if not token:
+            return False
+        try:
+            from src.auth.service import decode_token
+            decode_token(token)
+            return True
+        except (ValueError, Exception):
+            return False
+
     # WebSocket: global notifications
     @app.websocket("/ws/notifications")
-    async def ws_notifications(websocket: WebSocket):
+    async def ws_notifications(websocket: WebSocket, token: str = Query(default="")):
+        if not _ws_authenticate(token):
+            await websocket.close(code=4401, reason="Unauthorized")
+            return
         await ws_manager.connect(websocket)
         try:
             while True:
@@ -165,7 +192,12 @@ def create_app() -> FastAPI:
 
     # WebSocket: run-specific live output
     @app.websocket("/ws/runs/{run_id}")
-    async def ws_run_output(websocket: WebSocket, run_id: int):
+    async def ws_run_output(
+        websocket: WebSocket, run_id: int, token: str = Query(default=""),
+    ):
+        if not _ws_authenticate(token):
+            await websocket.close(code=4401, reason="Unauthorized")
+            return
         await ws_manager.connect_to_run(websocket, run_id)
         try:
             while True:

@@ -4,29 +4,20 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
-
-from src.config import settings
+from sqlalchemy import select
 
 import src.auth.models  # noqa: F401 — defines 'users' table
 
+from src.database import get_sync_session
 from src.repos.models import Repository
 from src.repos.service import clone_repository, sync_repository
 
 logger = logging.getLogger("roboscope.repos.tasks")
 
-_sync_url = settings.sync_database_url
-_sync_engine = create_engine(_sync_url)
-
-
-def _get_sync_session() -> Session:
-    return Session(_sync_engine)
-
 
 def clone_repo(repo_id: int, max_retries: int = 3) -> dict:
     """Clone a git repository (runs in background thread)."""
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         repo = session.execute(
             select(Repository).where(Repository.id == repo_id)
         ).scalar_one_or_none()
@@ -73,7 +64,7 @@ def sync_repo(repo_id: int, max_retries: int = 3) -> dict:
 
     If the local directory doesn't exist, clones it first.
     """
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         repo = session.execute(
             select(Repository).where(Repository.id == repo_id)
         ).scalar_one_or_none()

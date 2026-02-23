@@ -71,6 +71,15 @@ class TimestampMixin:
     )
 
 
+def get_sync_session() -> Session:
+    """Create a standalone sync session for background threads.
+
+    Use this instead of creating separate engines in each task module.
+    The caller is responsible for closing the session (use as context manager).
+    """
+    return SessionLocal()
+
+
 def get_db() -> Generator[Session, None, None]:
     """Dependency that provides a database session per request.
 

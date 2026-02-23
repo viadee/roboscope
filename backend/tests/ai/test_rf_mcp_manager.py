@@ -333,16 +333,12 @@ class TestSetup:
 
     def test_setup_inner_env_not_found(self):
         """_setup_inner should error when environment doesn't exist."""
-        mock_engine = MagicMock()
         mock_session = MagicMock()
         mock_session.__enter__ = MagicMock(return_value=mock_session)
         mock_session.__exit__ = MagicMock(return_value=False)
         mock_session.execute.return_value.scalar_one_or_none.return_value = None
 
-        with (
-            patch("sqlalchemy.create_engine", return_value=mock_engine),
-            patch("sqlalchemy.orm.Session", return_value=mock_session),
-        ):
+        with patch("src.database.get_sync_session", return_value=mock_session):
             result = rf_mcp_manager._setup_inner(999, 9090)
 
         assert result["status"] == "error"
@@ -354,7 +350,6 @@ class TestSetup:
 
     def test_setup_inner_install_and_start(self):
         """_setup_inner should install if not installed, then start."""
-        mock_engine = MagicMock()
         mock_session = MagicMock()
         mock_session.__enter__ = MagicMock(return_value=mock_session)
         mock_session.__exit__ = MagicMock(return_value=False)
@@ -363,8 +358,7 @@ class TestSetup:
         mock_session.execute.return_value.scalar_one_or_none.return_value = mock_env
 
         with (
-            patch("sqlalchemy.create_engine", return_value=mock_engine),
-            patch("sqlalchemy.orm.Session", return_value=mock_session),
+            patch("src.database.get_sync_session", return_value=mock_session),
             patch.object(rf_mcp_manager, "check_installed", return_value=(False, None)),
             patch.object(rf_mcp_manager, "_install_package", return_value={"status": "success", "version": "1.0.0"}),
             patch.object(rf_mcp_manager, "_start_server", return_value={"status": "started", "port": 9090, "pid": 99}),
@@ -380,7 +374,6 @@ class TestSetup:
 
     def test_setup_inner_already_installed(self):
         """_setup_inner should skip install when already installed."""
-        mock_engine = MagicMock()
         mock_session = MagicMock()
         mock_session.__enter__ = MagicMock(return_value=mock_session)
         mock_session.__exit__ = MagicMock(return_value=False)
@@ -389,8 +382,7 @@ class TestSetup:
         mock_session.execute.return_value.scalar_one_or_none.return_value = mock_env
 
         with (
-            patch("sqlalchemy.create_engine", return_value=mock_engine),
-            patch("sqlalchemy.orm.Session", return_value=mock_session),
+            patch("src.database.get_sync_session", return_value=mock_session),
             patch.object(rf_mcp_manager, "check_installed", return_value=(True, "2.0.0")),
             patch.object(rf_mcp_manager, "_install_package") as mock_install,
             patch.object(rf_mcp_manager, "_start_server", return_value={"status": "started", "port": 9090, "pid": 99}),
@@ -406,7 +398,6 @@ class TestSetup:
 
     def test_setup_inner_install_failure(self):
         """_setup_inner should return error when install fails."""
-        mock_engine = MagicMock()
         mock_session = MagicMock()
         mock_session.__enter__ = MagicMock(return_value=mock_session)
         mock_session.__exit__ = MagicMock(return_value=False)
@@ -415,8 +406,7 @@ class TestSetup:
         mock_session.execute.return_value.scalar_one_or_none.return_value = mock_env
 
         with (
-            patch("sqlalchemy.create_engine", return_value=mock_engine),
-            patch("sqlalchemy.orm.Session", return_value=mock_session),
+            patch("src.database.get_sync_session", return_value=mock_session),
             patch.object(rf_mcp_manager, "check_installed", return_value=(False, None)),
             patch.object(rf_mcp_manager, "_install_package", return_value={"status": "error", "message": "pip failed"}),
         ):

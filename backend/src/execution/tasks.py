@@ -7,23 +7,19 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
-
-from src.config import settings
 
 # Import all models so SQLAlchemy can resolve foreign keys.
 import src.auth.models  # noqa: F401
 import src.repos.models  # noqa: F401
 
+from src.database import get_sync_session
 from src.execution.models import ExecutionRun, RunStatus, RunnerType
 from src.execution.runners.subprocess_runner import SubprocessRunner
 from src.environments.models import Environment
 
 logger = logging.getLogger("roboscope.execution.tasks")
-
-_sync_url = settings.sync_database_url
-_sync_engine = create_engine(_sync_url)
 
 
 def _broadcast_run_status(run_id: int, status: str) -> None:
@@ -37,10 +33,6 @@ def _broadcast_run_status(run_id: int, status: str) -> None:
         asyncio.run_coroutine_threadsafe(coro, _event_loop)
     else:
         logger.warning("No event loop available to broadcast run %d status", run_id)
-
-
-def _get_sync_session() -> Session:
-    return Session(_sync_engine)
 
 
 def _get_runner(runner_type: str, env_config: dict | None = None):
@@ -73,7 +65,7 @@ def _get_env_config(session: Session, env_id: int | None) -> dict | None:
 
 def execute_test_run(run_id: int) -> dict:
     """Execute a test run in a background thread."""
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         run = session.execute(
             select(ExecutionRun).where(ExecutionRun.id == run_id)
         ).scalar_one_or_none()

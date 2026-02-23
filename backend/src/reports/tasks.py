@@ -3,31 +3,22 @@
 import logging
 from pathlib import Path
 
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
-
-from src.config import settings
+from sqlalchemy import select
 
 import src.auth.models  # noqa: F401
 import src.repos.models  # noqa: F401
 import src.execution.models  # noqa: F401
 
+from src.database import get_sync_session
 from src.reports.models import Report, TestResult
 from src.reports.parser import parse_output_xml
 
 logger = logging.getLogger("roboscope.reports.tasks")
 
-_sync_url = settings.sync_database_url
-_sync_engine = create_engine(_sync_url)
-
-
-def _get_sync_session() -> Session:
-    return Session(_sync_engine)
-
 
 def parse_report(run_id: int, output_xml_path: str) -> dict:
     """Parse a Robot Framework output.xml and store as a report."""
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         # Check if report already exists
         existing = session.execute(
             select(Report).where(Report.execution_run_id == run_id)

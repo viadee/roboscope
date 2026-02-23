@@ -174,7 +174,19 @@ def upload_archive(
 
     try:
         with zipfile.ZipFile(io.BytesIO(content)) as zf:
+            # Zip Slip protection: reject entries that escape the target directory
+            resolved_base = extract_dir.resolve()
+            for member in zf.namelist():
+                member_path = (extract_dir / member).resolve()
+                if not str(member_path).startswith(str(resolved_base)):
+                    shutil.rmtree(extract_dir, ignore_errors=True)
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Zip entry attempts path traversal: {member}",
+                    )
             zf.extractall(extract_dir)
+    except HTTPException:
+        raise
     except Exception as e:
         shutil.rmtree(extract_dir, ignore_errors=True)
         raise HTTPException(

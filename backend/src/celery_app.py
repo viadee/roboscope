@@ -60,3 +60,16 @@ def dispatch_task(func: Callable[..., Any], *args: Any, **kwargs: Any) -> TaskRe
         msg = f"Failed to submit task '{task_name}': {e}"
         logger.error(msg)
         raise TaskDispatchError(msg) from e
+
+
+def shutdown_executor(wait: bool = True) -> None:
+    """Gracefully shut down the background task executor.
+
+    After shutdown, the executor is replaced with a fresh instance
+    so tests and restarts continue to work.
+    """
+    global _executor
+    logger.info("Shutting down task executor (wait=%s)...", wait)
+    _executor.shutdown(wait=wait)
+    _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="roboscope-task")
+    logger.info("Task executor shut down.")

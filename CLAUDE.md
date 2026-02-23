@@ -452,6 +452,59 @@ vue-i18n v10 verwendet eine strikte Message-Syntax. Folgende Zeichen sind **rese
 
 **Wichtig:** Im Dev-Modus (Vite) ist der Message-Compiler toleranter; im Production-Build (dist) führen unescapte Sonderzeichen zu `SyntaxError` und die betroffene Komponente rendert nicht (blanker Bildschirm). Immer im Production-Build testen!
 
+## Bekannte Probleme / Technical Debt (Stand: 2026-02-23)
+
+### Erledigt (2026-02-23)
+
+- [x] python-jose → PyJWT migriert (auth/service.py)
+- [x] passlib → bcrypt direkt migriert (auth/service.py)
+- [x] bcrypt Pin `<4.1` entfernt → `>=4.2.0` (bcrypt 5.0.0 installiert)
+- [x] Zip Slip Vulnerability behoben (reports/router.py: Pfad-Validierung vor extractall)
+- [x] Rate Limiting auf Login (10 Versuche / 5 Minuten pro IP)
+- [x] SECRET_KEY Startup-Guard (Warning bei Default-Key)
+- [x] WebSocket JWT Auth (Token via Query-Parameter, 4401 bei ungültigem Token)
+- [x] XSS in KeywordNode.vue behoben (nur `<img>` Tags mit sicheren Attributen erlaubt)
+- [x] Vue Error Handler hinzugefügt (main.ts: `app.config.errorHandler`)
+- [x] 7 separate DB-Engines → 1 zentralisierte `get_sync_session()` in `database.py`
+- [x] Memory Leak EnvironmentsView behoben (onUnmounted cleanup für Docker-Build-Polling)
+- [x] `_get_sync_session()` 7x dedupliziert, `renderMarkdown()` in `utils/renderMarkdown.ts` extrahiert
+- [x] `datetime.utcnow()` → `datetime.now(timezone.utc)` in stats/analysis.py
+- [x] `lang="de"` → `lang="en"` in index.html
+- [x] Graceful Shutdown für TaskExecutor (shutdown_executor in Lifespan)
+
+### OFFEN — Noch zu erledigen
+
+1. **Unauthentifizierte Report-Assets** — `reports/router.py`: Kein Auth auf `/reports/{id}/assets/`
+2. **JWT-Token in URL** — `frontend/src/api/reports.api.ts:20-27`: Token im Query-Parameter (Browser-History, Logs, Referer)
+3. **Request Size Limits** — Report-Upload ohne Größenbeschränkung (Zip-Bombs)
+4. **Default-Credentials-Probe** — `LoginView.vue:21-35`: Login-Seite testet automatisch `admin123`
+5. **270KB Docs eagerly gebundelt** — Alle 4 Sprachen im Bundle, nur 1 wird gebraucht → dynamic import
+6. **55+ `as any` Casts** — TypeScript-Sicherheit wird an vielen Stellen umgangen
+7. **Accessibility** — Nur 1 `aria-label` in gesamter App, keine Label-Verknüpfung bei Forms
+8. **Structured Logging** — Nur plaintext `basicConfig`, kein JSON, kein Request-ID-Tracking
+9. **Health Check** — Gibt immer "healthy" zurück, auch wenn DB down
+10. **Docker-Client deduplizieren** — 3x kopiert in verschiedenen Modulen
+
+### Veraltete Dependencies (noch offen)
+
+| Paket | Aktuell | Verfügbar | Priorität |
+|-------|---------|-----------|-----------|
+| vue-i18n | ^10 | v11 | MITTEL |
+| pinia | ^2 | v3 | MITTEL |
+| vue-router | ^4 | v5 | MITTEL |
+| typescript | ~5.5 | 5.9 | NIEDRIG |
+
+### Test-Lücken (Höchstes Risiko)
+
+- **SubprocessRunner / DockerRunner** — 0 Tests (Kern-Ausführungslogik)
+- **execute_test_run()** — 0 Tests (Run-Lifecycle-Orchestrierung)
+- **AI LLM Client** — 0 Tests (4 Provider-APIs, Key-Handling)
+- **AI Encryption** — 0 Tests (Fernet für API-Keys)
+- **WebSocket Manager** — 0 Tests (Connect/Disconnect/Broadcast)
+- **celery_app.py (TaskExecutor)** — 0 Tests (alle Background-Tasks)
+- **AI Router**: 8 von 18 Endpoints ungetestet (generate, reverse, analyze, status, accept, drift)
+- **Report Router**: 5 Endpoints ungetestet (upload, html, assets, zip, delete-all)
+
 ## Coding-Konventionen
 
 - **Backend**: Python 3.12+, Ruff (line-length=100), mypy strict, sync SQLAlchemy

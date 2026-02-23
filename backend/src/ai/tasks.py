@@ -5,10 +5,7 @@ import logging
 from datetime import datetime, timezone
 
 import yaml
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
-
-from src.config import settings
+from sqlalchemy import select
 
 import src.auth.models  # noqa: F401 — FK resolution
 import src.repos.models  # noqa: F401 — FK resolution
@@ -23,17 +20,11 @@ from src.ai.prompts import (
     build_reverse_user_prompt,
     enrich_generate_prompt,
 )
+from src.database import get_sync_session
 from src.repos.models import Repository
 from src.reports.models import Report, TestResult
 
 logger = logging.getLogger("roboscope.ai.tasks")
-
-_sync_url = settings.sync_database_url
-_sync_engine = create_engine(_sync_url)
-
-
-def _get_sync_session() -> Session:
-    return Session(_sync_engine)
 
 
 def _run_async(coro):
@@ -153,7 +144,7 @@ async def _gather_reverse_knowledge(robot_content: str) -> list[dict]:
 
 def run_generate(job_id: int) -> None:
     """Background task: generate .robot from .roboscope spec."""
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         job = session.execute(select(AiJob).where(AiJob.id == job_id)).scalar_one_or_none()
         if not job:
             logger.error("Job %d not found", job_id)
@@ -224,7 +215,7 @@ def run_generate(job_id: int) -> None:
 
 def run_reverse(job_id: int) -> None:
     """Background task: extract .roboscope spec from .robot file."""
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         job = session.execute(select(AiJob).where(AiJob.id == job_id)).scalar_one_or_none()
         if not job:
             logger.error("Job %d not found", job_id)
@@ -339,7 +330,7 @@ async def _gather_analysis_knowledge(failed_tests: list[dict]) -> list[dict]:
 
 def run_analyze(job_id: int) -> None:
     """Background task: analyze test failures in a report."""
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         job = session.execute(select(AiJob).where(AiJob.id == job_id)).scalar_one_or_none()
         if not job:
             logger.error("Job %d not found", job_id)

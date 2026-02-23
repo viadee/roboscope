@@ -3,27 +3,18 @@
 import logging
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import create_engine, func, select
-from sqlalchemy.orm import Session
-
-from src.config import settings
+from sqlalchemy import func, select
 
 import src.auth.models  # noqa: F401
 import src.repos.models  # noqa: F401
 
+from src.database import get_sync_session
 from src.execution.models import ExecutionRun, RunStatus
 from src.reports.models import Report
 from src.stats.models import KpiRecord
 from src.stats.analysis import run_analysis  # noqa: F401 — re-export for task registration
 
 logger = logging.getLogger("roboscope.stats.tasks")
-
-_sync_url = settings.sync_database_url
-_sync_engine = create_engine(_sync_url)
-
-
-def _get_sync_session() -> Session:
-    return Session(_sync_engine)
 
 
 def aggregate_daily_kpis(days: int = 365) -> dict:
@@ -34,7 +25,7 @@ def aggregate_daily_kpis(days: int = 365) -> dict:
     """
     since = date.today() - timedelta(days=days)
 
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         # Get all distinct (date, repo, branch) combos with runs in the range
         combo_query = select(
             func.date(ExecutionRun.created_at).label("run_date"),
@@ -139,7 +130,7 @@ def get_data_status() -> dict:
     Returns the last KPI aggregation date and the last finished run timestamp,
     so the frontend can determine if data is stale.
     """
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         # Last KPI aggregation date
         last_kpi_result = session.execute(
             select(func.max(KpiRecord.date))

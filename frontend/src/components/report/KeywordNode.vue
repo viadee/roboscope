@@ -48,13 +48,27 @@ function hasHtml(text: string): boolean {
 }
 
 function renderMessageHtml(text: string): string {
-  return text.replace(
-    /(<img\s[^>]*src=")([^"]+)(")/gi,
-    (_match, prefix, src, suffix) => {
-      if (src.startsWith('http')) return _match
-      return prefix + getReportAssetUrl(props.reportId, src) + suffix
-    }
-  )
+  // Sanitize: only allow <img> tags, strip all other HTML to prevent XSS
+  const sanitized = text
+    .replace(/<(?!img\s|\/img)/gi, '&lt;')  // escape non-img opening tags
+    .replace(/<img\s([^>]*)>/gi, (_match, attrs: string) => {
+      // Only allow src, alt, width, height attributes on img
+      const safeAttrs: string[] = []
+      const srcMatch = attrs.match(/src="([^"]+)"/)
+      if (srcMatch) {
+        const src = srcMatch[1]
+        const safeSrc = src.startsWith('http') ? src : getReportAssetUrl(props.reportId, src)
+        safeAttrs.push(`src="${safeSrc}"`)
+      }
+      const altMatch = attrs.match(/alt="([^"]+)"/)
+      if (altMatch) safeAttrs.push(`alt="${altMatch[1]}"`)
+      const widthMatch = attrs.match(/width="([^"]+)"/)
+      if (widthMatch) safeAttrs.push(`width="${widthMatch[1]}"`)
+      const heightMatch = attrs.match(/height="([^"]+)"/)
+      if (heightMatch) safeAttrs.push(`height="${heightMatch[1]}"`)
+      return safeAttrs.length ? `<img ${safeAttrs.join(' ')}>` : ''
+    })
+  return sanitized
 }
 </script>
 

@@ -12,6 +12,7 @@ import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import ReportXmlView from '@/components/report/ReportXmlView.vue'
 import { formatDuration } from '@/utils/formatDuration'
 import { formatDateTime } from '@/utils/formatDate'
+import { renderMarkdown } from '@/utils/renderMarkdown'
 import type { ExecutionRun } from '@/types/domain.types'
 
 const props = defineProps<{ run: ExecutionRun }>()
@@ -100,29 +101,6 @@ async function startAnalysis() {
   } catch (e: any) {
     analysisError.value = e.response?.data?.detail || 'Analysis failed'
   }
-}
-
-function renderMarkdown(md: string): string {
-  let html = md
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-  html = html.replace(/```[\w]*\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>')
-  html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>')
-  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>')
-  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>')
-  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>')
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
-  html = html.replace(/^- (.+)$/gm, '<li>$1</li>')
-  html = html.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>')
-  html = html.replace(/<\/ul>\s*<ul>/g, '')
-  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-  html = html.replace(/\n\n/g, '</p><p>')
-  html = '<p>' + html + '</p>'
-  html = html.replace(/<p>\s*<\/p>/g, '')
-  return html
 }
 
 watch(() => props.run.id, () => {

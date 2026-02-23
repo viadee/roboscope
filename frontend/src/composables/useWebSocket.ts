@@ -16,7 +16,8 @@ export function useWebSocket() {
   function connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
-    ws = new WebSocket(`${protocol}//${host}/ws/notifications`)
+    const token = localStorage.getItem('access_token') || ''
+    ws = new WebSocket(`${protocol}//${host}/ws/notifications?token=${encodeURIComponent(token)}`)
 
     ws.onopen = () => {
       connected.value = true
@@ -108,7 +109,8 @@ export function useRunWebSocket(runId: number) {
   function connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
-    ws = new WebSocket(`${protocol}//${host}/ws/runs/${runId}`)
+    const token = localStorage.getItem('access_token') || ''
+    ws = new WebSocket(`${protocol}//${host}/ws/runs/${runId}?token=${encodeURIComponent(token)}`)
 
     ws.onopen = () => {
       connected.value = true

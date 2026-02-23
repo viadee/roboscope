@@ -5,18 +5,17 @@ import json
 import logging
 import re
 from collections import Counter, defaultdict
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-
-from src.config import settings
 
 import src.auth.models  # noqa: F401
 import src.repos.models  # noqa: F401
 import src.execution.models  # noqa: F401
 
+from src.database import get_sync_session
 from src.execution.models import ExecutionRun
 from src.reports.models import Report, TestResult
 from src.reports.parser import parse_output_xml_deep
@@ -24,13 +23,6 @@ from src.stats.keyword_library_map import resolve_keyword_library
 from src.stats.models import AnalysisReport
 
 logger = logging.getLogger("roboscope.stats.analysis")
-
-_sync_url = settings.sync_database_url
-_sync_engine = create_engine(_sync_url)
-
-
-def _get_sync_session() -> Session:
-    return Session(_sync_engine)
 
 
 def _broadcast_analysis_status(analysis_id: int, status: str, progress: int = 0) -> None:
@@ -912,7 +904,7 @@ def compute_suite_duration_treemap(
 
 def run_analysis(analysis_id: int) -> None:
     """Run analysis computation in background thread."""
-    with _get_sync_session() as session:
+    with get_sync_session() as session:
         analysis = session.get(AnalysisReport, analysis_id)
         if not analysis:
             logger.error("Analysis %d not found", analysis_id)
@@ -920,7 +912,7 @@ def run_analysis(analysis_id: int) -> None:
 
         try:
             analysis.status = "running"
-            analysis.started_at = datetime.utcnow()
+            analysis.started_at = datetime.now(timezone.utc)
             analysis.progress = 0
             session.commit()
 
@@ -1074,7 +1066,7 @@ def run_analysis(analysis_id: int) -> None:
             analysis.progress = 100
             analysis.results = json.dumps(results)
             analysis.status = "completed"
-            analysis.completed_at = datetime.utcnow()
+            analysis.completed_at = datetime.now(timezone.utc)
             session.commit()
 
             # Broadcast WebSocket notification
@@ -1089,5 +1081,5 @@ def run_analysis(analysis_id: int) -> None:
             logger.exception("Analysis %d failed", analysis_id)
             analysis.status = "error"
             analysis.error_message = str(e)[:500]
-            analysis.completed_at = datetime.utcnow()
+            analysis.completed_at = datetime.now(timezone.utc)
             session.commit()
