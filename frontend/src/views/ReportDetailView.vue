@@ -15,7 +15,7 @@ const reports = useReportsStore()
 const { t } = useI18n()
 
 const reportId = computed(() => Number(route.params.id))
-const activeTab = ref<'summary' | 'html' | 'xml'>('summary')
+const activeTab = ref<'summary' | 'detailed' | 'html'>('summary')
 
 onMounted(() => {
   if (reportId.value) reports.fetchReport(reportId.value)
@@ -70,17 +70,17 @@ function downloadZip() {
         </button>
         <button
           class="tab-btn"
+          :class="{ active: activeTab === 'detailed' }"
+          @click="activeTab = 'detailed'"
+        >
+          {{ t('reportDetail.tabs.detailedReport') }}
+        </button>
+        <button
+          class="tab-btn"
           :class="{ active: activeTab === 'html' }"
           @click="activeTab = 'html'"
         >
           {{ t('reportDetail.tabs.htmlReport') }}
-        </button>
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'xml' }"
-          @click="activeTab = 'xml'"
-        >
-          {{ t('reportDetail.tabs.xmlView') }}
         </button>
       </div>
 
@@ -183,8 +183,8 @@ function downloadZip() {
         </div>
       </div>
 
-      <!-- XML View Tab -->
-      <div v-show="activeTab === 'xml'" class="tab-content">
+      <!-- Detailed Report Tab -->
+      <div v-show="activeTab === 'detailed'" class="tab-content">
         <div class="card xml-view-card">
           <ReportXmlView :report-id="reportId" />
         </div>

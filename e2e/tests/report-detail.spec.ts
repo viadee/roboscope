@@ -130,7 +130,7 @@ test.describe('Report Detail Page', () => {
     await loginAndGoToDashboard(page);
   });
 
-  test('should show 3 tabs: Summary, HTML Report, XML View', async ({ page }) => {
+  test('should show 3 tabs: Summary, Detailed Report, HTML Report', async ({ page }) => {
     await page.goto('/reports/1');
     await page.waitForLoadState('networkidle');
 
@@ -161,19 +161,19 @@ test.describe('Report Detail Page', () => {
     await page.goto('/reports/1');
     await page.waitForLoadState('networkidle');
 
-    // Click HTML Report tab
-    await page.locator('.tab-btn').nth(1).click();
+    // Click HTML Report tab (now 3rd tab)
+    await page.locator('.tab-btn').nth(2).click();
 
     // iframe should be visible
     await expect(page.locator('.html-report-iframe')).toBeVisible();
   });
 
-  test('should switch to XML View tab and show tree', async ({ page }) => {
+  test('should switch to Detailed Report tab and show tree', async ({ page }) => {
     await page.goto('/reports/1');
     await page.waitForLoadState('networkidle');
 
-    // Click XML View tab
-    await page.locator('.tab-btn').nth(2).click();
+    // Click Detailed Report tab (now 2nd tab)
+    await page.locator('.tab-btn').nth(1).click();
 
     // Wait for XML data to load
     await expect(page.locator('.xml-tree')).toBeVisible({ timeout: 10_000 });
@@ -183,12 +183,12 @@ test.describe('Report Detail Page', () => {
     await expect(page.locator('.tree-label').first()).toContainText('Root Suite');
   });
 
-  test('should expand and collapse nodes in XML View', async ({ page }) => {
+  test('should expand and collapse nodes in Detailed Report', async ({ page }) => {
     await page.goto('/reports/1');
     await page.waitForLoadState('networkidle');
 
-    // Click XML View tab
-    await page.locator('.tab-btn').nth(2).click();
+    // Click Detailed Report tab (now 2nd tab)
+    await page.locator('.tab-btn').nth(1).click();
     await expect(page.locator('.xml-tree')).toBeVisible({ timeout: 10_000 });
 
     const xmlTree = page.locator('.xml-tree');
@@ -220,8 +220,8 @@ test.describe('Report Detail Page', () => {
     await page.goto('/reports/1');
     await page.waitForLoadState('networkidle');
 
-    // Go to XML View
-    await page.locator('.tab-btn').nth(2).click();
+    // Go to Detailed Report
+    await page.locator('.tab-btn').nth(1).click();
     await expect(page.locator('.xml-tree')).toBeVisible({ timeout: 10_000 });
 
     // Go back to Summary
@@ -229,7 +229,7 @@ test.describe('Report Detail Page', () => {
     await expect(page.locator('.kpi-card').first()).toBeVisible();
 
     // Go to HTML Report
-    await page.locator('.tab-btn').nth(1).click();
+    await page.locator('.tab-btn').nth(2).click();
     await expect(page.locator('.html-report-iframe')).toBeVisible();
   });
 });

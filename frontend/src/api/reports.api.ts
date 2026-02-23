@@ -27,6 +27,11 @@ export function getReportZipUrl(id: number): string {
   return `${baseUrl}/reports/${id}/zip?token=${encodeURIComponent(token)}`
 }
 
+export function getReportAssetUrl(reportId: number, filename: string): string {
+  const baseUrl = apiClient.defaults.baseURL || '/api/v1'
+  return `${baseUrl}/reports/${reportId}/assets/${encodeURIComponent(filename)}`
+}
+
 export async function getReportXmlData(id: number): Promise<XmlReportData> {
   const response = await apiClient.get<XmlReportData>(`/reports/${id}/xml-data`)
   return response.data

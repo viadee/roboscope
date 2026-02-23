@@ -9,7 +9,7 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 **Backend (FastAPI) — VOLLSTÄNDIG implementiert (~5.800 Zeilen)**
 - Auth/JWT mit RBAC (Viewer < Runner < Editor < Admin) + Admin-Passwort-Reset
 - Repository-Management mit GitPython (clone, sync, branches), Projekt-Umgebungszuordnung
-- Testfall-Explorer (Dateisystem-Browser + Robot-Parser + Library-Check + "In Dateibrowser öffnen")
+- Testfall-Explorer (Dateisystem-Browser + Robot-Parser + Library-Check + "In Dateibrowser öffnen" + Binärdatei-Erkennung)
 - Testausführung: SubprocessRunner + DockerRunner + In-Process TaskExecutor + WebSocket-Live-Updates
 - Environment-Management (venv, Pakete, Variablen)
 - Report-Parsing (output.xml → DB) + Vergleich
@@ -46,7 +46,7 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 **Backend Tests (pytest) — ~486 Tests**
 - Auth: Login, Registration, Password-Reset (5 Tests)
 - Repos: CRUD, Service (20+ Tests)
-- Explorer: File-Browser, Open-In-File-Browser (5 Tests)
+- Explorer: File-Browser, Open-In-File-Browser, Binary-Detection (11 Tests)
 - Execution: Runs, Scheduling (20+ Tests)
 - Environments: CRUD, Packages (20+ Tests)
 - Reports: Parsing, Comparison (20+ Tests)
@@ -117,6 +117,7 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] Deep Analysis: 5 neue Execution-KPIs (test_pass_rate_trend, slowest_tests, flakiness_score, failure_heatmap, suite_duration_treemap)
 - [x] Deep Analysis: Frontend-Visualisierungen (CSS Stacked Bars, Horizontal Bars, Dot Timeline, Heatmap Grid, Treemap)
 - [x] Deep Analysis: Backend-Tests (26 Tests) + E2E-Tests (8 Tests)
+- [x] Explorer: Binärdatei-Erkennung (Null-Byte-Check, `is_binary` Flag, `force` Query-Param, Placeholder + "Trotzdem öffnen" Button, i18n EN/DE/FR/ES, Backend+Router+E2E Tests)
 
 **Offen / Roadmap (priorisiert):**
 - [x] **Responsive Design** — Sidebar, Tabellen, iframe-Layout für kleinere Bildschirme optimieren

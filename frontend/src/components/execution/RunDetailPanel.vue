@@ -32,7 +32,7 @@ const envName = computed(() => {
 
 const reportId = ref<number | null>(null)
 const loadingReport = ref(false)
-const activeTab = ref<'summary' | 'html' | 'xml'>('summary')
+const activeTab = ref<'summary' | 'detailed' | 'html'>('summary')
 
 const hasReport = computed(() => reportId.value !== null)
 const isRunFinished = computed(() =>
@@ -188,17 +188,17 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
           </button>
           <button
             class="tab-btn"
+            :class="{ active: activeTab === 'detailed' }"
+            @click="activeTab = 'detailed'"
+          >
+            {{ t('reportDetail.tabs.detailedReport') }}
+          </button>
+          <button
+            class="tab-btn"
             :class="{ active: activeTab === 'html' }"
             @click="activeTab = 'html'"
           >
             {{ t('reportDetail.tabs.htmlReport') }}
-          </button>
-          <button
-            class="tab-btn"
-            :class="{ active: activeTab === 'xml' }"
-            @click="activeTab = 'xml'"
-          >
-            {{ t('reportDetail.tabs.xmlView') }}
           </button>
         </div>
 
@@ -284,8 +284,8 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
           </div>
         </div>
 
-        <!-- XML View Tab -->
-        <div v-show="activeTab === 'xml'" class="tab-content">
+        <!-- Detailed Report Tab -->
+        <div v-show="activeTab === 'detailed'" class="tab-content">
           <div class="xml-view-card">
             <ReportXmlView :report-id="reportId!" />
           </div>
