@@ -30,7 +30,8 @@
     "vue-router": "^4.4.0"
   },
   "overrides": {
-    "minimatch": ">=10.2.1"
+    "minimatch": ">=10.2.1",
+    "editorconfig": ">=2.0.0"
   },
   "devDependencies": {
     "@tsconfig/node20": "^20.1.0",

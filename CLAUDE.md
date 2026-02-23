@@ -2,7 +2,7 @@
 
 Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausführung, Report-Analyse, Environment-Management und Container-Runtime.
 
-## Aktueller Projektstatus (Stand: 2026-02-22)
+## Aktueller Projektstatus (Stand: 2026-02-23)
 
 ### Was ist implementiert
 
@@ -119,6 +119,9 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] Deep Analysis: Backend-Tests (26 Tests) + E2E-Tests (8 Tests)
 - [x] Explorer: Binärdatei-Erkennung (Null-Byte-Check, `is_binary` Flag, `force` Query-Param, Placeholder + "Trotzdem öffnen" Button, i18n EN/DE/FR/ES, Backend+Router+E2E Tests)
 - [x] AI-Fehleranalyse: LLM-gestützte Root-Cause-Analyse für fehlgeschlagene Tests (POST /ai/analyze, run_analyze Task, ReportDetailView-Integration, E2E-Tests)
+- [x] Explorer: Fix falscher "Unsaved"-Badge beim Öffnen (ignoreContentUpdates Flag verhindert isDirty durch Editor-Roundtrip-Normalisierung bei RobotEditor/SpecEditor mount)
+- [x] Explorer: Save-Before-Run Prompt (bei unsaved Changes wird der User gefragt ob speichern vor Ausführung, i18n EN/DE/FR/ES, 5 neue E2E-Tests)
+- [x] Dependabot: minimatch ReDoS-Vulnerability behoben (npm override minimatch>=10.2.1, editorconfig>=2.0.0)
 
 **Offen / Roadmap (priorisiert):**
 - [x] **Responsive Design** — Sidebar, Tabellen, iframe-Layout für kleinere Bildschirme optimieren
@@ -471,6 +474,9 @@ vue-i18n v10 verwendet eine strikte Message-Syntax. Folgende Zeichen sind **rese
 - [x] `datetime.utcnow()` → `datetime.now(timezone.utc)` in stats/analysis.py
 - [x] `lang="de"` → `lang="en"` in index.html
 - [x] Graceful Shutdown für TaskExecutor (shutdown_executor in Lifespan)
+- [x] Explorer: Falscher "Unsaved"-Badge beim Dateiöffnen behoben (ignoreContentUpdates Flag in ExplorerView.vue)
+- [x] Explorer: Save-Before-Run Prompt bei ungespeicherten Änderungen (Modal + saveAndRun/runWithoutSaving Handler)
+- [x] Dependabot: minimatch ReDoS-Vulnerability behoben (npm override minimatch>=10.2.1, editorconfig>=2.0.0 in package.json)
 
 ### OFFEN — Noch zu erledigen
 
