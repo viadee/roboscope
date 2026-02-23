@@ -62,8 +62,8 @@ test.describe('Execution Page', () => {
     await expect(page.getByPlaceholder('main')).toBeVisible();
     await expect(page.getByPlaceholder('tests/ oder tests/login.robot')).toBeVisible();
 
-    // Cancel
-    await page.getByRole('button', { name: 'Abbrechen' }).click();
+    // Cancel — use the modal's close button (×) since multiple modals may have "Abbrechen"
+    await page.locator('.modal-backdrop:visible .modal-close').click();
     await expect(page.getByText('Neuen Run starten')).not.toBeVisible({ timeout: 3_000 });
   });
 

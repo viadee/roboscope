@@ -53,6 +53,7 @@ test.describe('Execution Run — E2E', () => {
   });
 
   test('GET /runs/{id} should return run details after completion', async ({ page }) => {
+    test.setTimeout(60_000);
     // Create a run first
     const createRes = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -77,6 +78,7 @@ test.describe('Execution Run — E2E', () => {
   });
 
   test('GET /runs/{id}/output should return stdout', async ({ page }) => {
+    test.setTimeout(60_000);
     // Create and poll for completion (only accept passed/failed, not error)
     const createRes = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -104,6 +106,7 @@ test.describe('Execution Run — E2E', () => {
   });
 
   test('GET /runs/{id}/report should return report ID', async ({ page }) => {
+    test.setTimeout(60_000);
     // Create and poll for completion (only accept passed/failed for report)
     const createRes = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -205,15 +208,30 @@ test.describe('Execution Run — E2E', () => {
   });
 
   test('UI: execution page shows Output button for completed runs', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(90_000);
 
-    // By now, previous tests have created completed runs.
-    // Go to execution page directly.
+    // Create a run and wait for it to complete
+    await page.request.post(`${API}/runs`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { repository_id: repoId, target_path: 'calculator/basic_math.robot' },
+    });
+
+    // Poll until at least one run is in a terminal state
+    for (let i = 0; i < 30; i++) {
+      await page.waitForTimeout(2000);
+      const res = await page.request.get(`${API}/runs`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const runs = await res.json();
+      if (runs.some((r: any) => ['passed', 'failed', 'error'].includes(r.status))) break;
+    }
+
+    // Go to execution page
     await page.goto('/runs');
     await expect(page.locator('h1', { hasText: 'Ausführung' })).toBeVisible({ timeout: 10_000 });
     await page.waitForTimeout(2000);
 
-    // Click on a completed run row to open the detail panel
+    // Click on the first (completed) run row to open the detail panel
     const firstRow = page.locator('.data-table tbody tr').first();
     await expect(firstRow).toBeVisible({ timeout: 5000 });
     await firstRow.click();
