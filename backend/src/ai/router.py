@@ -416,6 +416,12 @@ def rf_mcp_setup(
     # Stop any running instance first
     rf_mcp_manager.stop_server()
 
+    # Set status to "installing" immediately so polling sees it before the
+    # background task starts (avoids race where poll sees "stopped" and quits)
+    rf_mcp_manager._status = "installing"
+    rf_mcp_manager._environment_id = data.environment_id
+    rf_mcp_manager._error_message = ""
+
     # Dispatch setup as background task
     try:
         dispatch_task(rf_mcp_manager.setup, data.environment_id, data.port)

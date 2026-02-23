@@ -213,7 +213,10 @@ export const useAiStore = defineStore('ai', () => {
     stopRfMcpPolling()
     rfMcpPolling.value = setInterval(async () => {
       await fetchRfMcpStatus()
-      if (rfMcpStatus.value === 'running' || rfMcpStatus.value === 'error' || rfMcpStatus.value === 'stopped') {
+      // Stop polling only on truly terminal states (not "stopped" — the background
+      // task may not have started yet, so status can briefly be "stopped" before
+      // transitioning to "installing")
+      if (rfMcpStatus.value === 'running' || rfMcpStatus.value === 'error') {
         stopRfMcpPolling()
       }
     }, 2000)
