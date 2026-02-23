@@ -24,7 +24,7 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 
 **Frontend (Vue 3 + TypeScript) — VOLLSTÄNDIG implementiert (~5.500 Zeilen)**
 - 12 Views: Login, Dashboard, Repos, Explorer, Execution, Environments, Reports, ReportDetail, Stats, Settings, Docs, Imprint
-- In-App-Dokumentation: DocsView mit TOC-Sidebar, Suche, Print/PDF, i18n (EN+DE), offline-fähig
+- In-App-Dokumentation: DocsView mit TOC-Sidebar, Suche, Print/PDF, i18n (EN, DE, FR, ES), offline-fähig
 - 9 Pinia Stores: auth, repos, explorer, execution, environments, reports, stats, ui, ai
 - 9 API-Clients: auth, repos, explorer, execution, environments, reports, stats, settings, ai
 - 5 Base UI-Komponenten: BaseButton, BaseBadge, BaseModal, BaseToast, BaseSpinner
@@ -84,7 +84,7 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] "Alle löschen" Button auf Reports-Seite (DELETE /reports/all, nur für ADMIN, mit Bestätigungsdialog)
 - [x] Error-Handling: Fehlgeschlagene Dispatches → Run-Status ERROR + sichtbare Fehlermeldung
 - [x] E2E Tests für Execution (7/7 bestanden)
-- [x] In-App-Dokumentation (DocsView, EN+DE, TOC, Suche, Print/PDF, offline-fähig)
+- [x] In-App-Dokumentation (DocsView, EN+DE+FR+ES, TOC, Suche, Print/PDF, offline-fähig)
 - [x] Package Manager & Library Check (Nav umbenannt, Library-Scanner, Repo-Environment-Zuordnung, One-Click-Install)
 - [x] On-Demand Tiefenanalyse-Modul (15 KPIs in 5 Kategorien: Keyword Analytics, Test Quality, Maintenance, Source Analysis, Execution)
 - [x] i18n für gesamte Anwendung (DE, EN, FR, ES)
@@ -101,7 +101,7 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] Execution-Tabelle: Umgebungs-Spalte, Retry-Icon, Explorer-Link, Spinner bei aktiven Runs
 - [x] Umfassende Backend-Tests (Auth-Passwort-Reset, Stats-Aggregate, Explorer-Open-In-Browser)
 - [x] Umfassende E2E-Tests (Imprint, Passwort-Reset, Repo-Umgebung, Stats-Tabs)
-- [x] In-App-Dokumentation aktualisiert (EN+DE: Passwort-Reset, Umgebungsauswahl, Stats-Refresh, Impressum)
+- [x] In-App-Dokumentation aktualisiert (EN+DE+FR+ES: Passwort-Reset, Umgebungsauswahl, Stats-Refresh, Impressum, Detailed Report Tab)
 - [x] Build-Skript aktualisiert (examples/ Verzeichnis, .env ohne Celery)
 - [x] Explorer: Testanzahl-Fix (build_tree test_count) + E2E-Tests + "Projektordner öffnen" Button
 - [x] Tiefenanalyse: Bibliotheksverteilung Fix (Keyword-zu-Library-Mapping für 500+ Keywords)
@@ -157,7 +157,7 @@ RoboScope/
 ├── frontend/         # Vue 3 + TypeScript + Vite
 │   └── src/
 │       ├── api/      # Axios API-Client mit JWT-Interceptor
-│       ├── docs/     # In-App-Dokumentation (types, content/en, content/de)
+│       ├── docs/     # In-App-Dokumentation (types, content/en, content/de, content/fr, content/es)
 │       ├── stores/   # Pinia Stores (auth, repos, explorer, execution, ...)
 │       ├── views/    # 12 Views (Login, Dashboard, Repos, Explorer, ...)
 │       ├── components/ # UI-Basiskomponenten + Layout
@@ -448,4 +448,4 @@ vue-i18n v10 verwendet eine strikte Message-Syntax. Folgende Zeichen sind **rese
 - **Tests**: Sync Tests, Klassen-Gruppierung, `_make_*` Helper
 - **CSS**: Alle Variablen in `frontend/src/assets/styles/main.css`, keine separaten Variable/Transition-Dateien
 - **Git**: Konventionelle Commits, Feature-Branches, PR-basierter Workflow
-- **Sprache**: 4 Sprachen vollständig (EN, DE, FR, ES), In-App-Docs in EN+DE
+- **Sprache**: 4 Sprachen vollständig (EN, DE, FR, ES), In-App-Docs in EN+DE+FR+ES
