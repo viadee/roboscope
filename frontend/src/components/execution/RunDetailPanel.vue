@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useReportsStore } from '@/stores/reports.store'
+import { useAiStore } from '@/stores/ai.store'
 import { getRunReport } from '@/api/execution.api'
 import { getReportHtmlUrl, getReportZipUrl } from '@/api/reports.api'
 import { useEnvironmentsStore } from '@/stores/environments.store'
@@ -22,6 +23,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const reports = useReportsStore()
+const aiStore = useAiStore()
 const envs = useEnvironmentsStore()
 
 const envName = computed(() => {
@@ -56,7 +58,7 @@ function downloadZip() {
   }
 }
 
-async function fetchReport() {
+async function fetchReport(retries = 5) {
   if (!canHaveReport.value) return
   loadingReport.value = true
   try {
@@ -64,6 +66,11 @@ async function fetchReport() {
     reportId.value = data.report_id
     if (reportId.value) {
       await reports.fetchReport(reportId.value)
+    } else if (retries > 0) {
+      // Report may not be parsed yet (race condition: WebSocket fires before parse_report completes)
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      loadingReport.value = false
+      return fetchReport(retries - 1)
     }
   } catch {
     reportId.value = null
@@ -72,7 +79,51 @@ async function fetchReport() {
   }
 }
 
-onMounted(fetchReport)
+onMounted(() => {
+  fetchReport()
+  if (!aiStore.hasProviders) aiStore.fetchProviders()
+})
+
+onUnmounted(() => {
+  aiStore.stopAnalysisPolling()
+})
+
+// --- AI Failure Analysis ---
+
+const analysisError = ref('')
+
+async function startAnalysis() {
+  if (!reportId.value) return
+  analysisError.value = ''
+  try {
+    await aiStore.analyzeFailures(reportId.value)
+  } catch (e: any) {
+    analysisError.value = e.response?.data?.detail || 'Analysis failed'
+  }
+}
+
+function renderMarkdown(md: string): string {
+  let html = md
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  html = html.replace(/```[\w]*\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>')
+  html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>')
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>')
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>')
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>')
+  html = html.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>')
+  html = html.replace(/<\/ul>\s*<ul>/g, '')
+  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+  html = html.replace(/\n\n/g, '</p><p>')
+  html = '<p>' + html + '</p>'
+  html = html.replace(/<p>\s*<\/p>/g, '')
+  return html
+}
 
 watch(() => props.run.id, () => {
   reportId.value = null
@@ -269,6 +320,55 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          <!-- AI Failure Analysis -->
+          <div v-if="failedTests.length" class="analysis-card">
+            <div class="analysis-header">
+              <h4>{{ t('reportDetail.analysis.title') }}</h4>
+            </div>
+            <div class="analysis-body">
+              <!-- No provider configured -->
+              <div v-if="!aiStore.hasProviders" class="analysis-hint">
+                <p class="text-muted">{{ t('reportDetail.analysis.noProvider') }}</p>
+              </div>
+
+              <!-- Error state -->
+              <div v-else-if="analysisError" class="analysis-error">
+                <p class="text-danger"><strong>{{ t('reportDetail.analysis.failed') }}:</strong> {{ analysisError }}</p>
+                <BaseButton variant="secondary" size="sm" @click="startAnalysis">{{ t('common.retry') }}</BaseButton>
+              </div>
+
+              <!-- Loading state -->
+              <div v-else-if="aiStore.analysisJob && (aiStore.analysisJob.status === 'pending' || aiStore.analysisJob.status === 'running')" class="analysis-loading">
+                <BaseSpinner />
+                <p class="text-muted">{{ t('reportDetail.analysis.analyzing') }}</p>
+              </div>
+
+              <!-- Failed job -->
+              <div v-else-if="aiStore.analysisJob && aiStore.analysisJob.status === 'failed'" class="analysis-error">
+                <p class="text-danger"><strong>{{ t('reportDetail.analysis.failed') }}:</strong> {{ aiStore.analysisJob.error_message }}</p>
+                <BaseButton variant="secondary" size="sm" @click="startAnalysis">{{ t('common.retry') }}</BaseButton>
+              </div>
+
+              <!-- Result state -->
+              <div v-else-if="aiStore.analysisJob && aiStore.analysisJob.status === 'completed' && aiStore.analysisJob.result_preview" class="analysis-result">
+                <div class="analysis-content" v-html="renderMarkdown(aiStore.analysisJob.result_preview)"></div>
+                <div class="analysis-footer">
+                  <span v-if="aiStore.analysisJob.token_usage" class="text-muted text-sm">
+                    {{ t('reportDetail.analysis.tokensUsed', { tokens: aiStore.analysisJob.token_usage }) }}
+                  </span>
+                  <BaseButton variant="ghost" size="sm" @click="startAnalysis">{{ t('reportDetail.analysis.reanalyze') }}</BaseButton>
+                </div>
+              </div>
+
+              <!-- Initial state — show button -->
+              <div v-else class="analysis-initial">
+                <BaseButton variant="primary" size="sm" @click="startAnalysis">
+                  {{ t('reportDetail.analysis.analyzeButton') }}
+                </BaseButton>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -470,4 +570,88 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
 }
 
 .text-danger { color: var(--color-danger); }
+
+/* AI Analysis Card */
+.analysis-card {
+  margin-top: 16px;
+  padding: 16px;
+  border-left: 4px solid var(--color-primary, #3B7DD8);
+  background: var(--color-bg, #f4f7fa);
+  border-radius: var(--radius-sm, 6px);
+}
+
+.analysis-header h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: var(--color-primary, #3B7DD8);
+}
+
+.analysis-body { padding: 0; }
+.analysis-hint { padding: 4px 0; }
+
+.analysis-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.analysis-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.analysis-initial { padding: 4px 0; }
+.analysis-result { padding: 4px 0; }
+
+.analysis-content {
+  line-height: 1.7;
+  font-size: 13px;
+}
+
+.analysis-content :deep(h1),
+.analysis-content :deep(h2),
+.analysis-content :deep(h3),
+.analysis-content :deep(h4) {
+  margin-top: 12px;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.analysis-content :deep(h2) { font-size: 16px; }
+.analysis-content :deep(h3) { font-size: 14px; }
+.analysis-content :deep(h4) { font-size: 13px; }
+
+.analysis-content :deep(pre) {
+  background: var(--color-bg-card, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 6px;
+  padding: 10px;
+  overflow-x: auto;
+  margin: 6px 0;
+}
+
+.analysis-content :deep(code) {
+  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 12px;
+}
+
+.analysis-content :deep(ul) {
+  padding-left: 20px;
+  margin: 6px 0;
+}
+
+.analysis-content :deep(li) { margin-bottom: 3px; }
+.analysis-content :deep(strong) { font-weight: 600; }
+
+.analysis-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+}
 </style>

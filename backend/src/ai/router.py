@@ -57,6 +57,23 @@ logger = logging.getLogger("roboscope.ai.router")
 router = APIRouter()
 
 
+def _resolve_provider(db: Session, provider_id: int | None) -> AiProvider:
+    """Resolve provider: explicit ID → default → first available, or raise 400."""
+    from sqlalchemy import select as sa_select
+
+    if provider_id:
+        provider = get_provider(db, provider_id)
+    else:
+        provider = get_default_provider(db)
+        if not provider:
+            provider = db.execute(
+                sa_select(AiProvider).limit(1)
+            ).scalar_one_or_none()
+    if not provider:
+        raise HTTPException(status_code=400, detail="No LLM provider configured")
+    return provider
+
+
 # ---------------------------------------------------------------------------
 # Provider management (Admin only)
 # ---------------------------------------------------------------------------
@@ -121,15 +138,7 @@ def generate_robot(
 ):
     """Generate a .robot file from a .roboscope specification."""
     repo = _get_repo(db, data.repository_id)
-
-    # Resolve provider
-    provider = None
-    if data.provider_id:
-        provider = get_provider(db, data.provider_id)
-    else:
-        provider = get_default_provider(db)
-    if not provider:
-        raise HTTPException(status_code=400, detail="No LLM provider configured")
+    provider = _resolve_provider(db, data.provider_id)
 
     # Verify spec file exists
     spec_file = Path(repo.local_path) / data.spec_path
@@ -187,14 +196,7 @@ def reverse_robot(
 ):
     """Extract a .roboscope spec from an existing .robot file."""
     repo = _get_repo(db, data.repository_id)
-
-    provider = None
-    if data.provider_id:
-        provider = get_provider(db, data.provider_id)
-    else:
-        provider = get_default_provider(db)
-    if not provider:
-        raise HTTPException(status_code=400, detail="No LLM provider configured")
+    provider = _resolve_provider(db, data.provider_id)
 
     robot_file = Path(repo.local_path) / data.robot_path
     if not robot_file.exists():
@@ -243,13 +245,7 @@ def analyze_failures(
     if report.failed_tests == 0:
         raise HTTPException(status_code=400, detail="Report has no failed tests")
 
-    provider = None
-    if data.provider_id:
-        provider = get_provider(db, data.provider_id)
-    else:
-        provider = get_default_provider(db)
-    if not provider:
-        raise HTTPException(status_code=400, detail="No LLM provider configured")
+    provider = _resolve_provider(db, data.provider_id)
 
     # Derive repository_id from execution run if available
     repository_id = 0

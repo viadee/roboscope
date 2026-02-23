@@ -283,6 +283,60 @@ def run_reverse(job_id: int) -> None:
             session.commit()
 
 
+async def _gather_analysis_knowledge(failed_tests: list[dict]) -> list[dict]:
+    """Gather keyword docs from rf-mcp for failed test error messages.
+
+    Extracts keyword names mentioned in error messages and searches for their
+    documentation to help the LLM provide better fix suggestions.
+    """
+    import re
+    from src.ai import rf_knowledge
+
+    if not rf_knowledge.is_available():
+        return []
+
+    keyword_docs: list[dict] = []
+    try:
+        # Extract keyword names from error messages
+        search_terms: set[str] = set()
+        for test in failed_tests:
+            error = test.get("error_message") or ""
+            # "No keyword with name 'Xyz' found."
+            for match in re.findall(r"No keyword with name '([^']+)'", error):
+                search_terms.add(match)
+            # "Keyword 'Xyz' expected N arguments"
+            for match in re.findall(r"Keyword '([^']+)'", error):
+                search_terms.add(match)
+            # Also search for the test name itself (might match a keyword)
+            name = test.get("name", "")
+            if name and len(name.split()) <= 5:
+                search_terms.add(name)
+
+        # Search rf-mcp for each term
+        seen: set[str] = set()
+        for term in list(search_terms)[:8]:
+            if term in seen:
+                continue
+            seen.add(term)
+            results = await rf_knowledge.search_keywords(term)
+            for r in results[:2]:
+                kw_name = r.get("name", "")
+                if kw_name and kw_name not in seen:
+                    seen.add(kw_name)
+                    keyword_docs.append({
+                        "name": kw_name,
+                        "library": r.get("library", "?"),
+                        "doc": r.get("doc", "No documentation"),
+                    })
+            if len(keyword_docs) >= 10:
+                break
+
+    except Exception:
+        logger.debug("rf-mcp analysis enrichment failed", exc_info=True)
+
+    return keyword_docs
+
+
 def run_analyze(job_id: int) -> None:
     """Background task: analyze test failures in a report."""
     with _get_sync_session() as session:
@@ -343,6 +397,19 @@ def run_analyze(job_id: int) -> None:
             ]
 
             user_prompt = build_analyze_user_prompt(report_summary, failed_tests)
+
+            # Enrich with rf-mcp keyword docs if available
+            keyword_docs = _run_async(_gather_analysis_knowledge(failed_tests))
+            if keyword_docs:
+                docs_text = "\n".join(
+                    f"- **{kw['name']}**: {kw['doc']}" for kw in keyword_docs
+                )
+                user_prompt += (
+                    "\n\n--- RF Keyword Documentation (via rf-mcp by Many Kasiriha) ---\n\n"
+                    "Use this documentation to provide more accurate fix suggestions:\n\n"
+                    + docs_text
+                )
+
             result = call_llm(provider, SYSTEM_PROMPT_ANALYZE, user_prompt)
 
             job.result_preview = result.content
