@@ -39,6 +39,7 @@ LIBRARY_TO_PYPI: dict[str, str] = {
     "SikuliLibrary": "robotframework-sikulilibrary",
     "OTPLibrary": "robotframework-otp",
     "DebugLibrary": "robotframework-debuglibrary",
+    "FakerLibrary": "robotframework-faker",
 }
 
 
