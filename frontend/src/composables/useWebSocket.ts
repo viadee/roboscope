@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useExecutionStore } from '@/stores/execution.store'
+import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useUiStore } from '@/stores/ui.store'
 
 export function useWebSocket() {
@@ -11,6 +12,7 @@ export function useWebSocket() {
   // Capture composables during setup (must not be called inside callbacks)
   const { t } = useI18n()
   const execution = useExecutionStore()
+  const envStore = useEnvironmentsStore()
   const ui = useUiStore()
 
   function connect() {
@@ -91,6 +93,16 @@ export function useWebSocket() {
           )
         }
         break
+
+      case 'package_status_changed': {
+        envStore.updatePackageFromWs(data.environment_id, data.package_name, data.status, data)
+        if (data.status === 'installed') {
+          ui.success(t('environments.toasts.pkgInstalled'), t('environments.toasts.pkgInstalledMsg', { name: data.package_name }))
+        } else if (data.status === 'failed') {
+          ui.error(t('environments.toasts.installFailed'), data.error || t('environments.toasts.installFailedGeneric'))
+        }
+        break
+      }
 
       case 'notification':
         ui.addToast(data.title, data.message, data.level || 'info')

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
 import * as envsApi from '@/api/environments.api'
+import type { EnvironmentPackage } from '@/types/domain.types'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
@@ -150,11 +151,6 @@ async function installPkg(packageName: string, version?: string) {
       version: version || undefined,
     })
     toast.success(t('environments.toasts.pkgInstalling'), t('environments.toasts.pkgInstallingMsg', { name: packageName }))
-    // Refresh packages after a short delay
-    setTimeout(() => {
-      envs.fetchPackages(installEnvId.value)
-      loadPipInstalled(installEnvId.value)
-    }, 3000)
   } catch (e: any) {
     toast.error(t('common.error'), e.response?.data?.detail || t('environments.toasts.installFailed'))
   } finally {
@@ -162,14 +158,19 @@ async function installPkg(packageName: string, version?: string) {
   }
 }
 
+async function retryInstall(envId: number, pkg: EnvironmentPackage) {
+  try {
+    await envsApi.retryPackageInstall(envId, pkg.package_name)
+    toast.success(t('environments.toasts.pkgInstalling'), t('environments.toasts.pkgInstallingMsg', { name: pkg.package_name }))
+  } catch (e: any) {
+    toast.error(t('common.error'), e.response?.data?.detail || t('environments.toasts.installFailed'))
+  }
+}
+
 async function upgradePkg(envId: number, packageName: string) {
   try {
     await envsApi.upgradePackage(envId, packageName)
     toast.success(t('environments.toasts.upgradeStarted'), t('environments.toasts.upgradeMsg', { name: packageName }))
-    setTimeout(() => {
-      envs.fetchPackages(envId)
-      loadPipInstalled(envId)
-    }, 3000)
   } catch (e: any) {
     toast.error(t('common.error'), e.response?.data?.detail || t('environments.toasts.upgradeFailed'))
   }
@@ -299,10 +300,20 @@ function isInstalled(envId: number, packageName: string): boolean {
               <div v-for="pkg in envs.packages[env.id]" :key="pkg.id" class="pkg-item">
                 <div class="pkg-info">
                   <strong>{{ pkg.package_name }}</strong>
-                  <span class="text-muted text-sm">{{ pkg.installed_version || pkg.version || t('environments.installing') }}</span>
+                  <span v-if="pkg.install_status === 'failed'" class="pkg-error">
+                    {{ t('environments.installError') }}
+                    <span class="pkg-error-detail" :title="pkg.install_error || ''">{{ pkg.install_error }}</span>
+                  </span>
+                  <span v-else-if="pkg.install_status === 'installing' || pkg.install_status === 'pending'" class="text-muted text-sm">
+                    <span class="pkg-spinner"></span> {{ t('environments.installing') }}
+                  </span>
+                  <span v-else class="text-muted text-sm">{{ pkg.installed_version || pkg.version }}</span>
                 </div>
                 <div class="pkg-actions">
-                  <BaseButton variant="ghost" size="sm" @click="upgradePkg(env.id, pkg.package_name)">{{ t('common.upgrade') }}</BaseButton>
+                  <BaseButton v-if="pkg.install_status === 'failed'" variant="ghost" size="sm" @click="retryInstall(env.id, pkg)">
+                    {{ t('common.retry') }}
+                  </BaseButton>
+                  <BaseButton v-else variant="ghost" size="sm" @click="upgradePkg(env.id, pkg.package_name)">{{ t('common.upgrade') }}</BaseButton>
                   <BaseButton variant="ghost" size="sm" @click="removePkg(env.id, pkg.package_name)">{{ t('common.remove') }}</BaseButton>
                 </div>
               </div>
@@ -563,6 +574,35 @@ function isInstalled(envId: number, packageName: string): boolean {
 .pkg-actions {
   display: flex;
   gap: 4px;
+}
+
+.pkg-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.pkg-error {
+  color: var(--color-danger, #e53e3e);
+  font-size: 12px;
+}
+
+.pkg-error-detail {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pip-details {

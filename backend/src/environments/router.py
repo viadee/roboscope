@@ -12,7 +12,7 @@ from src.auth.models import User
 from sqlalchemy import select
 from src.celery_app import TaskDispatchError, dispatch_task
 from src.database import get_db
-from src.environments.models import Environment
+from src.environments.models import Environment, EnvironmentPackage
 
 logger = logging.getLogger("roboscope.environments")
 from src.environments.schemas import (
@@ -380,8 +380,6 @@ def upgrade_package(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
 
     # Find existing package record
-    from sqlalchemy import select
-    from src.environments.models import EnvironmentPackage
     result = db.execute(
         select(EnvironmentPackage).where(
             EnvironmentPackage.environment_id == env_id,
@@ -403,6 +401,45 @@ def upgrade_package(
         dispatch_task(upgrade_package, env_id, package_name)
     except TaskDispatchError as e:
         logger.error("Failed to dispatch package upgrade: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Task dispatch failed: {e}",
+        )
+
+    return pkg
+
+
+@router.post("/{env_id}/packages/{package_name}/retry", response_model=PackageResponse)
+def retry_package_install(
+    env_id: int,
+    package_name: str,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Retry a failed package installation."""
+    env = get_environment(db, env_id)
+    if env is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
+
+    pkg = db.execute(
+        select(EnvironmentPackage).where(
+            EnvironmentPackage.environment_id == env_id,
+            EnvironmentPackage.package_name == package_name,
+        )
+    ).scalar_one_or_none()
+    if pkg is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Package not found")
+
+    pkg.install_status = "pending"
+    pkg.install_error = None
+    db.commit()
+
+    try:
+        from src.environments.tasks import install_package as install_package_task
+
+        dispatch_task(install_package_task, env_id, package_name, pkg.version)
+    except TaskDispatchError as e:
+        logger.error("Failed to dispatch package retry: %s", e)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Task dispatch failed: {e}",

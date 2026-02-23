@@ -160,6 +160,8 @@ export interface EnvironmentPackage {
   package_name: string
   version: string | null
   installed_version: string | null
+  install_status: 'pending' | 'installing' | 'installed' | 'failed'
+  install_error: string | null
 }
 
 export interface EnvironmentVariable {

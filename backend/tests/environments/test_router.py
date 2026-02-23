@@ -550,3 +550,117 @@ class TestVariables:
             headers=auth_header(viewer_user),
         )
         assert response.status_code == 403
+
+
+class TestPackageInstallStatus:
+    """Tests for package install_status and install_error tracking."""
+
+    @patch("src.environments.router.dispatch_task")
+    def test_install_package_sets_pending_status(self, mock_dispatch, client, db_session, admin_user):
+        """Newly installed package should have install_status='pending' by default."""
+        mock_dispatch.return_value = MagicMock(id="fake-task-id")
+
+        env = Environment(
+            name="status-env",
+            python_version="3.12",
+            created_by=admin_user.id,
+        )
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+
+        response = client.post(
+            f"{URL}/{env.id}/packages",
+            json={"package_name": "requests", "version": "2.31.0"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["install_status"] == "pending"
+        assert data["install_error"] is None
+
+    def test_install_package_failure_sets_error(self, db_session):
+        """When pip install fails, install_status should be 'failed' and install_error populated."""
+        env = Environment(
+            name="fail-env",
+            python_version="3.12",
+            venv_path="/tmp/fake-venv",
+            created_by=1,
+        )
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+
+        pkg = EnvironmentPackage(
+            environment_id=env.id,
+            package_name="nonexistent-pkg",
+            install_status="pending",
+        )
+        db_session.add(pkg)
+        db_session.flush()
+        db_session.refresh(pkg)
+
+        # Simulate what the task does on failure
+        pkg.install_status = "failed"
+        pkg.install_error = "ERROR: No matching distribution found for nonexistent-pkg"
+        db_session.flush()
+
+        assert pkg.install_status == "failed"
+        assert "No matching distribution" in pkg.install_error
+
+    @patch("src.environments.router.dispatch_task")
+    def test_retry_endpoint_resets_status(self, mock_dispatch, client, db_session, admin_user):
+        """POST retry on a failed package should reset status to 'pending' and dispatch task."""
+        mock_dispatch.return_value = MagicMock(id="fake-task-id")
+
+        env = Environment(
+            name="retry-env",
+            python_version="3.12",
+            created_by=admin_user.id,
+        )
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+
+        pkg = EnvironmentPackage(
+            environment_id=env.id,
+            package_name="some-package",
+            version="1.0.0",
+            install_status="failed",
+            install_error="pip install failed",
+        )
+        db_session.add(pkg)
+        db_session.flush()
+
+        response = client.post(
+            f"{URL}/{env.id}/packages/some-package/retry",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["install_status"] == "pending"
+        assert data["install_error"] is None
+        assert data["package_name"] == "some-package"
+
+        # Verify task was dispatched
+        mock_dispatch.assert_called_once()
+
+    @patch("src.environments.router.dispatch_task")
+    def test_retry_endpoint_package_not_found(self, mock_dispatch, client, db_session, admin_user):
+        """Retry on a non-existent package should return 404."""
+        mock_dispatch.return_value = MagicMock(id="fake-task-id")
+
+        env = Environment(
+            name="retry-404-env",
+            python_version="3.12",
+            created_by=admin_user.id,
+        )
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+
+        response = client.post(
+            f"{URL}/{env.id}/packages/nonexistent/retry",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 404

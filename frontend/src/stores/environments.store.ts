@@ -63,9 +63,22 @@ export const useEnvironmentsStore = defineStore('environments', () => {
     variables.value[envId] = await envsApi.getVariables(envId)
   }
 
+  function updatePackageFromWs(envId: number, packageName: string, status: string, extra: Record<string, any>) {
+    const pkgs = packages.value[envId]
+    if (!pkgs) return
+    const idx = pkgs.findIndex(p => p.package_name === packageName)
+    if (idx < 0) return
+    pkgs[idx] = {
+      ...pkgs[idx],
+      install_status: status as any,
+      install_error: extra.error || null,
+      installed_version: extra.installed_version || pkgs[idx].installed_version,
+    }
+  }
+
   return {
     environments, packages, variables, loading,
     fetchEnvironments, addEnvironment, setupDefault, removeEnvironment, cloneEnvironment,
-    fetchPackages, installPackage, uninstallPackage, fetchVariables,
+    fetchPackages, installPackage, uninstallPackage, fetchVariables, updatePackageFromWs,
   }
 })

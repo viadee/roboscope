@@ -72,6 +72,18 @@ class ConnectionManager:
         for ws in disconnected:
             self.disconnect_from_run(ws, run_id)
 
+    async def broadcast_package_status(
+        self, env_id: int, package_name: str, status: str, **extra
+    ) -> None:
+        """Broadcast a package install status change to all listeners."""
+        await self.broadcast({
+            "type": "package_status_changed",
+            "environment_id": env_id,
+            "package_name": package_name,
+            "status": status,
+            **extra,
+        })
+
     async def broadcast_run_status(self, run_id: int, status: str, **extra) -> None:
         """Broadcast a run status change to both run-watchers and general listeners."""
         message = {

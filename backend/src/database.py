@@ -180,6 +180,20 @@ def _migrate_sqlite(conn) -> None:
         ))
         logger.info("Migration: added report_id column to ai_jobs")
 
+    # Migrate environment_packages table: add install_status and install_error columns
+    result = conn.execute(text("PRAGMA table_info(environment_packages)"))
+    pkg_columns = {row[1] for row in result.fetchall()}
+    if "install_status" not in pkg_columns:
+        conn.execute(text(
+            "ALTER TABLE environment_packages ADD COLUMN install_status VARCHAR(20) DEFAULT 'installed'"
+        ))
+        logger.info("Migration: added install_status column to environment_packages")
+    if "install_error" not in pkg_columns:
+        conn.execute(text(
+            "ALTER TABLE environment_packages ADD COLUMN install_error TEXT"
+        ))
+        logger.info("Migration: added install_error column to environment_packages")
+
     # Migrate environments table: add default_runner_type and max_docker_containers
     result = conn.execute(text("PRAGMA table_info(environments)"))
     env_columns = {row[1] for row in result.fetchall()}
@@ -233,6 +247,28 @@ def _migrate_postgres(conn) -> None:
             "REFERENCES reports(id)"
         ))
         logger.info("Migration: added report_id column to ai_jobs")
+
+    # Add install_status column to environment_packages if missing
+    result = conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'environment_packages' AND column_name = 'install_status'"
+    ))
+    if not result.fetchone():
+        conn.execute(text(
+            "ALTER TABLE environment_packages ADD COLUMN install_status VARCHAR(20) DEFAULT 'installed'"
+        ))
+        logger.info("Migration: added install_status column to environment_packages")
+
+    # Add install_error column to environment_packages if missing
+    result = conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'environment_packages' AND column_name = 'install_error'"
+    ))
+    if not result.fetchone():
+        conn.execute(text(
+            "ALTER TABLE environment_packages ADD COLUMN install_error TEXT"
+        ))
+        logger.info("Migration: added install_error column to environment_packages")
 
     # Add default_runner_type column to environments if missing
     result = conn.execute(text(

@@ -53,6 +53,8 @@ class PackageResponse(BaseModel):
     package_name: str
     version: str | None = None
     installed_version: str | None = None
+    install_status: str = "pending"
+    install_error: str | None = None
 
     model_config = {"from_attributes": True}
 

@@ -33,6 +33,8 @@ class EnvironmentPackage(Base):
     package_name: Mapped[str] = mapped_column(String(255))
     version: Mapped[str | None] = mapped_column(String(50), default=None)
     installed_version: Mapped[str | None] = mapped_column(String(50), default=None)
+    install_status: Mapped[str] = mapped_column(String(20), default="pending")
+    install_error: Mapped[str | None] = mapped_column(Text, default=None)
 
 
 class EnvironmentVariable(Base):

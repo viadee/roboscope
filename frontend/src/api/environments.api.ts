@@ -64,6 +64,13 @@ export async function uninstallPackage(envId: number, packageName: string): Prom
   await apiClient.delete(`/environments/${envId}/packages/${packageName}`)
 }
 
+export async function retryPackageInstall(envId: number, packageName: string): Promise<EnvironmentPackage> {
+  const response = await apiClient.post<EnvironmentPackage>(
+    `/environments/${envId}/packages/${encodeURIComponent(packageName)}/retry`
+  )
+  return response.data
+}
+
 // PyPI
 
 export async function searchPyPI(query: string): Promise<{ name: string; version: string; summary: string; author: string }[]> {

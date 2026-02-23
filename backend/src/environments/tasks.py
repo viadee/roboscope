@@ -1,5 +1,6 @@
 """Background tasks for environment operations."""
 
+import asyncio
 import logging
 import subprocess
 import sys
@@ -13,6 +14,19 @@ from src.database import get_sync_session
 from src.environments.models import Environment, EnvironmentPackage
 
 logger = logging.getLogger("roboscope.environments.tasks")
+
+
+def _broadcast_package_status(env_id: int, package_name: str, status: str, **extra) -> None:
+    """Broadcast a package status change from a sync background thread."""
+    from src.websocket.manager import ws_manager
+    from src.main import _event_loop
+
+    coro = ws_manager.broadcast_package_status(env_id, package_name, status, **extra)
+
+    if _event_loop and _event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(coro, _event_loop)
+    else:
+        logger.warning("No event loop available to broadcast package %s status", package_name)
 
 
 def _get_pip_path(venv_path: str) -> str:
@@ -69,6 +83,20 @@ def install_package(env_id: int, package_name: str, version: str | None = None) 
         if env is None or env.venv_path is None:
             return {"status": "error", "message": "Environment not found or no venv"}
 
+        # Mark as installing
+        pkg = session.execute(
+            select(EnvironmentPackage).where(
+                EnvironmentPackage.environment_id == env_id,
+                EnvironmentPackage.package_name == package_name,
+            )
+        ).scalar_one_or_none()
+
+        if pkg:
+            pkg.install_status = "installing"
+            pkg.install_error = None
+            session.commit()
+            _broadcast_package_status(env_id, package_name, "installing")
+
         try:
             pip = _get_pip_path(env.venv_path)
             pkg_spec = f"{package_name}=={version}" if version else package_name
@@ -92,26 +120,41 @@ def install_package(env_id: int, package_name: str, version: str | None = None) 
                     installed_version = line.split(":", 1)[1].strip()
                     break
 
-            # Update DB record
-            pkg = session.execute(
-                select(EnvironmentPackage).where(
-                    EnvironmentPackage.environment_id == env_id,
-                    EnvironmentPackage.package_name == package_name,
-                )
-            ).scalar_one_or_none()
-
-            if pkg and installed_version:
+            # Update DB record — success
+            if pkg:
                 pkg.installed_version = installed_version
+                pkg.install_status = "installed"
+                pkg.install_error = None
                 session.commit()
+                _broadcast_package_status(
+                    env_id, package_name, "installed",
+                    installed_version=installed_version,
+                )
 
             logger.info("Installed %s==%s in env %d", package_name, installed_version, env_id)
             return {"status": "success", "package": package_name, "version": installed_version}
         except subprocess.CalledProcessError as e:
-            logger.error("pip install failed: %s", e.stderr)
-            return {"status": "error", "message": e.stderr}
+            error_msg = e.stderr or str(e)
+            logger.error("pip install failed: %s", error_msg)
+            if pkg:
+                pkg.install_status = "failed"
+                pkg.install_error = error_msg[:2000]
+                session.commit()
+                _broadcast_package_status(
+                    env_id, package_name, "failed", error=error_msg[:500],
+                )
+            return {"status": "error", "message": error_msg}
         except Exception as exc:
+            error_msg = str(exc)
             logger.exception("Failed to install package %s in env %d", package_name, env_id)
-            return {"status": "error", "message": str(exc)}
+            if pkg:
+                pkg.install_status = "failed"
+                pkg.install_error = error_msg[:2000]
+                session.commit()
+                _broadcast_package_status(
+                    env_id, package_name, "failed", error=error_msg[:500],
+                )
+            return {"status": "error", "message": error_msg}
 
 
 def upgrade_package(env_id: int, package_name: str) -> dict:
@@ -123,6 +166,20 @@ def upgrade_package(env_id: int, package_name: str) -> dict:
 
         if env is None or env.venv_path is None:
             return {"status": "error", "message": "Environment not found or no venv"}
+
+        # Mark as installing
+        pkg = session.execute(
+            select(EnvironmentPackage).where(
+                EnvironmentPackage.environment_id == env_id,
+                EnvironmentPackage.package_name == package_name,
+            )
+        ).scalar_one_or_none()
+
+        if pkg:
+            pkg.install_status = "installing"
+            pkg.install_error = None
+            session.commit()
+            _broadcast_package_status(env_id, package_name, "installing")
 
         try:
             pip = _get_pip_path(env.venv_path)
@@ -145,26 +202,41 @@ def upgrade_package(env_id: int, package_name: str) -> dict:
                     installed_version = line.split(":", 1)[1].strip()
                     break
 
-            # Update DB record
-            pkg = session.execute(
-                select(EnvironmentPackage).where(
-                    EnvironmentPackage.environment_id == env_id,
-                    EnvironmentPackage.package_name == package_name,
-                )
-            ).scalar_one_or_none()
-
-            if pkg and installed_version:
+            # Update DB record — success
+            if pkg:
                 pkg.installed_version = installed_version
+                pkg.install_status = "installed"
+                pkg.install_error = None
                 session.commit()
+                _broadcast_package_status(
+                    env_id, package_name, "installed",
+                    installed_version=installed_version,
+                )
 
             logger.info("Upgraded %s to %s in env %d", package_name, installed_version, env_id)
             return {"status": "success", "package": package_name, "version": installed_version}
         except subprocess.CalledProcessError as e:
-            logger.error("pip upgrade failed: %s", e.stderr)
-            return {"status": "error", "message": e.stderr}
+            error_msg = e.stderr or str(e)
+            logger.error("pip upgrade failed: %s", error_msg)
+            if pkg:
+                pkg.install_status = "failed"
+                pkg.install_error = error_msg[:2000]
+                session.commit()
+                _broadcast_package_status(
+                    env_id, package_name, "failed", error=error_msg[:500],
+                )
+            return {"status": "error", "message": error_msg}
         except Exception as exc:
+            error_msg = str(exc)
             logger.exception("Failed to upgrade %s in env %d", package_name, env_id)
-            return {"status": "error", "message": str(exc)}
+            if pkg:
+                pkg.install_status = "failed"
+                pkg.install_error = error_msg[:2000]
+                session.commit()
+                _broadcast_package_status(
+                    env_id, package_name, "failed", error=error_msg[:500],
+                )
+            return {"status": "error", "message": error_msg}
 
 
 def build_docker_image(env_id: int) -> dict:
