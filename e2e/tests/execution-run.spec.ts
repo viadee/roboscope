@@ -42,13 +42,13 @@ test.describe('Execution Run — E2E', () => {
       headers: { Authorization: `Bearer ${token}` },
       data: {
         repository_id: repoId,
-        target_path: 'basic_tests.robot',
+        target_path: 'calculator/basic_math.robot',
       },
     });
     expect(res.status()).toBe(201);
     const run = await res.json();
     expect(['pending', 'running']).toContain(run.status);
-    expect(run.target_path).toBe('basic_tests.robot');
+    expect(run.target_path).toBe('calculator/basic_math.robot');
     expect(run.id).toBeTruthy();
   });
 
@@ -56,7 +56,7 @@ test.describe('Execution Run — E2E', () => {
     // Create a run first
     const createRes = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { repository_id: repoId, target_path: 'basic_tests.robot' },
+      data: { repository_id: repoId, target_path: 'calculator/basic_math.robot' },
     });
     const run = await createRes.json();
 
@@ -80,7 +80,7 @@ test.describe('Execution Run — E2E', () => {
     // Create and poll for completion (only accept passed/failed, not error)
     const createRes = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { repository_id: repoId, target_path: 'basic_tests.robot' },
+      data: { repository_id: repoId, target_path: 'calculator/basic_math.robot' },
     });
     const run = await createRes.json();
 
@@ -100,14 +100,14 @@ test.describe('Execution Run — E2E', () => {
     });
     expect(res.status()).toBe(200);
     const text = await res.text();
-    expect(text).toContain('Basic Tests');
+    expect(text).toContain('Basic Math');
   });
 
   test('GET /runs/{id}/report should return report ID', async ({ page }) => {
     // Create and poll for completion (only accept passed/failed for report)
     const createRes = await page.request.post(`${API}/runs`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { repository_id: repoId, target_path: 'basic_tests.robot' },
+      data: { repository_id: repoId, target_path: 'calculator/basic_math.robot' },
     });
     const run = await createRes.json();
 
@@ -143,7 +143,7 @@ test.describe('Execution Run — E2E', () => {
 
     // Fill form
     await page.locator('select').first().selectOption({ index: 1 }); // first repo
-    await page.getByPlaceholder('tests/ oder tests/login.robot').fill('basic_tests.robot');
+    await page.getByPlaceholder('tests/ oder tests/login.robot').fill('calculator/basic_math.robot');
 
     // Start run
     await page.getByRole('button', { name: 'Starten' }).click();
@@ -170,13 +170,13 @@ test.describe('Execution Run — E2E', () => {
     await expect(page.locator('h1', { hasText: 'Explorer' })).toBeVisible({ timeout: 10_000 });
     await page.waitForTimeout(1000);
 
-    // Expand tests directory
-    const testsDir = page.locator('.tree-node .node-name', { hasText: /^tests$/ });
-    await testsDir.click();
+    // Expand calculator directory
+    const calcDir = page.locator('.tree-node .node-name', { hasText: /^calculator$/ });
+    await calcDir.click();
     await page.waitForTimeout(500);
 
-    // Hover over basic_tests.robot to see action buttons
-    const robotFile = page.locator('.tree-node', { hasText: 'basic_tests.robot' });
+    // Hover over basic_math.robot to see action buttons
+    const robotFile = page.locator('.tree-node', { hasText: 'basic_math.robot' });
     await robotFile.hover();
     await page.waitForTimeout(300);
 
@@ -195,7 +195,7 @@ test.describe('Execution Run — E2E', () => {
     // Overlay should appear
     await expect(page.getByText('Testlauf gestartet')).toBeVisible({ timeout: 5000 });
     // File name appears in the run overlay text
-    await expect(page.locator('.run-overlay-success')).toContainText('basic_tests.robot');
+    await expect(page.locator('.run-overlay-success')).toContainText('basic_math.robot');
 
     // Should have "Zur Ausführung" button
     await expect(page.getByRole('button', { name: 'Zur Ausführung' })).toBeVisible();
