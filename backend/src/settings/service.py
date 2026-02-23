@@ -20,6 +20,9 @@ DEFAULT_SETTINGS = [
     {"key": "enable_notifications", "value": "true", "value_type": "bool", "category": "general", "description": "Enable WebSocket notifications"},
     {"key": "docker_default_image", "value": "python:3.12-slim", "value_type": "string", "category": "docker", "description": "Default Docker image for test execution"},
     {"key": "docker_memory_limit", "value": "2g", "value_type": "string", "category": "docker", "description": "Docker container memory limit"},
+    {"key": "rf_mcp_auto_start", "value": "false", "value_type": "bool", "category": "ai", "description": "Auto-start rf-mcp server on app startup"},
+    {"key": "rf_mcp_environment_id", "value": "", "value_type": "string", "category": "ai", "description": "Environment ID for rf-mcp server"},
+    {"key": "rf_mcp_port", "value": "9090", "value_type": "int", "category": "ai", "description": "Port for rf-mcp server"},
 ]
 
 

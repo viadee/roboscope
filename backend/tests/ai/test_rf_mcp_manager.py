@@ -1,5 +1,6 @@
 """Unit tests for the rf-mcp server process manager."""
 
+import socket
 import subprocess
 from unittest.mock import MagicMock, patch
 
@@ -209,6 +210,7 @@ class TestStartServer:
             patch("src.ai.rf_mcp_manager.Path") as mock_path,
             patch("subprocess.Popen", return_value=mock_proc),
             patch("time.sleep"),
+            patch.object(rf_mcp_manager, "_find_available_port", return_value=9090),
         ):
             mock_path.return_value.exists.return_value = True
             mock_path.return_value.__truediv__ = lambda self, x: mock_path.return_value
@@ -236,6 +238,7 @@ class TestStartServer:
             patch("src.ai.rf_mcp_manager.Path") as mock_path,
             patch("subprocess.Popen", return_value=mock_proc),
             patch("time.sleep"),
+            patch.object(rf_mcp_manager, "_find_available_port", return_value=9090),
         ):
             mock_path.return_value.exists.return_value = True
             mock_path.return_value.__truediv__ = lambda self, x: mock_path.return_value
@@ -279,6 +282,7 @@ class TestStartServer:
             patch("src.ai.rf_mcp_manager.Path") as mock_path,
             patch("subprocess.Popen", return_value=mock_proc),
             patch("time.sleep"),
+            patch.object(rf_mcp_manager, "_find_available_port", return_value=9090),
         ):
             mock_path.return_value.exists.return_value = True
             mock_path.return_value.__truediv__ = lambda self, x: mock_path.return_value
@@ -424,3 +428,38 @@ class TestSetup:
         # cleanup
         rf_mcp_manager._status = "stopped"
         rf_mcp_manager._error_message = ""
+
+
+# --- Test: _find_available_port ---
+
+
+class TestFindAvailablePort:
+    def test_returns_same_port_when_available(self):
+        """When the start port is free, returns it directly."""
+        # Use a high port unlikely to be in use
+        port = rf_mcp_manager._find_available_port(59123)
+        assert port == 59123
+
+    def test_returns_next_port_when_blocked(self):
+        """When the start port is occupied, returns the next available one."""
+        # Occupy the port
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 59200))
+            s.listen(1)
+            port = rf_mcp_manager._find_available_port(59200)
+            assert port == 59201
+
+    def test_returns_start_port_when_all_blocked(self):
+        """When all ports in range are blocked, falls back to start_port."""
+        sockets = []
+        try:
+            for offset in range(3):
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.bind(("127.0.0.1", 59300 + offset))
+                s.listen(1)
+                sockets.append(s)
+            port = rf_mcp_manager._find_available_port(59300, max_attempts=3)
+            assert port == 59300  # fallback
+        finally:
+            for s in sockets:
+                s.close()

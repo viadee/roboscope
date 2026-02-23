@@ -10,6 +10,7 @@ This enables a one-click setup from the Settings UI.
 
 import logging
 import os
+import socket
 import subprocess
 import time
 from pathlib import Path
@@ -102,9 +103,28 @@ def _install_package(venv_path: str) -> dict:
         return {"status": "error", "message": str(e)}
 
 
+def _find_available_port(start_port: int, max_attempts: int = 10) -> int:
+    """Find an available port starting from start_port.
+
+    Tries binding to successive ports. Returns the first available one,
+    or falls back to start_port if none are free (letting the subprocess report the error).
+    """
+    for offset in range(max_attempts):
+        port = start_port + offset
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("127.0.0.1", port))
+                return port
+        except OSError:
+            continue
+    return start_port
+
+
 def _start_server(venv_path: str, port: int = 9090) -> dict:
     """Start the rf-mcp server process."""
     global _process, _port, _status
+
+    port = _find_available_port(port)
 
     if is_running():
         proc = _process  # Local ref after is_running confirmed non-None

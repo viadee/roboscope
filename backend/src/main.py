@@ -79,11 +79,38 @@ async def lifespan(app: FastAPI):
     from src.plugins.registry import plugin_registry
     plugin_registry.discover_builtin()
 
+    # Auto-start rf-mcp if previously running
+    with SessionLocal() as session:
+        from src.settings.service import get_setting_value
+        auto_start = get_setting_value(session, "rf_mcp_auto_start", "false")
+        env_id_str = get_setting_value(session, "rf_mcp_environment_id", "")
+        port_str = get_setting_value(session, "rf_mcp_port", "9090")
+
+        if auto_start.lower() == "true" and env_id_str:
+            from src.celery_app import dispatch_task
+            from src.ai import rf_mcp_manager
+            env_id = int(env_id_str)
+            port = int(port_str)
+            rf_mcp_manager._status = "installing"
+            rf_mcp_manager._environment_id = env_id
+            try:
+                dispatch_task(rf_mcp_manager.setup, env_id, port)
+                logger.info("Auto-starting rf-mcp (env_id=%d, port=%d)", env_id, port)
+            except Exception:
+                logger.warning("Failed to auto-start rf-mcp", exc_info=True)
+
     logger.info("RoboScope started successfully")
     yield
 
     # Shutdown
     logger.info("Shutting down RoboScope...")
+
+    # Stop rf-mcp server if running
+    from src.ai import rf_mcp_manager
+    if rf_mcp_manager.is_running():
+        rf_mcp_manager.stop_server()
+        logger.info("Stopped rf-mcp server")
+
     from src.plugins.registry import plugin_registry
     plugin_registry.shutdown_all()
 

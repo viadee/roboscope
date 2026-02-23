@@ -428,6 +428,17 @@ def rf_mcp_setup(
     except TaskDispatchError as e:
         raise HTTPException(status_code=500, detail=f"Failed to dispatch setup task: {e}")
 
+    # Persist settings for auto-start on next restart
+    from src.settings.service import update_settings
+    from src.settings.schemas import SettingUpdate
+
+    update_settings(db, [
+        SettingUpdate(key="rf_mcp_auto_start", value="true"),
+        SettingUpdate(key="rf_mcp_environment_id", value=str(data.environment_id)),
+        SettingUpdate(key="rf_mcp_port", value=str(data.port)),
+    ])
+    db.commit()
+
     # Return current status (will be "installing" or "starting" soon)
     return RfMcpDetailedStatus(
         status="installing",
@@ -439,12 +450,23 @@ def rf_mcp_setup(
 
 @router.post("/rf-mcp/stop", response_model=RfMcpDetailedStatus)
 def rf_mcp_stop(
+    db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     """Stop the managed rf-mcp server."""
     from src.ai import rf_mcp_manager
 
     rf_mcp_manager.stop_server()
+
+    # Disable auto-start so server doesn't restart on next app startup
+    from src.settings.service import update_settings
+    from src.settings.schemas import SettingUpdate
+
+    update_settings(db, [
+        SettingUpdate(key="rf_mcp_auto_start", value="false"),
+    ])
+    db.commit()
+
     status = rf_mcp_manager.get_status()
 
     return RfMcpDetailedStatus(

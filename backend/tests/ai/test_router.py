@@ -173,6 +173,35 @@ class TestRfMcpSetupEndpoint:
         assert data["environment_name"] == "setup-env"
         mock_dispatch.assert_called_once()
 
+    def test_setup_persists_settings(self, client, admin_user, db_session):
+        """POST /rf-mcp/setup should persist auto_start, env_id, and port settings."""
+        from src.environments.models import Environment
+        from src.settings.service import get_setting_value, seed_default_settings
+
+        seed_default_settings(db_session)
+        db_session.flush()
+
+        env = Environment(name="persist-env", venv_path="/tmp/venv", created_by=admin_user.id)
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+        db_session.commit()
+
+        with (
+            patch("src.ai.rf_mcp_manager.stop_server", return_value={"status": "stopped"}),
+            patch("src.ai.router.dispatch_task"),
+        ):
+            resp = client.post(
+                "/api/v1/ai/rf-mcp/setup",
+                json={"environment_id": env.id, "port": 9091},
+                headers=auth_header(admin_user),
+            )
+        assert resp.status_code == 200
+
+        assert get_setting_value(db_session, "rf_mcp_auto_start") == "true"
+        assert get_setting_value(db_session, "rf_mcp_environment_id") == str(env.id)
+        assert get_setting_value(db_session, "rf_mcp_port") == "9091"
+
     def test_setup_env_not_found(self, client, admin_user):
         """POST /rf-mcp/setup with nonexistent env should return 404."""
         resp = client.post(
@@ -220,6 +249,29 @@ class TestRfMcpStopEndpoint:
             resp = client.post("/api/v1/ai/rf-mcp/stop", headers=auth_header(admin_user))
         assert resp.status_code == 200
         assert resp.json()["status"] == "stopped"
+
+    def test_stop_disables_auto_start(self, client, admin_user, db_session):
+        """POST /rf-mcp/stop should set rf_mcp_auto_start to false."""
+        from src.settings.service import get_setting_value, seed_default_settings, update_settings
+        from src.settings.schemas import SettingUpdate
+
+        seed_default_settings(db_session)
+        db_session.flush()
+
+        # Pre-set auto_start to true
+        update_settings(db_session, [SettingUpdate(key="rf_mcp_auto_start", value="true")])
+        db_session.flush()
+        assert get_setting_value(db_session, "rf_mcp_auto_start") == "true"
+
+        with patch("src.ai.rf_mcp_manager.stop_server", return_value={"status": "stopped"}), \
+             patch("src.ai.rf_mcp_manager.get_status", return_value={
+                 "status": "stopped", "running": False, "port": None, "pid": None,
+                 "url": "", "environment_id": None, "error_message": "", "installed_version": None,
+             }):
+            resp = client.post("/api/v1/ai/rf-mcp/stop", headers=auth_header(admin_user))
+        assert resp.status_code == 200
+
+        assert get_setting_value(db_session, "rf_mcp_auto_start") == "false"
 
     def test_stop_requires_admin(self, client, runner_user):
         """POST /rf-mcp/stop should require ADMIN role."""
