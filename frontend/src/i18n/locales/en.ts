@@ -919,4 +919,67 @@ export default {
     localKeyword: 'Local',
     noSuggestions: 'No matching keywords',
   },
+  tour: {
+    startTutorial: 'Start Tutorial',
+    welcome: {
+      title: 'Welcome to RoboScope!',
+      description: 'RoboScope helps you manage, execute, and analyze Robot Framework tests. Let us show you around!',
+    },
+    navigation: {
+      title: 'Navigation',
+      description: 'Use the sidebar to navigate between all major sections of the application.',
+    },
+    header: {
+      title: 'Header Controls',
+      description: 'Access language settings, notifications, and your user account from the header bar.',
+    },
+    langSwitcher: {
+      title: 'Language Switcher',
+      description: 'RoboScope supports 4 languages: German, English, French, and Spanish. Switch anytime!',
+    },
+    dashboard: {
+      title: 'Dashboard',
+      description: 'The dashboard gives you a quick KPI overview of your test projects and recent activity.',
+    },
+    dashboardRuns: {
+      title: 'Recent Runs',
+      description: 'See your latest test execution runs at a glance, with status and duration.',
+    },
+    projects: {
+      title: 'Projects',
+      description: 'Manage your Robot Framework test projects, Git repositories, and environment assignments.',
+    },
+    projectCard: {
+      title: 'Project Card',
+      description: 'Each project card shows key details. Use Library Check to verify dependencies and manage environments.',
+    },
+    explorer: {
+      title: 'Explorer',
+      description: 'Browse your project files, edit test cases in the code editor, and run tests directly.',
+    },
+    execution: {
+      title: 'Execution',
+      description: 'Run tests, manage schedules, and monitor live execution progress with real-time updates.',
+    },
+    environments: {
+      title: 'Package Manager',
+      description: 'Manage Python environments, install packages, and configure test dependencies.',
+    },
+    docker: {
+      title: 'Docker Support',
+      description: 'Build and manage Docker images for isolated test execution with containerized environments.',
+    },
+    stats: {
+      title: 'Statistics & Analysis',
+      description: 'Explore detailed statistics, trends, flaky test detection, and deep analysis of your test suite.',
+    },
+    settings: {
+      title: 'Settings (Admin)',
+      description: 'Configure application settings, manage users, and set up AI providers for advanced features.',
+    },
+    finish: {
+      title: "You're all set!",
+      description: 'You now know the key features of RoboScope. Start exploring and happy testing!',
+    },
+  },
 }

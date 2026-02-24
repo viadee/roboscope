@@ -919,4 +919,67 @@ export default {
     localKeyword: 'Local',
     noSuggestions: 'No hay palabras clave coincidentes',
   },
+  tour: {
+    startTutorial: 'Iniciar tutorial',
+    welcome: {
+      title: '¡Bienvenido a RoboScope!',
+      description: 'RoboScope le ayuda a gestionar, ejecutar y analizar pruebas de Robot Framework. ¡Hagamos un recorrido!',
+    },
+    navigation: {
+      title: 'Navegación',
+      description: 'Use la barra lateral para navegar entre todas las secciones principales de la aplicación.',
+    },
+    header: {
+      title: 'Controles del encabezado',
+      description: 'Acceda a la configuración de idioma, notificaciones y su cuenta de usuario desde la barra de encabezado.',
+    },
+    langSwitcher: {
+      title: 'Selector de idioma',
+      description: 'RoboScope soporta 4 idiomas: alemán, inglés, francés y español. ¡Cambie en cualquier momento!',
+    },
+    dashboard: {
+      title: 'Panel de control',
+      description: 'El panel le ofrece una vista rápida de los KPI de sus proyectos de prueba y la actividad reciente.',
+    },
+    dashboardRuns: {
+      title: 'Ejecuciones recientes',
+      description: 'Vea sus últimas ejecuciones de pruebas de un vistazo con estado y duración.',
+    },
+    projects: {
+      title: 'Proyectos',
+      description: 'Gestione sus proyectos de prueba Robot Framework, repositorios Git y asignaciones de entorno.',
+    },
+    projectCard: {
+      title: 'Tarjeta de proyecto',
+      description: 'Cada tarjeta muestra detalles clave. Use Library Check para verificar dependencias y gestionar entornos.',
+    },
+    explorer: {
+      title: 'Explorador',
+      description: 'Explore archivos del proyecto, edite casos de prueba en el editor de código y ejecute pruebas directamente.',
+    },
+    execution: {
+      title: 'Ejecución',
+      description: 'Ejecute pruebas, gestione programaciones y monitoree el progreso en tiempo real.',
+    },
+    environments: {
+      title: 'Gestor de paquetes',
+      description: 'Gestione entornos Python, instale paquetes y configure las dependencias de prueba.',
+    },
+    docker: {
+      title: 'Soporte Docker',
+      description: 'Cree y gestione imágenes Docker para la ejecución aislada de pruebas en entornos contenedorizados.',
+    },
+    stats: {
+      title: 'Estadísticas y Análisis',
+      description: 'Explore estadísticas detalladas, tendencias, detección de pruebas inestables y análisis profundo.',
+    },
+    settings: {
+      title: 'Configuración (Admin)',
+      description: 'Configure los ajustes de la aplicación, gestione usuarios y configure proveedores de IA.',
+    },
+    finish: {
+      title: '¡Todo listo!',
+      description: 'Ya conoce las funciones clave de RoboScope. ¡Comience a explorar y felices pruebas!',
+    },
+  },
 }

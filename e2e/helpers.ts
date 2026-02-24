@@ -20,10 +20,11 @@ export async function loginViaApi(page: Page): Promise<void> {
   // Navigate to the app so we can set localStorage on the right origin
   await page.goto('/login');
 
-  // Inject tokens
+  // Inject tokens + suppress tour auto-start
   await page.evaluate((tokens) => {
     localStorage.setItem('access_token', tokens.access_token);
     localStorage.setItem('refresh_token', tokens.refresh_token);
+    localStorage.setItem('roboscope_tour_completed', 'true');
   }, body);
 }
 

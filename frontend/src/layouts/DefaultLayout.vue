@@ -7,18 +7,27 @@ import BaseToast from '@/components/ui/BaseToast.vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useWebSocket } from '@/composables/useWebSocket'
+import { useTour } from '@/composables/useTour'
 
 const { t } = useI18n()
 
 const auth = useAuthStore()
 const ui = useUiStore()
 const { connect, disconnect } = useWebSocket()
+const { startTour, tourCompleted } = useTour()
 
 onMounted(async () => {
   if (auth.isAuthenticated && !auth.user) {
     await auth.fetchCurrentUser()
   }
   connect()
+
+  // Auto-start tour for first-time users
+  if (!tourCompleted.value) {
+    setTimeout(() => {
+      startTour()
+    }, 1000)
+  }
 })
 
 onUnmounted(() => {

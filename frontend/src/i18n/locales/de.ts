@@ -919,4 +919,67 @@ export default {
     localKeyword: 'Lokal',
     noSuggestions: 'Keine passenden Keywords',
   },
+  tour: {
+    startTutorial: 'Tutorial starten',
+    welcome: {
+      title: 'Willkommen bei RoboScope!',
+      description: 'RoboScope hilft Ihnen, Robot Framework Tests zu verwalten, auszuführen und zu analysieren. Lassen Sie uns die Anwendung erkunden!',
+    },
+    navigation: {
+      title: 'Navigation',
+      description: 'Verwenden Sie die Seitenleiste, um zwischen allen Bereichen der Anwendung zu navigieren.',
+    },
+    header: {
+      title: 'Header-Steuerung',
+      description: 'Greifen Sie auf Spracheinstellungen, Benachrichtigungen und Ihr Benutzerkonto über die Kopfzeile zu.',
+    },
+    langSwitcher: {
+      title: 'Sprachwechsler',
+      description: 'RoboScope unterstützt 4 Sprachen: Deutsch, Englisch, Französisch und Spanisch. Wechseln Sie jederzeit!',
+    },
+    dashboard: {
+      title: 'Dashboard',
+      description: 'Das Dashboard gibt Ihnen einen schnellen KPI-Überblick über Ihre Testprojekte und aktuelle Aktivitäten.',
+    },
+    dashboardRuns: {
+      title: 'Letzte Läufe',
+      description: 'Sehen Sie Ihre letzten Testausführungen auf einen Blick mit Status und Dauer.',
+    },
+    projects: {
+      title: 'Projekte',
+      description: 'Verwalten Sie Ihre Robot Framework Testprojekte, Git-Repositories und Umgebungszuordnungen.',
+    },
+    projectCard: {
+      title: 'Projektkarte',
+      description: 'Jede Projektkarte zeigt wichtige Details. Nutzen Sie den Library Check zur Prüfung von Abhängigkeiten.',
+    },
+    explorer: {
+      title: 'Explorer',
+      description: 'Durchsuchen Sie Projektdateien, bearbeiten Sie Testfälle im Code-Editor und führen Sie Tests direkt aus.',
+    },
+    execution: {
+      title: 'Ausführung',
+      description: 'Führen Sie Tests aus, verwalten Sie Zeitpläne und überwachen Sie den Fortschritt in Echtzeit.',
+    },
+    environments: {
+      title: 'Paket-Manager',
+      description: 'Verwalten Sie Python-Umgebungen, installieren Sie Pakete und konfigurieren Sie Test-Abhängigkeiten.',
+    },
+    docker: {
+      title: 'Docker-Unterstützung',
+      description: 'Erstellen und verwalten Sie Docker-Images für isolierte Testausführung in containerisierten Umgebungen.',
+    },
+    stats: {
+      title: 'Statistiken & Analyse',
+      description: 'Erkunden Sie detaillierte Statistiken, Trends, Flaky-Test-Erkennung und Tiefenanalysen Ihrer Testsuite.',
+    },
+    settings: {
+      title: 'Einstellungen (Admin)',
+      description: 'Konfigurieren Sie Anwendungseinstellungen, verwalten Sie Benutzer und richten Sie KI-Anbieter ein.',
+    },
+    finish: {
+      title: 'Alles bereit!',
+      description: 'Sie kennen nun die wichtigsten Funktionen von RoboScope. Viel Erfolg beim Testen!',
+    },
+  },
 }

@@ -3,12 +3,14 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useTour } from '@/composables/useTour'
 import BaseButton from '@/components/ui/BaseButton.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
 const ui = useUiStore()
 const { t, locale } = useI18n()
+const { startTour } = useTour()
 
 const languages = ['de', 'en', 'fr', 'es'] as const
 
@@ -50,6 +52,13 @@ function logout() {
       >
         <span v-if="ui.notificationsEnabled">&#128276;</span>
         <span v-else>&#128277;</span>
+      </button>
+      <button
+        class="notification-btn tour-btn"
+        :title="t('tour.startTutorial')"
+        @click="startTour()"
+      >
+        &#127891;
       </button>
       <span class="header-user">{{ auth.user?.username }}</span>
       <BaseButton variant="ghost" size="sm" @click="logout">{{ t('common.logout') }}</BaseButton>
