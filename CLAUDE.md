@@ -124,6 +124,7 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] Explorer: Save-Before-Run Prompt (bei unsaved Changes wird der User gefragt ob speichern vor Ausführung, i18n EN/DE/FR/ES, 5 neue E2E-Tests)
 - [x] Dependabot: minimatch ReDoS-Vulnerability behoben (npm override minimatch>=10.2.1, editorconfig>=2.0.0)
 - [x] **uv-Migration**: pip/venv → uv für alle Package-Management-Operationen (venv_utils.py, cross-platform, 21 neue Tests, CI/Docker/Build-Skripte aktualisiert)
+- [x] E2E-Fixes: Selector-Ambiguity in `notifications.spec.ts` (`.notification-btn:not(.tour-btn)`) und `scheduling.spec.ts` (`getByText` statt `.text-muted.text-center`) — alle 217 E2E-Tests grün
 
 **Offen / Roadmap (priorisiert):**
 - [x] **Responsive Design** — Sidebar, Tabellen, iframe-Layout für kleinere Bildschirme optimieren
