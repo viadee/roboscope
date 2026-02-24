@@ -59,7 +59,13 @@ class TestIsRunning:
 
 class TestCheckInstalled:
     def test_not_installed(self):
-        with patch("subprocess.run") as mock_run:
+        with (
+            patch("subprocess.run") as mock_run,
+            patch("src.ai.rf_mcp_manager.get_python_path", return_value="/fake/venv/bin/python"),
+            patch("src.ai.rf_mcp_manager.Path") as mock_path,
+            patch("src.ai.rf_mcp_manager.pip_show_cmd", return_value=["uv", "pip", "show", "--python", "/fake/venv/bin/python", "rf-mcp"]),
+        ):
+            mock_path.return_value.exists.return_value = True
             mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
             installed, version = rf_mcp_manager.check_installed("/fake/venv")
             assert installed is False
@@ -68,11 +74,11 @@ class TestCheckInstalled:
     def test_installed_with_version(self):
         with (
             patch("subprocess.run") as mock_run,
+            patch("src.ai.rf_mcp_manager.get_python_path", return_value="/fake/venv/bin/python"),
             patch("src.ai.rf_mcp_manager.Path") as mock_path,
+            patch("src.ai.rf_mcp_manager.pip_show_cmd", return_value=["uv", "pip", "show", "--python", "/fake/venv/bin/python", "rf-mcp"]),
         ):
             mock_path.return_value.exists.return_value = True
-            mock_path.return_value.__truediv__ = lambda self, x: mock_path.return_value
-            mock_path.return_value.__str__ = lambda self: "/fake/venv/bin/pip"
             mock_run.return_value = MagicMock(
                 returncode=0,
                 stdout="Name: robotframework-mcp\nVersion: 1.2.3\nSummary: RF MCP\n",
@@ -82,11 +88,14 @@ class TestCheckInstalled:
             assert installed is True
             assert version == "1.2.3"
 
-    def test_pip_not_found(self):
-        """When pip doesn't exist, returns not installed."""
-        installed, version = rf_mcp_manager.check_installed("/nonexistent/venv")
-        assert installed is False
-        assert version is None
+    def test_python_not_found(self):
+        """When python doesn't exist in venv, returns not installed."""
+        with (
+            patch("src.ai.rf_mcp_manager.get_python_path", return_value="/nonexistent/venv/bin/python"),
+        ):
+            installed, version = rf_mcp_manager.check_installed("/nonexistent/venv")
+            assert installed is False
+            assert version is None
 
 
 class TestGetStatus:
@@ -166,11 +175,8 @@ class TestInstallPackage:
     def test_successful_install(self):
         with (
             patch("subprocess.run") as mock_run,
-            patch("src.ai.rf_mcp_manager.Path") as mock_path,
+            patch("src.ai.rf_mcp_manager.pip_install_cmd", return_value=["uv", "pip", "install", "--python", "/fake/venv/bin/python", "rf-mcp", "fastmcp<3"]),
         ):
-            mock_path.return_value.exists.return_value = True
-            mock_path.return_value.__truediv__ = lambda self, x: mock_path.return_value
-            mock_path.return_value.__str__ = lambda self: "/fake/venv/bin/pip"
             # pip install succeeds
             mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
@@ -181,7 +187,10 @@ class TestInstallPackage:
             assert result["version"] == "1.0.0"
 
     def test_install_failure(self):
-        with patch("subprocess.run") as mock_run:
+        with (
+            patch("subprocess.run") as mock_run,
+            patch("src.ai.rf_mcp_manager.pip_install_cmd", return_value=["uv", "pip", "install", "--python", "/fake/venv/bin/python", "rf-mcp", "fastmcp<3"]),
+        ):
             mock_run.return_value = MagicMock(
                 returncode=1, stdout="", stderr="ERROR: Could not find a version"
             )
@@ -190,8 +199,11 @@ class TestInstallPackage:
             assert "Could not find" in result["message"]
 
     def test_install_timeout(self):
-        with patch("subprocess.run") as mock_run:
-            mock_run.side_effect = subprocess.TimeoutExpired(cmd="pip", timeout=300)
+        with (
+            patch("subprocess.run") as mock_run,
+            patch("src.ai.rf_mcp_manager.pip_install_cmd", return_value=["uv", "pip", "install", "--python", "/fake/venv/bin/python", "rf-mcp", "fastmcp<3"]),
+        ):
+            mock_run.side_effect = subprocess.TimeoutExpired(cmd="uv", timeout=300)
             result = rf_mcp_manager._install_package("/fake/venv")
             assert result["status"] == "error"
             assert "timed out" in result["message"]
@@ -207,6 +219,7 @@ class TestStartServer:
         mock_proc.pid = 42
 
         with (
+            patch("src.ai.rf_mcp_manager.get_venv_bin_dir", return_value="/fake/venv/bin"),
             patch("src.ai.rf_mcp_manager.Path") as mock_path,
             patch("subprocess.Popen", return_value=mock_proc),
             patch("time.sleep"),
@@ -235,6 +248,7 @@ class TestStartServer:
         mock_proc.stderr.read.return_value = b"ModuleNotFoundError: robotmcp"
 
         with (
+            patch("src.ai.rf_mcp_manager.get_venv_bin_dir", return_value="/fake/venv/bin"),
             patch("src.ai.rf_mcp_manager.Path") as mock_path,
             patch("subprocess.Popen", return_value=mock_proc),
             patch("time.sleep"),
@@ -253,7 +267,8 @@ class TestStartServer:
         assert rf_mcp_manager._process is None
 
     def test_robotmcp_not_found(self):
-        result = rf_mcp_manager._start_server("/nonexistent/venv", 9090)
+        with patch("src.ai.rf_mcp_manager.get_venv_bin_dir", return_value="/nonexistent/venv/bin"):
+            result = rf_mcp_manager._start_server("/nonexistent/venv", 9090)
         assert result["status"] == "error"
         assert "not found" in result["message"]
 
@@ -279,6 +294,7 @@ class TestStartServer:
         mock_proc.pid = 55
 
         with (
+            patch("src.ai.rf_mcp_manager.get_venv_bin_dir", return_value="/fake/venv/bin"),
             patch("src.ai.rf_mcp_manager.Path") as mock_path,
             patch("subprocess.Popen", return_value=mock_proc),
             patch("time.sleep"),

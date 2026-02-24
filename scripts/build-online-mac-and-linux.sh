@@ -117,12 +117,18 @@ cd "$(dirname "$0")"
 
 echo "==> Installing RoboScope..."
 
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
+# Install uv if not available
+if ! command -v uv &>/dev/null; then
+  echo "    Installing uv..."
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+
+# Create virtual environment with uv
+uv venv .venv
 
 # Install dependencies from PyPI
-pip install -r requirements.txt
+uv pip install --python .venv/bin/python -r requirements.txt
 
 # Copy default config if not exists
 [ -f .env ] || cp .env.example .env
@@ -234,10 +240,19 @@ echo ==> Installing RoboScope...
 
 cd /d "%~dp0"
 
-python -m venv .venv
-call .venv\Scripts\activate.bat
+:: Install uv if not available
+where uv >nul 2>&1
+if %errorlevel% neq 0 (
+    echo     Installing uv...
+    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+    set "PATH=%USERPROFILE%\.local\bin;%PATH%"
+)
 
-pip install -r requirements.txt
+:: Create virtual environment with uv
+uv venv .venv
+
+:: Install dependencies from PyPI
+uv pip install --python .venv\Scripts\python.exe -r requirements.txt
 
 if not exist .env copy .env.example .env
 

@@ -6,7 +6,8 @@ help: ## Show this help
 # --- Development ---
 
 install: ## Install all dependencies
-	cd backend && pip install -e ".[dev]"
+	@command -v uv >/dev/null 2>&1 || { echo "uv not found. Install: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
+	cd backend && uv pip install -e ".[dev]"
 	cd frontend && npm ci
 	cd e2e && npm ci
 

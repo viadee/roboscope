@@ -51,6 +51,33 @@ fi
 cp "$ROOT/scripts/dist-README.md" "$DIST/README.md"
 echo "    README: $DIST/README.md"
 
+# ── 3b. Download uv binaries for all platforms ──────────────
+echo "==> Downloading uv binaries..."
+mkdir -p "$DIST/uv-bin"
+UV_VERSION="latest"
+UV_BASE="https://github.com/astral-sh/uv/releases/${UV_VERSION}/download"
+
+# Linux x86_64
+curl -fsSL "$UV_BASE/uv-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C "$DIST/uv-bin" --strip-components=1 2>/dev/null \
+  && echo "    uv-linux-x86_64" || echo "    WARN: failed to download uv for linux-x86_64"
+
+# macOS ARM (Apple Silicon)
+curl -fsSL "$UV_BASE/uv-aarch64-apple-darwin.tar.gz" | tar -xz -C "$DIST/uv-bin" --strip-components=1 2>/dev/null \
+  && mv "$DIST/uv-bin/uv" "$DIST/uv-bin/uv-macos-arm64" 2>/dev/null || true
+# Rename linux one if it exists
+[ -f "$DIST/uv-bin/uv" ] && mv "$DIST/uv-bin/uv" "$DIST/uv-bin/uv-linux-x86_64" || true
+
+# macOS x86_64
+curl -fsSL "$UV_BASE/uv-x86_64-apple-darwin.tar.gz" | tar -xz -C "$DIST/uv-bin" --strip-components=1 2>/dev/null \
+  && mv "$DIST/uv-bin/uv" "$DIST/uv-bin/uv-macos-x86_64" 2>/dev/null || true
+
+# Windows x86_64
+curl -fsSL "$UV_BASE/uv-x86_64-pc-windows-msvc.zip" -o "$DIST/uv-bin/uv-windows.zip" 2>/dev/null \
+  && (cd "$DIST/uv-bin" && unzip -qo uv-windows.zip uv.exe && mv uv.exe uv-windows.exe && rm -f uv-windows.zip) \
+  || echo "    WARN: failed to download uv for windows"
+
+echo "    uv binaries: $(ls "$DIST/uv-bin/" 2>/dev/null | wc -l | tr -d ' ') files"
+
 # ── 4. Download Python wheels for offline install ─────────────
 echo "==> Downloading Python wheels..."
 mkdir -p "$DIST/wheels"
@@ -170,12 +197,31 @@ cd "$(dirname "$0")"
 
 echo "==> Installing RoboScope..."
 
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
+# Detect platform and select correct uv binary
+UV_BIN=""
+case "$(uname -s)-$(uname -m)" in
+  Linux-x86_64)  UV_BIN="uv-bin/uv-linux-x86_64" ;;
+  Darwin-arm64)  UV_BIN="uv-bin/uv-macos-arm64" ;;
+  Darwin-x86_64) UV_BIN="uv-bin/uv-macos-x86_64" ;;
+  *)
+    echo "WARN: No bundled uv for $(uname -s)-$(uname -m), trying system uv..."
+    UV_BIN="$(command -v uv 2>/dev/null || true)"
+    ;;
+esac
 
-# Install dependencies offline (pip picks the correct platform wheels)
-pip install --no-index --find-links=wheels -r requirements.txt
+if [ -n "$UV_BIN" ] && [ -f "$UV_BIN" ]; then
+  chmod +x "$UV_BIN"
+  cp "$UV_BIN" .venv-uv 2>/dev/null || true
+else
+  echo "Error: uv binary not found. Cannot create virtual environment."
+  exit 1
+fi
+
+# Create virtual environment with uv
+./"$UV_BIN" venv .venv
+
+# Install dependencies offline
+./"$UV_BIN" pip install --python .venv/bin/python --no-index --find-links=wheels -r requirements.txt
 
 # Copy default config if not exists
 [ -f .env ] || cp .env.example .env
@@ -287,10 +333,11 @@ echo ==> Installing RoboScope...
 
 cd /d "%~dp0"
 
-python -m venv .venv
-call .venv\Scripts\activate.bat
+:: Create virtual environment with uv
+uv-bin\uv-windows.exe venv .venv
 
-pip install --no-index --find-links=wheels -r requirements.txt
+:: Install dependencies offline
+uv-bin\uv-windows.exe pip install --python .venv\Scripts\python.exe --no-index --find-links=wheels -r requirements.txt
 
 if not exist .env copy .env.example .env
 

@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import subprocess
-import sys
 from pathlib import Path
 
 from sqlalchemy import select
@@ -12,6 +11,12 @@ import src.auth.models  # noqa: F401
 
 from src.database import get_sync_session
 from src.environments.models import Environment, EnvironmentPackage
+from src.environments.venv_utils import (
+    create_venv_cmd,
+    pip_install_cmd,
+    pip_show_cmd,
+    pip_uninstall_cmd,
+)
 
 logger = logging.getLogger("roboscope.environments.tasks")
 
@@ -29,14 +34,6 @@ def _broadcast_package_status(env_id: int, package_name: str, status: str, **ext
         logger.warning("No event loop available to broadcast package %s status", package_name)
 
 
-def _get_pip_path(venv_path: str) -> str:
-    return str(Path(venv_path) / "bin" / "pip")
-
-
-def _get_python_path(venv_path: str) -> str:
-    return str(Path(venv_path) / "bin" / "python")
-
-
 def create_venv(env_id: int) -> dict:
     """Create a virtual environment."""
     with get_sync_session() as session:
@@ -51,16 +48,15 @@ def create_venv(env_id: int) -> dict:
             venv_path = Path(env.venv_path)
             if not venv_path.exists():
                 subprocess.run(
-                    [sys.executable, "-m", "venv", str(venv_path)],
+                    create_venv_cmd(str(venv_path), env.python_version),
                     check=True,
                     capture_output=True,
                     text=True,
                 )
 
             # Install robotframework by default
-            pip = _get_pip_path(str(venv_path))
             subprocess.run(
-                [pip, "install", "robotframework"],
+                pip_install_cmd(str(venv_path), "robotframework"),
                 check=True,
                 capture_output=True,
                 text=True,
@@ -98,11 +94,10 @@ def install_package(env_id: int, package_name: str, version: str | None = None) 
             _broadcast_package_status(env_id, package_name, "installing")
 
         try:
-            pip = _get_pip_path(env.venv_path)
             pkg_spec = f"{package_name}=={version}" if version else package_name
 
             subprocess.run(
-                [pip, "install", pkg_spec],
+                pip_install_cmd(env.venv_path, pkg_spec),
                 check=True,
                 capture_output=True,
                 text=True,
@@ -110,7 +105,7 @@ def install_package(env_id: int, package_name: str, version: str | None = None) 
 
             # Get installed version
             show_result = subprocess.run(
-                [pip, "show", package_name],
+                pip_show_cmd(env.venv_path, package_name),
                 capture_output=True,
                 text=True,
             )
@@ -182,9 +177,8 @@ def upgrade_package(env_id: int, package_name: str) -> dict:
             _broadcast_package_status(env_id, package_name, "installing")
 
         try:
-            pip = _get_pip_path(env.venv_path)
             subprocess.run(
-                [pip, "install", "--upgrade", package_name],
+                pip_install_cmd(env.venv_path, "--upgrade", package_name),
                 check=True,
                 capture_output=True,
                 text=True,
@@ -192,7 +186,7 @@ def upgrade_package(env_id: int, package_name: str) -> dict:
 
             # Get installed version
             show_result = subprocess.run(
-                [pip, "show", package_name],
+                pip_show_cmd(env.venv_path, package_name),
                 capture_output=True,
                 text=True,
             )
@@ -340,9 +334,8 @@ def uninstall_package(env_id: int, package_name: str) -> dict:
             return {"status": "error", "message": "Environment not found or no venv"}
 
         try:
-            pip = _get_pip_path(env.venv_path)
             subprocess.run(
-                [pip, "uninstall", "-y", package_name],
+                pip_uninstall_cmd(env.venv_path, package_name),
                 check=True,
                 capture_output=True,
                 text=True,

@@ -276,7 +276,9 @@ def generate_dockerfile(
     lines = [
         f"FROM {base}",
         "",
-        "RUN pip install --no-cache-dir \\",
+        "COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv",
+        "",
+        "RUN uv pip install --system --no-cache-dir \\",
     ]
     for i, pkg in enumerate(packages):
         suffix = "" if i == len(packages) - 1 else " \\"
@@ -288,10 +290,10 @@ def generate_dockerfile(
 
 
 def docker_pip_list(docker_image: str) -> list[dict]:
-    """List packages installed in a Docker image via 'docker run --rm <image> pip list --format=json'."""
+    """List packages installed in a Docker image via 'docker run --rm <image> uv pip list'."""
     try:
         result = subprocess.run(
-            ["docker", "run", "--rm", docker_image, "pip", "list", "--format=json"],
+            ["docker", "run", "--rm", docker_image, "uv", "pip", "list", "--system", "--format=json"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -305,17 +307,19 @@ def docker_pip_list(docker_image: str) -> list[dict]:
 
 
 def pip_list_installed(venv_path: str | None) -> list[dict]:
-    """List all packages installed in a venv via pip list --format=json."""
+    """List all packages installed in a venv via uv pip list --format=json."""
     if not venv_path:
         return []
 
-    pip_path = str(Path(venv_path) / "bin" / "pip")
-    if not Path(pip_path).exists():
+    from src.environments.venv_utils import pip_list_cmd, get_python_path
+
+    python_path = get_python_path(venv_path)
+    if not Path(python_path).exists():
         return []
 
     try:
         result = subprocess.run(
-            [pip_path, "list", "--format=json"],
+            pip_list_cmd(venv_path),
             capture_output=True,
             text=True,
             timeout=30,

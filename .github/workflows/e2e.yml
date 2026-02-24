@@ -22,6 +22,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -30,7 +33,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install backend dependencies
-        run: cd backend && pip install -e ".[dev]"
+        run: cd backend && uv pip install --system -e ".[dev]"
 
       - name: Start backend server
         run: |

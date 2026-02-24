@@ -9,6 +9,12 @@ from collections.abc import Callable
 from pathlib import Path
 
 from src.config import settings
+from src.environments.venv_utils import (
+    create_venv_cmd,
+    get_python_path,
+    get_venv_bin_dir,
+    pip_install_cmd,
+)
 from src.execution.runners.base import AbstractRunner, RunResult
 
 
@@ -23,19 +29,17 @@ class SubprocessRunner(AbstractRunner):
     def prepare(self, repo_path: str, target_path: str, env_config: dict | None = None) -> None:
         """Prepare virtualenv if specified."""
         if self.venv_path and not Path(self.venv_path).exists():
-            python = env_config.get("python_version", "python3") if env_config else "python3"
             subprocess.run(
-                [sys.executable, "-m", "venv", self.venv_path],
+                create_venv_cmd(self.venv_path),
                 check=True,
                 capture_output=True,
             )
 
             # Install packages if specified
             if env_config and env_config.get("packages"):
-                pip_path = self._get_pip_path()
                 for package in env_config["packages"]:
                     subprocess.run(
-                        [pip_path, "install", package],
+                        pip_install_cmd(self.venv_path, package),
                         check=True,
                         capture_output=True,
                     )
@@ -68,7 +72,7 @@ class SubprocessRunner(AbstractRunner):
         # Prepare environment
         env = os.environ.copy()
         if self.venv_path:
-            venv_bin = str(Path(self.venv_path) / "bin")
+            venv_bin = get_venv_bin_dir(self.venv_path)
             env["PATH"] = venv_bin + os.pathsep + env.get("PATH", "")
             env["VIRTUAL_ENV"] = self.venv_path
 
@@ -173,7 +177,7 @@ class SubprocessRunner(AbstractRunner):
         tags_exclude: str | None = None,
     ) -> list[str]:
         """Build the robot command line."""
-        python = self._get_python_path() if self.venv_path else sys.executable
+        python = get_python_path(self.venv_path) if self.venv_path else sys.executable
 
         cmd = [
             python, "-m", "robot",
@@ -200,15 +204,3 @@ class SubprocessRunner(AbstractRunner):
 
         cmd.append(target_path)
         return cmd
-
-    def _get_python_path(self) -> str:
-        """Get python executable path from venv."""
-        if self.venv_path:
-            return str(Path(self.venv_path) / "bin" / "python")
-        return sys.executable
-
-    def _get_pip_path(self) -> str:
-        """Get pip executable path from venv."""
-        if self.venv_path:
-            return str(Path(self.venv_path) / "bin" / "pip")
-        return str(Path(sys.executable).parent / "pip")

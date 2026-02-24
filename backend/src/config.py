@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
+    # uv (package manager — replaces pip/venv)
+    UV_PATH: str = ""  # Optional explicit path to uv binary; auto-detected if empty
+
     # rf-mcp (optional Robot Framework knowledge server)
     RF_MCP_URL: str = ""
     RF_MCP_TIMEOUT: int = 30

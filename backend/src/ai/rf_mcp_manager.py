@@ -16,6 +16,12 @@ import time
 from pathlib import Path
 
 from src.config import settings
+from src.environments.venv_utils import (
+    get_python_path,
+    get_venv_bin_dir,
+    pip_install_cmd,
+    pip_show_cmd,
+)
 
 logger = logging.getLogger("roboscope.ai.rf_mcp_manager")
 
@@ -55,22 +61,14 @@ def is_running() -> bool:
     return True
 
 
-def _get_pip_path(venv_path: str) -> str:
-    return str(Path(venv_path) / "bin" / "pip")
-
-
-def _get_python_path(venv_path: str) -> str:
-    return str(Path(venv_path) / "bin" / "python")
-
-
 def check_installed(venv_path: str) -> tuple[bool, str | None]:
     """Check if rf-mcp is installed and return (installed, version)."""
-    pip = _get_pip_path(venv_path)
-    if not Path(pip).exists():
+    python_path = get_python_path(venv_path)
+    if not Path(python_path).exists():
         return False, None
     try:
         result = subprocess.run(
-            [pip, "show", RF_MCP_PACKAGE],
+            pip_show_cmd(venv_path, RF_MCP_PACKAGE),
             capture_output=True, text=True, timeout=10,
         )
         if result.returncode != 0:
@@ -86,10 +84,9 @@ def check_installed(venv_path: str) -> tuple[bool, str | None]:
 
 def _install_package(venv_path: str) -> dict:
     """Install rf-mcp into the given venv."""
-    pip = _get_pip_path(venv_path)
     try:
         result = subprocess.run(
-            [pip, "install", RF_MCP_PACKAGE, "fastmcp<3"],
+            pip_install_cmd(venv_path, RF_MCP_PACKAGE, "fastmcp<3"),
             capture_output=True, text=True, timeout=300,
         )
         if result.returncode != 0:
@@ -133,7 +130,8 @@ def _start_server(venv_path: str, port: int = 9090) -> dict:
     from src.ai.rf_knowledge import reset_session
     reset_session()
 
-    robotmcp_bin = str(Path(venv_path) / "bin" / "robotmcp")
+    bin_dir = get_venv_bin_dir(venv_path)
+    robotmcp_bin = str(Path(bin_dir) / "robotmcp")
     if not Path(robotmcp_bin).exists():
         return {"status": "error", "message": f"robotmcp CLI not found: {robotmcp_bin}"}
 
@@ -141,8 +139,7 @@ def _start_server(venv_path: str, port: int = 9090) -> dict:
 
     try:
         env = {**os.environ}
-        bin_dir = str(Path(venv_path) / "bin")
-        env["PATH"] = bin_dir + ":" + env.get("PATH", "")
+        env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
         env["VIRTUAL_ENV"] = venv_path
 
         proc = subprocess.Popen(
