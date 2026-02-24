@@ -2,7 +2,7 @@
 
 Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausführung, Report-Analyse, Environment-Management und Container-Runtime.
 
-## Aktueller Projektstatus (Stand: 2026-02-23)
+## Aktueller Projektstatus (Stand: 2026-02-24)
 
 ### Was ist implementiert
 
@@ -11,7 +11,7 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 - Repository-Management mit GitPython (clone, sync, branches), Projekt-Umgebungszuordnung
 - Testfall-Explorer (Dateisystem-Browser + Robot-Parser + Library-Check + "In Dateibrowser öffnen" + Binärdatei-Erkennung)
 - Testausführung: SubprocessRunner + DockerRunner + In-Process TaskExecutor + WebSocket-Live-Updates
-- Environment-Management (venv, Pakete, Variablen)
+- Environment-Management (uv + venv, Pakete, Variablen)
 - Report-Parsing (output.xml → DB) + Vergleich
 - KPI/Statistik-Service (Trends, Flaky Detection, Heatmaps) + On-Demand Tiefenanalyse (15 KPIs in 5 Kategorien) + Refresh/Staleness
 - Settings (Key-Value, Admin-only)
@@ -43,16 +43,17 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 - Auth-Fixture mit JWT-Injection
 - API-Mocking via page.route()
 
-**Backend Tests (pytest) — ~486 Tests**
+**Backend Tests (pytest) — ~555 Tests**
 - Auth: Login, Registration, Password-Reset (5 Tests)
 - Repos: CRUD, Service (20+ Tests)
 - Explorer: File-Browser, Open-In-File-Browser, Binary-Detection (11 Tests)
 - Execution: Runs, Scheduling (20+ Tests)
-- Environments: CRUD, Packages (20+ Tests)
+- Environments: CRUD, Packages, venv_utils (14 Tests), Tasks (7 Tests) (40+ Tests)
 - Reports: Parsing, Comparison (20+ Tests)
 - Stats: Overview, Aggregate, Data-Status (7 Tests)
 - Stats Analysis: Compute-Funktionen, KPI-Validation, Broadcast-Helper, Date-Filtering (26 Tests)
 - Settings: CRUD, Permissions (10+ Tests)
+- AI: rf-mcp Manager (31 Tests)
 
 **Docker — VOLLSTÄNDIG konfiguriert**
 - 3 Dockerfiles: backend, frontend, playwright
@@ -60,7 +61,7 @@ Webbasiertes Robot Framework Test-Management-Tool mit Git-Integration, GUI-Ausf�
 
 **Build/Distribution**
 - `scripts/build-mac-and-linux.sh` — Erstellt standalone ZIP-Archiv für Offline-Deployment (Windows, Mac, Linux)
-- Enthält: Frontend-Build, Backend-Source, Python-Wheels, Install/Start-Skripte
+- Enthält: Frontend-Build, Backend-Source, Python-Wheels, uv-Binaries (alle Plattformen), Install/Start-Skripte
 
 ### Wichtige Architekturentscheidung: Task-Ausführung
 
@@ -122,6 +123,7 @@ Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `Ta
 - [x] Explorer: Fix falscher "Unsaved"-Badge beim Öffnen (ignoreContentUpdates Flag verhindert isDirty durch Editor-Roundtrip-Normalisierung bei RobotEditor/SpecEditor mount)
 - [x] Explorer: Save-Before-Run Prompt (bei unsaved Changes wird der User gefragt ob speichern vor Ausführung, i18n EN/DE/FR/ES, 5 neue E2E-Tests)
 - [x] Dependabot: minimatch ReDoS-Vulnerability behoben (npm override minimatch>=10.2.1, editorconfig>=2.0.0)
+- [x] **uv-Migration**: pip/venv → uv für alle Package-Management-Operationen (venv_utils.py, cross-platform, 21 neue Tests, CI/Docker/Build-Skripte aktualisiert)
 
 **Offen / Roadmap (priorisiert):**
 - [x] **Responsive Design** — Sidebar, Tabellen, iframe-Layout für kleinere Bildschirme optimieren
@@ -143,7 +145,7 @@ RoboScope/
 │   │   ├── repos/    # Git-Repository-Verwaltung (GitPython)
 │   │   ├── explorer/ # Dateisystem-Browser + Robot-Parser
 │   │   ├── execution/# Test-Runs + Scheduling (Subprocess + Docker Runner)
-│   │   ├── environments/ # venv + Pakete + Variablen
+│   │   ├── environments/ # uv + venv + Pakete + Variablen (venv_utils.py)
 │   │   ├── reports/  # output.xml Parser + Vergleich
 │   │   ├── stats/    # KPI Dashboard, Flaky Detection, Heatmap, On-Demand Tiefenanalyse
 │   │   ├── ai/       # LLM-gestützte .roboscope ↔ .robot Generierung + Fehleranalyse
@@ -211,6 +213,7 @@ RoboScope/
 ## Tech-Stack
 
 - **Backend**: FastAPI, SQLAlchemy 2.0 (sync), Pydantic v2, ThreadPoolExecutor (Background Tasks), GitPython, Docker SDK
+- **Package Management**: [uv](https://docs.astral.sh/uv/) (ersetzt pip/venv — schneller, cross-platform, kein `venv`-Modul nötig)
 - **Frontend**: Vue 3.5, Pinia, Vue Router 4, Axios, Chart.js, CodeMirror 6, js-yaml, TypeScript, Vite
 - **Datenbank**: SQLite (Standard/Dev) oder PostgreSQL (Production), konfigurierbar via `DATABASE_URL`
 - **Tests**: pytest, Vitest + @vue/test-utils, Playwright
@@ -245,7 +248,7 @@ Swagger UI: `http://localhost:8000/api/v1/docs`
 
 ### Voraussetzungen
 
-- Python 3.12+, Node.js 20+
+- Python 3.12+, Node.js 20+, [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - Kein Redis nötig (Background-Tasks laufen in-process)
 
 ### Lokale Entwicklung
@@ -324,6 +327,7 @@ make db-downgrade
 | `WORKSPACE_DIR` | `~/.roboscope/workspace` | Git-Repos Arbeitsverzeichnis |
 | `REPORTS_DIR` | `~/.roboscope/reports` | Report-Dateien Verzeichnis |
 | `VENVS_DIR` | `~/.roboscope/venvs` | Virtuelle Environments |
+| `UV_PATH` | `""` (auto-detect) | Expliziter Pfad zur uv-Binary |
 
 ## Bekannte Patterns und Gotchas
 
@@ -344,10 +348,35 @@ Die Datei heißt noch `celery_app.py`, enthält aber **kein Celery mehr**. Sie s
 - `TaskResult` — Objekt mit `.id` (UUID)
 - `_executor` — ThreadPoolExecutor(max_workers=1)
 
+### Package Management mit uv (venv_utils.py)
+Alle pip/venv-Operationen laufen über `uv` statt nativem `pip`/`python -m venv`. Dies löst Probleme mit portablen/embedded Python-Installationen (Windows), die kein `venv`-Modul haben.
+
+**Zentrales Modul:** `backend/src/environments/venv_utils.py` — konsolidiert alle venv-Pfad-Utilities und uv-Kommando-Builder:
+- `get_uv_path()` — Findet uv-Binary (Settings → PATH → Fehler)
+- `get_python_path(venv_path)` — Cross-platform: `bin/python` (Unix) vs `Scripts/python.exe` (Windows)
+- `get_venv_bin_dir(venv_path)` — Cross-platform: `bin/` vs `Scripts/`
+- `create_venv_cmd()` → `[uv, venv, path, --python, version]`
+- `pip_install_cmd()` → `[uv, pip, install, --python, python_path, packages...]`
+- `pip_uninstall_cmd()`, `pip_show_cmd()`, `pip_list_cmd()` — analog
+
+**Wichtig:** uv ist eine externe CLI-Binary, **kein** Python-Paket. Es wird via `subprocess.run()` aufgerufen. Die Konfiguration `UV_PATH` in `config.py` erlaubt einen expliziten Pfad; bei leerem String wird `shutil.which("uv")` verwendet.
+
+**Betroffene Module (alle importieren aus `venv_utils`):**
+- `environments/tasks.py` — venv-Erstellung, Package install/upgrade/uninstall
+- `environments/service.py` — `pip_list_installed()`, `generate_dockerfile()`, `docker_pip_list()`
+- `execution/runners/subprocess_runner.py` — venv-Erstellung, Package-Installation, PATH-Setup
+- `ai/rf_mcp_manager.py` — rf-mcp Installation, Server-Start mit korrektem PATH
+
+**Docker:** Dockerfiles verwenden `COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv` und `uv pip install --system`.
+
+**CI:** GitHub Actions verwenden `astral-sh/setup-uv@v5` und `uv pip install --system -e ".[dev]"`.
+
+**Build-Skripte:** Offline-Build bündelt uv-Binaries für Linux/Mac/Windows; Online-Build installiert uv automatisch via `curl`.
+
 ### Library Check (Package Manager)
 Der Explorer-Router bietet einen `GET /explorer/{repo_id}/library-check?environment_id={id}` Endpoint:
 - Scannt alle `.robot`/`.resource`-Dateien nach `Library`-Imports in `*** Settings ***`
-- Vergleicht mit installierten Paketen via `pip list` aus der gewählten Umgebung
+- Vergleicht mit installierten Paketen via `uv pip list` aus der gewählten Umgebung
 - Mapping: `backend/src/explorer/library_mapping.py` (Built-in-Erkennung + PyPI-Mapping + Heuristik)
 - Repos haben ein optionales `environment_id` FK-Feld (Standard-Umgebung für Library-Checks)
 - Nav-Label "Environments" wurde zu "Package Manager" umbenannt (i18n: EN/DE/FR/ES)
@@ -455,9 +484,9 @@ vue-i18n v10 verwendet eine strikte Message-Syntax. Folgende Zeichen sind **rese
 
 **Wichtig:** Im Dev-Modus (Vite) ist der Message-Compiler toleranter; im Production-Build (dist) führen unescapte Sonderzeichen zu `SyntaxError` und die betroffene Komponente rendert nicht (blanker Bildschirm). Immer im Production-Build testen!
 
-## Bekannte Probleme / Technical Debt (Stand: 2026-02-23)
+## Bekannte Probleme / Technical Debt (Stand: 2026-02-24)
 
-### Erledigt (2026-02-23)
+### Erledigt (2026-02-24)
 
 - [x] python-jose → PyJWT migriert (auth/service.py)
 - [x] passlib → bcrypt direkt migriert (auth/service.py)
@@ -477,6 +506,7 @@ vue-i18n v10 verwendet eine strikte Message-Syntax. Folgende Zeichen sind **rese
 - [x] Explorer: Falscher "Unsaved"-Badge beim Dateiöffnen behoben (ignoreContentUpdates Flag in ExplorerView.vue)
 - [x] Explorer: Save-Before-Run Prompt bei ungespeicherten Änderungen (Modal + saveAndRun/runWithoutSaving Handler)
 - [x] Dependabot: minimatch ReDoS-Vulnerability behoben (npm override minimatch>=10.2.1, editorconfig>=2.0.0 in package.json)
+- [x] pip/venv → uv migriert (venv_utils.py, cross-platform Windows/Mac/Linux, `_get_pip_path()` 3x dedupliziert, `os.pathsep` statt hardcoded `:`)
 
 ### OFFEN — Noch zu erledigen
 
@@ -510,6 +540,8 @@ vue-i18n v10 verwendet eine strikte Message-Syntax. Folgende Zeichen sind **rese
 - **celery_app.py (TaskExecutor)** — 0 Tests (alle Background-Tasks)
 - **AI Router**: 8 von 18 Endpoints ungetestet (generate, reverse, analyze, status, accept, drift)
 - **Report Router**: 5 Endpoints ungetestet (upload, html, assets, zip, delete-all)
+- ~~**Environment Tasks** — 0 Tests~~ → Behoben: 7 Tests (create_venv, install/upgrade/uninstall_package)
+- ~~**venv_utils** — nicht existent~~ → Behoben: 14 Tests (cross-platform Pfade, uv-Kommandos)
 
 ## Coding-Konventionen
 
