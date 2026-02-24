@@ -8,7 +8,7 @@ Web-based Robot Framework Test Management Tool with Git integration, GUI executi
 
 Built by [viadee Unternehmensberatung AG](https://www.viadee.de).
 
-![RoboScope Screenshot](landing/screenshots/dashboard.png)
+![RoboScope Screenshot](docs/screenshots/dashboard.png)
 
 ## Features
 
@@ -81,9 +81,9 @@ Default login: `admin@roboscope.local` / `admin123`
 
 ## Screenshots
 
-| Dashboard | Test Explorer | Report Detail |
-|-----------|--------------|---------------|
-| ![Dashboard](landing/screenshots/dashboard.png) | ![Explorer](landing/screenshots/explorer.png) | ![Report](landing/screenshots/report-detail.png) |
+| Dashboard | Test Explorer | Statistics |
+|-----------|--------------|------------|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Explorer](docs/screenshots/explorer.png) | ![Statistics](docs/screenshots/stats.png) |
 
 ## Project Structure
 
