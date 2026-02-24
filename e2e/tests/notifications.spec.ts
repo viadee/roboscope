@@ -7,12 +7,12 @@ test.describe('Browser Notifications', () => {
   })
 
   test('notification bell is visible in header', async ({ page }) => {
-    const bell = page.locator('.notification-btn')
+    const bell = page.locator('.notification-btn:not(.tour-btn)')
     await expect(bell).toBeVisible()
   })
 
   test('notification bell defaults to disabled state', async ({ page }) => {
-    const bell = page.locator('.notification-btn')
+    const bell = page.locator('.notification-btn:not(.tour-btn)')
     await expect(bell).not.toHaveClass(/active/)
   })
 
@@ -20,7 +20,7 @@ test.describe('Browser Notifications', () => {
     // Grant notification permission via browser context
     await page.context().grantPermissions(['notifications'])
 
-    const bell = page.locator('.notification-btn')
+    const bell = page.locator('.notification-btn:not(.tour-btn)')
     await bell.click()
 
     // After clicking, notifications should be enabled
@@ -34,13 +34,13 @@ test.describe('Browser Notifications', () => {
   test('notification preference persists across page reload', async ({ page }) => {
     await page.context().grantPermissions(['notifications'])
 
-    const bell = page.locator('.notification-btn')
+    const bell = page.locator('.notification-btn:not(.tour-btn)')
     await bell.click()
     await expect(bell).toHaveClass(/active/)
 
     // Reload the page
     await page.reload()
-    await expect(page.locator('.notification-btn')).toHaveClass(/active/)
+    await expect(page.locator('.notification-btn:not(.tour-btn)')).toHaveClass(/active/)
   })
 
   test('shows toast on WebSocket run_status_changed message', async ({ page }) => {

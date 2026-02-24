@@ -40,7 +40,7 @@ test.describe('Scheduling UX', () => {
 
     await page.goto('/runs')
     await page.locator('.tab-btn', { hasText: /Schedules|Zeitpläne|Planifications|Programaciones/ }).click()
-    await expect(page.locator('.text-muted.text-center')).toBeVisible()
+    await expect(page.getByText(/No schedules configured|Noch keine Zeitpläne|Aucune planification|No hay programaciones/)).toBeVisible()
   })
 
   test('displays schedules in table', async ({ page }) => {
