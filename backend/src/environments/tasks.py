@@ -13,9 +13,11 @@ from src.database import get_sync_session
 from src.environments.models import Environment, EnvironmentPackage
 from src.environments.venv_utils import (
     create_venv_cmd,
+    get_venv_bin_dir,
     pip_install_cmd,
     pip_show_cmd,
     pip_uninstall_cmd,
+    rfbrowser_init_cmd,
 )
 
 logger = logging.getLogger("roboscope.environments.tasks")
@@ -32,6 +34,64 @@ def _broadcast_package_status(env_id: int, package_name: str, status: str, **ext
         asyncio.run_coroutine_threadsafe(coro, _event_loop)
     else:
         logger.warning("No event loop available to broadcast package %s status", package_name)
+
+
+BROWSER_PACKAGE_NAMES = {"robotframework-browser", "robotframework_browser"}
+
+
+def _is_browser_package(package_name: str) -> bool:
+    """Check if a package name refers to robotframework-browser."""
+    return package_name.lower().replace("_", "-") in BROWSER_PACKAGE_NAMES
+
+
+def _run_rfbrowser_init(
+    venv_path: str,
+    env_id: int,
+    package_name: str,
+    pkg,
+    session,
+) -> None:
+    """Run 'rfbrowser init' after robotframework-browser install/upgrade.
+
+    Downloads Playwright Node.js dependencies and browser binaries.
+    On failure, marks the package as failed with an informative error.
+    """
+    import os
+
+    logger.info("Running rfbrowser init for env %d ...", env_id)
+    _broadcast_package_status(env_id, package_name, "initializing")
+
+    try:
+        env_vars = os.environ.copy()
+        bin_dir = get_venv_bin_dir(venv_path)
+        env_vars["PATH"] = bin_dir + os.pathsep + env_vars.get("PATH", "")
+
+        result = subprocess.run(
+            rfbrowser_init_cmd(venv_path),
+            capture_output=True,
+            text=True,
+            timeout=600,
+            env=env_vars,
+        )
+        if result.returncode != 0:
+            raise subprocess.CalledProcessError(
+                result.returncode,
+                rfbrowser_init_cmd(venv_path),
+                output=result.stdout,
+                stderr=result.stderr,
+            )
+        logger.info("rfbrowser init completed for env %d", env_id)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        error_msg = f"rfbrowser init failed: {getattr(exc, 'stderr', '') or str(exc)}"
+        logger.error(error_msg)
+        if pkg:
+            pkg.install_status = "failed"
+            pkg.install_error = error_msg[:2000]
+            session.commit()
+            _broadcast_package_status(
+                env_id, package_name, "failed", error=error_msg[:500],
+            )
+        raise
 
 
 def create_venv(env_id: int) -> dict:
@@ -127,6 +187,11 @@ def install_package(env_id: int, package_name: str, version: str | None = None) 
                 )
 
             logger.info("Installed %s==%s in env %d", package_name, installed_version, env_id)
+
+            # Auto-init rfbrowser after robotframework-browser install
+            if _is_browser_package(package_name):
+                _run_rfbrowser_init(env.venv_path, env_id, package_name, pkg, session)
+
             return {"status": "success", "package": package_name, "version": installed_version}
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr or str(e)
@@ -208,6 +273,11 @@ def upgrade_package(env_id: int, package_name: str) -> dict:
                 )
 
             logger.info("Upgraded %s to %s in env %d", package_name, installed_version, env_id)
+
+            # Auto-init rfbrowser after robotframework-browser upgrade
+            if _is_browser_package(package_name):
+                _run_rfbrowser_init(env.venv_path, env_id, package_name, pkg, session)
+
             return {"status": "success", "package": package_name, "version": installed_version}
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr or str(e)

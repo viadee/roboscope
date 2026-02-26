@@ -66,3 +66,13 @@ def pip_list_cmd(venv_path: str) -> list[str]:
     """Build uv pip list command targeting a venv."""
     uv = get_uv_path()
     return [uv, "pip", "list", "--python", get_python_path(venv_path), "--format=json"]
+
+
+def rfbrowser_init_cmd(venv_path: str) -> list[str]:
+    """Build command to run 'rfbrowser init' from a venv."""
+    bin_dir = Path(get_venv_bin_dir(venv_path))
+    if sys.platform == "win32":
+        rfbrowser = str(bin_dir / "rfbrowser.exe")
+    else:
+        rfbrowser = str(bin_dir / "rfbrowser")
+    return [rfbrowser, "init"]

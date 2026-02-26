@@ -263,6 +263,16 @@ def search_pypi(query: str) -> list[dict]:
     return results[:20]
 
 
+def _has_browser_package(packages: list[str]) -> bool:
+    """Check if any package spec refers to robotframework-browser."""
+    for pkg in packages:
+        # Strip version specifier (e.g. "robotframework-browser==18.0.0" → "robotframework-browser")
+        name = pkg.split("==")[0].split(">=")[0].split("<=")[0].split("~=")[0].split("!=")[0]
+        if name.strip().lower().replace("_", "-") == "robotframework-browser":
+            return True
+    return False
+
+
 def generate_dockerfile(
     python_version: str,
     packages: list[str],
@@ -271,19 +281,39 @@ def generate_dockerfile(
     """Generate a Dockerfile that installs the given packages.
 
     Pure function, no DB access.
+    When robotframework-browser is among the packages, Node.js 20 LTS
+    is installed and ``rfbrowser init`` is executed automatically.
     """
+    needs_browser = _has_browser_package(packages)
     base = base_image or f"python:{python_version}-slim"
     lines = [
         f"FROM {base}",
         "",
         "COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv",
         "",
-        "RUN uv pip install --system --no-cache-dir \\",
     ]
+
+    # Node.js 20 LTS — required by robotframework-browser / Playwright
+    if needs_browser:
+        lines += [
+            "RUN apt-get update && apt-get install -y curl gnupg \\",
+            "    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \\",
+            "    && apt-get install -y nodejs \\",
+            "    && rm -rf /var/lib/apt/lists/*",
+            "",
+        ]
+
+    lines.append("RUN uv pip install --system --no-cache-dir \\")
     for i, pkg in enumerate(packages):
         suffix = "" if i == len(packages) - 1 else " \\"
         lines.append(f"    {pkg}{suffix}")
     lines.append("")
+
+    # rfbrowser init — downloads Playwright browsers + Node deps
+    if needs_browser:
+        lines.append("RUN rfbrowser init")
+        lines.append("")
+
     lines.append('CMD ["python", "-m", "robot", "--help"]')
     lines.append("")
     return "\n".join(lines)
