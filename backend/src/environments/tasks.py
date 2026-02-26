@@ -82,7 +82,15 @@ def _run_rfbrowser_init(
             )
         logger.info("rfbrowser init completed for env %d", env_id)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-        error_msg = f"rfbrowser init failed: {getattr(exc, 'stderr', '') or str(exc)}"
+        stderr = getattr(exc, "stderr", "") or ""
+        raw = stderr or str(exc)
+        if any(hint in raw.lower() for hint in ("node", "npm", "npx", "enoent")):
+            error_msg = (
+                "rfbrowser init failed: Node.js is required but was not found. "
+                "Install Node.js 18+ from https://nodejs.org/ — Details: " + raw
+            )
+        else:
+            error_msg = f"rfbrowser init failed: {raw}"
         logger.error(error_msg)
         if pkg:
             pkg.install_status = "failed"

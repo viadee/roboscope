@@ -7,6 +7,9 @@ import { useReposStore } from '@/stores/repos.store'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
 import { createRun } from '@/api/execution.api'
+import { checkLibraries } from '@/api/explorer.api'
+import { installPackage } from '@/api/environments.api'
+import type { LibraryCheckItem } from '@/types/domain.types'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
@@ -57,6 +60,12 @@ const showSaveBeforeRunPrompt = ref(false)
 const settingUpDefaultEnv = ref(false)
 const pendingRunNode = ref<TreeNode | null>(null)
 const ignoreContentUpdates = ref(false)
+const skipNextWatch = ref(false)
+
+// Missing library check before run
+const showLibCheckPrompt = ref(false)
+const missingLibraries = ref<LibraryCheckItem[]>([])
+const installingLibs = ref(false)
 
 // AI Generation
 const showGenerateModal = ref(false)
@@ -102,28 +111,50 @@ const absolutePath = computed(() => {
 onMounted(async () => {
   await Promise.all([repos.fetchRepos(), envs.fetchEnvironments()])
   const repoId = Number(route.params.repoId)
+  let targetRepoId: number | null = null
   if (repoId && repos.repos.find(r => r.id === repoId)) {
-    selectedRepoId.value = repoId
-    await explorer.fetchTree(repoId)
+    targetRepoId = repoId
+  } else {
+    // Restore last repo from localStorage
+    try {
+      const saved = localStorage.getItem('explorer-last-repo')
+      if (saved) {
+        const id = Number(saved)
+        if (repos.repos.find(r => r.id === id)) targetRepoId = id
+      }
+    } catch {}
+    if (!targetRepoId && repos.repos.length) targetRepoId = repos.repos[0].id
+  }
+  if (targetRepoId) {
+    skipNextWatch.value = true
+    selectedRepoId.value = targetRepoId
+    saveLastRepo()
+    router.replace(`/explorer/${targetRepoId}`)
+    await explorer.fetchTree(targetRepoId)
     autoExpandRoot()
-  } else if (repos.repos.length) {
-    selectedRepoId.value = repos.repos[0].id
-    await explorer.fetchTree(repos.repos[0].id)
-    autoExpandRoot()
+    await restoreLastFile()
   }
 })
 
 onUnmounted(() => {
+  saveCursorState()
   editorView.value?.destroy()
 })
 
-watch(selectedRepoId, async (newId) => {
+watch(selectedRepoId, async (newId, oldId) => {
+  if (skipNextWatch.value) {
+    skipNextWatch.value = false
+    return
+  }
   if (newId) {
+    if (oldId) saveCursorState()
+    saveLastRepo()
     router.replace(`/explorer/${newId}`)
     explorer.clearSelection()
     isDirty.value = false
     await explorer.fetchTree(newId)
     autoExpandRoot()
+    await restoreLastFile()
   }
 })
 
@@ -156,6 +187,71 @@ function autoExpandRoot() {
   if (explorer.tree) {
     expandedPaths.value.add(explorer.tree.path)
   }
+}
+
+// --- Position persistence ---
+
+function saveLastRepo() {
+  if (!selectedRepoId.value) return
+  try { localStorage.setItem('explorer-last-repo', String(selectedRepoId.value)) } catch {}
+}
+
+function saveLastFile() {
+  if (!selectedRepoId.value || !explorer.selectedFile) return
+  try { localStorage.setItem(`explorer-file-${selectedRepoId.value}`, explorer.selectedFile.path) } catch {}
+}
+
+function saveCursorState() {
+  if (!selectedRepoId.value || !explorer.selectedFile) return
+  const ev = editorView.value
+  const data = ev
+    ? { path: explorer.selectedFile.path, cursor: ev.state.selection.main.head, scroll: ev.scrollDOM.scrollTop }
+    : { path: explorer.selectedFile.path, cursor: 0, scroll: 0 }
+  try { localStorage.setItem(`explorer-cursor-${selectedRepoId.value}`, JSON.stringify(data)) } catch {}
+}
+
+function restoreCursorState() {
+  if (!selectedRepoId.value || !explorer.selectedFile || !editorView.value) return
+  try {
+    const raw = localStorage.getItem(`explorer-cursor-${selectedRepoId.value}`)
+    if (!raw) return
+    const saved = JSON.parse(raw)
+    if (saved.path !== explorer.selectedFile.path) return
+    const pos = Math.min(saved.cursor || 0, editorView.value.state.doc.length)
+    editorView.value.dispatch({ selection: { anchor: pos }, scrollIntoView: true })
+    if (saved.scroll) editorView.value.scrollDOM.scrollTop = saved.scroll
+  } catch {}
+}
+
+function fileExistsInTree(path: string): boolean {
+  if (!explorer.tree) return false
+  const check = (node: TreeNode): boolean => {
+    if (node.type === 'file' && node.path === path) return true
+    return node.children?.some(check) ?? false
+  }
+  return check(explorer.tree)
+}
+
+async function restoreLastFile() {
+  if (!selectedRepoId.value) return
+  try {
+    const savedPath = localStorage.getItem(`explorer-file-${selectedRepoId.value}`)
+    if (!savedPath || !fileExistsInTree(savedPath)) return
+    ignoreContentUpdates.value = true
+    isDirty.value = false
+    await explorer.openFile(selectedRepoId.value, savedPath)
+    if (explorer.selectedFile?.is_binary) {
+      editorContent.value = ''
+      ignoreContentUpdates.value = false
+      return
+    }
+    editorContent.value = explorer.selectedFile?.content || ''
+    await nextTick()
+    initEditor()
+    await nextTick()
+    restoreCursorState()
+    setTimeout(() => { ignoreContentUpdates.value = false }, 0)
+  } catch {}
 }
 
 // --- Tree navigation ---
@@ -208,9 +304,11 @@ async function onNodeClick(node: TreeNode) {
     toggleExpand(node)
   } else {
     if (isDirty.value && !confirm(t('explorer.discardChanges'))) return
+    saveCursorState()
     ignoreContentUpdates.value = true
     isDirty.value = false
     await explorer.openFile(selectedRepoId.value, node.path)
+    saveLastFile()
     if (explorer.selectedFile?.is_binary) {
       editorContent.value = ''
       ignoreContentUpdates.value = false
@@ -386,7 +484,61 @@ function handleRunRobot(node: TreeNode) {
     showEnvPrompt.value = true
     return
   }
+  checkAndRunRobot(node)
+}
+
+async function checkAndRunRobot(node: TreeNode) {
+  if (!selectedRepoId.value) return
+  const defaultEnv = envs.environments.find(e => e.is_default)
+  const envForCheck = currentRepo.value?.environment_id
+    ? envs.environments.find(e => e.id === currentRepo.value?.environment_id)
+    : defaultEnv
+  if (envForCheck) {
+    try {
+      const result = await checkLibraries(selectedRepoId.value, envForCheck.id)
+      if (result.missing_count > 0) {
+        missingLibraries.value = result.libraries.filter(l => l.status === 'missing')
+        pendingRunNode.value = node
+        showLibCheckPrompt.value = true
+        return
+      }
+    } catch {
+      // Library check failed — proceed anyway
+    }
+  }
   doRunRobot(node)
+}
+
+async function installAndRun() {
+  if (!selectedRepoId.value) return
+  installingLibs.value = true
+  const defaultEnv = envs.environments.find(e => e.is_default)
+  const envForInstall = currentRepo.value?.environment_id
+    ? envs.environments.find(e => e.id === currentRepo.value?.environment_id)
+    : defaultEnv
+  if (envForInstall) {
+    for (const lib of missingLibraries.value) {
+      if (lib.pypi_package) {
+        try {
+          await installPackage(envForInstall.id, { package_name: lib.pypi_package })
+        } catch {
+          // Continue with remaining packages
+        }
+      }
+    }
+  }
+  installingLibs.value = false
+  showLibCheckPrompt.value = false
+  const node = pendingRunNode.value
+  pendingRunNode.value = null
+  if (node) doRunRobot(node)
+}
+
+function skipLibCheckAndRun() {
+  showLibCheckPrompt.value = false
+  const node = pendingRunNode.value
+  pendingRunNode.value = null
+  if (node) doRunRobot(node)
 }
 
 async function doRunRobot(node: TreeNode) {
@@ -419,7 +571,7 @@ async function setupDefaultFromExplorer() {
     showEnvPrompt.value = false
     toast.success(t('environments.setupDefault.toastSuccess'))
     if (pendingRunNode.value) {
-      doRunRobot(pendingRunNode.value)
+      checkAndRunRobot(pendingRunNode.value)
       pendingRunNode.value = null
     }
   } catch (e: any) {
@@ -436,7 +588,7 @@ async function setupDefaultFromExplorer() {
 function skipEnvAndRun() {
   showEnvPrompt.value = false
   if (pendingRunNode.value) {
-    doRunRobot(pendingRunNode.value)
+    checkAndRunRobot(pendingRunNode.value)
     pendingRunNode.value = null
   }
 }
@@ -452,7 +604,7 @@ async function saveAndRun() {
     showEnvPrompt.value = true
     return
   }
-  doRunRobot(node)
+  checkAndRunRobot(node)
 }
 
 function runWithoutSaving() {
@@ -465,7 +617,7 @@ function runWithoutSaving() {
     showEnvPrompt.value = true
     return
   }
-  doRunRobot(node)
+  checkAndRunRobot(node)
 }
 
 function goToExecution() {
@@ -850,6 +1002,28 @@ const flatNodes = computed(() => {
       </template>
     </BaseModal>
 
+    <!-- Missing Libraries Prompt -->
+    <BaseModal v-model="showLibCheckPrompt" :title="t('explorer.missingLibraries.title')" size="md">
+      <p>{{ t('explorer.missingLibraries.message') }}</p>
+      <div class="missing-lib-list">
+        <div v-for="lib in missingLibraries" :key="lib.library_name" class="missing-lib-item">
+          <strong>{{ lib.library_name }}</strong>
+          <span v-if="lib.pypi_package" class="text-muted text-sm">&rarr; {{ lib.pypi_package }}</span>
+        </div>
+      </div>
+      <template #footer>
+        <BaseButton variant="secondary" size="sm" @click="showLibCheckPrompt = false; pendingRunNode = null">
+          {{ t('common.cancel') }}
+        </BaseButton>
+        <BaseButton variant="secondary" size="sm" @click="skipLibCheckAndRun">
+          {{ t('explorer.missingLibraries.runAnyway') }}
+        </BaseButton>
+        <BaseButton size="sm" :loading="installingLibs" @click="installAndRun">
+          {{ t('explorer.missingLibraries.installAndRun') }}
+        </BaseButton>
+      </template>
+    </BaseModal>
+
     <!-- Run Overlay -->
     <BaseModal v-model="runOverlay.show" :title="runOverlay.error ? t('explorer.runOverlay.error') : t('explorer.runOverlay.started')" size="sm">
       <div v-if="runOverlay.error" class="run-overlay-error">
@@ -1181,6 +1355,23 @@ const flatNodes = computed(() => {
   border-radius: 20px;
   font-size: 12px;
   font-weight: 500;
+}
+
+.missing-lib-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.missing-lib-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--color-bg, #f4f7fa);
+  border-radius: 6px;
+  font-size: 14px;
 }
 
 .binary-placeholder {

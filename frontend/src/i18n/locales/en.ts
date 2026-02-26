@@ -205,6 +205,12 @@ export default {
     discardChanges: 'Discard unsaved changes?',
     binaryFile: 'Binary file — cannot be displayed as text.',
     openAnyway: 'Open anyway',
+    missingLibraries: {
+      title: 'Missing Libraries',
+      message: 'The following libraries are not installed in the environment and may cause test failures:',
+      installAndRun: 'Install & Run',
+      runAnyway: 'Run Anyway',
+    },
   },
   execution: {
     title: 'Execution',
@@ -415,6 +421,15 @@ export default {
       failed: 'Analysis failed',
       tokensUsed: '{tokens} tokens used',
       reanalyze: 'Re-analyze',
+    },
+    missingLibraries: {
+      title: 'Missing Libraries ({count})',
+      library: 'Library',
+      package: 'PyPI Package',
+      environment: 'Environment',
+      install: 'Install',
+      installAll: 'Install All',
+      noEnvironment: 'No environment is linked to this test run. Install libraries manually via Package Manager.',
     },
   },
   testHistory: {

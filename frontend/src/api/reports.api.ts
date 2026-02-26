@@ -76,6 +76,15 @@ export async function getTestHistory(
   return response.data
 }
 
+export async function getMissingLibraries(reportId: number): Promise<{
+  environment_id: number | null
+  environment_name: string | null
+  libraries: { library_name: string; pypi_package: string }[]
+}> {
+  const response = await apiClient.get(`/reports/${reportId}/missing-libraries`)
+  return response.data
+}
+
 export async function compareReports(reportA: number, reportB: number): Promise<{
   report_a: Report
   report_b: Report

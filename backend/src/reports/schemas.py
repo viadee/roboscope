@@ -75,6 +75,20 @@ class ReportCompareResponse(BaseModel):
     duration_diff_seconds: float = 0.0
 
 
+# --- Missing library detection ---
+
+
+class MissingLibraryItem(BaseModel):
+    library_name: str
+    pypi_package: str
+
+
+class MissingLibrariesResponse(BaseModel):
+    environment_id: int | None = None
+    environment_name: str | None = None
+    libraries: list[MissingLibraryItem]
+
+
 # --- Deep XML data schemas ---
 
 

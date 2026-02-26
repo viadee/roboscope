@@ -4,7 +4,8 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useReportsStore } from '@/stores/reports.store'
 import { useAiStore } from '@/stores/ai.store'
-import { getReportHtmlUrl, getReportZipUrl } from '@/api/reports.api'
+import { getReportHtmlUrl, getReportZipUrl, getMissingLibraries } from '@/api/reports.api'
+import { installPackage } from '@/api/environments.api'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
@@ -21,7 +22,10 @@ const reportId = computed(() => Number(route.params.id))
 const activeTab = ref<'summary' | 'detailed' | 'html'>('summary')
 
 onMounted(() => {
-  if (reportId.value) reports.fetchReport(reportId.value)
+  if (reportId.value) {
+    reports.fetchReport(reportId.value)
+    fetchMissingLibraries()
+  }
   if (!aiStore.hasProviders) aiStore.fetchProviders()
 })
 
@@ -50,6 +54,61 @@ function reloadIframe() {
 function downloadZip() {
   window.open(zipDownloadUrl.value, '_blank')
 }
+
+// --- Missing Libraries ---
+
+interface MissingLib {
+  library_name: string
+  pypi_package: string
+  installStatus: 'pending' | 'installing' | 'installed' | 'failed'
+}
+
+const missingLibs = ref<MissingLib[]>([])
+const missingLibEnvId = ref<number | null>(null)
+const missingLibEnvName = ref<string | null>(null)
+const missingLibsLoading = ref(false)
+
+async function fetchMissingLibraries() {
+  if (!reportId.value) return
+  missingLibsLoading.value = true
+  try {
+    const data = await getMissingLibraries(reportId.value)
+    missingLibEnvId.value = data.environment_id
+    missingLibEnvName.value = data.environment_name
+    missingLibs.value = data.libraries.map(lib => ({
+      ...lib,
+      installStatus: 'pending' as const,
+    }))
+  } catch {
+    // Silently fail — card just won't show
+  } finally {
+    missingLibsLoading.value = false
+  }
+}
+
+async function installMissingLib(lib: MissingLib) {
+  if (!missingLibEnvId.value) return
+  lib.installStatus = 'installing'
+  try {
+    await installPackage(missingLibEnvId.value, { package_name: lib.pypi_package })
+    lib.installStatus = 'installed'
+  } catch {
+    lib.installStatus = 'failed'
+  }
+}
+
+async function installAllMissingLibs() {
+  for (const lib of missingLibs.value) {
+    if (lib.installStatus === 'pending' || lib.installStatus === 'failed') {
+      await installMissingLib(lib)
+    }
+  }
+}
+
+const hasMissingLibs = computed(() => missingLibs.value.length > 0)
+const allInstalled = computed(() =>
+  missingLibs.value.length > 0 && missingLibs.value.every(l => l.installStatus === 'installed')
+)
 
 // --- AI Failure Analysis ---
 
@@ -153,6 +212,56 @@ async function startAnalysis() {
               </tr>
             </tbody>
           </table>
+          </div>
+        </div>
+
+        <!-- Missing Libraries -->
+        <div v-if="hasMissingLibs" class="card mb-4 missing-libs-card">
+          <div class="card-header missing-libs-header">
+            <h3>{{ t('reportDetail.missingLibraries.title', { count: missingLibs.length }) }}</h3>
+            <BaseButton
+              v-if="missingLibEnvId && !allInstalled"
+              variant="primary"
+              size="sm"
+              @click="installAllMissingLibs"
+            >
+              {{ t('reportDetail.missingLibraries.installAll') }}
+            </BaseButton>
+          </div>
+          <div v-if="!missingLibEnvId" class="missing-libs-hint">
+            <p class="text-muted">{{ t('reportDetail.missingLibraries.noEnvironment') }}</p>
+          </div>
+          <div v-else class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>{{ t('reportDetail.missingLibraries.library') }}</th>
+                  <th>{{ t('reportDetail.missingLibraries.package') }}</th>
+                  <th>{{ t('reportDetail.missingLibraries.environment') }}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="lib in missingLibs" :key="lib.library_name">
+                  <td><strong>{{ lib.library_name }}</strong></td>
+                  <td class="text-muted text-sm">{{ lib.pypi_package }}</td>
+                  <td class="text-muted text-sm">{{ missingLibEnvName }}</td>
+                  <td class="text-right">
+                    <BaseBadge v-if="lib.installStatus === 'installed'" status="passed" />
+                    <BaseSpinner v-else-if="lib.installStatus === 'installing'" />
+                    <span v-else-if="lib.installStatus === 'failed'" class="text-danger text-sm">{{ t('common.failed') }}</span>
+                    <BaseButton
+                      v-if="lib.installStatus === 'pending' || lib.installStatus === 'failed'"
+                      variant="primary"
+                      size="sm"
+                      @click="installMissingLib(lib)"
+                    >
+                      {{ t('reportDetail.missingLibraries.install') }}
+                    </BaseButton>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -348,6 +457,33 @@ async function startAnalysis() {
   padding: 16px;
   max-height: calc(100vh - 250px);
   overflow-y: auto;
+}
+
+/* Missing Libraries Card */
+.missing-libs-card {
+  border-left: 4px solid var(--color-accent, #D4883E);
+}
+
+.missing-libs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.missing-libs-header h3 {
+  color: var(--color-accent, #D4883E);
+}
+
+.missing-libs-hint {
+  padding: 12px 20px;
+}
+
+.text-right {
+  text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* AI Analysis Card */

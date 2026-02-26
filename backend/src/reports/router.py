@@ -24,6 +24,7 @@ from src.reports.models import Report, TestResult
 from src.config import settings
 from src.reports.parser import parse_output_xml, parse_output_xml_deep
 from src.reports.schemas import (
+    MissingLibrariesResponse,
     ReportCompareResponse,
     ReportDetailResponse,
     ReportResponse,
@@ -34,6 +35,7 @@ from src.reports.schemas import (
 )
 from src.reports.service import (
     compare_reports,
+    detect_missing_libraries,
     get_report,
     get_test_history,
     get_test_results,
@@ -307,6 +309,19 @@ def get_test_history_endpoint(
 ):
     """Get pass/fail history for a specific test over time."""
     return get_test_history(db, test_name=test_name, suite_name=suite_name, days=days)
+
+
+@router.get("/{report_id}/missing-libraries", response_model=MissingLibrariesResponse)
+def get_missing_libraries(
+    report_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Detect missing libraries from failed test error messages."""
+    report = get_report(db, report_id)
+    if report is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+    return detect_missing_libraries(db, report_id)
 
 
 @router.get("/{report_id}", response_model=ReportDetailResponse)

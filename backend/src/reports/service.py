@@ -1,5 +1,6 @@
 """Report service: CRUD, comparison, test history."""
 
+import re
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
@@ -7,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from src.reports.models import Report, TestResult
 from src.reports.schemas import (
+    MissingLibrariesResponse,
+    MissingLibraryItem,
     ReportCompareResponse,
     ReportResponse,
     TestHistoryPoint,
@@ -261,3 +264,76 @@ def list_unique_tests(
         )
         for row in result.all()
     ]
+
+
+# --- Missing library detection ---
+
+MISSING_LIB_PATTERNS = [
+    re.compile(r"Importing (?:test )?library '(\w+)' failed", re.IGNORECASE),
+    re.compile(r"No module named '([\w.]+)'", re.IGNORECASE),
+]
+
+
+def detect_missing_libraries(db: Session, report_id: int) -> MissingLibrariesResponse:
+    """Detect missing libraries from failed test error messages in a report.
+
+    Extracts library names via regex, maps to PyPI packages, and resolves
+    the environment from the associated execution run.
+    """
+    from src.environments.models import Environment
+    from src.execution.models import ExecutionRun
+    from src.explorer.library_mapping import BUILTIN_LIBRARIES, resolve_pypi_package
+
+    report = get_report(db, report_id)
+    if report is None:
+        return MissingLibrariesResponse(libraries=[])
+
+    # Get failed test results
+    failed = db.execute(
+        select(TestResult)
+        .where(TestResult.report_id == report_id, TestResult.status == "FAIL")
+    ).scalars().all()
+
+    # Extract library names from error messages
+    seen: set[str] = set()
+    libraries: list[MissingLibraryItem] = []
+
+    for tr in failed:
+        if not tr.error_message:
+            continue
+        for pattern in MISSING_LIB_PATTERNS:
+            for match in pattern.finditer(tr.error_message):
+                lib_name = match.group(1)
+                # Take the top-level module for dotted imports
+                top_module = lib_name.split(".")[0]
+                if top_module in seen or top_module in BUILTIN_LIBRARIES:
+                    continue
+                pypi = resolve_pypi_package(top_module)
+                if pypi:
+                    seen.add(top_module)
+                    libraries.append(MissingLibraryItem(
+                        library_name=top_module,
+                        pypi_package=pypi,
+                    ))
+
+    # Resolve environment from execution run
+    env_id: int | None = None
+    env_name: str | None = None
+
+    if report.execution_run_id:
+        run = db.execute(
+            select(ExecutionRun).where(ExecutionRun.id == report.execution_run_id)
+        ).scalar_one_or_none()
+        if run and run.environment_id:
+            env_id = run.environment_id
+            env = db.execute(
+                select(Environment).where(Environment.id == run.environment_id)
+            ).scalar_one_or_none()
+            if env:
+                env_name = env.name
+
+    return MissingLibrariesResponse(
+        environment_id=env_id,
+        environment_name=env_name,
+        libraries=libraries,
+    )

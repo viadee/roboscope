@@ -205,6 +205,12 @@ export default {
     discardChanges: '¿Descartar cambios sin guardar?',
     binaryFile: 'Archivo binario — no se puede mostrar como texto.',
     openAnyway: 'Abrir de todos modos',
+    missingLibraries: {
+      title: 'Bibliotecas faltantes',
+      message: 'Las siguientes bibliotecas no están instaladas en el entorno y pueden causar fallos en los tests:',
+      installAndRun: 'Instalar y Ejecutar',
+      runAnyway: 'Ejecutar de todos modos',
+    },
   },
   execution: {
     title: 'Ejecución',
@@ -415,6 +421,15 @@ export default {
       failed: 'El análisis ha fallado',
       tokensUsed: '{tokens} tokens utilizados',
       reanalyze: 'Reanalizar',
+    },
+    missingLibraries: {
+      title: 'Bibliotecas faltantes ({count})',
+      library: 'Biblioteca',
+      package: 'Paquete PyPI',
+      environment: 'Entorno',
+      install: 'Instalar',
+      installAll: 'Instalar todo',
+      noEnvironment: 'Esta ejecución no tiene un entorno asociado. Instale las bibliotecas manualmente a través del gestor de paquetes.',
     },
   },
   testHistory: {

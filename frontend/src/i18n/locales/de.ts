@@ -205,6 +205,12 @@ export default {
     discardChanges: 'Ungespeicherte Änderungen verwerfen?',
     binaryFile: 'Binärdatei — kann nicht als Text angezeigt werden.',
     openAnyway: 'Trotzdem öffnen',
+    missingLibraries: {
+      title: 'Fehlende Bibliotheken',
+      message: 'Folgende Bibliotheken sind in der Umgebung nicht installiert und können zu Testfehlern führen:',
+      installAndRun: 'Installieren & Ausführen',
+      runAnyway: 'Trotzdem ausführen',
+    },
   },
   execution: {
     title: 'Ausführung',
@@ -415,6 +421,15 @@ export default {
       failed: 'Analyse fehlgeschlagen',
       tokensUsed: '{tokens} Tokens verwendet',
       reanalyze: 'Erneut analysieren',
+    },
+    missingLibraries: {
+      title: 'Fehlende Bibliotheken ({count})',
+      library: 'Bibliothek',
+      package: 'PyPI-Paket',
+      environment: 'Umgebung',
+      install: 'Installieren',
+      installAll: 'Alle installieren',
+      noEnvironment: 'Diesem Testlauf ist keine Umgebung zugeordnet. Installieren Sie Bibliotheken manuell über den Paketmanager.',
     },
   },
   testHistory: {

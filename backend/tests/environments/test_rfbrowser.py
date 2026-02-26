@@ -105,6 +105,43 @@ class TestRunRfbrowserInit:
 
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")
+    def test_node_not_found_gives_clear_message(self, mock_run, mock_broadcast):
+        mock_run.return_value = MagicMock(
+            returncode=1, stdout="",
+            stderr="Error: Cannot find module 'npx'\nENOENT: no such file or directory",
+        )
+        pkg = MagicMock()
+        session = MagicMock()
+
+        with (
+            patch.object(venv_utils.sys, "platform", "linux"),
+            pytest.raises(subprocess.CalledProcessError),
+        ):
+            _run_rfbrowser_init("/fake/venv", 1, "robotframework-browser", pkg, session)
+
+        assert "Node.js is required but was not found" in pkg.install_error
+        assert "https://nodejs.org/" in pkg.install_error
+
+    @patch("src.environments.tasks._broadcast_package_status")
+    @patch("subprocess.run")
+    def test_non_node_error_gives_generic_message(self, mock_run, mock_broadcast):
+        mock_run.return_value = MagicMock(
+            returncode=1, stdout="", stderr="Permission denied"
+        )
+        pkg = MagicMock()
+        session = MagicMock()
+
+        with (
+            patch.object(venv_utils.sys, "platform", "linux"),
+            pytest.raises(subprocess.CalledProcessError),
+        ):
+            _run_rfbrowser_init("/fake/venv", 1, "robotframework-browser", pkg, session)
+
+        assert pkg.install_error.startswith("rfbrowser init failed: Permission denied")
+        assert "Node.js" not in pkg.install_error
+
+    @patch("src.environments.tasks._broadcast_package_status")
+    @patch("subprocess.run")
     def test_timeout_marks_package_failed(self, mock_run, mock_broadcast):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="rfbrowser", timeout=600)
         pkg = MagicMock()
