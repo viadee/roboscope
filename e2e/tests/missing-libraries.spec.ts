@@ -69,19 +69,19 @@ test.describe('Report: Missing Libraries Card', () => {
     const card = page.locator('.missing-libs-card');
     await expect(card).toBeVisible({ timeout: 5000 });
 
-    // Check library names within the card to avoid ambiguity
-    await expect(card.getByText('SeleniumLibrary')).toBeVisible();
+    // Check library names within the card (exact match to avoid substring collision)
+    await expect(card.getByText('SeleniumLibrary', { exact: true })).toBeVisible();
     await expect(card.getByText('robotframework-seleniumlibrary')).toBeVisible();
     await expect(card.getByText('robotframework-requests')).toBeVisible();
 
-    // Install All button should be visible
-    await expect(card.getByText('Install All')).toBeVisible();
+    // Install All button should be visible (in header, language-agnostic selector)
+    await expect(card.locator('.missing-libs-header button')).toBeVisible();
   });
 
   test('install button calls package install API', async ({ authenticatedPage: page }) => {
     await dismissTour(page);
 
-    await page.route(/\/api\/v1\/reports\/1$/, (route) => {
+    await page.route(/\/api\/v1\/reports\/9902$/, (route) => {
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -99,7 +99,7 @@ test.describe('Report: Missing Libraries Card', () => {
       });
     });
 
-    await page.route('**/api/v1/reports/9901/missing-libraries', (route) => {
+    await page.route('**/api/v1/reports/9902/missing-libraries', (route) => {
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -135,13 +135,13 @@ test.describe('Report: Missing Libraries Card', () => {
       }
     });
 
-    await page.goto('/reports/9901', { waitUntil: 'networkidle' });
+    await page.goto('/reports/9902', { waitUntil: 'networkidle' });
     await dismissTour(page);
 
     const card = page.locator('.missing-libs-card');
     await expect(card).toBeVisible({ timeout: 5000 });
 
-    // Click install for the single library
+    // Click install for the single library (has-text matches substring, works for DE "Installieren")
     await card.locator('button:has-text("Install")').first().click();
 
     // Wait for install API call
