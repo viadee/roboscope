@@ -26,6 +26,7 @@ _PLAYWRIGHT_HINTS = [
     "could not connect to the playwright process",
     "playwright process",
     "browser library requires",
+    "browser library cannot connect",
     "rfbrowser",
     "calling method '_end_test' of listener 'browser' failed",
     "calling method '_end_suite' of listener 'browser' failed",
@@ -39,7 +40,7 @@ def _enrich_error_with_hints(
     runner_type: str,
 ) -> str:
     """Append actionable hints when Browser/Playwright errors are detected."""
-    lower = combined_output.lower()
+    lower = (error_msg + " " + combined_output).lower()
     if not any(hint in lower for hint in _PLAYWRIGHT_HINTS):
         return error_msg
 

@@ -4,6 +4,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -81,6 +82,8 @@ class SubprocessRunner(AbstractRunner):
 
         stdout_lines: list[str] = []
         stderr_lines: list[str] = []
+        last_activity = time.time()
+        lock = threading.Lock()
 
         try:
             self._process = subprocess.Popen(
@@ -93,16 +96,53 @@ class SubprocessRunner(AbstractRunner):
                 bufsize=1,
             )
 
-            # Stream stdout
-            if self._process.stdout:
-                for line in iter(self._process.stdout.readline, ""):
-                    if self._cancelled:
-                        break
-                    stdout_lines.append(line)
-                    if on_output:
-                        on_output(line.rstrip("\n"))
+            # Read stdout in a background thread so readline() can't block timeouts
+            def _read_stdout() -> None:
+                nonlocal last_activity
+                if self._process and self._process.stdout:
+                    for line in iter(self._process.stdout.readline, ""):
+                        if self._cancelled:
+                            break
+                        with lock:
+                            stdout_lines.append(line)
+                            last_activity = time.time()
+                        if on_output:
+                            on_output(line.rstrip("\n"))
 
-            self._process.wait(timeout=timeout)
+            reader = threading.Thread(target=_read_stdout, daemon=True)
+            reader.start()
+
+            # Poll with total timeout + inactivity timeout
+            INACTIVITY_TIMEOUT = 120
+            deadline = start_time + timeout
+            while True:
+                reader.join(timeout=5)
+                if not reader.is_alive():
+                    break
+                now = time.time()
+                if now > deadline:
+                    raise subprocess.TimeoutExpired(cmd, timeout)
+                with lock:
+                    idle = now - last_activity
+                if idle > INACTIVITY_TIMEOUT and self._process.poll() is None:
+                    self.cancel()
+                    reader.join(timeout=10)
+                    duration = time.time() - start_time
+                    return RunResult(
+                        success=False,
+                        exit_code=-1,
+                        output_dir=output_dir,
+                        stdout="".join(stdout_lines),
+                        stderr="".join(stderr_lines),
+                        error_message=(
+                            f"No output for {INACTIVITY_TIMEOUT} seconds — process appears"
+                            " hung. This often happens when the Browser library cannot"
+                            " connect to Playwright."
+                        ),
+                        duration_seconds=duration,
+                    )
+
+            self._process.wait(timeout=30)
 
             # Capture stderr
             if self._process.stderr:

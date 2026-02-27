@@ -63,6 +63,19 @@ class TestEnrichErrorWithHints:
 
         assert "Hint:" in result
 
+    def test_inactivity_message_gets_playwright_hint(self):
+        """Inactivity timeout error mentioning Browser/Playwright should trigger hints."""
+        error = (
+            "No output for 120 seconds — process appears hung. "
+            "This often happens when the Browser library cannot connect to Playwright."
+        )
+        output = ""
+        result = _enrich_error_with_hints(error, output, RunnerType.SUBPROCESS)
+
+        assert "Hint:" in result
+        assert "rfbrowser init" in result
+        assert "Node.js 18+" in result
+
     def test_result_truncated_to_1000_chars_at_call_site(self):
         """Verify the hint function itself doesn't truncate — that's the caller's job."""
         error = "x" * 500
