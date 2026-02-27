@@ -293,12 +293,16 @@ def generate_dockerfile(
         "",
     ]
 
-    # Node.js 20 LTS — required by robotframework-browser / Playwright
+    # Node.js 20 LTS + Playwright browser system deps
     if needs_browser:
         lines += [
-            "RUN apt-get update && apt-get install -y curl gnupg \\",
+            "RUN apt-get update && apt-get install -y --no-install-recommends \\",
+            "    curl gnupg \\",
+            "    libglib2.0-0 libnspr4 libnss3 libatk1.0-0 libdbus-1-3 \\",
+            "    libatspi2.0-0 libx11-6 libxcomposite1 libxdamage1 libxext6 \\",
+            "    libxfixes3 libxrandr2 libgbm1 libxcb1 libxkbcommon0 libasound2 \\",
             "    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \\",
-            "    && apt-get install -y nodejs \\",
+            "    && apt-get install -y --no-install-recommends nodejs \\",
             "    && rm -rf /var/lib/apt/lists/*",
             "",
         ]

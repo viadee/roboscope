@@ -320,11 +320,14 @@ class TestInstallPackageBrowserHook:
 
 
 class TestGenerateDockerfileBrowser:
-    def test_with_browser_package_includes_nodejs(self):
+    def test_with_browser_package_includes_nodejs_and_playwright_deps(self):
         df = generate_dockerfile("3.12", ["robotframework", "robotframework-browser==18.0.0"])
         assert "nodejs" in df
         assert "nodesource" in df
         assert "rfbrowser init" in df
+        # Playwright browser system dependencies
+        assert "libgbm1" in df
+        assert "libnss3" in df
 
     def test_without_browser_package_no_nodejs(self):
         df = generate_dockerfile("3.12", ["robotframework", "requests"])
