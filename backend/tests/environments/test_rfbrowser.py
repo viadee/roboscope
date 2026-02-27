@@ -162,6 +162,89 @@ class TestRunRfbrowserInit:
 # ---------------------------------------------------------------------------
 
 
+class TestRfbrowserInitDockerWarning:
+    """Docker rebuild warning after successful rfbrowser init."""
+
+    @patch("src.environments.tasks._run_rfbrowser_init")
+    @patch("src.environments.tasks._broadcast_package_status")
+    @patch("subprocess.run")
+    def test_rfbrowser_init_warns_docker_rebuild(
+        self, mock_run, mock_broadcast, mock_init, db_session
+    ):
+        env = Environment(
+            name="test-env", venv_path="/tmp/test-venv",
+            python_version="3.12", created_by=1,
+            docker_image="roboscope/test-env:latest",
+        )
+        db_session.add(env)
+        db_session.flush()
+        pkg = EnvironmentPackage(
+            environment_id=env.id, package_name="robotframework-browser",
+        )
+        db_session.add(pkg)
+        db_session.flush()
+        db_session.commit()
+
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),  # install
+            MagicMock(returncode=0, stdout="Name: robotframework-browser\nVersion: 18.0.0\n", stderr=""),  # show
+        ]
+
+        with patch("src.environments.tasks.get_sync_session") as mock_gs:
+            mock_gs.return_value.__enter__ = MagicMock(return_value=db_session)
+            mock_gs.return_value.__exit__ = MagicMock(return_value=False)
+            result = install_package(env.id, "robotframework-browser")
+
+        assert result["status"] == "success"
+        mock_init.assert_called_once()
+
+        # Find the "warning" broadcast
+        warning_calls = [
+            c for c in mock_broadcast.call_args_list
+            if len(c[0]) >= 3 and c[0][2] == "warning"
+        ]
+        assert len(warning_calls) == 1
+        assert "Docker image needs rebuilding" in warning_calls[0][1]["warning"]
+
+    @patch("src.environments.tasks._run_rfbrowser_init")
+    @patch("src.environments.tasks._broadcast_package_status")
+    @patch("subprocess.run")
+    def test_no_docker_image_no_warning(
+        self, mock_run, mock_broadcast, mock_init, db_session
+    ):
+        env = Environment(
+            name="test-env", venv_path="/tmp/test-venv",
+            python_version="3.12", created_by=1,
+            docker_image=None,
+        )
+        db_session.add(env)
+        db_session.flush()
+        pkg = EnvironmentPackage(
+            environment_id=env.id, package_name="robotframework-browser",
+        )
+        db_session.add(pkg)
+        db_session.flush()
+        db_session.commit()
+
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),
+            MagicMock(returncode=0, stdout="Name: robotframework-browser\nVersion: 18.0.0\n", stderr=""),
+        ]
+
+        with patch("src.environments.tasks.get_sync_session") as mock_gs:
+            mock_gs.return_value.__enter__ = MagicMock(return_value=db_session)
+            mock_gs.return_value.__exit__ = MagicMock(return_value=False)
+            result = install_package(env.id, "robotframework-browser")
+
+        assert result["status"] == "success"
+        # No "warning" broadcast when docker_image is None
+        warning_calls = [
+            c for c in mock_broadcast.call_args_list
+            if len(c[0]) >= 3 and c[0][2] == "warning"
+        ]
+        assert len(warning_calls) == 0
+
+
 class TestInstallPackageBrowserHook:
     @patch("src.environments.tasks._run_rfbrowser_init")
     @patch("src.environments.tasks._broadcast_package_status")

@@ -199,6 +199,16 @@ def install_package(env_id: int, package_name: str, version: str | None = None) 
             # Auto-init rfbrowser after robotframework-browser install
             if _is_browser_package(package_name):
                 _run_rfbrowser_init(env.venv_path, env_id, package_name, pkg, session)
+                # Warn if Docker image needs rebuild
+                if env.docker_image:
+                    _broadcast_package_status(
+                        env_id, package_name, "warning",
+                        warning=(
+                            "robotframework-browser was initialized in the local venv, "
+                            "but the Docker image needs rebuilding to include Node.js "
+                            "and browser binaries. Go to Package Manager → Build Docker Image."
+                        ),
+                    )
 
             return {"status": "success", "package": package_name, "version": installed_version}
         except subprocess.CalledProcessError as e:
@@ -285,6 +295,16 @@ def upgrade_package(env_id: int, package_name: str) -> dict:
             # Auto-init rfbrowser after robotframework-browser upgrade
             if _is_browser_package(package_name):
                 _run_rfbrowser_init(env.venv_path, env_id, package_name, pkg, session)
+                # Warn if Docker image needs rebuild
+                if env.docker_image:
+                    _broadcast_package_status(
+                        env_id, package_name, "warning",
+                        warning=(
+                            "robotframework-browser was initialized in the local venv, "
+                            "but the Docker image needs rebuilding to include Node.js "
+                            "and browser binaries. Go to Package Manager → Build Docker Image."
+                        ),
+                    )
 
             return {"status": "success", "package": package_name, "version": installed_version}
         except subprocess.CalledProcessError as e:

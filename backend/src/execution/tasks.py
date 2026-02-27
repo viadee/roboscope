@@ -22,6 +22,39 @@ from src.environments.models import Environment
 
 logger = logging.getLogger("roboscope.execution.tasks")
 
+_PLAYWRIGHT_HINTS = [
+    "could not connect to the playwright process",
+    "playwright process",
+    "browser library requires",
+    "rfbrowser",
+    "calling method '_end_test' of listener 'browser' failed",
+    "calling method '_end_suite' of listener 'browser' failed",
+    "econnrefused",
+]
+
+
+def _enrich_error_with_hints(
+    error_msg: str,
+    combined_output: str,
+    runner_type: str,
+) -> str:
+    """Append actionable hints when Browser/Playwright errors are detected."""
+    lower = combined_output.lower()
+    if not any(hint in lower for hint in _PLAYWRIGHT_HINTS):
+        return error_msg
+
+    hints = [error_msg] if error_msg else []
+    hints.append(
+        "Hint: The Browser library's Playwright process could not be reached. "
+        "Ensure Node.js 18+ is installed and 'rfbrowser init' has been run in the environment."
+    )
+    if runner_type == RunnerType.DOCKER:
+        hints.append(
+            "Docker: Your Docker image may be missing Node.js or browser binaries. "
+            "Rebuild the image in Package Manager to include the required dependencies."
+        )
+    return " | ".join(hints)
+
 
 def _broadcast_run_status(run_id: int, status: str) -> None:
     """Broadcast a run status change from a sync background thread."""
@@ -143,7 +176,13 @@ def execute_test_run(run_id: int) -> dict:
                 run.error_message = result.error_message
             else:
                 run.status = RunStatus.FAILED
-                run.error_message = result.error_message or result.stderr[:1000] if result.stderr else None
+                raw_error = result.error_message or (
+                    result.stderr[:1000] if result.stderr else None
+                )
+                combined = (result.stdout or "") + (result.stderr or "")
+                run.error_message = _enrich_error_with_hints(
+                    raw_error or "", combined, effective_runner_type,
+                )[:1000]
 
             session.commit()
             _broadcast_run_status(run_id, run.status)
