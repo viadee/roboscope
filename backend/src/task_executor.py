@@ -2,7 +2,7 @@
 
 Uses a ThreadPoolExecutor with max_workers=1 so only one task runs at
 a time while additional submissions queue up. No external dependencies
-(Redis, Celery) are required.
+required.
 
 All task functions are plain Python callables — no decorators needed.
 """

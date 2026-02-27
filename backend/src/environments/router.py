@@ -10,7 +10,7 @@ from src.auth.constants import Role
 from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
 from sqlalchemy import select
-from src.celery_app import TaskDispatchError, dispatch_task
+from src.task_executor import TaskDispatchError, dispatch_task
 from src.database import get_db
 from src.environments.models import Environment, EnvironmentPackage
 

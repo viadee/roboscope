@@ -44,7 +44,7 @@ const mockFailedRun = {
   retry_count: 0,
   max_retries: 0,
   timeout_seconds: 3600,
-  celery_task_id: null,
+  task_id: null,
   started_at: '2026-01-15T10:00:00',
   finished_at: '2026-01-15T10:00:12',
   duration_seconds: 12.5,

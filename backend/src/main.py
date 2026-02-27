@@ -95,7 +95,7 @@ async def lifespan(app: FastAPI):
         port_str = get_setting_value(session, "rf_mcp_port", "9090")
 
         if auto_start.lower() == "true" and env_id_str:
-            from src.celery_app import dispatch_task
+            from src.task_executor import dispatch_task
             from src.ai import rf_mcp_manager
             env_id = int(env_id_str)
             port = int(port_str)
@@ -120,7 +120,7 @@ async def lifespan(app: FastAPI):
         logger.info("Stopped rf-mcp server")
 
     # Gracefully shut down background task executor
-    from src.celery_app import shutdown_executor
+    from src.task_executor import shutdown_executor
     shutdown_executor(wait=False)
 
     from src.plugins.registry import plugin_registry
