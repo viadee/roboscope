@@ -2,7 +2,7 @@
 # ──────────────────────────────────────────────────────────────
 # RoboScope — Build script for online distribution
 #
-# Creates a lightweight directory 'dist/roboscope-online/' that
+# Creates a lightweight directory 'dist/roboscope/' that
 # requires internet access during install (pip downloads from PyPI).
 # Much smaller than the offline build (~5 MB vs ~100 MB).
 #
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DIST="$ROOT/dist/roboscope-online"
+DIST="$ROOT/dist/roboscope"
 
 echo "==> RoboScope Build (online)"
 echo "    Root: $ROOT"
@@ -337,13 +337,13 @@ BATEOF
 echo ""
 echo "==> Creating ZIP archive..."
 cd "$ROOT/dist"
-zip -r "roboscope-online.zip" roboscope-online/ -x "roboscope-online/.venv/*" "roboscope-online/__pycache__/*"
+zip -r "roboscope.zip" roboscope/ -x "roboscope/.venv/*" "roboscope/__pycache__/*"
 echo ""
 echo "==> Build complete!"
-echo "    Distribution: $ROOT/dist/roboscope-online.zip"
+echo "    Distribution: $ROOT/dist/roboscope.zip"
 echo "    Directory:    $DIST"
 echo ""
 echo "To deploy (requires internet access):"
-echo "  1. Extract roboscope-online.zip"
+echo "  1. Extract roboscope.zip"
 echo "  2. Run install-mac-and-linux.sh (Linux/Mac) or install-windows.bat (Windows)"
 echo "  3. Run start-mac-and-linux.sh (Linux/Mac) or start-windows.bat (Windows)"

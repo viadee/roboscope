@@ -28,10 +28,10 @@ for arg in "$@"; do
 done
 
 if [ "$MODE" = "online" ]; then
-  DIST="$ROOT/dist/roboscope-online"
+  DIST="$ROOT/dist/roboscope"
   BUILD_SCRIPT="$ROOT/scripts/build-online-mac-and-linux.sh"
 else
-  DIST="$ROOT/dist/roboscope"
+  DIST="$ROOT/dist/roboscope-offline"
   BUILD_SCRIPT="$ROOT/scripts/build-mac-and-linux.sh"
 fi
 
