@@ -105,7 +105,7 @@ export interface ExecutionRun {
   retry_count: number
   max_retries: number
   timeout_seconds: number
-  celery_task_id: string | null
+  task_id: string | null
   started_at: string | null
   finished_at: string | null
   duration_seconds: number | null

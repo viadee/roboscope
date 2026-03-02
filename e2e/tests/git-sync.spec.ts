@@ -174,7 +174,7 @@ test.describe('Git Sync — E2E', () => {
       await route.fulfill({
         status: 500,
         contentType: 'application/json',
-        body: JSON.stringify({ detail: 'Celery broker unreachable' }),
+        body: JSON.stringify({ detail: 'Task executor unavailable' }),
       });
     });
 

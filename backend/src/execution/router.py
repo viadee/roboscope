@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from src.auth.constants import Role
 from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
-from src.celery_app import TaskDispatchError, dispatch_task
+from src.task_executor import TaskDispatchError, dispatch_task
 from src.database import get_db
 from src.execution.models import RunStatus
 from src.execution.schemas import (

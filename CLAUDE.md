@@ -73,7 +73,7 @@ Warum:
 - `max_workers=1` stellt sicher, dass nur 1 Testlauf gleichzeitig läuft (Tasks werden in FIFO-Queue gereiht)
 - Fehlerbehandlung: Wenn ein Task nicht gestartet werden kann, wird `TaskDispatchError` geworfen und der Run bekommt `status=ERROR` mit sichtbarer Fehlermeldung
 
-Schlüsseldatei: `backend/src/celery_app.py` — enthält `dispatch_task()`, `TaskDispatchError`, `TaskResult`
+Schlüsseldatei: `backend/src/task_executor.py` — enthält `dispatch_task()`, `TaskDispatchError`, `TaskResult`
 
 **Wichtig**: Vor `dispatch_task()` muss immer `db.commit()` aufgerufen werden, damit der Background-Thread die Daten in einer separaten DB-Session sehen kann.
 
@@ -156,7 +156,7 @@ RoboScope/
 │   │   ├── api/v1/   # Router-Aggregation
 │   │   ├── config.py # Pydantic Settings (.env)
 │   │   ├── database.py # SQLAlchemy sync + TimestampMixin
-│   │   ├── celery_app.py # In-Process TaskExecutor (ThreadPoolExecutor, NICHT Celery!)
+│   │   ├── task_executor.py # In-Process TaskExecutor (ThreadPoolExecutor)
 │   │   └── main.py   # FastAPI App Factory + Lifespan
 │   ├── tests/        # pytest Tests
 │   ├── migrations/   # Alembic (SQLite + PostgreSQL)
@@ -342,8 +342,8 @@ import src.auth.models    # noqa: F401 — FK resolution
 import src.repos.models   # noqa: F401 — FK resolution
 ```
 
-### Task-Ausführung (celery_app.py — Achtung: Name ist Legacy!)
-Die Datei heißt noch `celery_app.py`, enthält aber **kein Celery mehr**. Sie stellt bereit:
+### Task-Ausführung (task_executor.py)
+`backend/src/task_executor.py` stellt bereit:
 - `dispatch_task(func, *args, **kwargs) -> TaskResult` — Queued Task-Submission
 - `TaskDispatchError` — Exception wenn Submit fehlschlägt
 - `TaskResult` — Objekt mit `.id` (UUID)
@@ -538,7 +538,7 @@ vue-i18n v10 verwendet eine strikte Message-Syntax. Folgende Zeichen sind **rese
 - **AI LLM Client** — 0 Tests (4 Provider-APIs, Key-Handling)
 - **AI Encryption** — 0 Tests (Fernet für API-Keys)
 - **WebSocket Manager** — 0 Tests (Connect/Disconnect/Broadcast)
-- **celery_app.py (TaskExecutor)** — 0 Tests (alle Background-Tasks)
+- **task_executor.py (TaskExecutor)** — 0 Tests (alle Background-Tasks)
 - **AI Router**: 8 von 18 Endpoints ungetestet (generate, reverse, analyze, status, accept, drift)
 - **Report Router**: 5 Endpoints ungetestet (upload, html, assets, zip, delete-all)
 - ~~**Environment Tasks** — 0 Tests~~ → Behoben: 7 Tests (create_venv, install/upgrade/uninstall_package)
