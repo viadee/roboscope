@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useReportsStore } from '@/stores/reports.store'
 import { useAiStore } from '@/stores/ai.store'
 import { getRunReport } from '@/api/execution.api'
-import { getReportHtmlUrl, getReportZipUrl } from '@/api/reports.api'
+import { getReportHtmlBlobUrl, getReportZipBlobUrl } from '@/api/reports.api'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -49,14 +49,22 @@ const failedTests = computed(() =>
   reports.activeReport?.test_results.filter(t => t.status === 'FAIL') || []
 )
 
-const htmlReportUrl = computed(() =>
-  reportId.value ? getReportHtmlUrl(reportId.value) : ''
-)
+const htmlReportUrl = ref('')
 
-function downloadZip() {
-  if (reportId.value) {
-    window.open(getReportZipUrl(reportId.value), '_blank')
-  }
+async function loadHtmlReport() {
+  if (!reportId.value) return
+  if (htmlReportUrl.value) URL.revokeObjectURL(htmlReportUrl.value)
+  htmlReportUrl.value = await getReportHtmlBlobUrl(reportId.value)
+}
+
+async function downloadZip() {
+  if (!reportId.value) return
+  const blobUrl = await getReportZipBlobUrl(reportId.value)
+  const a = document.createElement('a')
+  a.href = blobUrl
+  a.download = `report_${reportId.value}.zip`
+  a.click()
+  URL.revokeObjectURL(blobUrl)
 }
 
 async function fetchReport(retries = 5) {
@@ -67,6 +75,7 @@ async function fetchReport(retries = 5) {
     reportId.value = data.report_id
     if (reportId.value) {
       await reports.fetchReport(reportId.value)
+      loadHtmlReport()
     } else if (retries > 0) {
       // Report may not be parsed yet (race condition: WebSocket fires before parse_report completes)
       await new Promise(resolve => setTimeout(resolve, 2000))
@@ -87,6 +96,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   aiStore.stopAnalysisPolling()
+  if (htmlReportUrl.value) URL.revokeObjectURL(htmlReportUrl.value)
 })
 
 // --- AI Failure Analysis ---

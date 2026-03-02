@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,8 +12,9 @@ from sqlalchemy.orm import Session
 from src.auth.constants import Role
 from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
-from src.task_executor import TaskDispatchError, dispatch_task
 from src.database import get_db
+from src.rate_limit import limiter
+from src.task_executor import TaskDispatchError, dispatch_task
 from src.execution.models import RunStatus
 from src.execution.schemas import (
     RunCreate,
@@ -47,7 +48,9 @@ router = APIRouter()
 
 
 @router.post("/runs", response_model=RunResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/minute")
 def start_run(
+    request: Request,
     data: RunCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.RUNNER)),
