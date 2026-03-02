@@ -39,6 +39,7 @@ if settings.is_postgres:
     engine_kwargs.update({
         "pool_size": 10,
         "max_overflow": 20,
+        "pool_recycle": 3600,
     })
 
 engine = create_engine(settings.sync_database_url, **engine_kwargs)

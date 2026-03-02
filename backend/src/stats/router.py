@@ -3,14 +3,15 @@
 import asyncio
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
 from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
-from src.task_executor import dispatch_task
 from src.database import get_db
+from src.rate_limit import limiter
+from src.task_executor import dispatch_task
 from src.stats.analysis import run_analysis
 from src.stats.schemas import (
     AVAILABLE_KPIS,
@@ -139,7 +140,9 @@ def available_kpis(
 
 
 @router.post("/analysis", response_model=AnalysisResponse)
+@limiter.limit("10/minute")
 def create_analysis_endpoint(
+    request: Request,
     data: AnalysisCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.RUNNER)),

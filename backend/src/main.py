@@ -2,17 +2,22 @@
 
 import asyncio
 import logging
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pythonjsonlogger.json import JsonFormatter
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from starlette.responses import FileResponse
 
 from src.api.v1.router import api_router
 from src.config import settings
 from src.database import create_tables, SessionLocal
+from src.rate_limit import limiter
 from src.websocket.manager import ws_manager
 
 logger = logging.getLogger("roboscope")
@@ -27,22 +32,28 @@ async def lifespan(app: FastAPI):
     global _event_loop
     _event_loop = asyncio.get_running_loop()
 
-    # Startup
-    logging.basicConfig(
-        level=getattr(logging, settings.LOG_LEVEL),
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    # Startup — structured JSON logging
+    handler = logging.StreamHandler()
+    formatter = JsonFormatter(
+        fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
+        rename_fields={"asctime": "timestamp", "levelname": "level", "name": "logger"},
     )
+    handler.setFormatter(formatter)
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.addHandler(handler)
+    root_logger.setLevel(getattr(logging, settings.LOG_LEVEL))
     logger.info(f"Starting RoboScope v{settings.VERSION}")
     logger.info(f"Database: {'SQLite' if settings.is_sqlite else 'PostgreSQL'}")
     logger.info("Task executor: in-process ThreadPoolExecutor (max_workers=1)")
 
-    # Warn if using default SECRET_KEY — insecure for production
-    if settings.SECRET_KEY == "CHANGE-ME-IN-PRODUCTION-use-openssl-rand-hex-32":
-        logger.warning(
-            "⚠ SECRET_KEY is set to the default value! "
-            "This is insecure for production. Set SECRET_KEY in your .env file "
+    # Require SECRET_KEY to be set explicitly
+    if not settings.SECRET_KEY:
+        logger.error(
+            "SECRET_KEY is not set! Set SECRET_KEY in your .env file "
             "(generate with: openssl rand -hex 32)"
         )
+        raise SystemExit(1)
 
     # Create tables (in production, use Alembic migrations instead)
     create_tables()
@@ -139,6 +150,10 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Rate limiting
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     # CORS
     app.add_middleware(
         CORSMiddleware,
@@ -147,6 +162,16 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Request ID middleware — attaches a unique ID to each request for log correlation
+    @app.middleware("http")
+    async def add_request_id(request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID", uuid.uuid4().hex[:12])
+        # Store on request state so handlers can access it
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
 
     # API routes
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)

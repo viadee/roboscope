@@ -2,6 +2,7 @@
 
 import json
 import logging
+import threading
 from collections import defaultdict
 
 from fastapi import WebSocket
@@ -10,9 +11,15 @@ logger = logging.getLogger(__name__)
 
 
 class ConnectionManager:
-    """Manages WebSocket connections for real-time updates."""
+    """Manages WebSocket connections for real-time updates.
+
+    Thread-safe: background threads may trigger broadcasts via
+    asyncio.run_coroutine_threadsafe while the event loop mutates
+    connection lists concurrently.
+    """
 
     def __init__(self):
+        self._lock = threading.Lock()
         # General notification connections
         self._connections: list[WebSocket] = []
         # Run-specific connections (run_id -> list of websockets)
@@ -21,35 +28,42 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket) -> None:
         """Accept a general notification connection."""
         await websocket.accept()
-        self._connections.append(websocket)
-        logger.debug(f"WebSocket connected. Total: {len(self._connections)}")
+        with self._lock:
+            self._connections.append(websocket)
+            count = len(self._connections)
+        logger.debug(f"WebSocket connected. Total: {count}")
 
     async def connect_to_run(self, websocket: WebSocket, run_id: int) -> None:
         """Accept a run-specific connection for live output."""
         await websocket.accept()
-        self._run_connections[run_id].append(websocket)
+        with self._lock:
+            self._run_connections[run_id].append(websocket)
         logger.debug(f"WebSocket connected to run {run_id}")
 
     def disconnect(self, websocket: WebSocket) -> None:
         """Remove a general connection."""
-        if websocket in self._connections:
-            self._connections.remove(websocket)
-            logger.debug(f"WebSocket disconnected. Total: {len(self._connections)}")
+        with self._lock:
+            if websocket in self._connections:
+                self._connections.remove(websocket)
+                logger.debug(f"WebSocket disconnected. Total: {len(self._connections)}")
 
     def disconnect_from_run(self, websocket: WebSocket, run_id: int) -> None:
         """Remove a run-specific connection."""
-        if run_id in self._run_connections:
-            conns = self._run_connections[run_id]
-            if websocket in conns:
-                conns.remove(websocket)
-            if not conns:
-                del self._run_connections[run_id]
+        with self._lock:
+            if run_id in self._run_connections:
+                conns = self._run_connections[run_id]
+                if websocket in conns:
+                    conns.remove(websocket)
+                if not conns:
+                    del self._run_connections[run_id]
 
     async def broadcast(self, message: dict) -> None:
         """Send a message to all general connections."""
         data = json.dumps(message)
+        with self._lock:
+            snapshot = list(self._connections)
         disconnected: list[WebSocket] = []
-        for ws in self._connections:
+        for ws in snapshot:
             try:
                 await ws.send_text(data)
             except Exception:
@@ -59,12 +73,14 @@ class ConnectionManager:
 
     async def send_to_run(self, run_id: int, message: dict) -> None:
         """Send a message to all connections watching a specific run."""
-        if run_id not in self._run_connections:
-            return
+        with self._lock:
+            if run_id not in self._run_connections:
+                return
+            snapshot = list(self._run_connections[run_id])
 
         data = json.dumps(message)
         disconnected: list[WebSocket] = []
-        for ws in self._run_connections[run_id]:
+        for ws in snapshot:
             try:
                 await ws.send_text(data)
             except Exception:

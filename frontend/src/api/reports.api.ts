@@ -15,16 +15,14 @@ export async function getReport(id: number): Promise<ReportDetail> {
   return response.data
 }
 
-export function getReportHtmlUrl(id: number): string {
-  const baseUrl = apiClient.defaults.baseURL || '/api/v1'
-  const token = localStorage.getItem('access_token') || ''
-  return `${baseUrl}/reports/${id}/html?token=${encodeURIComponent(token)}`
+export async function getReportHtmlBlobUrl(id: number): Promise<string> {
+  const response = await apiClient.get(`/reports/${id}/html`, { responseType: 'blob' })
+  return URL.createObjectURL(response.data)
 }
 
-export function getReportZipUrl(id: number): string {
-  const baseUrl = apiClient.defaults.baseURL || '/api/v1'
-  const token = localStorage.getItem('access_token') || ''
-  return `${baseUrl}/reports/${id}/zip?token=${encodeURIComponent(token)}`
+export async function getReportZipBlobUrl(id: number): Promise<string> {
+  const response = await apiClient.get(`/reports/${id}/zip`, { responseType: 'blob' })
+  return URL.createObjectURL(response.data)
 }
 
 export function getReportAssetUrl(reportId: number, filename: string): string {
