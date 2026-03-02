@@ -70,7 +70,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: roboscope-offline
-          path: dist/roboscope.zip
+          path: dist/roboscope_offline_version.zip
           retention-days: 7
 
   build-online:
@@ -103,5 +103,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: roboscope-online
-          path: dist/roboscope-online.zip
+          path: dist/roboscope.zip
           retention-days: 7

@@ -2,7 +2,7 @@
 # ──────────────────────────────────────────────────────────────
 # RoboScope — Build script for standalone distribution
 #
-# Creates a self-contained directory 'dist/roboscope/' that can be
+# Creates a self-contained directory 'dist/roboscope-offline/' that can be
 # zipped and deployed on any machine with Python 3.12+.
 #
 # Usage:  ./scripts/build-mac-and-linux.sh
@@ -10,9 +10,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DIST="$ROOT/dist/roboscope"
+DIST="$ROOT/dist/roboscope-offline"
 
-echo "==> RoboScope Build"
+echo "==> RoboScope Build (offline)"
 echo "    Root: $ROOT"
 echo ""
 
@@ -422,13 +422,13 @@ BATEOF
 echo ""
 echo "==> Creating ZIP archive..."
 cd "$ROOT/dist"
-zip -r "roboscope.zip" roboscope/ -x "roboscope/.venv/*" "roboscope/__pycache__/*"
+zip -r "roboscope_offline_version.zip" roboscope-offline/ -x "roboscope-offline/.venv/*" "roboscope-offline/__pycache__/*"
 echo ""
 echo "==> Build complete!"
-echo "    Distribution: $ROOT/dist/roboscope.zip"
+echo "    Distribution: $ROOT/dist/roboscope_offline_version.zip"
 echo "    Directory:    $DIST"
 echo ""
 echo "To deploy:"
-echo "  1. Extract roboscope.zip"
+echo "  1. Extract roboscope_offline_version.zip"
 echo "  2. Run install-mac-and-linux.sh (Linux/Mac) or install-windows.bat (Windows)"
 echo "  3. Run start-mac-and-linux.sh (Linux/Mac) or start-windows.bat (Windows)"

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────
-# Test script: verifies the install-mac-and-linux.sh inside dist/roboscope works
+# Test script: verifies the install-mac-and-linux.sh inside dist/roboscope-offline works
 #
 # Usage:  ./scripts/test-install-mac-and-linux.sh
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DIST="$ROOT/dist/roboscope"
+DIST="$ROOT/dist/roboscope-offline"
 TEST_DIR=$(mktemp -d)
 
 echo "==> Test: install-mac-and-linux.sh from dist"

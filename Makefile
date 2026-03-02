@@ -94,7 +94,10 @@ db-downgrade: ## Rollback last migration
 
 # --- Build / Distribution ---
 
-build-dist: ## Build standalone distribution ZIP
+build-dist: ## Build distribution ZIP (online, requires internet at install time)
+	./scripts/build-online-mac-and-linux.sh
+
+build-dist-offline: ## Build offline distribution ZIP (includes all wheels)
 	./scripts/build-mac-and-linux.sh
 
 # --- Cleanup ---
