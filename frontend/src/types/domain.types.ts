@@ -152,6 +152,7 @@ export interface Environment {
   created_by: number
   created_at: string
   updated_at: string
+  python_version_warning: string | null
 }
 
 export interface EnvironmentPackage {

@@ -55,6 +55,59 @@ class TestCreateEnvironment:
         assert "created_at" in data
         assert "updated_at" in data
 
+    def test_create_environment_normalizes_python_version(self, client, admin_user):
+        """Python version '3.12.5' should be normalized to '3.12'."""
+        response = client.post(
+            URL,
+            json={"name": "normalized-env", "python_version": "3.12.5"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["python_version"] == "3.12"
+
+    def test_create_environment_invalid_python_version(self, client, admin_user):
+        """Invalid Python version should return 422."""
+        response = client.post(
+            URL,
+            json={"name": "bad-version-env", "python_version": "3.8"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 422
+
+    def test_create_environment_non_numeric_version(self, client, admin_user):
+        """Non-numeric version string should return 422."""
+        response = client.post(
+            URL,
+            json={"name": "bad-version-env2", "python_version": "latest"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 422
+
+    def test_create_environment_prerelease_warning(self, client, admin_user):
+        """Python 3.14 should succeed but include a version warning."""
+        response = client.post(
+            URL,
+            json={"name": "prerelease-env", "python_version": "3.14"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["python_version"] == "3.14"
+        assert data["python_version_warning"] is not None
+        assert "very new" in data["python_version_warning"]
+
+    def test_create_environment_stable_no_warning(self, client, admin_user):
+        """Python 3.12 should succeed without a version warning."""
+        response = client.post(
+            URL,
+            json={"name": "stable-env", "python_version": "3.12"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["python_version_warning"] is None
+
     def test_create_environment_as_viewer_forbidden(self, client, viewer_user):
         response = client.post(
             URL,

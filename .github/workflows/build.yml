@@ -7,8 +7,12 @@ on:
 
 jobs:
   test-unit:
-    name: Unit Tests
+    name: Unit Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.13']
+      fail-fast: false
 
     steps:
       - uses: actions/checkout@v4
@@ -16,7 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
@@ -35,9 +39,11 @@ jobs:
         run: cd backend && pytest -v --tb=short
 
       - name: Install frontend dependencies
+        if: matrix.python-version == '3.12'
         run: cd frontend && npm ci
 
       - name: Run frontend unit tests
+        if: matrix.python-version == '3.12'
         run: cd frontend && npm run test:unit -- --run
 
   build-offline:

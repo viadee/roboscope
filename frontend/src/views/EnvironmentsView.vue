@@ -57,13 +57,16 @@ onUnmounted(() => {
 async function addEnvironment() {
   adding.value = true
   try {
-    await envs.addEnvironment({
+    const env = await envs.addEnvironment({
       name: newEnv.value.name,
       python_version: newEnv.value.python_version,
       docker_image: newEnv.value.docker_image || undefined,
       description: newEnv.value.description || undefined,
     })
     toast.success(t('environments.toasts.created'))
+    if ((env as any).python_version_warning) {
+      toast.warning(t('environments.toasts.pythonVersionWarning'), (env as any).python_version_warning)
+    }
     showAddDialog.value = false
     newEnv.value = { name: '', python_version: '3.12', docker_image: '', description: '' }
   } catch (e: any) {
