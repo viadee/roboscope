@@ -833,6 +833,7 @@ export default {
       defaultEnvironment: 'Par défaut',
       builtinLibraries: 'Intégrées',
       installedLibraries: 'Installées',
+      libraryHelpText: 'Sélectionnez parmi les bibliothèques intégrées ou installées, ou saisissez un nom personnalisé. Pour les bibliothèques privées/internes, utilisez le chemin du module Python (ex. mycompany.MyLibrary). Installez d\'abord les paquets via le gestionnaire de paquets.',
       externalId: 'ID externe',
       externalIdPlaceholder: 'ex. PROJ-100',
       preconditions: 'Préconditions',
