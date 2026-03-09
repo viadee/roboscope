@@ -74,6 +74,69 @@ class TestPipInstallCmd:
         ]
 
 
+    def test_with_index_url(self):
+        with (
+            patch.object(venv_utils, "get_uv_path", return_value="/usr/bin/uv"),
+            patch.object(venv_utils.sys, "platform", "linux"),
+        ):
+            cmd = venv_utils.pip_install_cmd(
+                "/my/venv", "requests", index_url="https://my-registry.example.com/simple/"
+            )
+        assert cmd == [
+            "/usr/bin/uv", "pip", "install",
+            "--python", "/my/venv/bin/python",
+            "--index-url", "https://my-registry.example.com/simple/",
+            "requests",
+        ]
+
+    def test_with_extra_index_url(self):
+        with (
+            patch.object(venv_utils, "get_uv_path", return_value="/usr/bin/uv"),
+            patch.object(venv_utils.sys, "platform", "linux"),
+        ):
+            cmd = venv_utils.pip_install_cmd(
+                "/my/venv", "requests", extra_index_url="https://extra.example.com/simple/"
+            )
+        assert cmd == [
+            "/usr/bin/uv", "pip", "install",
+            "--python", "/my/venv/bin/python",
+            "--extra-index-url", "https://extra.example.com/simple/",
+            "requests",
+        ]
+
+    def test_with_both_index_urls(self):
+        with (
+            patch.object(venv_utils, "get_uv_path", return_value="/usr/bin/uv"),
+            patch.object(venv_utils.sys, "platform", "linux"),
+        ):
+            cmd = venv_utils.pip_install_cmd(
+                "/my/venv", "requests",
+                index_url="https://main.example.com/simple/",
+                extra_index_url="https://extra.example.com/simple/",
+            )
+        assert cmd == [
+            "/usr/bin/uv", "pip", "install",
+            "--python", "/my/venv/bin/python",
+            "--index-url", "https://main.example.com/simple/",
+            "--extra-index-url", "https://extra.example.com/simple/",
+            "requests",
+        ]
+
+    def test_none_index_urls_ignored(self):
+        with (
+            patch.object(venv_utils, "get_uv_path", return_value="/usr/bin/uv"),
+            patch.object(venv_utils.sys, "platform", "linux"),
+        ):
+            cmd = venv_utils.pip_install_cmd(
+                "/my/venv", "requests", index_url=None, extra_index_url=None
+            )
+        assert cmd == [
+            "/usr/bin/uv", "pip", "install",
+            "--python", "/my/venv/bin/python",
+            "requests",
+        ]
+
+
 class TestPipUninstallCmd:
     def test_basic(self):
         with (

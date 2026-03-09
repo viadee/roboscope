@@ -115,10 +115,28 @@ def create_venv_cmd(venv_path: str, python_version: str | None = None) -> list[s
     return cmd
 
 
-def pip_install_cmd(venv_path: str, *packages: str) -> list[str]:
-    """Build uv pip install command targeting a venv."""
+def pip_install_cmd(
+    venv_path: str,
+    *packages: str,
+    index_url: str | None = None,
+    extra_index_url: str | None = None,
+) -> list[str]:
+    """Build uv pip install command targeting a venv.
+
+    Args:
+        venv_path: Path to the virtual environment.
+        packages: Package specifiers to install.
+        index_url: Custom primary PyPI index URL (replaces default).
+        extra_index_url: Additional index URL to search (e.g. private registry).
+    """
     uv = get_uv_path()
-    return [uv, "pip", "install", "--python", get_python_path(venv_path), *packages]
+    cmd = [uv, "pip", "install", "--python", get_python_path(venv_path)]
+    if index_url:
+        cmd += ["--index-url", index_url]
+    if extra_index_url:
+        cmd += ["--extra-index-url", extra_index_url]
+    cmd += list(packages)
+    return cmd
 
 
 def pip_uninstall_cmd(venv_path: str, *packages: str) -> list[str]:
