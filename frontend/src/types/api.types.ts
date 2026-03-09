@@ -50,6 +50,8 @@ export interface EnvCreateRequest {
   max_docker_containers?: number
   is_default?: boolean
   description?: string | null
+  index_url?: string | null
+  extra_index_url?: string | null
 }
 
 export interface PackageCreateRequest {

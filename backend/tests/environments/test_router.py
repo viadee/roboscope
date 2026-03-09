@@ -55,6 +55,34 @@ class TestCreateEnvironment:
         assert "created_at" in data
         assert "updated_at" in data
 
+    def test_create_environment_with_registry_urls(self, client, admin_user):
+        response = client.post(
+            URL,
+            json={
+                "name": "registry-env",
+                "python_version": "3.12",
+                "index_url": "https://my-registry.example.com/simple/",
+                "extra_index_url": "https://extra.example.com/simple/",
+            },
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["name"] == "registry-env"
+        assert data["index_url"] == "https://my-registry.example.com/simple/"
+        assert data["extra_index_url"] == "https://extra.example.com/simple/"
+
+    def test_create_environment_registry_urls_default_none(self, client, admin_user):
+        response = client.post(
+            URL,
+            json={"name": "no-registry-env", "python_version": "3.12"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["index_url"] is None
+        assert data["extra_index_url"] is None
+
     def test_create_environment_as_viewer_forbidden(self, client, viewer_user):
         response = client.post(
             URL,

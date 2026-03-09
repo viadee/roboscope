@@ -165,7 +165,12 @@ def install_package(env_id: int, package_name: str, version: str | None = None) 
             pkg_spec = f"{package_name}=={version}" if version else package_name
 
             subprocess.run(
-                pip_install_cmd(env.venv_path, pkg_spec),
+                pip_install_cmd(
+                    env.venv_path,
+                    pkg_spec,
+                    index_url=env.index_url,
+                    extra_index_url=env.extra_index_url,
+                ),
                 check=True,
                 capture_output=True,
                 text=True,
@@ -261,7 +266,13 @@ def upgrade_package(env_id: int, package_name: str) -> dict:
 
         try:
             subprocess.run(
-                pip_install_cmd(env.venv_path, "--upgrade", package_name),
+                pip_install_cmd(
+                    env.venv_path,
+                    "--upgrade",
+                    package_name,
+                    index_url=env.index_url,
+                    extra_index_url=env.extra_index_url,
+                ),
                 check=True,
                 capture_output=True,
                 text=True,

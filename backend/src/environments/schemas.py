@@ -13,6 +13,8 @@ class EnvCreate(BaseModel):
     max_docker_containers: int = 1
     is_default: bool = False
     description: str | None = None
+    index_url: str | None = None
+    extra_index_url: str | None = None
 
 
 class EnvUpdate(BaseModel):
@@ -23,6 +25,8 @@ class EnvUpdate(BaseModel):
     max_docker_containers: int | None = None
     is_default: bool | None = None
     description: str | None = None
+    index_url: str | None = None
+    extra_index_url: str | None = None
 
 
 class EnvResponse(BaseModel):
@@ -35,6 +39,8 @@ class EnvResponse(BaseModel):
     max_docker_containers: int
     is_default: bool
     description: str | None = None
+    index_url: str | None = None
+    extra_index_url: str | None = None
     created_by: int
     created_at: datetime
     updated_at: datetime

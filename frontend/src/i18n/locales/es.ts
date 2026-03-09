@@ -295,6 +295,11 @@ export default {
       pythonVersion: 'Versión de Python',
       dockerImage: 'Imagen Docker (opcional)',
       description: 'Descripción (opcional)',
+      registrySettings: 'Configuración de registro privado',
+      indexUrl: 'URL del índice',
+      indexUrlHint: 'Reemplaza el índice PyPI predeterminado (https://pypi.org/simple/).',
+      extraIndexUrl: 'URL de índice adicional',
+      extraIndexUrlHint: 'Índice de paquetes adicional que se consulta junto al índice principal.',
     },
     installDialog: {
       title: 'Instalar paquete',

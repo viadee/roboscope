@@ -15,7 +15,7 @@ const toast = useToast()
 const { t } = useI18n()
 
 const showAddDialog = ref(false)
-const newEnv = ref({ name: '', python_version: '3.12', docker_image: '', description: '' })
+const newEnv = ref({ name: '', python_version: '3.12', docker_image: '', description: '', index_url: '', extra_index_url: '' })
 const adding = ref(false)
 const selectedEnvId = ref<number | null>(null)
 
@@ -62,10 +62,12 @@ async function addEnvironment() {
       python_version: newEnv.value.python_version,
       docker_image: newEnv.value.docker_image || undefined,
       description: newEnv.value.description || undefined,
+      index_url: newEnv.value.index_url || undefined,
+      extra_index_url: newEnv.value.extra_index_url || undefined,
     })
     toast.success(t('environments.toasts.created'))
     showAddDialog.value = false
-    newEnv.value = { name: '', python_version: '3.12', docker_image: '', description: '' }
+    newEnv.value = { name: '', python_version: '3.12', docker_image: '', description: '', index_url: '', extra_index_url: '' }
   } catch (e: any) {
     toast.error(t('common.error'), e.response?.data?.detail || t('environments.toasts.createError'))
   } finally {
@@ -441,6 +443,19 @@ function isInstalled(envId: number, packageName: string): boolean {
           <label class="form-label">{{ t('environments.addDialog.description') }}</label>
           <textarea v-model="newEnv.description" class="form-textarea" rows="2"></textarea>
         </div>
+        <details class="registry-details">
+          <summary class="text-muted text-sm">{{ t('environments.addDialog.registrySettings') }}</summary>
+          <div class="form-group">
+            <label class="form-label">{{ t('environments.addDialog.indexUrl') }}</label>
+            <input v-model="newEnv.index_url" class="form-input" placeholder="https://pypi.org/simple/" />
+            <span class="form-hint">{{ t('environments.addDialog.indexUrlHint') }}</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ t('environments.addDialog.extraIndexUrl') }}</label>
+            <input v-model="newEnv.extra_index_url" class="form-input" placeholder="https://my-registry.example.com/simple/" />
+            <span class="form-hint">{{ t('environments.addDialog.extraIndexUrlHint') }}</span>
+          </div>
+        </details>
       </form>
       <template #footer>
         <BaseButton variant="secondary" @click="showAddDialog = false">{{ t('common.cancel') }}</BaseButton>
@@ -526,6 +541,35 @@ function isInstalled(envId: number, packageName: string): boolean {
 </template>
 
 <style scoped>
+.registry-details {
+  margin-top: 8px;
+  border: 1px solid var(--color-border-light);
+  border-radius: 6px;
+  padding: 0;
+}
+
+.registry-details summary {
+  cursor: pointer;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.registry-details[open] summary {
+  border-bottom: 1px solid var(--color-border-light);
+  margin-bottom: 8px;
+}
+
+.registry-details .form-group {
+  padding: 0 12px 8px;
+}
+
+.form-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
 .env-details {
   padding: 16px 20px;
   border-top: 1px solid var(--color-border-light);
