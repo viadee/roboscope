@@ -60,6 +60,12 @@ class TestCreateEnvironment:
         response = client.post(
             URL,
             json={"name": "normalized-env", "python_version": "3.12.5"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["python_version"] == "3.12"
+
     def test_create_environment_with_registry_urls(self, client, admin_user):
         response = client.post(
             URL,
@@ -73,7 +79,9 @@ class TestCreateEnvironment:
         )
         assert response.status_code == 201
         data = response.json()
-        assert data["python_version"] == "3.12"
+        assert data["name"] == "registry-env"
+        assert data["index_url"] == "https://my-registry.example.com/simple/"
+        assert data["extra_index_url"] == "https://extra.example.com/simple/"
 
     def test_create_environment_invalid_python_version(self, client, admin_user):
         """Invalid Python version should return 422."""
@@ -98,14 +106,6 @@ class TestCreateEnvironment:
         response = client.post(
             URL,
             json={"name": "prerelease-env", "python_version": "3.14"},
-        assert data["name"] == "registry-env"
-        assert data["index_url"] == "https://my-registry.example.com/simple/"
-        assert data["extra_index_url"] == "https://extra.example.com/simple/"
-
-    def test_create_environment_registry_urls_default_none(self, client, admin_user):
-        response = client.post(
-            URL,
-            json={"name": "no-registry-env", "python_version": "3.12"},
             headers=auth_header(admin_user),
         )
         assert response.status_code == 201
@@ -124,6 +124,15 @@ class TestCreateEnvironment:
         assert response.status_code == 201
         data = response.json()
         assert data["python_version_warning"] is None
+
+    def test_create_environment_registry_urls_default_none(self, client, admin_user):
+        response = client.post(
+            URL,
+            json={"name": "no-registry-env", "python_version": "3.12"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
         assert data["index_url"] is None
         assert data["extra_index_url"] is None
 
