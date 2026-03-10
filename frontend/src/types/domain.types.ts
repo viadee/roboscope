@@ -149,6 +149,8 @@ export interface Environment {
   max_docker_containers: number
   is_default: boolean
   description: string | null
+  index_url: string | null
+  extra_index_url: string | null
   created_by: number
   created_at: string
   updated_at: string

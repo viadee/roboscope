@@ -20,6 +20,8 @@ class Environment(Base, TimestampMixin):
     max_docker_containers: Mapped[int] = mapped_column(Integer, default=1)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     description: Mapped[str | None] = mapped_column(Text, default=None)
+    index_url: Mapped[str | None] = mapped_column(String(500), default=None)
+    extra_index_url: Mapped[str | None] = mapped_column(String(500), default=None)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
 
 
