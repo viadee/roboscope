@@ -42,6 +42,8 @@ def create_environment(db: Session, data: EnvCreate, user_id: int) -> Environmen
         docker_image=data.docker_image,
         is_default=data.is_default,
         description=data.description,
+        index_url=data.index_url,
+        extra_index_url=data.extra_index_url,
         created_by=user_id,
     )
 
@@ -104,6 +106,8 @@ def clone_environment(db: Session, env: Environment, new_name: str, user_id: int
             docker_image=env.docker_image,
             is_default=False,
             description=f"Clone of {env.name}",
+            index_url=env.index_url,
+            extra_index_url=env.extra_index_url,
         ),
         user_id,
     )

@@ -295,6 +295,11 @@ export default {
       pythonVersion: 'Version Python',
       dockerImage: 'Image Docker (optionnel)',
       description: 'Description (optionnel)',
+      registrySettings: 'Paramètres du registre privé',
+      indexUrl: 'URL de l\'index',
+      indexUrlHint: 'Remplace l\'index PyPI par défaut (https://pypi.org/simple/).',
+      extraIndexUrl: 'URL d\'index supplémentaire',
+      extraIndexUrlHint: 'Index de paquets supplémentaire consulté en plus de l\'index principal.',
     },
     installDialog: {
       title: 'Installer un paquet',
@@ -343,6 +348,7 @@ export default {
       pkgRemoved: 'Paquet retiré',
       pkgRemovedMsg: '{name} est en cours de désinstallation...',
       uninstallFailed: 'Échec de la désinstallation',
+      pythonVersionWarning: 'Avertissement de version Python',
     },
   },
   reports: {
@@ -858,6 +864,7 @@ export default {
       defaultEnvironment: 'Par défaut',
       builtinLibraries: 'Intégrées',
       installedLibraries: 'Installées',
+      libraryHelpText: 'Sélectionnez parmi les bibliothèques intégrées ou installées, ou saisissez un nom personnalisé. Pour les bibliothèques privées/internes, utilisez le chemin du module Python (ex. mycompany.MyLibrary). Installez d\'abord les paquets via le gestionnaire de paquets.',
       externalId: 'ID externe',
       externalIdPlaceholder: 'ex. PROJ-100',
       preconditions: 'Préconditions',

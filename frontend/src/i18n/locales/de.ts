@@ -295,6 +295,11 @@ export default {
       pythonVersion: 'Python Version',
       dockerImage: 'Docker Image (optional)',
       description: 'Beschreibung (optional)',
+      registrySettings: 'Private Registry Einstellungen',
+      indexUrl: 'Index URL',
+      indexUrlHint: 'Ersetzt den Standard-PyPI-Index (https://pypi.org/simple/).',
+      extraIndexUrl: 'Extra Index URL',
+      extraIndexUrlHint: 'Zusätzlicher Paketindex, der neben dem primären Index durchsucht wird.',
     },
     installDialog: {
       title: 'Paket installieren',
@@ -343,6 +348,7 @@ export default {
       pkgRemoved: 'Paket entfernt',
       pkgRemovedMsg: '{name} wird deinstalliert...',
       uninstallFailed: 'Deinstallation fehlgeschlagen',
+      pythonVersionWarning: 'Python-Versionswarnung',
     },
   },
   reports: {
@@ -858,6 +864,7 @@ export default {
       defaultEnvironment: 'Standard',
       builtinLibraries: 'Integriert',
       installedLibraries: 'Installiert',
+      libraryHelpText: 'Wähle aus eingebauten oder installierten Bibliotheken, oder gib einen eigenen Namen ein. Für private/interne Bibliotheken den Python-Modulpfad verwenden (z.B. mycompany.MyLibrary). Pakete zuerst über den Paketmanager installieren.',
       externalId: 'Externe ID',
       externalIdPlaceholder: 'z.B. PROJ-100',
       preconditions: 'Vorbedingungen',

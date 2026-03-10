@@ -55,6 +55,78 @@ class TestCreateEnvironment:
         assert "created_at" in data
         assert "updated_at" in data
 
+    def test_create_environment_normalizes_python_version(self, client, admin_user):
+        """Python version '3.12.5' should be normalized to '3.12'."""
+        response = client.post(
+            URL,
+            json={"name": "normalized-env", "python_version": "3.12.5"},
+    def test_create_environment_with_registry_urls(self, client, admin_user):
+        response = client.post(
+            URL,
+            json={
+                "name": "registry-env",
+                "python_version": "3.12",
+                "index_url": "https://my-registry.example.com/simple/",
+                "extra_index_url": "https://extra.example.com/simple/",
+            },
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["python_version"] == "3.12"
+
+    def test_create_environment_invalid_python_version(self, client, admin_user):
+        """Invalid Python version should return 422."""
+        response = client.post(
+            URL,
+            json={"name": "bad-version-env", "python_version": "3.8"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 422
+
+    def test_create_environment_non_numeric_version(self, client, admin_user):
+        """Non-numeric version string should return 422."""
+        response = client.post(
+            URL,
+            json={"name": "bad-version-env2", "python_version": "latest"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 422
+
+    def test_create_environment_prerelease_warning(self, client, admin_user):
+        """Python 3.14 should succeed but include a version warning."""
+        response = client.post(
+            URL,
+            json={"name": "prerelease-env", "python_version": "3.14"},
+        assert data["name"] == "registry-env"
+        assert data["index_url"] == "https://my-registry.example.com/simple/"
+        assert data["extra_index_url"] == "https://extra.example.com/simple/"
+
+    def test_create_environment_registry_urls_default_none(self, client, admin_user):
+        response = client.post(
+            URL,
+            json={"name": "no-registry-env", "python_version": "3.12"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["python_version"] == "3.14"
+        assert data["python_version_warning"] is not None
+        assert "very new" in data["python_version_warning"]
+
+    def test_create_environment_stable_no_warning(self, client, admin_user):
+        """Python 3.12 should succeed without a version warning."""
+        response = client.post(
+            URL,
+            json={"name": "stable-env", "python_version": "3.12"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["python_version_warning"] is None
+        assert data["index_url"] is None
+        assert data["extra_index_url"] is None
+
     def test_create_environment_as_viewer_forbidden(self, client, viewer_user):
         response = client.post(
             URL,
@@ -661,6 +733,45 @@ class TestPackageInstallStatus:
 
         response = client.post(
             f"{URL}/{env.id}/packages/nonexistent/retry",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 404
+
+
+class TestRfLibraries:
+    """Tests for the RF keyword library scan endpoint."""
+
+    @patch("src.environments.router.pip_list_installed")
+    def test_rf_libraries_returns_known_libraries(self, mock_pip_list, client, db_session, admin_user):
+        mock_pip_list.return_value = [
+            {"name": "robotframework", "version": "7.0"},
+            {"name": "robotframework-seleniumlibrary", "version": "6.2.0"},
+            {"name": "requests", "version": "2.31.0"},
+        ]
+
+        env = Environment(
+            name="rf-lib-env",
+            python_version="3.12",
+            venv_path="/tmp/fake-venv",
+            created_by=admin_user.id,
+        )
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+
+        response = client.get(
+            f"{URL}/{env.id}/packages/rf-libraries",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["library_name"] == "SeleniumLibrary"
+        assert data[0]["package_name"] == "robotframework-seleniumlibrary"
+
+    def test_rf_libraries_env_not_found(self, client, admin_user):
+        response = client.get(
+            f"{URL}/99999/packages/rf-libraries",
             headers=auth_header(admin_user),
         )
         assert response.status_code == 404
