@@ -834,6 +834,7 @@ export default {
       defaultEnvironment: 'Default',
       builtinLibraries: 'Built-in',
       installedLibraries: 'Installed',
+      libraryHelpText: 'Select from built-in or installed libraries, or type a custom name. For private/internal libraries, use the Python module path (e.g. mycompany.MyLibrary). Install packages via Package Manager first.',
       externalId: 'External ID',
       externalIdPlaceholder: 'e.g. PROJ-100',
       preconditions: 'Preconditions',

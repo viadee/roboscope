@@ -5,6 +5,7 @@ import pytest
 from src.explorer.library_mapping import (
     BUILTIN_LIBRARIES,
     LIBRARY_TO_PYPI,
+    identify_rf_libraries,
     resolve_pypi_package,
 )
 
@@ -70,3 +71,56 @@ class TestResolvePypiPackage:
     def test_heuristic_fallback_lowercases(self):
         result = resolve_pypi_package("MyLib")
         assert result == "robotframework-mylib"
+
+
+class TestIdentifyRfLibraries:
+    def test_known_package(self):
+        packages = [{"name": "robotframework-seleniumlibrary", "version": "6.2.0"}]
+        result = identify_rf_libraries(packages)
+        assert len(result) == 1
+        assert result[0]["library_name"] == "SeleniumLibrary"
+        assert result[0]["source"] == "known"
+        assert result[0]["version"] == "6.2.0"
+
+    def test_heuristic_package(self):
+        packages = [{"name": "robotframework-excelreader", "version": "1.0.0"}]
+        result = identify_rf_libraries(packages)
+        assert len(result) == 1
+        assert result[0]["library_name"] == "Excelreader"
+        assert result[0]["source"] == "heuristic"
+
+    def test_robotframework_itself_excluded(self):
+        packages = [{"name": "robotframework", "version": "7.0"}]
+        result = identify_rf_libraries(packages)
+        assert len(result) == 0
+
+    def test_non_rf_package_excluded(self):
+        packages = [
+            {"name": "requests", "version": "2.31.0"},
+            {"name": "flask", "version": "3.0.0"},
+        ]
+        result = identify_rf_libraries(packages)
+        assert len(result) == 0
+
+    def test_rpaframework_detected(self):
+        packages = [{"name": "rpaframework", "version": "28.0.0"}]
+        result = identify_rf_libraries(packages)
+        assert len(result) == 1
+        assert result[0]["library_name"] == "RPA"
+        assert result[0]["source"] == "known"
+
+    def test_mixed_packages(self):
+        packages = [
+            {"name": "robotframework", "version": "7.0"},
+            {"name": "robotframework-browser", "version": "18.0.0"},
+            {"name": "requests", "version": "2.31.0"},
+            {"name": "robotframework-customlib", "version": "0.1.0"},
+        ]
+        result = identify_rf_libraries(packages)
+        assert len(result) == 2
+        names = {r["library_name"] for r in result}
+        assert "Browser" in names
+        assert "Customlib" in names
+
+    def test_empty_input(self):
+        assert identify_rf_libraries([]) == []

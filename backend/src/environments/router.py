@@ -357,6 +357,27 @@ def get_installed_packages(
     return pip_list_installed(env.venv_path)
 
 
+@router.get("/{env_id}/packages/rf-libraries")
+def get_rf_libraries(
+    env_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Scan installed packages and return those that are Robot Framework keyword libraries.
+
+    Each result includes the PyPI package name, version, the RF library name
+    to use in ``*** Settings ***``, and whether identification is ``known``
+    or ``heuristic``.
+    """
+    from src.explorer.library_mapping import identify_rf_libraries
+
+    env = get_environment(db, env_id)
+    if env is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
+    installed = pip_list_installed(env.venv_path)
+    return identify_rf_libraries(installed)
+
+
 @router.post("/{env_id}/packages", response_model=PackageResponse, status_code=status.HTTP_201_CREATED)
 def install_package(
     env_id: int,

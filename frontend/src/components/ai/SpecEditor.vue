@@ -883,6 +883,7 @@ watch(() => props.content, (newContent) => {
                 </div>
               </div>
             </div>
+            <p class="library-help-text">{{ t('ai.specEditor.libraryHelpText') }}</p>
           </div>
         </div>
       </div>
@@ -1704,6 +1705,13 @@ watch(() => props.content, (newContent) => {
 .library-type-badge.type-installed {
   background: #e8f0fe;
   color: var(--color-primary);
+}
+
+.library-help-text {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 4px 0 0;
+  line-height: 1.4;
 }
 
 /* YAML Editor */
