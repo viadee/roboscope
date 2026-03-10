@@ -1291,7 +1291,118 @@ const es: DocsContent = [
     ]
   },
 
-  // ─── 10. Avanzado ─────────────────────────────────────────────────
+  // ─── 10. IA y Generaci\u00F3n ──────────────────────────────────────────
+  {
+    id: 'ai-generation',
+    title: 'IA y Generaci\u00F3n',
+    icon: '\u{1F916}',
+    subsections: [
+      {
+        id: 'ai-overview',
+        title: 'Descripci\u00F3n general',
+        content: `
+<p>
+  RoboScope integra <strong>modelos de lenguaje (LLMs)</strong> para funciones
+  impulsadas por IA en el desarrollo de tests Robot Framework:
+</p>
+<ul>
+  <li><strong>Generaci\u00F3n Spec-a-Robot</strong> &mdash; Escribe una especificaci\u00F3n YAML
+      <code>.roboscope</code> y deja que el LLM genere un archivo <code>.robot</code> completo.</li>
+  <li><strong>Extracci\u00F3n Robot-a-Spec</strong> &mdash; Ingenier\u00EDa inversa de una especificaci\u00F3n
+      <code>.roboscope</code> a partir de un archivo <code>.robot</code> existente.</li>
+  <li><strong>An\u00E1lisis de fallos IA</strong> &mdash; An\u00E1lisis autom\u00E1tico de fallos de tests
+      con identificaci\u00F3n de causas y sugerencias de correcciones.</li>
+  <li><strong>Detecci\u00F3n de deriva</strong> &mdash; Detecci\u00F3n de modificaciones manuales
+      en archivos <code>.robot</code> generados.</li>
+</ul>
+<p>
+  Todas las funciones de IA requieren al menos un <strong>proveedor LLM</strong>
+  configurado en <strong>Ajustes &gt; IA y Generaci\u00F3n</strong>.
+</p>`
+      },
+      {
+        id: 'ai-providers',
+        title: 'Configurar proveedores LLM',
+        content: `
+<p>
+  Navega a <strong>Ajustes &gt; IA y Generaci\u00F3n</strong> (rol Admin requerido)
+  y haz clic en <strong>A\u00F1adir proveedor</strong>. Se soportan cuatro tipos:
+</p>
+<table>
+  <thead>
+    <tr><th>Proveedor</th><th>Clave API</th><th>URL base</th><th>Notas</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>OpenAI</strong></td><td>Requerida</td><td>Auto</td><td>GPT-4.1, GPT-4o, o3, o4-mini</td></tr>
+    <tr><td><strong>Anthropic</strong></td><td>Requerida</td><td>Auto</td><td>Claude Sonnet/Opus 4.6, Haiku 4.5</td></tr>
+    <tr><td><strong>OpenRouter</strong></td><td>Requerida</td><td>Auto</td><td>100+ modelos de diversos proveedores</td></tr>
+    <tr><td><strong>Ollama (Local)</strong></td><td>No necesaria</td><td>Auto (localhost:11434)</td><td>Gratuito, privado, se ejecuta en tu m\u00E1quina</td></tr>
+  </tbody>
+</table>`
+      },
+      {
+        id: 'ai-ollama-setup',
+        title: 'Configurar Ollama (LLM local)',
+        content: `
+<p>
+  <strong>Ollama</strong> permite ejecutar LLMs localmente y gratis &mdash;
+  ning\u00FAn dato sale de tu ordenador.
+</p>
+<ol>
+  <li><strong>Instalar Ollama</strong> &mdash; Descarga desde <code>ollama.com</code>.</li>
+  <li><strong>Descargar un modelo</strong> &mdash; En la terminal:<br />
+      <code>ollama pull mistral</code><br />
+      Otros modelos populares: <code>llama3.3</code>, <code>deepseek-r1</code>,
+      <code>dolphin-mistral</code>, <code>codellama</code>.</li>
+  <li><strong>Verificar que funciona</strong> &mdash; <code>ollama list</code> muestra
+      los modelos instalados.</li>
+  <li><strong>Configurar en RoboScope</strong> &mdash; Ajustes &gt; IA y Generaci\u00F3n,
+      A\u00F1adir proveedor:
+      <ul>
+        <li><strong>Tipo:</strong> Ollama (Local)</li>
+        <li><strong>Modelo:</strong> Nombre exacto del modelo (ej. <code>mistral:latest</code>)</li>
+        <li><strong>Clave API:</strong> Dejar vac\u00EDo</li>
+        <li><strong>URL base:</strong> Dejar vac\u00EDo para <code>http://localhost:11434</code></li>
+      </ul>
+  </li>
+</ol>
+<h4>Soluci\u00F3n de problemas</h4>
+<ul>
+  <li><strong>\u00ABmodel not found\u00BB</strong> &mdash; El nombre del modelo debe coincidir exactamente
+      con <code>ollama list</code>.</li>
+  <li><strong>Conexi\u00F3n rechazada</strong> &mdash; Aseg\u00FArate de que Ollama est\u00E9 en ejecuci\u00F3n.</li>
+  <li><strong>Generaci\u00F3n lenta</strong> &mdash; Los modelos locales son m\u00E1s lentos que las API en la nube
+      (30&ndash;120 segundos).</li>
+</ul>`,
+        tip: 'Para mejores resultados, usa modelos de al menos 7B par\u00E1metros (ej. mistral, llama3.1).'
+      },
+      {
+        id: 'ai-spec-generation',
+        title: 'Generar tests desde especificaciones',
+        content: `
+<ol>
+  <li>En el <strong>Explorador</strong>, crea o abre un archivo <code>.roboscope</code>.</li>
+  <li>Haz clic en <strong>Generar</strong> en la barra de herramientas.</li>
+  <li>Selecciona un proveedor LLM y haz clic en <strong>Generar</strong>.</li>
+  <li>Revisa el c\u00F3digo en la <strong>vista previa de diferencias</strong>.</li>
+  <li><strong>Aceptar y escribir archivo</strong> o <strong>Descartar</strong>.</li>
+</ol>`
+      },
+      {
+        id: 'ai-reverse-extract',
+        title: 'Extraer especificaciones de archivos Robot',
+        content: `
+<ol>
+  <li>Abre un archivo <code>.robot</code> en el Explorador.</li>
+  <li>Haz clic en <strong>Extraer Spec</strong>.</li>
+  <li>El LLM genera una especificaci\u00F3n <code>.roboscope</code> YAML.</li>
+  <li>Revisa y acepta el resultado.</li>
+</ol>`
+      }
+    ]
+  },
+
+  // ─── 11. Avanzado ─────────────────────────────────────────────────
   {
     id: 'advanced',
     title: 'Avanzado',
@@ -1467,7 +1578,7 @@ const es: DocsContent = [
     ]
   },
 
-  // ─── 11. Legal e informaci\u00F3n ──────────────────────────────────────
+  // ─── 12. Legal e informaci\u00F3n ──────────────────────────────────────
   {
     id: 'legal',
     title: 'Legal e informaci\u00F3n',

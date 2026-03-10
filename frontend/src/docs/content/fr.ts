@@ -1248,7 +1248,118 @@ const fr: DocsContent = [
     ]
   },
 
-  // ─── 10. Avanc\u00E9 ─────────────────────────────────────────────────────
+  // ─── 10. IA & G\u00E9n\u00E9ration ──────────────────────────────────────────
+  {
+    id: 'ai-generation',
+    title: 'IA & G\u00E9n\u00E9ration',
+    icon: '\u{1F916}',
+    subsections: [
+      {
+        id: 'ai-overview',
+        title: 'Aper\u00E7u',
+        content: `
+<p>
+  RoboScope int\u00E8gre des <strong>mod\u00E8les de langage (LLMs)</strong> pour des
+  fonctionnalit\u00E9s aliment\u00E9es par l'IA :
+</p>
+<ul>
+  <li><strong>G\u00E9n\u00E9ration Spec-vers-Robot</strong> &mdash; \u00C9crivez une sp\u00E9cification YAML
+      <code>.roboscope</code> et laissez le LLM g\u00E9n\u00E9rer un fichier <code>.robot</code> complet.</li>
+  <li><strong>Extraction Robot-vers-Spec</strong> &mdash; R\u00E9tro-ing\u00E9nierie d'une sp\u00E9cification
+      <code>.roboscope</code> \u00E0 partir d'un fichier <code>.robot</code> existant.</li>
+  <li><strong>Analyse d'\u00E9checs IA</strong> &mdash; Analyse automatique des \u00E9checs de tests
+      avec identification des causes et suggestions de corrections.</li>
+  <li><strong>D\u00E9tection de d\u00E9rive</strong> &mdash; D\u00E9tection des modifications manuelles
+      sur les fichiers <code>.robot</code> g\u00E9n\u00E9r\u00E9s.</li>
+</ul>
+<p>
+  Toutes les fonctionnalit\u00E9s IA n\u00E9cessitent au moins un <strong>fournisseur LLM</strong>
+  configur\u00E9 dans <strong>Param\u00E8tres &gt; IA &amp; G\u00E9n\u00E9ration</strong>.
+</p>`
+      },
+      {
+        id: 'ai-providers',
+        title: 'Configuration des fournisseurs LLM',
+        content: `
+<p>
+  Naviguez vers <strong>Param\u00E8tres &gt; IA &amp; G\u00E9n\u00E9ration</strong> (r\u00F4le Admin requis)
+  et cliquez sur <strong>Ajouter un fournisseur</strong>. Quatre types sont support\u00E9s :
+</p>
+<table>
+  <thead>
+    <tr><th>Fournisseur</th><th>Cl\u00E9 API</th><th>URL de base</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>OpenAI</strong></td><td>Requise</td><td>Auto</td><td>GPT-4.1, GPT-4o, o3, o4-mini</td></tr>
+    <tr><td><strong>Anthropic</strong></td><td>Requise</td><td>Auto</td><td>Claude Sonnet/Opus 4.6, Haiku 4.5</td></tr>
+    <tr><td><strong>OpenRouter</strong></td><td>Requise</td><td>Auto</td><td>100+ mod\u00E8les de divers fournisseurs</td></tr>
+    <tr><td><strong>Ollama (Local)</strong></td><td>Non requise</td><td>Auto (localhost:11434)</td><td>Gratuit, priv\u00E9, s'ex\u00E9cute sur votre machine</td></tr>
+  </tbody>
+</table>`
+      },
+      {
+        id: 'ai-ollama-setup',
+        title: 'Configuration d\'Ollama (LLM local)',
+        content: `
+<p>
+  <strong>Ollama</strong> permet d'ex\u00E9cuter des LLMs localement et gratuitement &mdash;
+  aucune donn\u00E9e ne quitte votre ordinateur.
+</p>
+<ol>
+  <li><strong>Installer Ollama</strong> &mdash; T\u00E9l\u00E9chargez depuis <code>ollama.com</code>.</li>
+  <li><strong>T\u00E9l\u00E9charger un mod\u00E8le</strong> &mdash; Dans le terminal :<br />
+      <code>ollama pull mistral</code><br />
+      Autres mod\u00E8les populaires : <code>llama3.3</code>, <code>deepseek-r1</code>,
+      <code>dolphin-mistral</code>, <code>codellama</code>.</li>
+  <li><strong>V\u00E9rifier le fonctionnement</strong> &mdash; <code>ollama list</code> affiche
+      les mod\u00E8les install\u00E9s.</li>
+  <li><strong>Configurer dans RoboScope</strong> &mdash; Param\u00E8tres &gt; IA &amp; G\u00E9n\u00E9ration,
+      Ajouter un fournisseur :
+      <ul>
+        <li><strong>Type :</strong> Ollama (Local)</li>
+        <li><strong>Mod\u00E8le :</strong> Nom exact du mod\u00E8le (ex. <code>mistral:latest</code>)</li>
+        <li><strong>Cl\u00E9 API :</strong> Laisser vide</li>
+        <li><strong>URL de base :</strong> Laisser vide pour <code>http://localhost:11434</code></li>
+      </ul>
+  </li>
+</ol>
+<h4>D\u00E9pannage</h4>
+<ul>
+  <li><strong>\u00AB model not found \u00BB</strong> &mdash; Le nom du mod\u00E8le doit correspondre exactement
+      \u00E0 <code>ollama list</code>.</li>
+  <li><strong>Connexion refus\u00E9e</strong> &mdash; V\u00E9rifiez qu'Ollama est en cours d'ex\u00E9cution.</li>
+  <li><strong>G\u00E9n\u00E9ration lente</strong> &mdash; Les mod\u00E8les locaux sont plus lents que les API cloud
+      (30&ndash;120 secondes).</li>
+</ul>`,
+        tip: 'Pour de meilleurs r\u00E9sultats, utilisez des mod\u00E8les d\'au moins 7B param\u00E8tres (ex. mistral, llama3.1).'
+      },
+      {
+        id: 'ai-spec-generation',
+        title: 'G\u00E9n\u00E9rer des tests \u00E0 partir de sp\u00E9cifications',
+        content: `
+<ol>
+  <li>Dans l'<strong>Explorateur</strong>, cr\u00E9ez ou ouvrez un fichier <code>.roboscope</code>.</li>
+  <li>Cliquez sur <strong>G\u00E9n\u00E9rer</strong> dans la barre d'outils.</li>
+  <li>S\u00E9lectionnez un fournisseur LLM et cliquez sur <strong>G\u00E9n\u00E9rer</strong>.</li>
+  <li>V\u00E9rifiez le code dans l'<strong>aper\u00E7u des diff\u00E9rences</strong>.</li>
+  <li><strong>Accepter &amp; \u00E9crire le fichier</strong> ou <strong>Rejeter</strong>.</li>
+</ol>`
+      },
+      {
+        id: 'ai-reverse-extract',
+        title: 'Extraire des sp\u00E9cifications de fichiers Robot',
+        content: `
+<ol>
+  <li>Ouvrez un fichier <code>.robot</code> dans l'Explorateur.</li>
+  <li>Cliquez sur <strong>Extraire Spec</strong>.</li>
+  <li>Le LLM g\u00E9n\u00E8re une sp\u00E9cification <code>.roboscope</code> YAML.</li>
+  <li>V\u00E9rifiez et acceptez le r\u00E9sultat.</li>
+</ol>`
+      }
+    ]
+  },
+
+  // ─── 11. Avanc\u00E9 ─────────────────────────────────────────────────────
   {
     id: 'advanced',
     title: 'Avanc\u00E9',
@@ -1418,7 +1529,7 @@ const fr: DocsContent = [
     ]
   },
 
-  // ─── 11. Mentions l\u00E9gales ──────────────────────────────────────────
+  // ─── 12. Mentions l\u00E9gales ──────────────────────────────────────────
   {
     id: 'legal',
     title: 'Mentions l\u00E9gales',

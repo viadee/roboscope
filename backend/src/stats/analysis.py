@@ -627,6 +627,218 @@ def compute_source_library_distribution(base_path: str) -> dict:
     }
 
 
+# --- Code Quality KPI Compute Functions (RoboView integration) ---
+
+
+def _init_roboview_services(repo_path: str):
+    """Initialize RoboView registries and services for a repository path.
+
+    Returns (keyword_usage_service, keyword_similarity_service, robocop_service)
+    or raises ImportError if roboview is not installed.
+    """
+    from roboview.services.keyword_register_service import KeywordRegistryService
+    from roboview.services.file_register_service import FileRegistryService
+    from roboview.services.keyword_usage_service import KeywordUsageService
+    from roboview.services.keyword_similarity_service import KeywordSimilarityService
+    from roboview.services.robocop_register_service import RobocopRegistryService
+    from roboview.services.robocop_service import RobocopService
+
+    project_root = Path(repo_path)
+
+    kw_reg_service = KeywordRegistryService(project_root)
+    kw_reg_service.initialize()
+
+    file_reg_service = FileRegistryService(project_root)
+    file_reg_service.initialize()
+
+    kw_registry = kw_reg_service.get_keyword_registry()
+    file_registry = file_reg_service.get_file_registry()
+
+    usage_service = KeywordUsageService(kw_registry, file_registry)
+
+    sim_service = KeywordSimilarityService(kw_registry)
+    sim_service.calculate_keyword_similarity_matrix()
+
+    robocop_reg_service = RobocopRegistryService(project_root, None)
+    robocop_reg_service.initialize()
+    robocop_service = RobocopService(robocop_reg_service.get_robocop_registry())
+
+    return usage_service, sim_service, robocop_service
+
+
+def compute_keyword_reuse_rate(repo_path: str) -> dict:
+    """Keyword reuse rate and most-used user-defined keywords."""
+    try:
+        usage_service, _, _ = _init_roboview_services(repo_path)
+    except Exception as e:
+        logger.warning("RoboView init failed for keyword_reuse_rate: %s", e)
+        return {"reuse_rate": 0.0, "most_used_keywords": [], "error": str(e)}
+
+    reuse_rate = usage_service.get_keyword_reusage_rate()
+    most_used = usage_service.get_most_used_user_defined_keywords(top_n=20)
+
+    return {
+        "reuse_rate": round(reuse_rate * 100, 1) if reuse_rate <= 1.0 else round(reuse_rate, 1),
+        "most_used_keywords": [
+            {
+                "name": kw.keyword_name_without_prefix,
+                "file": kw.file_name,
+                "source": kw.source,
+                "total_usages": kw.total_usages,
+            }
+            for kw in most_used
+        ],
+    }
+
+
+def compute_unused_keywords(repo_path: str) -> dict:
+    """User-defined keywords that are never called."""
+    try:
+        usage_service, _, _ = _init_roboview_services(repo_path)
+    except Exception as e:
+        logger.warning("RoboView init failed for unused_keywords: %s", e)
+        return {"total_unused": 0, "unused_keywords": [], "error": str(e)}
+
+    unused = usage_service.get_keywords_without_usages()
+
+    return {
+        "total_unused": len(unused),
+        "unused_keywords": [
+            {
+                "name": kw.keyword_name_without_prefix,
+                "file": kw.file_name,
+                "source": kw.source,
+            }
+            for kw in unused[:50]
+        ],
+    }
+
+
+def compute_keyword_duplicates(repo_path: str) -> dict:
+    """Keywords with similar implementations that could be consolidated."""
+    try:
+        usage_service, sim_service, _ = _init_roboview_services(repo_path)
+    except Exception as e:
+        logger.warning("RoboView init failed for keyword_duplicates: %s", e)
+        return {"total_duplicates": 0, "duplicates": [], "error": str(e)}
+
+    duplicates = usage_service.get_potential_duplicate_keywords(sim_service)
+
+    return {
+        "total_duplicates": len(duplicates),
+        "duplicates": [
+            {
+                "name": kw.keyword_name_without_prefix,
+                "file": kw.file_name,
+                "source": kw.source,
+                "total_usages": kw.total_usages,
+            }
+            for kw in duplicates[:30]
+        ],
+    }
+
+
+def compute_keyword_similarity(repo_path: str) -> dict:
+    """Pairs of keywords with high code similarity scores."""
+    try:
+        _, sim_service, _ = _init_roboview_services(repo_path)
+    except Exception as e:
+        logger.warning("RoboView init failed for keyword_similarity: %s", e)
+        return {"total_similar_pairs": 0, "threshold": 0.80, "pairs": [], "error": str(e)}
+
+    similar = sim_service.get_all_similar_keywords_above_threshold(0.80)
+
+    pairs = []
+    seen = set()
+    for kw in similar:
+        if kw is None:
+            continue
+        top = sim_service.get_n_most_similar_keywords(
+            kw.keyword_name_without_prefix, top_n=3,
+        )
+        for sim_kw in top:
+            pair_key = tuple(sorted([
+                kw.keyword_name_without_prefix,
+                sim_kw.keyword_name_without_prefix,
+            ]))
+            if pair_key not in seen:
+                seen.add(pair_key)
+                pairs.append({
+                    "keyword_a": kw.keyword_name_without_prefix,
+                    "source_a": kw.source,
+                    "keyword_b": sim_kw.keyword_name_without_prefix,
+                    "source_b": sim_kw.source,
+                    "score": sim_kw.score,
+                })
+
+    pairs.sort(key=lambda p: p["score"], reverse=True)
+
+    return {
+        "total_similar_pairs": len(pairs),
+        "threshold": 0.80,
+        "pairs": pairs[:30],
+    }
+
+
+def compute_documentation_coverage(repo_path: str) -> dict:
+    """Percentage of keywords with documentation strings."""
+    try:
+        usage_service, _, _ = _init_roboview_services(repo_path)
+    except Exception as e:
+        logger.warning("RoboView init failed for documentation_coverage: %s", e)
+        return {"coverage_rate": 0.0, "undocumented": [], "error": str(e)}
+
+    coverage = usage_service.get_documentation_coverage()
+    undocumented = usage_service.get_keywords_without_documentation()
+
+    return {
+        "coverage_rate": round(coverage * 100, 1) if coverage <= 1.0 else round(coverage, 1),
+        "total_undocumented": len(undocumented),
+        "undocumented": [
+            {
+                "name": kw.keyword_name_without_prefix,
+                "file": kw.file_name,
+                "source": kw.source,
+            }
+            for kw in undocumented[:50]
+        ],
+    }
+
+
+def compute_robocop_violations(repo_path: str) -> dict:
+    """Code quality violations detected by Robocop linter."""
+    try:
+        _, _, robocop_service = _init_roboview_services(repo_path)
+    except Exception as e:
+        logger.warning("RoboView init failed for robocop_violations: %s", e)
+        return {"total_violations": 0, "by_category": [], "top_violations": [], "error": str(e)}
+
+    summary = robocop_service.get_robocop_issue_summary()
+    all_messages = robocop_service.get_robocop_error_messages()
+
+    return {
+        "total_violations": len(all_messages),
+        "by_category": [
+            {
+                "category": str(item.category),
+                "count": item.count,
+            }
+            for item in summary
+        ],
+        "top_violations": [
+            {
+                "rule_id": msg.rule_id,
+                "message": msg.message[:200],
+                "category": str(msg.category),
+                "severity": str(msg.severity),
+                "file": msg.file_name,
+                "source": msg.source,
+            }
+            for msg in all_messages[:50]
+        ],
+    }
+
+
 # --- Execution KPI Compute Functions ---
 
 
@@ -1052,6 +1264,26 @@ def run_analysis(analysis_id: int) -> None:
                 compute_map["source_test_stats"] = lambda p=_path: compute_source_test_stats(p)
                 compute_map["source_library_distribution"] = (
                     lambda p=_path: compute_source_library_distribution(p)
+                )
+
+                # Code quality KPIs (RoboView integration, also require local_path)
+                compute_map["keyword_reuse_rate"] = (
+                    lambda p=_path: compute_keyword_reuse_rate(p)
+                )
+                compute_map["unused_keywords"] = (
+                    lambda p=_path: compute_unused_keywords(p)
+                )
+                compute_map["keyword_duplicates"] = (
+                    lambda p=_path: compute_keyword_duplicates(p)
+                )
+                compute_map["keyword_similarity"] = (
+                    lambda p=_path: compute_keyword_similarity(p)
+                )
+                compute_map["documentation_coverage"] = (
+                    lambda p=_path: compute_documentation_coverage(p)
+                )
+                compute_map["robocop_violations"] = (
+                    lambda p=_path: compute_robocop_violations(p)
                 )
 
             results = {}

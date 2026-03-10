@@ -11,16 +11,22 @@ from src.repos.models import Repository
 from src.stats.analysis import (
     _broadcast_analysis_status,
     compute_assertion_density,
+    compute_documentation_coverage,
     compute_error_patterns,
     compute_failure_heatmap,
     compute_flakiness_score,
+    compute_keyword_duplicates,
     compute_keyword_frequency,
+    compute_keyword_reuse_rate,
+    compute_keyword_similarity,
     compute_library_distribution,
     compute_redundancy_detection,
+    compute_robocop_violations,
     compute_slowest_tests,
     compute_suite_duration_treemap,
     compute_test_complexity,
     compute_test_pass_rate_trend,
+    compute_unused_keywords,
 )
 from src.stats.schemas import AVAILABLE_KPIS
 from tests.conftest import auth_header
@@ -235,7 +241,7 @@ class TestKpiValidation:
 
     def test_available_kpis_count(self):
         """AVAILABLE_KPIS should contain 15 entries (10 original + 5 new)."""
-        assert len(AVAILABLE_KPIS) == 15
+        assert len(AVAILABLE_KPIS) == 21
 
     def test_kpis_endpoint_returns_all(self, client, admin_user):
         """GET /analysis/kpis should return all 15 KPIs."""
@@ -245,7 +251,7 @@ class TestKpiValidation:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 15
+        assert len(data) == 21
         assert "test_pass_rate_trend" in data
         assert data["test_pass_rate_trend"]["category"] == "execution"
 
@@ -426,3 +432,206 @@ class TestExistingComputeFunctions:
     def test_library_distribution_empty(self):
         result = compute_library_distribution([])
         assert result["libraries"] == []
+
+
+# --- Test: Code Quality KPIs (RoboView integration) ---
+
+
+def _create_robot_project(tmp_path):
+    """Create a minimal Robot Framework project for RoboView analysis."""
+    test_file = tmp_path / "tests" / "example.robot"
+    test_file.parent.mkdir(parents=True, exist_ok=True)
+    test_file.write_text(
+        """\
+*** Settings ***
+Library    BuiltIn
+Library    Collections
+
+*** Keywords ***
+My Custom Keyword
+    [Documentation]    A documented keyword
+    Log    Hello World
+    Log    Hello Again
+
+Another Keyword
+    Log    Step 1
+    Log    Step 2
+
+Undocumented Keyword
+    Log    No docs here
+
+Similar To Another Keyword
+    Log    Step 1
+    Log    Step 2
+
+*** Test Cases ***
+Test Login
+    [Tags]    smoke
+    My Custom Keyword
+    Another Keyword
+    Log    Done
+
+Test Dashboard
+    [Tags]    regression
+    My Custom Keyword
+    Log    Dashboard loaded
+""",
+        encoding="utf-8",
+    )
+
+    resource_file = tmp_path / "resources" / "common.resource"
+    resource_file.parent.mkdir(parents=True, exist_ok=True)
+    resource_file.write_text(
+        """\
+*** Settings ***
+Library    String
+
+*** Keywords ***
+Unused Helper
+    Log    This keyword is never called
+
+Common Setup
+    [Documentation]    Setup for all tests
+    Log    Setting up
+""",
+        encoding="utf-8",
+    )
+    return str(tmp_path)
+
+
+class TestComputeKeywordReuseRate:
+    def test_with_robot_project(self, tmp_path):
+        repo_path = _create_robot_project(tmp_path)
+        result = compute_keyword_reuse_rate(repo_path)
+
+        assert "reuse_rate" in result
+        assert isinstance(result["reuse_rate"], float)
+        assert "most_used_keywords" in result
+        assert isinstance(result["most_used_keywords"], list)
+
+    def test_nonexistent_path(self):
+        result = compute_keyword_reuse_rate("/nonexistent/path")
+        assert "error" in result or result["reuse_rate"] == 0.0
+
+
+class TestComputeUnusedKeywords:
+    def test_with_robot_project(self, tmp_path):
+        repo_path = _create_robot_project(tmp_path)
+        result = compute_unused_keywords(repo_path)
+
+        assert "total_unused" in result
+        assert isinstance(result["total_unused"], int)
+        assert "unused_keywords" in result
+        assert isinstance(result["unused_keywords"], list)
+
+        # "Unused Helper" and "Undocumented Keyword" and "Similar To Another Keyword"
+        # should be in unused list (never called in test cases)
+        unused_names = [kw["name"] for kw in result["unused_keywords"]]
+        assert "Unused Helper" in unused_names
+
+    def test_nonexistent_path(self):
+        result = compute_unused_keywords("/nonexistent/path")
+        assert result["total_unused"] == 0
+
+
+class TestComputeKeywordDuplicates:
+    def test_with_robot_project(self, tmp_path):
+        repo_path = _create_robot_project(tmp_path)
+        result = compute_keyword_duplicates(repo_path)
+
+        assert "total_duplicates" in result
+        assert isinstance(result["total_duplicates"], int)
+        assert "duplicates" in result
+        assert isinstance(result["duplicates"], list)
+
+    def test_nonexistent_path(self):
+        result = compute_keyword_duplicates("/nonexistent/path")
+        assert result["total_duplicates"] == 0
+
+
+class TestComputeKeywordSimilarity:
+    def test_with_robot_project(self, tmp_path):
+        repo_path = _create_robot_project(tmp_path)
+        result = compute_keyword_similarity(repo_path)
+
+        assert "total_similar_pairs" in result
+        assert "threshold" in result
+        assert result["threshold"] == 0.80
+        assert "pairs" in result
+        assert isinstance(result["pairs"], list)
+
+    def test_nonexistent_path(self):
+        result = compute_keyword_similarity("/nonexistent/path")
+        assert result["total_similar_pairs"] == 0
+
+
+class TestComputeDocumentationCoverage:
+    def test_with_robot_project(self, tmp_path):
+        repo_path = _create_robot_project(tmp_path)
+        result = compute_documentation_coverage(repo_path)
+
+        assert "coverage_rate" in result
+        assert isinstance(result["coverage_rate"], float)
+        assert "total_undocumented" in result
+        assert isinstance(result["total_undocumented"], int)
+        assert "undocumented" in result
+        assert isinstance(result["undocumented"], list)
+
+        # Some keywords lack docs, so coverage should be < 100%
+        assert result["coverage_rate"] < 100.0
+        assert result["total_undocumented"] > 0
+
+    def test_nonexistent_path(self):
+        result = compute_documentation_coverage("/nonexistent/path")
+        assert result["coverage_rate"] == 0.0
+
+
+class TestComputeRobocopViolations:
+    def test_with_robot_project(self, tmp_path):
+        repo_path = _create_robot_project(tmp_path)
+        result = compute_robocop_violations(repo_path)
+
+        assert "total_violations" in result
+        assert isinstance(result["total_violations"], int)
+        assert "by_category" in result
+        assert isinstance(result["by_category"], list)
+        assert "top_violations" in result
+        assert isinstance(result["top_violations"], list)
+
+    def test_empty_project(self, tmp_path):
+        # Empty temp directory — RoboView still returns a result structure
+        empty_dir = tmp_path / "empty_project"
+        empty_dir.mkdir()
+        result = compute_robocop_violations(str(empty_dir))
+        assert "total_violations" in result
+        assert "by_category" in result
+        assert "top_violations" in result
+        assert isinstance(result["total_violations"], int)
+
+
+class TestCodeQualityKpisInAvailable:
+    def test_all_codequality_kpis_in_available(self):
+        """All 6 code quality KPIs should be in AVAILABLE_KPIS."""
+        codequality_kpis = [
+            "keyword_reuse_rate",
+            "unused_keywords",
+            "keyword_duplicates",
+            "keyword_similarity",
+            "documentation_coverage",
+            "robocop_violations",
+        ]
+        for kpi_id in codequality_kpis:
+            assert kpi_id in AVAILABLE_KPIS
+            assert AVAILABLE_KPIS[kpi_id]["category"] == "codequality"
+
+    def test_kpis_endpoint_includes_codequality(self, client, admin_user):
+        """GET /analysis/kpis should include code quality KPIs."""
+        response = client.get(
+            "/api/v1/stats/analysis/kpis",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "keyword_reuse_rate" in data
+        assert data["keyword_reuse_rate"]["category"] == "codequality"
+        assert "robocop_violations" in data

@@ -47,6 +47,7 @@ const categoryLabels: Record<string, string> = {
   maintenance: 'stats.analysis.categoryMaintenance',
   source: 'stats.analysis.categorySource',
   execution: 'stats.analysis.categoryExecution',
+  codequality: 'stats.analysis.categoryCodequality',
 }
 
 const isStale = computed(() => {
@@ -756,6 +757,138 @@ function formatDate(d: string | null) {
                   <div class="treemap-pct">{{ suite.percentage }}%</div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Keyword Reuse Rate -->
+          <div v-if="stats.currentAnalysis.results.keyword_reuse_rate" class="card mb-3">
+            <div class="card-header"><h3>{{ t('stats.analysis.kpiKeywordReuseRate') }}</h3></div>
+            <div class="p-3">
+              <div class="grid grid-2 mb-3">
+                <div class="text-center"><div class="kpi-value-sm">{{ stats.currentAnalysis.results.keyword_reuse_rate.reuse_rate }}%</div><div class="kpi-label">{{ t('stats.analysis.reuseRate') }}</div></div>
+                <div class="text-center"><div class="kpi-value-sm">{{ stats.currentAnalysis.results.keyword_reuse_rate.most_used_keywords.length }}</div><div class="kpi-label">{{ t('stats.analysis.mostUsedKeywords') }}</div></div>
+              </div>
+              <table v-if="stats.currentAnalysis.results.keyword_reuse_rate.most_used_keywords.length" class="data-table">
+                <thead><tr><th>{{ t('stats.analysis.keyword') }}</th><th>{{ t('stats.analysis.sourceFilePath') }}</th><th>{{ t('stats.analysis.count') }}</th></tr></thead>
+                <tbody>
+                  <tr v-for="kw in stats.currentAnalysis.results.keyword_reuse_rate.most_used_keywords" :key="kw.name">
+                    <td><strong>{{ kw.name }}</strong></td><td class="text-muted text-sm">{{ kw.file }}</td><td>{{ kw.total_usages }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Unused Keywords -->
+          <div v-if="stats.currentAnalysis.results.unused_keywords" class="card mb-3">
+            <div class="card-header"><h3>{{ t('stats.analysis.kpiUnusedKeywords') }}</h3></div>
+            <div class="p-3">
+              <div class="text-sm text-muted mb-2">
+                {{ t('stats.analysis.totalUnused') }}: {{ stats.currentAnalysis.results.unused_keywords.total_unused }}
+              </div>
+              <table v-if="stats.currentAnalysis.results.unused_keywords.unused_keywords.length" class="data-table">
+                <thead><tr><th>{{ t('stats.analysis.keyword') }}</th><th>{{ t('stats.analysis.sourceFilePath') }}</th></tr></thead>
+                <tbody>
+                  <tr v-for="kw in stats.currentAnalysis.results.unused_keywords.unused_keywords" :key="kw.name + kw.file">
+                    <td><strong>{{ kw.name }}</strong></td><td class="text-muted text-sm">{{ kw.source }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p v-else class="text-muted text-center">{{ t('stats.analysis.noCodequalityData') }}</p>
+            </div>
+          </div>
+
+          <!-- Keyword Duplicates -->
+          <div v-if="stats.currentAnalysis.results.keyword_duplicates" class="card mb-3">
+            <div class="card-header"><h3>{{ t('stats.analysis.kpiKeywordDuplicates') }}</h3></div>
+            <div class="p-3">
+              <div class="text-sm text-muted mb-2">
+                {{ t('stats.analysis.totalDuplicates') }}: {{ stats.currentAnalysis.results.keyword_duplicates.total_duplicates }}
+              </div>
+              <table v-if="stats.currentAnalysis.results.keyword_duplicates.duplicates.length" class="data-table">
+                <thead><tr><th>{{ t('stats.analysis.keyword') }}</th><th>{{ t('stats.analysis.sourceFilePath') }}</th><th>{{ t('stats.analysis.count') }}</th></tr></thead>
+                <tbody>
+                  <tr v-for="kw in stats.currentAnalysis.results.keyword_duplicates.duplicates" :key="kw.name + kw.file">
+                    <td><strong>{{ kw.name }}</strong></td><td class="text-muted text-sm">{{ kw.source }}</td><td>{{ kw.total_usages }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Keyword Similarity -->
+          <div v-if="stats.currentAnalysis.results.keyword_similarity" class="card mb-3">
+            <div class="card-header"><h3>{{ t('stats.analysis.kpiKeywordSimilarity') }}</h3></div>
+            <div class="p-3">
+              <div class="text-sm text-muted mb-2">
+                {{ t('stats.analysis.totalSimilarPairs') }}: {{ stats.currentAnalysis.results.keyword_similarity.total_similar_pairs }} |
+                {{ t('stats.analysis.similarityThreshold') }}: {{ stats.currentAnalysis.results.keyword_similarity.threshold * 100 }}%
+              </div>
+              <table v-if="stats.currentAnalysis.results.keyword_similarity.pairs.length" class="data-table">
+                <thead><tr><th>{{ t('stats.analysis.keyword') }} A</th><th>{{ t('stats.analysis.keyword') }} B</th><th>{{ t('stats.analysis.similarityScore') }}</th></tr></thead>
+                <tbody>
+                  <tr v-for="(pair, i) in stats.currentAnalysis.results.keyword_similarity.pairs" :key="i">
+                    <td><strong>{{ pair.keyword_a }}</strong><div class="text-muted text-sm">{{ pair.source_a }}</div></td>
+                    <td><strong>{{ pair.keyword_b }}</strong><div class="text-muted text-sm">{{ pair.source_b }}</div></td>
+                    <td><BaseBadge :variant="pair.score >= 95 ? 'danger' : pair.score >= 90 ? 'warning' : 'info'">{{ pair.score }}%</BaseBadge></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Documentation Coverage -->
+          <div v-if="stats.currentAnalysis.results.documentation_coverage" class="card mb-3">
+            <div class="card-header"><h3>{{ t('stats.analysis.kpiDocCoverage') }}</h3></div>
+            <div class="p-3">
+              <div class="grid grid-2 mb-3">
+                <div class="text-center"><div class="kpi-value-sm">{{ stats.currentAnalysis.results.documentation_coverage.coverage_rate }}%</div><div class="kpi-label">{{ t('stats.analysis.coverageRate') }}</div></div>
+                <div class="text-center"><div class="kpi-value-sm">{{ stats.currentAnalysis.results.documentation_coverage.total_undocumented }}</div><div class="kpi-label">{{ t('stats.analysis.totalUndocumented') }}</div></div>
+              </div>
+              <div class="progress-container mb-3">
+                <div class="progress-bar" :style="{ width: `${stats.currentAnalysis.results.documentation_coverage.coverage_rate}%`, background: stats.currentAnalysis.results.documentation_coverage.coverage_rate >= 80 ? 'var(--color-success)' : stats.currentAnalysis.results.documentation_coverage.coverage_rate >= 50 ? 'var(--color-warning)' : 'var(--color-danger)' }"></div>
+              </div>
+              <table v-if="stats.currentAnalysis.results.documentation_coverage.undocumented.length" class="data-table">
+                <thead><tr><th>{{ t('stats.analysis.keyword') }}</th><th>{{ t('stats.analysis.sourceFilePath') }}</th></tr></thead>
+                <tbody>
+                  <tr v-for="kw in stats.currentAnalysis.results.documentation_coverage.undocumented" :key="kw.name + kw.file">
+                    <td><strong>{{ kw.name }}</strong></td><td class="text-muted text-sm">{{ kw.source }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Robocop Violations -->
+          <div v-if="stats.currentAnalysis.results.robocop_violations" class="card mb-3">
+            <div class="card-header"><h3>{{ t('stats.analysis.kpiRobocopViolations') }}</h3></div>
+            <div class="p-3">
+              <div class="text-sm text-muted mb-2">
+                {{ t('stats.analysis.totalViolations') }}: {{ stats.currentAnalysis.results.robocop_violations.total_violations }}
+              </div>
+              <!-- Category breakdown -->
+              <div v-if="stats.currentAnalysis.results.robocop_violations.by_category.length" class="mb-3">
+                <h4 class="text-sm mb-2">{{ t('stats.analysis.violationsByCategory') }}</h4>
+                <div v-for="cat in stats.currentAnalysis.results.robocop_violations.by_category" :key="cat.category" class="lib-bar-row">
+                  <div class="lib-bar-label">{{ cat.category }}</div>
+                  <div class="lib-bar-track">
+                    <div class="lib-bar-fill" :style="{ width: `${Math.min(cat.count / Math.max(...stats.currentAnalysis!.results!.robocop_violations.by_category.map((c: any) => c.count), 1) * 100, 100)}%` }"></div>
+                  </div>
+                  <div class="lib-bar-value">{{ cat.count }}</div>
+                </div>
+              </div>
+              <!-- Top violations -->
+              <table v-if="stats.currentAnalysis.results.robocop_violations.top_violations.length" class="data-table">
+                <thead><tr><th>{{ t('stats.analysis.violationRule') }}</th><th>{{ t('stats.analysis.violationMessage') }}</th><th>{{ t('stats.analysis.violationSeverity') }}</th><th>{{ t('stats.analysis.sourceFilePath') }}</th></tr></thead>
+                <tbody>
+                  <tr v-for="(v, i) in stats.currentAnalysis.results.robocop_violations.top_violations.slice(0, 20)" :key="i">
+                    <td><code>{{ v.rule_id }}</code></td>
+                    <td class="text-sm">{{ v.message }}</td>
+                    <td><BaseBadge :variant="v.severity === 'ERROR' ? 'danger' : v.severity === 'WARNING' ? 'warning' : 'info'">{{ v.severity }}</BaseBadge></td>
+                    <td class="text-muted text-sm">{{ v.file }}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </template>
