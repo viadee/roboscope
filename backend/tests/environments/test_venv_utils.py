@@ -131,6 +131,40 @@ class TestPipInstallCmd:
             "requests",
         ]
 
+    def test_whitespace_only_index_url_ignored(self):
+        """Whitespace-only registry URLs must not be passed to uv."""
+        with (
+            patch.object(venv_utils, "get_uv_path", return_value="/usr/bin/uv"),
+            patch.object(venv_utils.sys, "platform", "linux"),
+        ):
+            cmd = venv_utils.pip_install_cmd(
+                "/my/venv", "requests", index_url="   ", extra_index_url="\t"
+            )
+        assert cmd == [
+            "/usr/bin/uv", "pip", "install",
+            "--python", "/my/venv/bin/python",
+            "requests",
+        ]
+
+    def test_whitespace_trimmed_from_index_url(self):
+        """Leading/trailing whitespace is stripped from registry URLs."""
+        with (
+            patch.object(venv_utils, "get_uv_path", return_value="/usr/bin/uv"),
+            patch.object(venv_utils.sys, "platform", "linux"),
+        ):
+            cmd = venv_utils.pip_install_cmd(
+                "/my/venv", "requests",
+                index_url="  https://my-registry.example.com/simple/  ",
+                extra_index_url="  https://extra.example.com/simple/  ",
+            )
+        assert cmd == [
+            "/usr/bin/uv", "pip", "install",
+            "--python", "/my/venv/bin/python",
+            "--index-url", "https://my-registry.example.com/simple/",
+            "--extra-index-url", "https://extra.example.com/simple/",
+            "requests",
+        ]
+
 
 class TestPipUninstallCmd:
     def test_basic(self):
@@ -193,3 +227,53 @@ class TestGetUvPath:
         ):
             with pytest.raises(FileNotFoundError, match="uv not found"):
                 venv_utils.get_uv_path()
+
+
+
+class TestMaskUrlCredentials:
+    def test_masks_password(self):
+        url = "https://user:secret@registry.example.com/simple/"
+        assert venv_utils.mask_url_credentials(url) == "https://user:***@registry.example.com/simple/"
+
+    def test_masks_token_without_username(self):
+        url = "https://:mytoken@registry.example.com/simple/"
+        result = venv_utils.mask_url_credentials(url)
+        assert "mytoken" not in result
+        assert "***" in result
+
+    def test_no_credentials_unchanged(self):
+        url = "https://registry.example.com/simple/"
+        assert venv_utils.mask_url_credentials(url) == url
+
+    def test_none_returns_none(self):
+        assert venv_utils.mask_url_credentials(None) is None
+
+    def test_preserves_port(self):
+        url = "https://user:pass@registry.example.com:8080/simple/"
+        result = venv_utils.mask_url_credentials(url)
+        assert "pass" not in result
+        assert "8080" in result
+        assert "user:***" in result
+
+
+class TestSanitizeTextCredentials:
+    def test_redacts_embedded_url_password(self):
+        text = "Error: could not connect to https://user:secret@registry.example.com/simple/"
+        result = venv_utils.sanitize_text_credentials(text)
+        assert "secret" not in result
+        assert "https://user:***@registry.example.com/simple/" in result
+
+    def test_no_credentials_unchanged(self):
+        text = "Error: could not connect to https://registry.example.com/simple/"
+        assert venv_utils.sanitize_text_credentials(text) == text
+
+    def test_multiple_urls_all_redacted(self):
+        text = (
+            "https://user1:pass1@host1.example.com/simple/ "
+            "and https://user2:pass2@host2.example.com/simple/"
+        )
+        result = venv_utils.sanitize_text_credentials(text)
+        assert "pass1" not in result
+        assert "pass2" not in result
+        assert "user1:***" in result
+        assert "user2:***" in result

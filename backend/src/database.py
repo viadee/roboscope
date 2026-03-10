@@ -207,6 +207,16 @@ def _migrate_sqlite(conn) -> None:
             "ALTER TABLE environments ADD COLUMN max_docker_containers INTEGER DEFAULT 1"
         ))
         logger.info("Migration: added max_docker_containers column to environments")
+    if "index_url" not in env_columns:
+        conn.execute(text(
+            "ALTER TABLE environments ADD COLUMN index_url VARCHAR(500)"
+        ))
+        logger.info("Migration: added index_url column to environments")
+    if "extra_index_url" not in env_columns:
+        conn.execute(text(
+            "ALTER TABLE environments ADD COLUMN extra_index_url VARCHAR(500)"
+        ))
+        logger.info("Migration: added extra_index_url column to environments")
 
 
 def _migrate_postgres(conn) -> None:
@@ -291,6 +301,28 @@ def _migrate_postgres(conn) -> None:
             "ALTER TABLE environments ADD COLUMN max_docker_containers INTEGER DEFAULT 1"
         ))
         logger.info("Migration: added max_docker_containers column to environments")
+
+    # Add index_url column to environments if missing
+    result = conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'environments' AND column_name = 'index_url'"
+    ))
+    if not result.fetchone():
+        conn.execute(text(
+            "ALTER TABLE environments ADD COLUMN index_url VARCHAR(500)"
+        ))
+        logger.info("Migration: added index_url column to environments")
+
+    # Add extra_index_url column to environments if missing
+    result = conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'environments' AND column_name = 'extra_index_url'"
+    ))
+    if not result.fetchone():
+        conn.execute(text(
+            "ALTER TABLE environments ADD COLUMN extra_index_url VARCHAR(500)"
+        ))
+        logger.info("Migration: added extra_index_url column to environments")
 
 
 def drop_tables() -> None:

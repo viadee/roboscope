@@ -83,6 +83,63 @@ class TestCreateEnvironment:
         assert data["index_url"] is None
         assert data["extra_index_url"] is None
 
+    def test_create_environment_registry_urls_stripped(self, client, admin_user):
+        """Whitespace around registry URLs is stripped before storage."""
+        response = client.post(
+            URL,
+            json={
+                "name": "strip-url-env",
+                "index_url": "  https://my-registry.example.com/simple/  ",
+                "extra_index_url": "  https://extra.example.com/simple/  ",
+            },
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["index_url"] == "https://my-registry.example.com/simple/"
+        assert data["extra_index_url"] == "https://extra.example.com/simple/"
+
+    def test_create_environment_whitespace_only_url_stored_as_none(self, client, admin_user):
+        """Whitespace-only registry URLs are normalised to None."""
+        response = client.post(
+            URL,
+            json={
+                "name": "ws-only-url-env",
+                "index_url": "   ",
+                "extra_index_url": "\t",
+            },
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["index_url"] is None
+        assert data["extra_index_url"] is None
+
+    def test_create_environment_registry_url_too_long(self, client, admin_user):
+        """Registry URLs exceeding 500 characters are rejected with 422."""
+        long_url = "https://example.com/" + "x" * 490
+        response = client.post(
+            URL,
+            json={"name": "long-url-env", "index_url": long_url},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 422
+
+    def test_create_environment_registry_credentials_masked_in_response(self, client, admin_user):
+        """Passwords embedded in registry URLs are masked in the API response."""
+        response = client.post(
+            URL,
+            json={
+                "name": "cred-env",
+                "index_url": "https://user:secret@my-registry.example.com/simple/",
+            },
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert "secret" not in data["index_url"]
+        assert data["index_url"] == "https://user:***@my-registry.example.com/simple/"
+
     def test_create_environment_as_viewer_forbidden(self, client, viewer_user):
         response = client.post(
             URL,
@@ -188,6 +245,51 @@ class TestUpdateEnvironment:
             headers=auth_header(viewer_user),
         )
         assert response.status_code == 403
+
+    def test_update_environment_registry_urls_stripped(self, client, db_session, admin_user):
+        """Whitespace around registry URLs is stripped on PATCH."""
+        env = Environment(
+            name="patch-registry-env",
+            python_version="3.12",
+            created_by=admin_user.id,
+        )
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+
+        response = client.patch(
+            f"{URL}/{env.id}",
+            json={
+                "index_url": "  https://my-registry.example.com/simple/  ",
+                "extra_index_url": "  https://extra.example.com/simple/  ",
+            },
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["index_url"] == "https://my-registry.example.com/simple/"
+        assert data["extra_index_url"] == "https://extra.example.com/simple/"
+
+    def test_update_environment_registry_credentials_masked_in_response(self, client, db_session, admin_user):
+        """Passwords embedded in registry URLs are masked in PATCH responses."""
+        env = Environment(
+            name="patch-cred-env",
+            python_version="3.12",
+            created_by=admin_user.id,
+        )
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+
+        response = client.patch(
+            f"{URL}/{env.id}",
+            json={"index_url": "https://user:topsecret@my-registry.example.com/simple/"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "topsecret" not in data["index_url"]
+        assert data["index_url"] == "https://user:***@my-registry.example.com/simple/"
 
 
 class TestDeleteEnvironment:

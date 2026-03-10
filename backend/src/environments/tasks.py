@@ -18,9 +18,15 @@ from src.environments.venv_utils import (
     pip_show_cmd,
     pip_uninstall_cmd,
     rfbrowser_init_cmd,
+    sanitize_text_credentials,
 )
 
 logger = logging.getLogger("roboscope.environments.tasks")
+
+
+def _sanitize_error_message(text: str) -> str:
+    """Redact embedded credentials from URLs in error messages."""
+    return sanitize_text_credentials(text)
 
 
 def _broadcast_package_status(env_id: int, package_name: str, status: str, **extra) -> None:
@@ -217,7 +223,7 @@ def install_package(env_id: int, package_name: str, version: str | None = None) 
 
             return {"status": "success", "package": package_name, "version": installed_version}
         except subprocess.CalledProcessError as e:
-            error_msg = e.stderr or str(e)
+            error_msg = _sanitize_error_message(e.stderr or str(e))
             logger.error("pip install failed: %s", error_msg)
             if pkg:
                 pkg.install_status = "failed"

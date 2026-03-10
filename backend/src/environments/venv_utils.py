@@ -1,11 +1,48 @@
 """Cross-platform venv path utilities + uv command builders."""
 
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 from src.config import settings
+
+
+def mask_url_credentials(url: str | None) -> str | None:
+    """Replace the password in a URL's userinfo with '***'.
+
+    Uses ``urllib.parse`` for robust handling of all valid URL characters.
+
+    Example::
+
+        >>> mask_url_credentials("https://user:secret@host/simple")
+        'https://user:***@host/simple'
+    """
+    if url is None:
+        return None
+    try:
+        parsed = urlparse(url)
+        if parsed.password:
+            userinfo = f"{parsed.username}:***" if parsed.username else "***"
+            host = parsed.hostname or ""
+            netloc = f"{userinfo}@{host}"
+            if parsed.port:
+                netloc += f":{parsed.port}"
+            return urlunparse(parsed._replace(netloc=netloc))
+    except Exception:
+        pass
+    return url
+
+
+def sanitize_text_credentials(text: str) -> str:
+    """Redact embedded credentials from URLs within an arbitrary text string.
+
+    Replaces ``https://user:secret@host`` patterns with ``https://user:***@host``
+    to prevent API keys / passwords from leaking into logs or error messages.
+    """
+    return re.sub(r"(https?://[^:@/\s]+):[^@\s/]+@", r"\1:***@", text)
 
 
 def get_uv_path() -> str:
@@ -60,10 +97,14 @@ def pip_install_cmd(
     """
     uv = get_uv_path()
     cmd = [uv, "pip", "install", "--python", get_python_path(venv_path)]
-    if index_url:
-        cmd += ["--index-url", index_url]
-    if extra_index_url:
-        cmd += ["--extra-index-url", extra_index_url]
+    normalized_index_url = index_url.strip() if isinstance(index_url, str) else None
+    normalized_extra_index_url = (
+        extra_index_url.strip() if isinstance(extra_index_url, str) else None
+    )
+    if normalized_index_url:
+        cmd += ["--index-url", normalized_index_url]
+    if normalized_extra_index_url:
+        cmd += ["--extra-index-url", normalized_extra_index_url]
     cmd += list(packages)
     return cmd
 

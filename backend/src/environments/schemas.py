@@ -2,7 +2,17 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from src.environments.venv_utils import mask_url_credentials
+
+
+def _strip_url(v: str | None) -> str | None:
+    """Strip whitespace from a URL string; return None for empty strings."""
+    if v is None:
+        return None
+    stripped = v.strip()
+    return stripped if stripped else None
 
 
 class EnvCreate(BaseModel):
@@ -13,8 +23,13 @@ class EnvCreate(BaseModel):
     max_docker_containers: int = 1
     is_default: bool = False
     description: str | None = None
-    index_url: str | None = None
-    extra_index_url: str | None = None
+    index_url: str | None = Field(default=None, max_length=500)
+    extra_index_url: str | None = Field(default=None, max_length=500)
+
+    @field_validator("index_url", "extra_index_url", mode="before")
+    @classmethod
+    def strip_registry_urls(cls, v: str | None) -> str | None:
+        return _strip_url(v)
 
 
 class EnvUpdate(BaseModel):
@@ -25,8 +40,13 @@ class EnvUpdate(BaseModel):
     max_docker_containers: int | None = None
     is_default: bool | None = None
     description: str | None = None
-    index_url: str | None = None
-    extra_index_url: str | None = None
+    index_url: str | None = Field(default=None, max_length=500)
+    extra_index_url: str | None = Field(default=None, max_length=500)
+
+    @field_validator("index_url", "extra_index_url", mode="before")
+    @classmethod
+    def strip_registry_urls(cls, v: str | None) -> str | None:
+        return _strip_url(v)
 
 
 class EnvResponse(BaseModel):
@@ -46,6 +66,11 @@ class EnvResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_validator("index_url", "extra_index_url", mode="after")
+    @classmethod
+    def mask_registry_credentials(cls, v: str | None) -> str | None:
+        return mask_url_credentials(v)
 
 
 class PackageCreate(BaseModel):
