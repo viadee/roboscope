@@ -343,6 +343,7 @@ export default {
       pkgRemoved: 'Paket entfernt',
       pkgRemovedMsg: '{name} wird deinstalliert...',
       uninstallFailed: 'Deinstallation fehlgeschlagen',
+      pythonVersionWarning: 'Python-Versionswarnung',
     },
   },
   reports: {

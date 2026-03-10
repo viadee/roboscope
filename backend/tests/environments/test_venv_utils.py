@@ -5,6 +5,11 @@ from unittest.mock import patch
 import pytest
 
 from src.environments import venv_utils
+from src.environments.venv_utils import (
+    PythonVersionError,
+    check_python_version_compatibility,
+    validate_python_version,
+)
 
 
 class TestGetPythonPath:
@@ -130,3 +135,71 @@ class TestGetUvPath:
         ):
             with pytest.raises(FileNotFoundError, match="uv not found"):
                 venv_utils.get_uv_path()
+
+
+class TestValidatePythonVersion:
+    def test_valid_major_minor(self):
+        assert validate_python_version("3.12") == "3.12"
+
+    def test_valid_major_minor_patch(self):
+        assert validate_python_version("3.12.0") == "3.12"
+        assert validate_python_version("3.13.1") == "3.13"
+
+    def test_normalizes_to_major_minor(self):
+        assert validate_python_version("3.14.0") == "3.14"
+
+    def test_strips_whitespace(self):
+        assert validate_python_version("  3.12  ") == "3.12"
+
+    def test_invalid_format_no_dot(self):
+        with pytest.raises(PythonVersionError, match="Invalid Python version"):
+            validate_python_version("312")
+
+    def test_invalid_format_python2(self):
+        with pytest.raises(PythonVersionError, match="Invalid Python version"):
+            validate_python_version("2.7")
+
+    def test_too_old_version(self):
+        with pytest.raises(PythonVersionError, match="not supported"):
+            validate_python_version("3.8")
+
+    def test_invalid_empty_string(self):
+        with pytest.raises(PythonVersionError, match="Invalid Python version"):
+            validate_python_version("")
+
+    def test_invalid_non_numeric(self):
+        with pytest.raises(PythonVersionError, match="Invalid Python version"):
+            validate_python_version("latest")
+
+    def test_valid_3_9(self):
+        assert validate_python_version("3.9") == "3.9"
+
+    def test_valid_3_14(self):
+        assert validate_python_version("3.14") == "3.14"
+
+
+class TestCheckPythonVersionCompatibility:
+    def test_stable_version_no_warning(self):
+        assert check_python_version_compatibility("3.12") is None
+        assert check_python_version_compatibility("3.13") is None
+
+    def test_prerelease_version_warns(self):
+        warning = check_python_version_compatibility("3.14")
+        assert warning is not None
+        assert "very new" in warning.message
+        assert "3.12 or 3.13" in warning.message
+
+    def test_unknown_future_version_warns(self):
+        warning = check_python_version_compatibility("3.20")
+        assert warning is not None
+        assert "not a recognized version" in warning.message
+
+    def test_create_venv_cmd_validates_version(self):
+        with patch.object(venv_utils, "get_uv_path", return_value="/usr/bin/uv"):
+            with pytest.raises(PythonVersionError):
+                venv_utils.create_venv_cmd("/my/venv", python_version="3.8")
+
+    def test_create_venv_cmd_normalizes_version(self):
+        with patch.object(venv_utils, "get_uv_path", return_value="/usr/bin/uv"):
+            cmd = venv_utils.create_venv_cmd("/my/venv", python_version="3.12.5")
+        assert cmd == ["/usr/bin/uv", "venv", "/my/venv", "--python", "3.12"]

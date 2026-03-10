@@ -104,6 +104,8 @@ def _run_rfbrowser_init(
 
 def create_venv(env_id: int) -> dict:
     """Create a virtual environment."""
+    from src.environments.venv_utils import PythonVersionError, validate_python_version
+
     with get_sync_session() as session:
         env = session.execute(
             select(Environment).where(Environment.id == env_id)
@@ -113,22 +115,52 @@ def create_venv(env_id: int) -> dict:
             return {"status": "error", "message": "Environment not found"}
 
         try:
+            # Validate Python version before attempting venv creation
+            if env.python_version:
+                try:
+                    validate_python_version(env.python_version)
+                except PythonVersionError as e:
+                    logger.error("Invalid Python version for env %d: %s", env_id, e)
+                    return {"status": "error", "message": str(e)}
+
             venv_path = Path(env.venv_path)
             if not venv_path.exists():
-                subprocess.run(
+                result = subprocess.run(
                     create_venv_cmd(str(venv_path), env.python_version),
-                    check=True,
                     capture_output=True,
                     text=True,
                 )
+                if result.returncode != 0:
+                    error_msg = result.stderr or result.stdout or "Unknown error"
+                    if "No interpreter found" in error_msg or "not found" in error_msg.lower():
+                        error_msg = (
+                            f"Python {env.python_version} could not be found or installed by uv. "
+                            f"Either install Python {env.python_version} manually, or use a "
+                            f"supported version (3.9\u20133.13). Details: {error_msg}"
+                        )
+                    elif "download" in error_msg.lower():
+                        error_msg = (
+                            f"Failed to download Python {env.python_version}. This version may "
+                            f"not be available yet. Details: {error_msg}"
+                        )
+                    logger.error("venv creation failed for env %d: %s", env_id, error_msg)
+                    return {"status": "error", "message": error_msg}
 
             # Install robotframework by default
-            subprocess.run(
+            result = subprocess.run(
                 pip_install_cmd(str(venv_path), "robotframework"),
-                check=True,
                 capture_output=True,
                 text=True,
             )
+            if result.returncode != 0:
+                error_msg = result.stderr or result.stdout or "Unknown error"
+                if "No matching distribution" in error_msg or "requires-python" in error_msg.lower():
+                    error_msg = (
+                        f"robotframework is not yet available for Python {env.python_version}. "
+                        f"Consider using Python 3.12 or 3.13 instead. Details: {error_msg}"
+                    )
+                logger.error("robotframework install failed for env %d: %s", env_id, error_msg)
+                return {"status": "error", "message": error_msg}
 
             logger.info("Created venv at %s", venv_path)
             return {"status": "success", "message": f"Created venv at {venv_path}"}
