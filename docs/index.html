@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RoboScope — Robot Framework Test Management</title>
+  <meta name="description" content="Open-Source Web UI für Robot Framework: Tests ausführen, auswerten und mit KI analysieren. Kostenlos, self-hosted, Apache 2.0.">
+  <link rel="icon" href="assets/favicon.ico">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --color-primary: #3B7DD8;
+      --color-primary-hover: #2E6BC0;
+      --color-accent: #D4883E;
+      --color-navy: #1A2D50;
+      --color-navy-dark: #0F1A30;
+      --color-bg: #F4F7FA;
+      --color-bg-card: #ffffff;
+      --color-text: #1A1D2E;
+      --color-text-muted: #5A6380;
+      --font: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font);
+      color: var(--color-text);
+      background: var(--color-bg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--color-primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img { max-width: 100%; height: auto; }
+
+    .container {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ── Navigation ── */
+    .nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: rgba(15, 26, 48, 0.95);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .nav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .nav-logo img { height: 32px; width: auto; }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: rgba(255,255,255,0.8);
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: #fff; text-decoration: none; }
+    .nav-links .btn-nav {
+      background: var(--color-primary);
+      color: #fff;
+      padding: 7px 18px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .nav-links .btn-nav:hover { background: var(--color-primary-hover); }
+
+    .nav-toggle {
+      display: none;
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 4px;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, var(--color-navy) 0%, var(--color-navy-dark) 100%);
+      color: #fff;
+      padding: 140px 0 80px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: 2.8rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+    .hero .subline {
+      font-size: 1.15rem;
+      color: rgba(255,255,255,0.75);
+      max-width: 620px;
+      margin: 0 auto 32px;
+      line-height: 1.7;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 28px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 12px 28px;
+      border-radius: var(--radius-sm);
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--color-primary);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--color-primary-hover); text-decoration: none; }
+    .btn-ghost {
+      background: transparent;
+      color: #fff;
+      border: 1.5px solid rgba(255,255,255,0.35);
+    }
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.7); text-decoration: none; }
+
+    .badge-row {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 14px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 20px;
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.7);
+      font-weight: 500;
+    }
+
+    /* ── Section shared ── */
+    .section { padding: 80px 0; }
+    .section-dark {
+      background: linear-gradient(135deg, var(--color-navy) 0%, var(--color-navy-dark) 100%);
+      color: #fff;
+    }
+    .section-title {
+      text-align: center;
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .section-subtitle {
+      text-align: center;
+      color: var(--color-text-muted);
+      margin-bottom: 48px;
+      font-size: 1.05rem;
+    }
+    .section-dark .section-subtitle { color: rgba(255,255,255,0.65); }
+
+    /* ── Features ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .feature-card {
+      background: var(--color-bg-card);
+      border: 1px solid #e2e8f0;
+      border-radius: var(--radius-md);
+      padding: 28px 24px;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .feature-card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
+    }
+    .feature-icon {
+      font-size: 1.8rem;
+      margin-bottom: 12px;
+      display: block;
+    }
+    .feature-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .feature-card p {
+      color: var(--color-text-muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    /* ── Screenshots ── */
+    .tabs {
+      display: flex;
+      justify-content: center;
+      gap: 4px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      background: rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.7);
+      border: none;
+      padding: 10px 22px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      font-family: var(--font);
+      transition: all 0.2s;
+    }
+    .tab-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    .tab-btn.active { background: var(--color-primary); color: #fff; }
+
+    .tab-panels { position: relative; }
+    .tab-panel {
+      display: none;
+      text-align: center;
+    }
+    .tab-panel.active { display: block; }
+    .tab-panel img {
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-lg);
+      max-width: 100%;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .tab-caption {
+      margin-top: 16px;
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.6);
+    }
+
+    /* ── Install ── */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      counter-reset: step;
+    }
+    .step {
+      position: relative;
+    }
+    .step-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: var(--color-primary);
+      color: #fff;
+      border-radius: 50%;
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 14px;
+    }
+    .step h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .step p {
+      color: var(--color-text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+    }
+    .code-block {
+      position: relative;
+      background: var(--color-navy-dark);
+      border-radius: var(--radius-sm);
+      padding: 16px 18px;
+      overflow-x: auto;
+      margin-top: 8px;
+    }
+    .code-block code {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      font-size: 0.82rem;
+      color: #e2e8f0;
+      line-height: 1.7;
+      white-space: pre;
+      display: block;
+    }
+    .code-block .comment { color: #5A6380; }
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(255,255,255,0.1);
+      border: none;
+      color: rgba(255,255,255,0.5);
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-family: var(--font);
+      transition: all 0.2s;
+    }
+    .copy-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+
+    /* ── Video placeholder ── */
+    .video-placeholder {
+      background: var(--color-navy);
+      border: 2px dashed rgba(255,255,255,0.15);
+      border-radius: var(--radius-md);
+      padding: 60px 24px;
+      text-align: center;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .video-placeholder .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .video-placeholder p {
+      color: rgba(255,255,255,0.5);
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    /* ── Tech stack ── */
+    .tech-pills {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+    .tech-pill {
+      background: var(--color-bg-card);
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      padding: 8px 18px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    /* ── Footer ── */
+    .footer {
+      background: var(--color-navy-dark);
+      color: rgba(255,255,255,0.6);
+      padding: 40px 0;
+    }
+    .footer .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .footer-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .footer-logo img { height: 28px; width: auto; }
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+      flex-wrap: wrap;
+    }
+    .footer-links a {
+      color: rgba(255,255,255,0.6);
+      font-size: 0.85rem;
+    }
+    .footer-links a:hover { color: #fff; }
+    .footer-copy {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.4);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+      .steps { grid-template-columns: 1fr; max-width: 520px; margin: 0 auto; }
+      .hero h1 { font-size: 2.2rem; }
+    }
+    @media (max-width: 640px) {
+      .features-grid { grid-template-columns: 1fr; }
+      .hero { padding: 120px 0 60px; }
+      .hero h1 { font-size: 1.8rem; }
+      .hero .subline { font-size: 1rem; }
+      .section { padding: 56px 0; }
+      .section-title { font-size: 1.6rem; }
+      .nav-links { display: none; }
+      .nav-links.open {
+        display: flex;
+        flex-direction: column;
+        position: absolute;
+        top: 60px;
+        left: 0;
+        right: 0;
+        background: var(--color-navy-dark);
+        padding: 20px 24px;
+        gap: 16px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+      }
+      .nav-toggle { display: block; }
+      .footer .container { flex-direction: column; text-align: center; }
+      .footer-links { justify-content: center; }
+      .tabs { gap: 4px; }
+      .tab-btn { padding: 8px 14px; font-size: 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav">
+  <div class="container">
+    <a href="#" class="nav-logo">
+      <img src="assets/roboscope_white.png" alt="RoboScope Logo">
+    </a>
+    <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menü öffnen">&#9776;</button>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#screenshots">Screenshots</a></li>
+      <li><a href="#install">Installation</a></li>
+      <li><a href="https://github.com/viadee/roboscope" class="btn-nav" target="_blank" rel="noopener">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero" id="top">
+  <div class="container">
+    <h1>Robot Framework Test Management —<br>Built for Teams</h1>
+    <p class="subline">Open-Source Web UI für Robot Framework: Tests ausführen, auswerten und mit KI analysieren. Kostenlos, self-hosted, Apache 2.0.</p>
+    <div class="hero-actions">
+      <a href="https://github.com/viadee/roboscope" class="btn btn-primary" target="_blank" rel="noopener">Jetzt auf GitHub &rarr;</a>
+      <a href="#install" class="btn btn-ghost">Quick Install</a>
+    </div>
+    <div class="badge-row">
+      <span class="badge">Open Source</span>
+      <span class="badge">Apache 2.0</span>
+      <span class="badge">Python + Vue 3</span>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="section" id="features">
+  <div class="container">
+    <h2 class="section-title">Alles, was du brauchst</h2>
+    <p class="section-subtitle">Robot Framework Testmanagement in einer modernen Web-Oberfläche</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <span class="feature-icon">&#x1F680;</span>
+        <h3>Test Execution</h3>
+        <p>Subprocess oder Docker, Live-WebSocket-Updates, Scheduling — Tests direkt aus dem Browser starten und beobachten.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">&#x1F4C1;</span>
+        <h3>Projekt &amp; Git Management</h3>
+        <p>Repos klonen, Branches wechseln, automatisch synchronisieren. Integrierter Code-Explorer mit Robot-Parser.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">&#x1F40D;</span>
+        <h3>Environment Management</h3>
+        <p>Python-Umgebungen mit uv erstellen und verwalten. Pakete installieren, Library-Checks, alles an einem Ort.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">&#x1F4CA;</span>
+        <h3>Reports &amp; KPIs</h3>
+        <p>output.xml automatisch parsen. Trends erkennen, Flaky Tests aufspüren, 15 KPIs in der Tiefen-Analyse.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">&#x1F916;</span>
+        <h3>KI-Fehleranalyse</h3>
+        <p>LLM-gestützte Root-Cause-Analyse mit OpenAI, Anthropic oder Ollama. Fehlerursachen verstehen statt raten.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">&#x1F512;</span>
+        <h3>Rollen &amp; Zugriff</h3>
+        <p>RBAC mit vier Stufen: Viewer, Runner, Editor, Admin. Multi-User ready, JWT-Authentifizierung.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Screenshots -->
+<section class="section section-dark" id="screenshots">
+  <div class="container">
+    <h2 class="section-title">RoboScope in Aktion</h2>
+    <p class="section-subtitle">Klicke auf einen Tab, um die verschiedenen Bereiche zu sehen</p>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('dashboard', this)">Dashboard</button>
+      <button class="tab-btn" onclick="switchTab('execution', this)">Execution</button>
+      <button class="tab-btn" onclick="switchTab('explorer', this)">Explorer</button>
+      <button class="tab-btn" onclick="switchTab('stats', this)">Statistiken</button>
+      <button class="tab-btn" onclick="switchTab('ai', this)">KI-Analyse</button>
+    </div>
+    <div class="tab-panels">
+      <div class="tab-panel active" id="panel-dashboard">
+        <img src="assets/screenshots/dashboard.png" alt="RoboScope Dashboard" loading="lazy">
+        <p class="tab-caption">Dashboard — Überblick über alle Projekte, letzte Testläufe und KPIs</p>
+      </div>
+      <div class="tab-panel" id="panel-execution">
+        <img src="assets/screenshots/execution.png" alt="RoboScope Execution" loading="lazy">
+        <p class="tab-caption">Execution — Tests starten, Live-Logs verfolgen und Ergebnisse einsehen</p>
+      </div>
+      <div class="tab-panel" id="panel-explorer">
+        <img src="assets/screenshots/explorer.png" alt="RoboScope Explorer" loading="lazy">
+        <p class="tab-caption">Explorer — Robot-Dateien durchsuchen, bearbeiten und direkt ausführen</p>
+      </div>
+      <div class="tab-panel" id="panel-stats">
+        <img src="assets/screenshots/stats.png" alt="RoboScope Statistiken" loading="lazy">
+        <p class="tab-caption">Statistiken — Trends, Flaky Detection und Tiefen-Analyse mit 15 KPIs</p>
+      </div>
+      <div class="tab-panel" id="panel-ai">
+        <img src="assets/screenshots/ai.png" alt="RoboScope KI-Analyse" loading="lazy">
+        <p class="tab-caption">KI-Analyse — LLM-gestützte Fehleranalyse und .roboscope Generierung</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Installation -->
+<section class="section" id="install">
+  <div class="container">
+    <h2 class="section-title">In 3 Schritten startklar</h2>
+    <p class="section-subtitle">Kein Cloud-Account nötig. Alles läuft lokal auf deinem Rechner.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <h3>Voraussetzungen</h3>
+        <p>Python 3.12+, Node.js 20+ und uv installieren.</p>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
+          <code>curl -LsSf https://astral.sh/uv/install.sh | sh</code>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <h3>Clone &amp; Install</h3>
+        <p>Repository klonen und Dependencies installieren.</p>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
+          <code>git clone https://github.com/viadee/roboscope.git
+cd roboscope
+cp backend/.env.example backend/.env
+make install</code>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <h3>Starten</h3>
+        <p>Backend und Frontend mit einem Befehl starten.</p>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
+          <code>make dev
+<span class="comment"># Backend:  http://localhost:8000</span>
+<span class="comment"># Frontend: http://localhost:5173</span>
+<span class="comment"># Login:    admin@roboscope.local / admin123</span></code>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Demo Video Placeholder -->
+<section class="section section-dark" id="demo">
+  <div class="container">
+    <!-- REPLACE_WITH_VIDEO: embed demo video here -->
+    <div class="video-placeholder">
+      <div class="icon">&#x1F3AC;</div>
+      <p>Demo Video coming soon</p>
+    </div>
+  </div>
+</section>
+
+<!-- Tech Stack -->
+<section class="section" id="tech">
+  <div class="container">
+    <h2 class="section-title">Tech Stack</h2>
+    <p class="section-subtitle">Moderne, bewährte Technologien — kein Vendor Lock-in</p>
+    <div class="tech-pills">
+      <span class="tech-pill">FastAPI</span>
+      <span class="tech-pill">SQLAlchemy</span>
+      <span class="tech-pill">Pydantic</span>
+      <span class="tech-pill">Vue 3</span>
+      <span class="tech-pill">TypeScript</span>
+      <span class="tech-pill">Playwright</span>
+      <span class="tech-pill">uv</span>
+      <span class="tech-pill">SQLite / PostgreSQL</span>
+      <span class="tech-pill">Docker</span>
+      <span class="tech-pill">Chart.js</span>
+      <span class="tech-pill">CodeMirror 6</span>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-logo">
+      <img src="assets/roboscope_white.png" alt="RoboScope">
+    </div>
+    <ul class="footer-links">
+      <li><a href="https://github.com/viadee/roboscope" target="_blank" rel="noopener">GitHub</a></li>
+      <li><a href="https://github.com/viadee/roboscope/issues" target="_blank" rel="noopener">Issues</a></li>
+      <li><a href="https://github.com/viadee/roboscope#readme" target="_blank" rel="noopener">Docs</a></li>
+      <li><a href="https://github.com/viadee/roboscope/blob/main/LICENSE" target="_blank" rel="noopener">Apache 2.0 License</a></li>
+      <li><a href="datenschutz.html">Datenschutz</a></li>
+      <li><a href="impressum.html">Impressum</a></li>
+    </ul>
+    <p class="footer-copy">© 2025 viadee Unternehmensberatung AG · Apache 2.0</p>
+  </div>
+</footer>
+
+<script>
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+function copyCode(btn) {
+  const code = btn.parentElement.querySelector('code');
+  const text = code.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Kopiert!';
+    setTimeout(() => { btn.textContent = 'Kopieren'; }, 1500);
+  });
+}
+
+// Close mobile menu on link click
+document.querySelectorAll('.nav-links a').forEach(a => {
+  a.addEventListener('click', () => {
+    document.querySelector('.nav-links').classList.remove('open');
+  });
+});
+</script>
+
+<script data-goatcounter="https://roboscope.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>

@@ -44,6 +44,7 @@ class EnvResponse(BaseModel):
     created_by: int
     created_at: datetime
     updated_at: datetime
+    python_version_warning: str | None = None
 
     model_config = {"from_attributes": True}
 

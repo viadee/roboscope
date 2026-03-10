@@ -61,7 +61,26 @@ def add_environment(
     current_user: User = Depends(require_role(Role.EDITOR)),
 ):
     """Create a new environment."""
-    return create_environment(db, data, current_user.id)
+    from src.environments.venv_utils import (
+        PythonVersionError,
+        check_python_version_compatibility,
+        validate_python_version,
+    )
+
+    # Validate and normalize python version
+    try:
+        data.python_version = validate_python_version(data.python_version)
+    except PythonVersionError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    env = create_environment(db, data, current_user.id)
+
+    # Check for compatibility warnings
+    warning = check_python_version_compatibility(data.python_version)
+    response = EnvResponse.model_validate(env)
+    if warning:
+        response.python_version_warning = warning.message
+    return response
 
 
 # Default RF packages for quick setup
