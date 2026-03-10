@@ -36,6 +36,8 @@ jobs:
         run: cd backend && uv pip install --system -e ".[dev]"
 
       - name: Start backend server
+        env:
+          SECRET_KEY: ci-test-secret-key-not-for-production
         run: |
           cd backend
           python -m uvicorn src.main:app --host 127.0.0.1 --port 8000 &

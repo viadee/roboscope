@@ -1,6 +1,7 @@
 """Subprocess-based test runner using virtualenv."""
 
 import os
+import platform
 import signal
 import subprocess
 import sys
@@ -85,6 +86,20 @@ class SubprocessRunner(AbstractRunner):
         last_activity = time.time()
         lock = threading.Lock()
 
+        # Resource limits: cap memory at 2 GB on Linux/macOS
+        preexec = None
+        if platform.system() != "Windows":
+            import resource
+
+            def _set_limits() -> None:
+                two_gb = 2 * 1024 * 1024 * 1024
+                try:
+                    resource.setrlimit(resource.RLIMIT_AS, (two_gb, two_gb))
+                except (ValueError, OSError):
+                    pass  # best-effort; some systems don't support RLIMIT_AS
+
+            preexec = _set_limits
+
         try:
             self._process = subprocess.Popen(
                 cmd,
@@ -94,6 +109,7 @@ class SubprocessRunner(AbstractRunner):
                 env=env,
                 text=True,
                 bufsize=1,
+                preexec_fn=preexec,
             )
 
             # Read stdout in a background thread so readline() can't block timeouts

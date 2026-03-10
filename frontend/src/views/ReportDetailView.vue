@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useReportsStore } from '@/stores/reports.store'
 import { useAiStore } from '@/stores/ai.store'
-import { getReportHtmlUrl, getReportZipUrl, getMissingLibraries } from '@/api/reports.api'
+import { getReportHtmlBlobUrl, getReportZipBlobUrl, getMissingLibraries } from '@/api/reports.api'
 import { installPackage } from '@/api/environments.api'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -21,16 +21,18 @@ const { t } = useI18n()
 const reportId = computed(() => Number(route.params.id))
 const activeTab = ref<'summary' | 'detailed' | 'html'>('summary')
 
-onMounted(() => {
+onMounted(async () => {
   if (reportId.value) {
     reports.fetchReport(reportId.value)
     fetchMissingLibraries()
+    loadHtmlReport()
   }
   if (!aiStore.hasProviders) aiStore.fetchProviders()
 })
 
 onUnmounted(() => {
   aiStore.stopAnalysisPolling()
+  if (htmlReportUrl.value) URL.revokeObjectURL(htmlReportUrl.value)
 })
 
 const failedTests = computed(() =>
@@ -43,16 +45,26 @@ const passedTests = computed(() =>
 
 const hasFailures = computed(() => failedTests.value.length > 0)
 
-const htmlReportUrl = computed(() => getReportHtmlUrl(reportId.value))
-const zipDownloadUrl = computed(() => getReportZipUrl(reportId.value))
+const htmlReportUrl = ref('')
 const iframeKey = ref(0)
 
-function reloadIframe() {
-  iframeKey.value++
+async function loadHtmlReport() {
+  if (htmlReportUrl.value) URL.revokeObjectURL(htmlReportUrl.value)
+  htmlReportUrl.value = await getReportHtmlBlobUrl(reportId.value)
 }
 
-function downloadZip() {
-  window.open(zipDownloadUrl.value, '_blank')
+async function reloadIframe() {
+  iframeKey.value++
+  await loadHtmlReport()
+}
+
+async function downloadZip() {
+  const blobUrl = await getReportZipBlobUrl(reportId.value)
+  const a = document.createElement('a')
+  a.href = blobUrl
+  a.download = `report_${reportId.value}.zip`
+  a.click()
+  URL.revokeObjectURL(blobUrl)
 }
 
 // --- Missing Libraries ---

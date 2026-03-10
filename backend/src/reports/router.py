@@ -7,7 +7,7 @@ import shutil
 import zipfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import delete, select
@@ -18,6 +18,7 @@ from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
 from src.auth.service import decode_token, get_user_by_id
 from src.database import get_db
+from src.rate_limit import limiter
 
 optional_bearer = HTTPBearer(auto_error=False)
 from src.reports.models import Report, TestResult
@@ -134,7 +135,9 @@ def delete_all_reports(
 
 
 @router.post("/upload", response_model=ReportDetailResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 def upload_archive(
+    request: Request,
     file: UploadFile,
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
@@ -150,9 +153,15 @@ def upload_archive(
             detail="File must be a .zip archive",
         )
 
-    # Read and validate ZIP
+    # Read and validate ZIP (with size limit)
+    MAX_UPLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
     try:
         content = file.file.read()
+        if len(content) > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File too large ({len(content)} bytes). Maximum is {MAX_UPLOAD_BYTES} bytes.",
+            )
         if not zipfile.is_zipfile(io.BytesIO(content)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -401,13 +410,17 @@ def get_report_html(
 def get_report_asset(
     report_id: int,
     file_path: str,
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_bearer),
     db: Session = Depends(get_db),
 ):
     """Serve a file from the report's output directory (screenshots, etc.).
 
-    No auth required — assets are scoped by report ID with path traversal protection.
-    This allows the iframe'd HTML report to load resources without token forwarding.
+    Auth is optional — assets are scoped by report ID with path traversal protection.
+    When loaded from iframe'd HTML reports, requests arrive without auth headers.
+    Unauthenticated access is logged for audit purposes.
     """
+    if not credentials:
+        logger.info("Unauthenticated asset access: report=%d file=%s", report_id, file_path)
     report = get_report(db, report_id)
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
