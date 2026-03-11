@@ -238,12 +238,24 @@ async def search_keywords(query: str) -> list[dict]:
     if not is_available():
         return []
 
-    result = await _call_mcp_tool("search_keyword", {"query": query})
-    if isinstance(result, list):
-        return result
-    if isinstance(result, dict) and "results" in result:
-        return result["results"]
-    return []
+    result = await _call_mcp_tool("find_keywords", {"query": query})
+    if not isinstance(result, dict):
+        return []
+
+    # find_keywords returns {success, strategy, result: {matches: [...]}}
+    matches = result.get("result", {}).get("matches", []) if isinstance(result.get("result"), dict) else []
+    if not matches:
+        # Fallback: try flat list or "results" key
+        matches = result.get("results", result.get("matches", []))
+
+    return [
+        {
+            "name": m.get("keyword_name", m.get("name", "")),
+            "library": m.get("library", ""),
+            "doc": (m.get("documentation", "") or "")[:200],
+        }
+        for m in (matches if isinstance(matches, list) else [])
+    ]
 
 
 async def get_keyword_docs(keyword_name: str) -> str | None:
@@ -254,7 +266,7 @@ async def get_keyword_docs(keyword_name: str) -> str | None:
     if not is_available():
         return None
 
-    result = await _call_mcp_tool("get_keyword_doc", {"keyword": keyword_name})
+    result = await _call_mcp_tool("get_keyword_info", {"keyword_name": keyword_name})
     if isinstance(result, str):
         return result
     if isinstance(result, dict) and "doc" in result:

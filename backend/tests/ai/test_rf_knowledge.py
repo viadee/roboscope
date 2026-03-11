@@ -373,14 +373,21 @@ class TestSearchKeywords:
 
     @pytest.mark.asyncio
     async def test_returns_results_from_mcp(self):
-        keywords = [
-            {"name": "Click Element", "library": "SeleniumLibrary", "doc": "Clicks an element"},
-            {"name": "Click Button", "library": "SeleniumLibrary", "doc": "Clicks a button"},
-        ]
+        # find_keywords returns {success, strategy, result: {matches: [...]}}
+        mcp_response = {
+            "success": True,
+            "strategy": "exact",
+            "result": {
+                "matches": [
+                    {"keyword_name": "Click Element", "library": "SeleniumLibrary", "documentation": "Clicks an element"},
+                    {"keyword_name": "Click Button", "library": "SeleniumLibrary", "documentation": "Clicks a button"},
+                ]
+            }
+        }
         rf_knowledge._session_id = SESSION_ID
         rf_knowledge._session_url = MCP_URL
 
-        cm, _ = _mock_client_with_responses(_make_tool_response(keywords))
+        cm, _ = _mock_client_with_responses(_make_tool_response(mcp_response))
 
         with (
             patch("src.ai.rf_mcp_manager.get_effective_url", return_value=MCP_URL),

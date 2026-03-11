@@ -98,25 +98,23 @@ async def lifespan(app: FastAPI):
     from src.plugins.registry import plugin_registry
     plugin_registry.discover_builtin()
 
-    # Auto-start rf-mcp if previously running
+    # Auto-start rf-mcp (bundled dependency — always start)
     with SessionLocal() as session:
         from src.settings.service import get_setting_value
-        auto_start = get_setting_value(session, "rf_mcp_auto_start", "false")
         env_id_str = get_setting_value(session, "rf_mcp_environment_id", "")
-        port_str = get_setting_value(session, "rf_mcp_port", "9090")
+        port_str = get_setting_value(session, "rf_mcp_port", str(settings.RF_MCP_PORT))
 
-        if auto_start.lower() == "true" and env_id_str:
-            from src.task_executor import dispatch_task
-            from src.ai import rf_mcp_manager
-            env_id = int(env_id_str)
-            port = int(port_str)
-            rf_mcp_manager._status = "installing"
-            rf_mcp_manager._environment_id = env_id
-            try:
-                dispatch_task(rf_mcp_manager.setup, env_id, port)
-                logger.info("Auto-starting rf-mcp (env_id=%d, port=%d)", env_id, port)
-            except Exception:
-                logger.warning("Failed to auto-start rf-mcp", exc_info=True)
+        from src.task_executor import dispatch_task
+        from src.ai import rf_mcp_manager
+        env_id = int(env_id_str) if env_id_str else None
+        port = int(port_str)
+        rf_mcp_manager._status = "starting"
+        rf_mcp_manager._environment_id = env_id
+        try:
+            dispatch_task(rf_mcp_manager.start_bundled, env_id, port)
+            logger.info("Auto-starting rf-mcp (env_id=%s, port=%d)", env_id, port)
+        except Exception:
+            logger.warning("Failed to auto-start rf-mcp", exc_info=True)
 
     logger.info("RoboScope started successfully")
     yield

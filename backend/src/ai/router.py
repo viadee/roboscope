@@ -451,7 +451,7 @@ def rf_mcp_setup(
     db: Session = Depends(get_db),
     _current_user: User = Depends(require_role(Role.ADMIN)),
 ):
-    """Install rf-mcp (if needed) and start the server. Runs as background task."""
+    """Start the rf-mcp server with an environment for library discovery."""
     from sqlalchemy import select as sa_select
     from src.environments.models import Environment
     from src.ai import rf_mcp_manager
@@ -462,21 +462,19 @@ def rf_mcp_setup(
     ).scalar_one_or_none()
     if not env:
         raise HTTPException(status_code=404, detail="Environment not found")
-    if not env.venv_path:
-        raise HTTPException(status_code=400, detail="Environment has no virtual environment")
 
     # Stop any running instance first
     rf_mcp_manager.stop_server()
 
-    # Set status to "installing" immediately so polling sees it before the
+    # Set status to "starting" immediately so polling sees it before the
     # background task starts (avoids race where poll sees "stopped" and quits)
-    rf_mcp_manager._status = "installing"
+    rf_mcp_manager._status = "starting"
     rf_mcp_manager._environment_id = data.environment_id
     rf_mcp_manager._error_message = ""
 
     # Dispatch setup as background task
     try:
-        dispatch_task(rf_mcp_manager.setup, data.environment_id, data.port)
+        dispatch_task(rf_mcp_manager.start_bundled, data.environment_id, data.port)
     except TaskDispatchError as e:
         raise HTTPException(status_code=500, detail=f"Failed to dispatch setup task: {e}")
 
@@ -491,9 +489,9 @@ def rf_mcp_setup(
     ])
     db.commit()
 
-    # Return current status (will be "installing" or "starting" soon)
+    # Return current status (will be "starting" soon)
     return RfMcpDetailedStatus(
-        status="installing",
+        status="starting",
         running=False,
         environment_id=data.environment_id,
         environment_name=env.name,

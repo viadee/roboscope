@@ -32,6 +32,8 @@ dependencies = [
     "httpx>=0.28.0",
     "slowapi>=0.1.9",
     "python-json-logger>=3.0.0",
+    "rf-mcp>=0.30.0",
+    "fastmcp<3",
 ]
 
 [project.optional-dependencies]
