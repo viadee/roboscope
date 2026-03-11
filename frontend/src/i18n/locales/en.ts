@@ -917,6 +917,7 @@ export default {
     templatePlaceholder: 'Template keyword (optional)',
     arguments: 'Arguments',
     argumentsPlaceholder: '${arg1}    ${arg2}',
+    addArgument: 'Add argument, e.g. ${name}',
     returnValue: 'Return Value',
     returnValuePlaceholder: '${result}',
     stepPlaceholder: 'Log    Hello World',

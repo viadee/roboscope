@@ -61,7 +61,7 @@ interface RobotTestCase {
   steps: RobotStep[]
 }
 interface RobotKeyword {
-  name: string; documentation: string; arguments: string; tags: string[]
+  name: string; documentation: string; arguments: string[]; tags: string[]
   setup: string; teardown: string; timeout: string; returnValue: string
   steps: RobotStep[]
 }
@@ -101,6 +101,11 @@ const activeAutocompleteStep = ref<RobotStep | null>(null)
 const keywordQuery = ref('')
 const keywordDropdownIndex = ref(-1)
 const keywordDropdownRef = ref<HTMLElement | null>(null)
+
+// Arg variable autocomplete state
+const argAutocompleteItems = ref<string[]>([])
+const argAutocompleteIndex = ref(-1)
+const argAutocompleteKey = ref<string | null>(null) // "kwIdx-sIdx-aIdx" or "tcIdx-sIdx-aIdx"
 
 // --- Form State ---
 const form = reactive<RobotForm>({
@@ -349,7 +354,7 @@ function parseRobotToForm(content: string): boolean {
             currentItemType = 'testcase'
           } else {
             currentItem = {
-              name: trimmed, documentation: '', arguments: '', tags: [],
+              name: trimmed, documentation: '', arguments: [], tags: [],
               setup: '', teardown: '', timeout: '', returnValue: '', steps: [],
             }
             currentItemType = 'keyword'
@@ -401,7 +406,11 @@ function parseRobotToForm(content: string): boolean {
                 if ('template' in currentItem) (currentItem as RobotTestCase).template = settingValue
                 break
               case 'arguments':
-                if ('arguments' in currentItem) (currentItem as RobotKeyword).arguments = settingValue
+                if ('arguments' in currentItem) {
+                  (currentItem as RobotKeyword).arguments = settingValue
+                    ? settingValue.split(/  +|\t+/).filter(Boolean)
+                    : []
+                }
                 break
               case 'return':
                 if ('returnValue' in currentItem) (currentItem as RobotKeyword).returnValue = settingValue
@@ -484,7 +493,7 @@ function serializeFormToRobot(): string {
     lines.push('*** Keywords ***')
     for (const kw of form.keywords) {
       lines.push(kw.name)
-      if (kw.arguments) lines.push(SEP + '[Arguments]' + SEP + kw.arguments)
+      if (kw.arguments.length) lines.push(SEP + '[Arguments]' + SEP + kw.arguments.join(SEP))
       if (kw.documentation) lines.push(SEP + '[Documentation]' + SEP + kw.documentation)
       if (kw.tags.length > 0) lines.push(SEP + '[Tags]' + SEP + kw.tags.join(SEP))
       if (kw.setup) lines.push(SEP + '[Setup]' + SEP + kw.setup)
@@ -833,15 +842,100 @@ function selectKeywordSuggestion(step: RobotStep, suggestion: KeywordSuggestion)
   }
 }
 
+// --- Arg Variable Autocomplete ---
+function collectAvailableVars(): string[] {
+  const vars: string[] = []
+  for (const v of form.variables) if (v.name) vars.push(v.name)
+  for (const kw of form.keywords) {
+    for (const a of kw.arguments) {
+      if (a) vars.push(a.replace(/=.*$/, ''))
+    }
+  }
+  return vars
+}
+
+function onArgInput(value: string, key: string) {
+  argAutocompleteKey.value = key
+  if (!value.includes('$')) {
+    argAutocompleteItems.value = []
+    return
+  }
+  const m = value.match(/[$@&%]\{([^}]*)$/)
+  if (!m) { argAutocompleteItems.value = []; return }
+  const partial = m[1].toLowerCase()
+  const all = collectAvailableVars()
+  argAutocompleteItems.value = all.filter(v => v.toLowerCase().includes(partial)).slice(0, 8)
+  argAutocompleteIndex.value = -1
+}
+
+function selectArgVar(step: RobotStep, aIdx: number, varName: string) {
+  const current = step.args[aIdx] || ''
+  // Replace the partial ${... with the full variable
+  const replaced = current.replace(/[$@&%]\{[^}]*$/, varName + '}')
+  step.args[aIdx] = replaced.includes('}') ? replaced : varName
+  argAutocompleteItems.value = []
+  argAutocompleteKey.value = null
+}
+
+function onArgKeydown(event: KeyboardEvent, step: RobotStep, aIdx: number) {
+  if (!argAutocompleteItems.value.length) return
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    argAutocompleteIndex.value = Math.min(argAutocompleteIndex.value + 1, argAutocompleteItems.value.length - 1)
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    argAutocompleteIndex.value = Math.max(argAutocompleteIndex.value - 1, 0)
+  } else if (event.key === 'Enter' && argAutocompleteIndex.value >= 0) {
+    event.preventDefault()
+    selectArgVar(step, aIdx, argAutocompleteItems.value[argAutocompleteIndex.value])
+  } else if (event.key === 'Escape') {
+    argAutocompleteItems.value = []
+    argAutocompleteKey.value = null
+  }
+}
+
+function onArgBlur() {
+  setTimeout(() => { argAutocompleteItems.value = []; argAutocompleteKey.value = null }, 200)
+}
+
+// --- Arg input helpers ---
+function hasVariable(val: string): boolean {
+  return /[$@&%]\{[^}]+\}/.test(val)
+}
+
+function argInputWidth(val: string): string {
+  const len = Math.max((val || '').length, 6)
+  return Math.min(len, 30) + 'ch'
+}
+
+function ensureArgSyntax(kw: { arguments: string[] }, idx: number) {
+  let v = kw.arguments[idx]
+  if (!v) return
+  v = v.trim()
+  // Already has correct RF variable syntax
+  if (/^[$@&%]\{.*\}/.test(v)) return
+  // Has default value but no variable wrapper: name=default → ${name}=default
+  const eqIdx = v.indexOf('=')
+  if (eqIdx > 0) {
+    const name = v.substring(0, eqIdx)
+    const def = v.substring(eqIdx)
+    if (!name.startsWith('$')) kw.arguments[idx] = '${' + name + '}' + def
+  } else {
+    // Plain name → ${name}
+    if (!v.startsWith('$') && !v.startsWith('@') && !v.startsWith('&') && !v.startsWith('*')) {
+      kw.arguments[idx] = '${' + v + '}'
+    }
+  }
+}
+
 // --- Argument Name Labels ---
 function getKeywordArgNames(step: RobotStep): string[] {
   const kw = step.keyword.toLowerCase().trim()
   const builtin = RF_KEYWORD_SIGNATURES.get(kw)
   if (builtin) return builtin
   const localKw = form.keywords.find(k => k.name.toLowerCase() === kw)
-  if (localKw?.arguments) {
-    return localKw.arguments.split(/  +|\t+/)
-      .filter(Boolean)
+  if (localKw?.arguments?.length) {
+    return localKw.arguments
       .map(a => a.replace(/^[$@&%]\{([^}]+)\}$/, '$1'))
   }
   return []
@@ -875,7 +969,7 @@ function handleAddTestCaseTag(tcIndex: number) {
 // --- Keyword helpers ---
 function addKeyword() {
   form.keywords.push({
-    name: '', documentation: '', arguments: '', tags: [],
+    name: '', documentation: '', arguments: [], tags: [],
     setup: '', teardown: '', timeout: '', returnValue: '', steps: [],
   })
 }
@@ -883,6 +977,17 @@ function removeKeyword(i: number) { form.keywords.splice(i, 1); collapsedKeyword
 function toggleKeyword(i: number) {
   if (collapsedKeywords.value.has(i)) collapsedKeywords.value.delete(i)
   else collapsedKeywords.value.add(i)
+}
+
+// Keyword argument helpers
+const newKeywordArgInputs = ref<Map<number, string>>(new Map())
+function addKeywordArg(kwIndex: number, arg: string) {
+  if (arg.trim()) form.keywords[kwIndex].arguments.push(arg.trim())
+}
+function removeKeywordArg(kwIndex: number, argIdx: number) { form.keywords[kwIndex].arguments.splice(argIdx, 1) }
+function handleAddKeywordArg(kwIndex: number) {
+  addKeywordArg(kwIndex, newKeywordArgInputs.value.get(kwIndex) || '')
+  newKeywordArgInputs.value.set(kwIndex, '')
 }
 
 // Keyword tag helpers
@@ -1120,10 +1225,19 @@ watch(() => props.content, (newContent) => {
                           </div>
                         </div>
                       </div>
-                      <span v-for="(arg, aIdx) in step.args" :key="aIdx" class="step-arg-chip">
+                      <span v-for="(arg, aIdx) in step.args" :key="aIdx" class="step-arg-chip arg-ac-wrapper" :class="{ 'has-var': hasVariable(arg) }">
                         <span v-if="getKeywordArgNames(step)[aIdx]" class="arg-label">{{ getKeywordArgNames(step)[aIdx] }}</span>
                         <input v-model="step.args[aIdx]" class="step-arg-input"
-                          :placeholder="getKeywordArgNames(step)[aIdx] || t('robotEditor.argPlaceholder')" />
+                          :style="{ width: argInputWidth(step.args[aIdx]) }"
+                          :placeholder="getKeywordArgNames(step)[aIdx] || t('robotEditor.argPlaceholder')"
+                          @input="onArgInput(($event.target as HTMLInputElement).value, `${sIdx}-${aIdx}`)"
+                          @keydown="onArgKeydown($event, step, aIdx)"
+                          @blur="onArgBlur" autocomplete="off" />
+                        <div v-if="argAutocompleteKey === `${sIdx}-${aIdx}` && argAutocompleteItems.length" class="arg-ac-dropdown">
+                          <div v-for="(v, vi) in argAutocompleteItems" :key="v"
+                            class="arg-ac-item" :class="{ active: vi === argAutocompleteIndex }"
+                            @mousedown.prevent="selectArgVar(step, aIdx, v)">{{ v }}</div>
+                        </div>
                         <button class="chip-remove" @click="removeStepArg(step, aIdx)">&times;</button>
                       </span>
                       <button class="step-btn step-add-arg" @click="addStepArg(step)" :title="t('robotEditor.addArg')">+</button>
@@ -1154,10 +1268,19 @@ watch(() => props.content, (newContent) => {
                           </div>
                         </div>
                       </div>
-                      <span v-for="(arg, aIdx) in step.args" :key="aIdx" class="step-arg-chip">
+                      <span v-for="(arg, aIdx) in step.args" :key="aIdx" class="step-arg-chip arg-ac-wrapper" :class="{ 'has-var': hasVariable(arg) }">
                         <span v-if="getKeywordArgNames(step)[aIdx]" class="arg-label">{{ getKeywordArgNames(step)[aIdx] }}</span>
                         <input v-model="step.args[aIdx]" class="step-arg-input"
-                          :placeholder="getKeywordArgNames(step)[aIdx] || t('robotEditor.argPlaceholder')" />
+                          :style="{ width: argInputWidth(step.args[aIdx]) }"
+                          :placeholder="getKeywordArgNames(step)[aIdx] || t('robotEditor.argPlaceholder')"
+                          @input="onArgInput(($event.target as HTMLInputElement).value, `${sIdx}-${aIdx}`)"
+                          @keydown="onArgKeydown($event, step, aIdx)"
+                          @blur="onArgBlur" autocomplete="off" />
+                        <div v-if="argAutocompleteKey === `${sIdx}-${aIdx}` && argAutocompleteItems.length" class="arg-ac-dropdown">
+                          <div v-for="(v, vi) in argAutocompleteItems" :key="v"
+                            class="arg-ac-item" :class="{ active: vi === argAutocompleteIndex }"
+                            @mousedown.prevent="selectArgVar(step, aIdx, v)">{{ v }}</div>
+                        </div>
                         <button class="chip-remove" @click="removeStepArg(step, aIdx)">&times;</button>
                       </span>
                       <button class="step-btn step-add-arg" @click="addStepArg(step)" :title="t('robotEditor.addArg')">+</button>
@@ -1253,7 +1376,27 @@ watch(() => props.content, (newContent) => {
               </div>
               <div class="form-group">
                 <label class="form-label">{{ t('robotEditor.arguments') }}</label>
-                <input v-model="kw.arguments" class="form-input" :placeholder="t('robotEditor.argumentsPlaceholder')" />
+                <div class="chips-container">
+                  <span v-for="(arg, argIdx) in kw.arguments" :key="argIdx" class="chip chip-arg">
+                    <input
+                      :value="arg"
+                      @input="kw.arguments[argIdx] = ($event.target as HTMLInputElement).value"
+                      @blur="ensureArgSyntax(kw, argIdx)"
+                      class="chip-arg-input"
+                      :style="{ width: argInputWidth(arg) }"
+                    />
+                    <button class="chip-remove" @click="removeKeywordArg(kwIdx, argIdx)">&times;</button>
+                  </span>
+                  <div class="chip-input-wrapper">
+                    <input
+                      :value="newKeywordArgInputs.get(kwIdx) || ''"
+                      @input="newKeywordArgInputs.set(kwIdx, ($event.target as HTMLInputElement).value)"
+                      class="chip-input" :placeholder="t('robotEditor.addArgument')"
+                      @keydown.enter.prevent="handleAddKeywordArg(kwIdx)"
+                    />
+                    <button v-if="(newKeywordArgInputs.get(kwIdx) || '').trim()" class="chip-add-btn" @click="handleAddKeywordArg(kwIdx)">+</button>
+                  </div>
+                </div>
               </div>
               <div class="form-group">
                 <label class="form-label">{{ t('robotEditor.documentation') }}</label>
@@ -1330,10 +1473,19 @@ watch(() => props.content, (newContent) => {
                           </div>
                         </div>
                       </div>
-                      <span v-for="(arg, aIdx) in step.args" :key="aIdx" class="step-arg-chip">
+                      <span v-for="(arg, aIdx) in step.args" :key="aIdx" class="step-arg-chip arg-ac-wrapper" :class="{ 'has-var': hasVariable(arg) }">
                         <span v-if="getKeywordArgNames(step)[aIdx]" class="arg-label">{{ getKeywordArgNames(step)[aIdx] }}</span>
                         <input v-model="step.args[aIdx]" class="step-arg-input"
-                          :placeholder="getKeywordArgNames(step)[aIdx] || t('robotEditor.argPlaceholder')" />
+                          :style="{ width: argInputWidth(step.args[aIdx]) }"
+                          :placeholder="getKeywordArgNames(step)[aIdx] || t('robotEditor.argPlaceholder')"
+                          @input="onArgInput(($event.target as HTMLInputElement).value, `${sIdx}-${aIdx}`)"
+                          @keydown="onArgKeydown($event, step, aIdx)"
+                          @blur="onArgBlur" autocomplete="off" />
+                        <div v-if="argAutocompleteKey === `${sIdx}-${aIdx}` && argAutocompleteItems.length" class="arg-ac-dropdown">
+                          <div v-for="(v, vi) in argAutocompleteItems" :key="v"
+                            class="arg-ac-item" :class="{ active: vi === argAutocompleteIndex }"
+                            @mousedown.prevent="selectArgVar(step, aIdx, v)">{{ v }}</div>
+                        </div>
                         <button class="chip-remove" @click="removeStepArg(step, aIdx)">&times;</button>
                       </span>
                       <button class="step-btn step-add-arg" @click="addStepArg(step)" :title="t('robotEditor.addArg')">+</button>
@@ -1364,10 +1516,19 @@ watch(() => props.content, (newContent) => {
                           </div>
                         </div>
                       </div>
-                      <span v-for="(arg, aIdx) in step.args" :key="aIdx" class="step-arg-chip">
+                      <span v-for="(arg, aIdx) in step.args" :key="aIdx" class="step-arg-chip arg-ac-wrapper" :class="{ 'has-var': hasVariable(arg) }">
                         <span v-if="getKeywordArgNames(step)[aIdx]" class="arg-label">{{ getKeywordArgNames(step)[aIdx] }}</span>
                         <input v-model="step.args[aIdx]" class="step-arg-input"
-                          :placeholder="getKeywordArgNames(step)[aIdx] || t('robotEditor.argPlaceholder')" />
+                          :style="{ width: argInputWidth(step.args[aIdx]) }"
+                          :placeholder="getKeywordArgNames(step)[aIdx] || t('robotEditor.argPlaceholder')"
+                          @input="onArgInput(($event.target as HTMLInputElement).value, `${sIdx}-${aIdx}`)"
+                          @keydown="onArgKeydown($event, step, aIdx)"
+                          @blur="onArgBlur" autocomplete="off" />
+                        <div v-if="argAutocompleteKey === `${sIdx}-${aIdx}` && argAutocompleteItems.length" class="arg-ac-dropdown">
+                          <div v-for="(v, vi) in argAutocompleteItems" :key="v"
+                            class="arg-ac-item" :class="{ active: vi === argAutocompleteIndex }"
+                            @mousedown.prevent="selectArgVar(step, aIdx, v)">{{ v }}</div>
+                        </div>
                         <button class="chip-remove" @click="removeStepArg(step, aIdx)">&times;</button>
                       </span>
                       <button class="step-btn step-add-arg" @click="addStepArg(step)" :title="t('robotEditor.addArg')">+</button>
@@ -1517,6 +1678,9 @@ watch(() => props.content, (newContent) => {
 .chips-container { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; background: #e8f0fe; color: var(--color-primary); border-radius: 12px; font-size: 12px; font-weight: 500; }
 .chip-tag { background: #f0e6ff; color: #7c3aed; }
+.chip-arg { background: #e6f4ea; color: #1a7f37; }
+.chip-arg-input { border: none; background: transparent; color: inherit; font: inherit; font-size: 12px; width: auto; min-width: 60px; max-width: 200px; outline: none; padding: 0; }
+.chip-arg-input:focus { text-decoration: underline; }
 .chip-remove { border: none; background: none; color: inherit; font-size: 14px; cursor: pointer; padding: 0 2px; opacity: 0.7; line-height: 1; }
 .chip-remove:hover { opacity: 1; }
 .chip-input-wrapper { display: flex; align-items: center; gap: 4px; }
@@ -1556,8 +1720,10 @@ watch(() => props.content, (newContent) => {
   padding: 2px 6px; background: var(--color-bg); border: 1px solid var(--color-border);
   border-radius: 4px; flex-shrink: 0;
 }
-.step-arg-input { border: none; background: transparent; color: var(--color-text); font-size: 12px; font-family: 'Fira Code', 'Consolas', monospace; width: 90px; outline: none; padding: 0; }
+.step-arg-input { border: none; background: transparent; color: var(--color-text); font-size: 12px; font-family: 'Fira Code', 'Consolas', monospace; min-width: 60px; max-width: 260px; outline: none; padding: 0; }
 .step-arg-input::placeholder { color: var(--color-text-muted); opacity: 0.5; }
+.step-arg-chip.has-var { border-color: #7c3aed; background: #faf5ff; }
+.step-arg-chip.has-var .step-arg-input { color: #7c3aed; font-weight: 500; }
 
 /* Step variable chips (for assignment) */
 .step-var-chip {
@@ -1611,6 +1777,10 @@ watch(() => props.content, (newContent) => {
 
 /* Argument labels */
 .arg-label { font-size: 10px; color: var(--color-text-muted); font-weight: 500; margin-right: 2px; white-space: nowrap; }
+.arg-ac-wrapper { position: relative; }
+.arg-ac-dropdown { position: absolute; top: 100%; left: 0; z-index: 100; background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 4px; box-shadow: var(--shadow-md); max-height: 160px; overflow-y: auto; min-width: 140px; }
+.arg-ac-item { padding: 4px 10px; font-size: 12px; font-family: 'Fira Code', 'Consolas', monospace; cursor: pointer; color: var(--color-text); }
+.arg-ac-item:hover, .arg-ac-item.active { background: var(--color-primary); color: #fff; }
 
 /* Setting library input */
 .setting-library-input { width: 100%; font-family: 'Fira Code', 'Consolas', monospace; font-size: 12px; }
