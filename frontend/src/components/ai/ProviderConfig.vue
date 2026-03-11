@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAiStore } from '@/stores/ai.store'
 import type { AiProvider } from '@/types/domain.types'
@@ -57,6 +57,7 @@ const providerModels: Record<string, string[]> = {
     'llama3.3', 'llama3.1', 'deepseek-r1', 'qwen3',
     'phi4', 'gemma2', 'mistral', 'mixtral',
     'codellama', 'deepseek-coder-v2',
+    'dolphin-mistral', 'dolphin-mistral:latest',
   ],
 }
 
@@ -64,7 +65,7 @@ const defaultModels: Record<string, string> = {
   openai: 'gpt-4.1',
   anthropic: 'claude-sonnet-4-6',
   openrouter: 'anthropic/claude-sonnet-4-6',
-  ollama: 'llama3.3',
+  ollama: 'dolphin-mistral:latest',
 }
 
 onMounted(async () => {
@@ -106,8 +107,17 @@ function openEditDialog(provider: AiProvider) {
   showEditDialog.value = true
 }
 
+const isOllama = computed(() => form.value.provider_type === 'ollama')
+
+const baseUrlPlaceholder = computed(() =>
+  isOllama.value ? 'http://localhost:11434' : 'https://...'
+)
+
 function onProviderTypeChange() {
   form.value.model_name = defaultModels[form.value.provider_type] || ''
+  if (isOllama.value) {
+    form.value.api_key = null
+  }
 }
 
 async function handleAdd() {
@@ -208,10 +218,11 @@ async function handleSetDefault(provider: AiProvider) {
     <!-- Add Dialog -->
     <BaseModal v-model="showAddDialog" :title="t('ai.addProvider')" size="md">
       <div v-if="error" class="alert alert-danger mb-4">{{ error }}</div>
+      <p v-if="isOllama" class="hint-box mb-4">{{ t('ai.ollamaHint') }}</p>
       <div class="form-grid">
         <div class="form-group">
           <label>{{ t('common.name') }}</label>
-          <input v-model="form.name" class="form-input" :placeholder="t('ai.providerNamePlaceholder')" />
+          <input v-model="form.name" class="form-input" :placeholder="isOllama ? 'e.g. Local Ollama' : t('ai.providerNamePlaceholder')" />
         </div>
         <div class="form-group">
           <label>{{ t('ai.providerType') }}</label>
@@ -221,17 +232,18 @@ async function handleSetDefault(provider: AiProvider) {
         </div>
         <div class="form-group">
           <label>{{ t('ai.model') }}</label>
-          <select v-model="form.model_name" class="form-select">
-            <option v-for="m in providerModels[form.provider_type] || []" :key="m" :value="m">{{ m }}</option>
-          </select>
+          <input v-model="form.model_name" class="form-input" list="add-model-list" :placeholder="isOllama ? t('ai.ollamaModelHint') : ''" />
+          <datalist id="add-model-list">
+            <option v-for="m in providerModels[form.provider_type] || []" :key="m" :value="m" />
+          </datalist>
         </div>
         <div class="form-group">
-          <label>{{ t('ai.apiKey') }}</label>
-          <input v-model="form.api_key" type="password" class="form-input" :placeholder="t('ai.apiKeyPlaceholder')" />
+          <label>{{ t('ai.apiKey') }} <span v-if="isOllama" class="text-muted text-sm">({{ t('ai.ollamaNoKey') }})</span></label>
+          <input v-model="form.api_key" type="password" class="form-input" :placeholder="t('ai.apiKeyPlaceholder')" :disabled="isOllama" />
         </div>
         <div class="form-group">
           <label>{{ t('ai.baseUrl') }} <span class="text-muted text-sm">({{ t('common.optional') }})</span></label>
-          <input v-model="form.api_base_url" class="form-input" placeholder="https://..." />
+          <input v-model="form.api_base_url" class="form-input" :placeholder="baseUrlPlaceholder" />
         </div>
         <div class="form-group">
           <label>{{ t('ai.temperature') }}</label>
@@ -257,6 +269,7 @@ async function handleSetDefault(provider: AiProvider) {
     <!-- Edit Dialog -->
     <BaseModal v-model="showEditDialog" :title="t('ai.editProvider')" size="md">
       <div v-if="error" class="alert alert-danger mb-4">{{ error }}</div>
+      <p v-if="isOllama" class="hint-box mb-4">{{ t('ai.ollamaHint') }}</p>
       <div class="form-grid">
         <div class="form-group">
           <label>{{ t('common.name') }}</label>
@@ -270,17 +283,21 @@ async function handleSetDefault(provider: AiProvider) {
         </div>
         <div class="form-group">
           <label>{{ t('ai.model') }}</label>
-          <select v-model="form.model_name" class="form-select">
-            <option v-for="m in providerModels[form.provider_type] || []" :key="m" :value="m">{{ m }}</option>
-          </select>
+          <input v-model="form.model_name" class="form-input" list="edit-model-list" :placeholder="isOllama ? t('ai.ollamaModelHint') : ''" />
+          <datalist id="edit-model-list">
+            <option v-for="m in providerModels[form.provider_type] || []" :key="m" :value="m" />
+          </datalist>
         </div>
         <div class="form-group">
-          <label>{{ t('ai.apiKey') }} <span class="text-muted text-sm">({{ t('ai.leaveBlankKeep') }})</span></label>
-          <input v-model="form.api_key" type="password" class="form-input" />
+          <label>{{ t('ai.apiKey') }}
+            <span v-if="isOllama" class="text-muted text-sm">({{ t('ai.ollamaNoKey') }})</span>
+            <span v-else class="text-muted text-sm">({{ t('ai.leaveBlankKeep') }})</span>
+          </label>
+          <input v-model="form.api_key" type="password" class="form-input" :disabled="isOllama" />
         </div>
         <div class="form-group">
           <label>{{ t('ai.baseUrl') }}</label>
-          <input v-model="form.api_base_url" class="form-input" placeholder="https://..." />
+          <input v-model="form.api_base_url" class="form-input" :placeholder="baseUrlPlaceholder" />
         </div>
         <div class="form-group">
           <label>{{ t('ai.temperature') }}</label>
@@ -408,4 +425,14 @@ async function handleSetDefault(provider: AiProvider) {
 }
 
 .mb-4 { margin-bottom: 16px; }
+
+.hint-box {
+  background: #e3f2fd;
+  color: var(--color-navy, #1A2D50);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  border-left: 3px solid var(--color-primary);
+  line-height: 1.5;
+}
 </style>

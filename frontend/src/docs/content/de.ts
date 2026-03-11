@@ -1164,10 +1164,136 @@ const de: DocsContent = [
       }
     ]
   },
+  // ─── 10. KI & Generierung ──────────────────────────────────────────
+  {
+    id: 'ai-generation',
+    title: 'KI & Generierung',
+    icon: '🤖',
+    subsections: [
+      {
+        id: 'ai-overview',
+        title: 'Überblick',
+        content: `
+<p>
+  RoboScope integriert <strong>Large Language Models (LLMs)</strong> für
+  KI-gestützte Funktionen bei der Robot-Framework-Testentwicklung:
+</p>
+<ul>
+  <li><strong>Spec-zu-Robot-Generierung</strong> &mdash; Schreibe eine <code>.roboscope</code>-YAML-Spezifikation
+      und lasse das LLM eine vollständige <code>.robot</code>-Testdatei daraus generieren.</li>
+  <li><strong>Robot-zu-Spec-Extraktion</strong> &mdash; Extrahiere eine <code>.roboscope</code>-Spezifikation
+      aus einer bestehenden <code>.robot</code>-Datei.</li>
+  <li><strong>KI-Fehleranalyse</strong> &mdash; Automatische Analyse von Testfehlern in Reports
+      mit Ursachenermittlung und Lösungsvorschlägen.</li>
+  <li><strong>Drift-Erkennung</strong> &mdash; Erkennung manueller Änderungen an generierten
+      <code>.robot</code>-Dateien.</li>
+</ul>
+<p>
+  Alle KI-Funktionen erfordern mindestens einen <strong>LLM-Anbieter</strong> unter
+  <strong>Einstellungen &gt; KI &amp; Generierung</strong>.
+</p>`
+      },
+      {
+        id: 'ai-providers',
+        title: 'LLM-Anbieter konfigurieren',
+        content: `
+<p>
+  Navigiere zu <strong>Einstellungen &gt; KI &amp; Generierung</strong> (Admin-Rolle erforderlich)
+  und klicke auf <strong>Anbieter hinzufügen</strong>. RoboScope unterstützt vier Anbietertypen:
+</p>
+<table>
+  <thead>
+    <tr><th>Anbieter</th><th>API-Key</th><th>Base URL</th><th>Hinweise</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>OpenAI</strong></td><td>Erforderlich</td><td>Automatisch</td><td>GPT-4.1, GPT-4o, o3, o4-mini</td></tr>
+    <tr><td><strong>Anthropic</strong></td><td>Erforderlich</td><td>Automatisch</td><td>Claude Sonnet/Opus 4.6, Haiku 4.5</td></tr>
+    <tr><td><strong>OpenRouter</strong></td><td>Erforderlich</td><td>Automatisch</td><td>100+ Modelle verschiedener Anbieter</td></tr>
+    <tr><td><strong>Ollama (Lokal)</strong></td><td>Nicht nötig</td><td>Automatisch (localhost:11434)</td><td>Kostenlos, privat, läuft auf deinem Rechner</td></tr>
+  </tbody>
+</table>
+<p>
+  Du kannst mehrere Anbieter hinzufügen und einen als <strong>Standard</strong> festlegen.
+  Das Modellfeld akzeptiert sowohl vorgeschlagene als auch benutzerdefinierte Modellnamen.
+</p>`
+      },
+      {
+        id: 'ai-ollama-setup',
+        title: 'Ollama einrichten (Lokales LLM)',
+        content: `
+<p>
+  <strong>Ollama</strong> ermöglicht es, LLMs lokal und kostenlos auszuführen &mdash;
+  keine Daten verlassen deinen Computer. So richtest du es ein:
+</p>
+<ol>
+  <li><strong>Ollama installieren</strong> &mdash; Von <code>ollama.com</code> herunterladen
+      und installieren.</li>
+  <li><strong>Modell herunterladen</strong> &mdash; Im Terminal ausführen:<br />
+      <code>ollama pull mistral</code><br />
+      Weitere beliebte Modelle: <code>llama3.3</code>, <code>deepseek-r1</code>,
+      <code>dolphin-mistral</code>, <code>codellama</code>, <code>qwen3</code>.</li>
+  <li><strong>Prüfen, ob es läuft</strong> &mdash; <code>ollama list</code> zeigt
+      installierte Modelle. Die API sollte unter <code>http://localhost:11434</code>
+      erreichbar sein.</li>
+  <li><strong>In RoboScope konfigurieren</strong> &mdash; Einstellungen &gt; KI &amp; Generierung,
+      Anbieter hinzufügen:
+      <ul>
+        <li><strong>Anbietertyp:</strong> Ollama (Lokal)</li>
+        <li><strong>Modell:</strong> Exakten Modellnamen aus <code>ollama list</code> eingeben
+            (z.B. <code>mistral:latest</code>)</li>
+        <li><strong>API-Key:</strong> Leer lassen (automatisch deaktiviert)</li>
+        <li><strong>Base URL:</strong> Leer für Standard (<code>http://localhost:11434</code>)</li>
+        <li><strong>Als Standard festlegen</strong> aktivieren</li>
+      </ul>
+  </li>
+</ol>
+<h4>Fehlerbehebung</h4>
+<ul>
+  <li><strong>&bdquo;model not found&ldquo;</strong> &mdash; Der Modellname muss exakt mit
+      <code>ollama list</code> übereinstimmen (inkl. <code>:latest</code>-Tag).</li>
+  <li><strong>Verbindung abgelehnt</strong> &mdash; Stelle sicher, dass Ollama läuft.</li>
+  <li><strong>Langsame Generierung</strong> &mdash; Lokale Modelle sind langsamer als Cloud-APIs,
+      besonders ohne GPU (30&ndash;120 Sekunden).</li>
+</ul>`,
+        tip: 'Für beste Ergebnisse bei der Code-Generierung verwende Modelle mit mindestens 7B Parametern (z.B. mistral, llama3.1).'
+      },
+      {
+        id: 'ai-spec-generation',
+        title: 'Tests aus Spezifikationen generieren',
+        content: `
+<p>
+  Das <code>.roboscope</code>-Format ist eine YAML-basierte Testspezifikation.
+  Das LLM übersetzt diese in ausführbare <code>.robot</code>-Dateien.
+</p>
+<ol>
+  <li>Im <strong>Explorer</strong> eine <code>.roboscope</code>-Datei erstellen oder öffnen.</li>
+  <li><strong>Generate</strong> in der Toolbar klicken.</li>
+  <li>LLM-Anbieter auswählen und <strong>Generate</strong> klicken.</li>
+  <li>Generierten Code in der <strong>Diff-Vorschau</strong> prüfen.</li>
+  <li><strong>Akzeptieren &amp; Datei schreiben</strong> oder <strong>Verwerfen</strong>.</li>
+</ol>`
+      },
+      {
+        id: 'ai-reverse-extract',
+        title: 'Spezifikationen aus Robot-Dateien extrahieren',
+        content: `
+<p>
+  Für bestehende <code>.robot</code>-Dateien ohne Spezifikation:
+</p>
+<ol>
+  <li>Eine <code>.robot</code>-Datei im Explorer öffnen.</li>
+  <li><strong>Spec extrahieren</strong> in der Toolbar klicken.</li>
+  <li>Das LLM erzeugt eine <code>.roboscope</code>-YAML-Spezifikation.</li>
+  <li>Ergebnis prüfen und akzeptieren.</li>
+</ol>`
+      }
+    ]
+  },
+
   {
     id: 'advanced',
     title: 'Erweitert',
-    icon: '\u{1F4A1}',
+    icon: '💡',
     subsections: [
       {
         id: 'advanced-websocket',

@@ -223,4 +223,41 @@ AVAILABLE_KPIS: dict[str, dict] = {
         "category": "execution",
         "description": "Execution time breakdown by test suite",
     },
+    # --- Code Quality (RoboView integration) ---
+    "keyword_reuse_rate": {
+        "id": "keyword_reuse_rate",
+        "name": "Keyword Reuse Rate",
+        "category": "codequality",
+        "description": "How frequently user-defined keywords are reused across the project",
+    },
+    "unused_keywords": {
+        "id": "unused_keywords",
+        "name": "Unused Keywords",
+        "category": "codequality",
+        "description": "User-defined keywords that are never called anywhere in the project",
+    },
+    "keyword_duplicates": {
+        "id": "keyword_duplicates",
+        "name": "Keyword Duplicates",
+        "category": "codequality",
+        "description": "Keywords with similar implementations that could be consolidated",
+    },
+    "keyword_similarity": {
+        "id": "keyword_similarity",
+        "name": "Keyword Similarity",
+        "category": "codequality",
+        "description": "Pairs of keywords with high code similarity scores",
+    },
+    "documentation_coverage": {
+        "id": "documentation_coverage",
+        "name": "Documentation Coverage",
+        "category": "codequality",
+        "description": "Percentage of keywords that have documentation strings",
+    },
+    "robocop_violations": {
+        "id": "robocop_violations",
+        "name": "Robocop Violations",
+        "category": "codequality",
+        "description": "Code quality violations detected by Robocop linter",
+    },
 }

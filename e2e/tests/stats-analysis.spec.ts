@@ -20,7 +20,7 @@ test.describe('Deep Analysis — New Execution KPIs', () => {
 
   // ─── API Tests ─────────────────────────────────────────
 
-  test('GET /analysis/kpis returns all 15 KPIs including execution category', async ({ page }) => {
+  test('GET /analysis/kpis returns all 21 KPIs including execution and codequality categories', async ({ page }) => {
     const token = await getAuthToken(page);
     const res = await page.request.get(`${API}/stats/analysis/kpis`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -29,13 +29,20 @@ test.describe('Deep Analysis — New Execution KPIs', () => {
     const kpis = await res.json();
 
     // Should have 15 total KPIs
-    expect(Object.keys(kpis).length).toBe(15);
+    expect(Object.keys(kpis).length).toBe(21);
 
-    // New execution KPIs
+    // Execution KPIs
     const executionKpis = ['test_pass_rate_trend', 'slowest_tests', 'flakiness_score', 'failure_heatmap', 'suite_duration_treemap'];
     for (const kpi of executionKpis) {
       expect(kpis[kpi]).toBeTruthy();
       expect(kpis[kpi].category).toBe('execution');
+    }
+
+    // Code quality KPIs (RoboView integration)
+    const codequalityKpis = ['keyword_reuse_rate', 'unused_keywords', 'keyword_duplicates', 'keyword_similarity', 'documentation_coverage', 'robocop_violations'];
+    for (const kpi of codequalityKpis) {
+      expect(kpis[kpi]).toBeTruthy();
+      expect(kpis[kpi].category).toBe('codequality');
     }
   });
 
@@ -136,6 +143,34 @@ test.describe('Deep Analysis — New Execution KPIs', () => {
     await expect(page.getByText(/Ausführungsanalyse|Execution Analysis/)).toBeVisible();
   });
 
+  test('POST /analysis accepts code quality KPIs', async ({ page }) => {
+    const token = await getAuthToken(page);
+    const res = await page.request.post(`${API}/stats/analysis`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        selected_kpis: ['keyword_reuse_rate', 'unused_keywords', 'documentation_coverage'],
+      },
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.id).toBeTruthy();
+    expect(body.status).toMatch(/pending|running|completed/);
+  });
+
+  test('UI: new analysis modal shows code quality category', async ({ page }) => {
+    await page.goto('/stats');
+    await expect(page.locator('h1')).toBeVisible({ timeout: 10_000 });
+
+    await page.locator('.tab-btn').last().click();
+    await page.waitForTimeout(500);
+
+    await page.getByRole('button', { name: /Neue Analyse|New Analysis/ }).click();
+    await page.waitForTimeout(500);
+
+    // Modal should show code quality category
+    await expect(page.getByText(/Codequalit|Code Quality/)).toBeVisible();
+  });
+
   test('UI: new analysis modal shows select all/deselect all', async ({ page }) => {
     await page.goto('/stats');
     await expect(page.locator('h1')).toBeVisible({ timeout: 10_000 });
@@ -150,7 +185,7 @@ test.describe('Deep Analysis — New Execution KPIs', () => {
     const checkboxes = page.locator('input[type="checkbox"]');
     const count = await checkboxes.count();
     // Should have at least 15 checkboxes (one per KPI)
-    expect(count).toBeGreaterThanOrEqual(15);
+    expect(count).toBeGreaterThanOrEqual(21);
   });
 
   test('UI: viewing completed analysis shows result cards', async ({ page }) => {
@@ -197,5 +232,100 @@ test.describe('Deep Analysis — New Execution KPIs', () => {
     // The mocked analysis would show up in the list via API
     // This test verifies the UI structure renders without errors
     await expect(page.locator('.tab-btn.active')).toBeVisible();
+  });
+
+  test('UI: code quality KPI cards render correctly with mocked data', async ({ page }) => {
+    // Mock analysis list to show our fake analysis
+    await page.route('**/stats/analysis', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([{
+            id: 800,
+            status: 'completed',
+            selected_kpis: ['keyword_reuse_rate', 'unused_keywords', 'documentation_coverage', 'robocop_violations'],
+            progress: 100,
+            reports_analyzed: 3,
+            triggered_by: 1,
+            created_at: '2026-03-10T10:00:00',
+          }]),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    // Mock analysis detail with code quality results
+    await page.route('**/stats/analysis/800', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 800,
+          status: 'completed',
+          selected_kpis: ['keyword_reuse_rate', 'unused_keywords', 'documentation_coverage', 'robocop_violations'],
+          progress: 100,
+          reports_analyzed: 3,
+          triggered_by: 1,
+          created_at: '2026-03-10T10:00:00',
+          results: {
+            keyword_reuse_rate: {
+              reuse_rate: 72.5,
+              most_used_keywords: [
+                { name: 'Login User', file: 'login.robot', source: 'tests/login.robot', total_usages: 15 },
+                { name: 'Open Browser', file: 'common.robot', source: 'resources/common.robot', total_usages: 10 },
+              ],
+            },
+            unused_keywords: {
+              total_unused: 3,
+              unused_keywords: [
+                { name: 'Old Helper', file: 'legacy.robot', source: 'resources/legacy.robot' },
+                { name: 'Debug Print', file: 'utils.robot', source: 'resources/utils.robot' },
+              ],
+            },
+            documentation_coverage: {
+              coverage_rate: 65.0,
+              total_undocumented: 7,
+              undocumented: [
+                { name: 'Quick Check', file: 'checks.robot', source: 'tests/checks.robot' },
+              ],
+            },
+            robocop_violations: {
+              total_violations: 12,
+              by_category: [
+                { category: 'DOC', count: 5 },
+                { category: 'LEN', count: 4 },
+                { category: 'NAME', count: 3 },
+              ],
+              top_violations: [
+                { rule_id: 'DOC01', message: 'Missing documentation', category: 'DOC', severity: 'WARNING', file: 'test.robot', source: 'tests/test.robot' },
+              ],
+            },
+          },
+        }),
+      });
+    });
+
+    await page.goto('/stats');
+    await expect(page.locator('h1')).toBeVisible({ timeout: 10_000 });
+
+    // Switch to analysis tab
+    await page.locator('.tab-btn').last().click();
+    await page.waitForTimeout(500);
+
+    // Click on the analysis row to view details
+    const row = page.locator('tr').filter({ hasText: '#800' });
+    if (await row.count() > 0) {
+      await row.locator('button').first().click();
+      await page.waitForTimeout(500);
+
+      // Verify code quality KPI cards are rendered
+      await expect(page.getByText('72.5%')).toBeVisible({ timeout: 5_000 });
+      await expect(page.getByText('Login User')).toBeVisible();
+      await expect(page.getByText('Old Helper')).toBeVisible();
+      await expect(page.getByText('65.0%')).toBeVisible();
+      await expect(page.getByText('DOC01')).toBeVisible();
+    }
   });
 });
