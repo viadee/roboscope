@@ -24,12 +24,13 @@
 - Hardened private registry: validation, credential masking, migrations (#9)
 - Fix interleaved test functions in `environments/test_router.py` from bad merge (#11)
 - AI ProviderConfig: curated model dropdowns with current model IDs (#11)
+- **Makefile**: `make install` now creates `.venv` automatically; all targets use `.venv/bin/` prefix so the 3-step install works on fresh clones
+- CI: set SECRET_KEY for build workflow and dist test scripts
 
 ### Tests
 - 13 new security E2E tests: API auth, WebSocket auth, request-ID, health check, rate limiting (#11)
 - 4 new code quality KPI E2E tests: API + UI for RoboView integration (#11)
 - 40 backend tests for RoboView compute functions (#11)
-- CI: set SECRET_KEY for E2E test environment (#11)
 
 ### Docs
 - In-app documentation updated for security hardening, code quality KPIs (EN/DE/FR/ES) (#11)
