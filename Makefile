@@ -7,18 +7,18 @@ help: ## Show this help
 
 install: ## Install all dependencies
 	@command -v uv >/dev/null 2>&1 || { echo "uv not found. Install: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
-	cd backend && uv pip install -e ".[dev]"
+	cd backend && uv venv .venv && uv pip install --python .venv/bin/python -e ".[dev]"
 	cd frontend && npm ci
 	cd e2e && npm ci
 
 dev: ## Start development servers (backend + frontend)
 	@echo "Starting backend on :8000 and frontend on :5173..."
-	cd backend && uvicorn src.main:app --reload --port 8000 &
+	cd backend && .venv/bin/uvicorn src.main:app --reload --port 8000 &
 	cd frontend && npm run dev &
 	wait
 
 backend: ## Start backend only
-	cd backend && uvicorn src.main:app --reload --port 8000
+	cd backend && .venv/bin/uvicorn src.main:app --reload --port 8000
 
 frontend: ## Start frontend only
 	cd frontend && npm run dev
@@ -28,10 +28,10 @@ frontend: ## Start frontend only
 test: test-backend test-frontend ## Run all tests
 
 test-backend: ## Run backend tests
-	cd backend && pytest -v --tb=short
+	cd backend && .venv/bin/pytest -v --tb=short
 
 test-backend-cov: ## Run backend tests with coverage
-	cd backend && pytest --cov=src --cov-report=html --cov-report=term
+	cd backend && .venv/bin/pytest --cov=src --cov-report=html --cov-report=term
 
 test-frontend: ## Run frontend unit tests
 	cd frontend && npm run test:unit -- --run
@@ -51,17 +51,17 @@ test-e2e-headed: ## Run E2E tests in headed mode
 # --- Code Quality ---
 
 lint: ## Run all linters
-	cd backend && ruff check src/ tests/
-	cd backend && ruff format --check src/ tests/
+	cd backend && .venv/bin/ruff check src/ tests/
+	cd backend && .venv/bin/ruff format --check src/ tests/
 	cd frontend && npm run lint
 	cd frontend && npm run type-check
 
 format: ## Format all code
-	cd backend && ruff format src/ tests/
-	cd backend && ruff check --fix src/ tests/
+	cd backend && .venv/bin/ruff format src/ tests/
+	cd backend && .venv/bin/ruff check --fix src/ tests/
 
 typecheck: ## Run type checking
-	cd backend && mypy src/
+	cd backend && .venv/bin/mypy src/
 	cd frontend && npm run type-check
 
 # --- Docker ---
@@ -84,13 +84,13 @@ docker-logs: ## Show Docker logs
 # --- Database ---
 
 db-migrate: ## Create a new migration
-	cd backend && alembic revision --autogenerate -m "$(msg)"
+	cd backend && .venv/bin/alembic revision --autogenerate -m "$(msg)"
 
 db-upgrade: ## Apply migrations
-	cd backend && alembic upgrade head
+	cd backend && .venv/bin/alembic upgrade head
 
 db-downgrade: ## Rollback last migration
-	cd backend && alembic downgrade -1
+	cd backend && .venv/bin/alembic downgrade -1
 
 # --- Build / Distribution ---
 

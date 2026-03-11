@@ -233,6 +233,7 @@ echo "==> Step 4: Starting server on port $PORT..."
 # Remove stale DB so we get a clean seed
 rm -f "$DIST/roboscope.db"
 
+export SECRET_KEY="ci-test-secret-key-do-not-use-in-production"
 python3 -m uvicorn src.main:app --host 127.0.0.1 --port "$PORT" &
 SERVER_PID=$!
 
