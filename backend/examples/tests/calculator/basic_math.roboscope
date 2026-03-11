@@ -1,0 +1,98 @@
+version: "2"
+metadata:
+  title: "Basic Arithmetic Operations Tests"
+  author: ""
+  created: "2022-03-10"
+  last_generated: null
+  generation_hash: null
+  target_file: "basic_arithmetic_operations.robot"
+  libraries:
+    - String
+    - Collections
+
+test_sets:
+  - name: "Arithmetic"
+    description: "Tests for basic arithmetic operations."
+    tags: [smoke, arithmetic]
+    setup: null
+    teardown: null
+    test_cases:
+      - name: "Addition Of Positive Numbers"
+        description: "Verify that addition works for positive integers."
+        priority: high
+        steps:
+          - "Evaluate 3 + 7"
+          - "Should Be Equal As Numbers ${result} 10"
+      - name: "Addition With Negative Numbers"
+        description: "Verify addition with negative operands."
+        priority: medium
+        steps:
+          - "Evaluate -5 + 3"
+          - "Should Be Equal As Numbers ${result} -2"
+          - "Evaluate -10 + (-20)"
+          - "Should Be Equal As Numbers ${result2} -30"
+      - name: "Subtraction"
+        description: "Verify subtraction of integers."
+        priority: medium
+        steps:
+          - "Evaluate 100 - 42"
+          - "Should Be Equal As Numbers ${result} 58"
+      - name: "Multiplication And Division"
+        description: "Verify multiplication and division."
+        priority: medium
+        steps:
+          - "Evaluate 6 * 7"
+          - "Should Be Equal As Numbers ${product} 42"
+          - "Evaluate 84 / 4"
+          - "Should Be Equal As Numbers ${quotient} 21"
+      - name: "Integer Division And Modulo"
+        description: "Verify floor division and modulo operator."
+        priority: medium
+        steps:
+          - "Evaluate 17 // 5"
+          - "Should Be Equal As Numbers ${floor} 3"
+          - "Evaluate 17 % 5"
+          - "Should Be Equal As Numbers ${mod} 2"
+      - name: "Floating Point Arithmetic"
+        description: "Verify floating point calculations using PI."
+        priority: medium
+        tags: [arithmetic, float]
+        steps:
+          - "Evaluate 2 * ${PI} * 5"
+          - "Should Be True abs(${circumference} - 31.4159) < 0.001"
+          - "Evaluate ${PI} * 10**2"
+          - "Should Be True abs(${area} - 314.159) < 0.001"
+      - name: "Power And Square Root"
+        description: "Verify exponentiation and square root."
+        priority: medium
+        steps:
+          - "Evaluate 2 ** 10"
+          - "Should Be Equal As Numbers ${power} 1024"
+          - "Evaluate 144 ** 0.5"
+          - "Should Be Equal As Numbers ${sqrt} 12"
+      - name: "Comparison Operators"
+        description: "Verify comparison expressions evaluate correctly."
+        priority: high
+        tags: [smoke, logic]
+        steps:
+          - "Should Be True 10 > 5"
+          - "Should Be True 3 <= 3"
+          - "Should Be True 7 != 8"
+          - "Should Be True ${MAX_INT} == 9999"
+      - name: "Chained Calculations"
+        description: "Verify a multi-step calculation pipeline."
+        priority: medium
+        steps:
+          - "Evaluate 10 + 20"
+          - "Evaluate ${step1} * 3"
+          - "Evaluate ${step2} - 10"
+          - "Evaluate ${step3} / 8"
+          - "Should Be Equal As Numbers ${step4} 10"
+      - name: "Absolute Value And Rounding"
+        description: "Verify abs() and round() built-in functions."
+        priority: medium
+        steps:
+          - "Evaluate abs(-42)"
+          - "Should Be Equal As Numbers ${abs_val} 42"
+          - "Evaluate round(3.14159, 2)"
+          - "Should Be Equal As Numbers ${rounded} 3.14"

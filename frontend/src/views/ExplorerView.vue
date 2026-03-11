@@ -109,7 +109,7 @@ const absolutePath = computed(() => {
 })
 
 onMounted(async () => {
-  await Promise.all([repos.fetchRepos(), envs.fetchEnvironments()])
+  await Promise.all([repos.fetchRepos(), envs.fetchEnvironments().catch(() => {})])
   const repoId = Number(route.params.repoId)
   let targetRepoId: number | null = null
   if (repoId && repos.repos.find(r => r.id === repoId)) {
