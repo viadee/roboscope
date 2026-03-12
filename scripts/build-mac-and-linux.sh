@@ -143,7 +143,6 @@ for plat in manylinux2014_x86_64 macosx_11_0_arm64 macosx_11_0_x86_64 win_amd64;
       2>&1 | grep -i "error\|saved" || true
   done
 done
-rm -f "$WIN_DEPS_FILE"
 
 # Download for host platform (catches deps the cross-platform pass missed)
 echo "    Downloading wheels for host platform..."
@@ -159,9 +158,10 @@ for pkg in "tomli>=2.0.0" "exceptiongroup>=1.0.0" "typing_extensions>=4.0.0"; do
   python3 -m pip download "$pkg" -d "$DIST/wheels" --no-deps 2>/dev/null || true
 done
 
-# Save requirements for install script
+# Save requirements for install scripts
 cp "$DEPS_FILE" "$DIST/requirements.txt"
-rm -f "$DEPS_FILE"
+cp "$WIN_DEPS_FILE" "$DIST/requirements-windows.txt"
+rm -f "$DEPS_FILE" "$WIN_DEPS_FILE"
 echo "    Wheels: $(ls "$DIST/wheels" | wc -l | tr -d ' ') packages"
 
 # ── 5. Create .env template ──────────────────────────────────
@@ -337,7 +337,7 @@ cd /d "%~dp0"
 uv-bin\uv-windows.exe venv .venv
 
 :: Install dependencies offline
-uv-bin\uv-windows.exe pip install --python .venv\Scripts\python.exe --no-index --find-links=wheels -r requirements.txt
+uv-bin\uv-windows.exe pip install --python .venv\Scripts\python.exe --no-index --find-links=wheels -r requirements-windows.txt
 
 if not exist .env copy .env.example .env
 
