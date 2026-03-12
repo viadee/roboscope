@@ -402,9 +402,6 @@ def build_docker_image(env_id: int) -> dict:
             select(EnvironmentPackage).where(EnvironmentPackage.environment_id == env_id)
         ).scalars().all()
 
-        if not packages:
-            return {"status": "error", "message": "No packages to install"}
-
         try:
             from src.environments.service import generate_dockerfile
 
@@ -414,6 +411,10 @@ def build_docker_image(env_id: int) -> dict:
                     pkg_specs.append(f"{pkg.package_name}=={pkg.version}")
                 else:
                     pkg_specs.append(pkg.package_name)
+
+            # Always include robotframework — it's required to run tests
+            if not any(s.split("==")[0].lower() == "robotframework" for s in pkg_specs):
+                pkg_specs.insert(0, "robotframework")
 
             dockerfile_content = generate_dockerfile(
                 python_version=env.python_version or "3.12",
