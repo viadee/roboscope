@@ -313,11 +313,24 @@ const en: DocsContent = [
 </p>
 <ul>
   <li><strong>Manual Sync</strong> &mdash; Click the <strong>Sync</strong> button on a repository row. This performs a <code>git pull</code> on the configured branch.</li>
-  <li><strong>Auto-Sync</strong> &mdash; Enable the auto-sync toggle for a repository. When enabled, RoboScope will automatically pull changes at a configurable interval before each test run.</li>
+  <li><strong>Auto-Sync</strong> &mdash; Enable the auto-sync checkbox on a project card. When enabled, RoboScope will automatically pull changes before each test run.</li>
 </ul>
 <p>
   The sync status is indicated by a timestamp showing the last successful sync. If a
   sync fails (e.g., merge conflicts), an error badge appears next to the repository name.
+</p>
+<h4>Branch Switching</h4>
+<p>
+  Each Git project card displays a <strong>branch dropdown</strong> that lets you switch
+  between available branches. Select a different branch to check it out. This is useful
+  for testing feature branches or comparing results across branches.
+</p>
+<h4>Auto-Sync Toggle</h4>
+<p>
+  The <strong>Auto-Sync</strong> checkbox on each project card controls whether the
+  repository is automatically synchronized before test runs. Toggle it on for CI/CD
+  workflows where you always want the latest code, or off when working on a fixed
+  revision.
 </p>`,
         tip: 'Auto-sync ensures you always test against the latest code. Enable it for CI/CD-like workflows.'
       },
@@ -612,8 +625,9 @@ const en: DocsContent = [
 <h4>Cancelling a Run</h4>
 <p>
   Click the <strong>Cancel</strong> button on a <code>running</code> or <code>pending</code> run
-  to terminate it. The underlying process is sent a termination signal and the run status
-  changes to <code>cancelled</code>. Requires <strong>Runner</strong> role or above.
+  to terminate it. The underlying subprocess is actually killed (not just marked), ensuring
+  resources are freed immediately. The run status changes to <code>cancelled</code>.
+  Requires <strong>Runner</strong> role or above.
 </p>
 <h4>Retry a Run</h4>
 <p>
@@ -1070,6 +1084,37 @@ const en: DocsContent = [
   or use the edit/delete icons to modify existing ones.
 </p>`,
         tip: 'Avoid storing highly sensitive credentials as environment variables. Consider using a secrets manager for production deployments.'
+      },
+      {
+        id: 'docker-build',
+        title: 'Docker Build & Image Staleness',
+        content: `
+<h4>Docker Build Terminal</h4>
+<p>
+  When building a Docker image for an environment, RoboScope streams the build output
+  live to a <strong>terminal component</strong> in the UI. The terminal features a pulsing
+  dot indicator during active builds, auto-scroll to follow new output, and a
+  show/hide toggle to collapse the terminal when not needed.
+</p>
+<h4>Image Staleness Detection</h4>
+<p>
+  After installing or removing packages, the Docker image may become outdated. RoboScope
+  tracks when packages were last changed (<code>packages_changed_at</code>) and when
+  the image was last built (<code>docker_image_built_at</code>). If packages have changed
+  since the last build, an <strong>amber warning banner</strong> appears in the Execution
+  and Explorer views, prompting you to rebuild the image.
+</p>
+<p>
+  Click the <strong>Rebuild</strong> button to start a new Docker build that incorporates
+  the latest package changes.
+</p>
+<h4>Browser Library Initialization</h4>
+<p>
+  When using <code>robotframework-browser</code>, RoboScope automatically checks whether
+  the Browser library's <code>node_modules</code> are properly initialized after installation.
+  If initialization is needed, a status indicator shows <strong>initializing</strong> in the UI,
+  and a pre-run check ensures the Browser library is ready before test execution begins.
+</p>`
       },
       {
         id: 'clone-delete-env',

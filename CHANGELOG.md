@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.7.0] - 2026-03-12
+
+### Features
+- **RobotEditor Visual Improvements** — Section colors, variable highlighting, expand/collapse, lazy keyword loading, vertical args overflow
+- **Docker Error Handling** — `DockerNotAvailableError`, `DockerImageNotFoundError` with translated error banners
+- **Docker Image Staleness Detection** — `docker_image_built_at`, `packages_changed_at`, computed `docker_image_stale`, amber warnings in Execution + Explorer views
+- **Persistent Docker Build Status** — `docker_build_status`/`docker_build_error` on Environment model, server-driven UI
+- **Docker Build Terminal Output** — WebSocket-streamed live build logs with terminal component (pulsing dot, auto-scroll, show/hide toggle)
+- **Docker Build Robustness** — Playwright base image, pre-build disk space check, large base image hint, dangling image cleanup, enriched Docker error messages
+- **Execution View** — Project name column in runs table and detail panel, duration column
+- **rfbrowser Init Visibility** — Post-install node_modules verification, pre-run Browser lib check, "initializing" UI status
+- **Run Cancellation** — Actually kills spawned subprocess via runner registry pattern; status check after execution prevents overwrite
+- **Branch Switching** — `POST /repos/{id}/checkout` endpoint, branch dropdown on project cards
+- **Auto-Sync Toggle** — Checkbox on project cards to enable/disable periodic Git sync
+
+### Fixes
+- **Report Tree** — Fix `.//tag` XPath finding keyword descendant tags as test tags (now `tags/tag`); fix CSS connector lines (`:first-child` → `:last-child`)
+- **Explorer Editor Chain** — Fix v-if/v-else-if chain where no-environment banner blocked RobotEditor from rendering
+- **Startup Cleanup** — Reset stuck `docker_build_status=building` → `error` and stuck packages on app start
+
+### Tests
+- 136 new backend tests (656 → 792 total) covering previously untested modules:
+  - `task_executor.py` (15 tests), `ai/encryption.py` (15 tests), `ai/llm_client.py` (35 tests)
+  - `websocket/manager.py` (42 tests), `execution/tasks.py` (21 tests)
+  - `repos/service.py` branch functions (8 tests), `repos/router.py` checkout endpoints (13 tests)
+- All 267 E2E tests passing
+
+### Docs
+- In-app documentation updated for Docker build terminal, image staleness, branch switching, auto-sync, run cancellation, rfbrowser init (EN/DE/FR/ES)
+
 ## [0.6.0] - 2026-03-11
 
 ### Features

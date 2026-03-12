@@ -338,6 +338,24 @@ const es: DocsContent = [
         tip: 'La auto-sincronizaci\u00F3n asegura que siempre pruebe contra el c\u00F3digo m\u00E1s reciente. Act\u00EDvela para flujos de trabajo tipo CI/CD.'
       },
       {
+        id: 'branch-switching',
+        title: 'Cambio de rama y auto-sincronizaci\u00F3n',
+        content: `
+<h4>Cambio de rama</h4>
+<p>
+  Cada tarjeta de proyecto Git muestra un <strong>men\u00FA desplegable de ramas</strong> que
+  le permite cambiar entre las ramas disponibles. Seleccione una rama diferente para
+  hacer checkout. Esto es \u00FAtil para probar ramas de funcionalidades o comparar
+  resultados entre ramas.
+</p>
+<h4>Casilla de Auto-Sync</h4>
+<p>
+  La casilla <strong>Auto-Sync</strong> en cada tarjeta de proyecto controla si el
+  repositorio se sincroniza autom\u00E1ticamente antes de las ejecuciones de pruebas.
+  Act\u00EDvela para flujos CI/CD donde siempre quiera probar el c\u00F3digo m\u00E1s reciente.
+</p>`
+      },
+      {
         id: 'library-check',
         title: 'Verificaci\u00F3n de bibliotecas (Gestor de paquetes)',
         content: `
@@ -647,8 +665,9 @@ const es: DocsContent = [
 <p>
   Haga clic en el bot\u00F3n <strong>Cancelar</strong> en una ejecuci\u00F3n con estado
   <code>running</code> o <code>pending</code> para terminarla. Al proceso subyacente
-  se le env\u00EDa una se\u00F1al de terminaci\u00F3n y el estado de la ejecuci\u00F3n
-  cambia a <code>cancelled</code>. Requiere rol <strong>Runner</strong> o superior.
+  el subproceso se termina realmente (no solo se marca), liberando los recursos
+  inmediatamente. El estado cambia a <code>cancelled</code>.
+  Requiere rol <strong>Runner</strong> o superior.
 </p>
 <h4>Reintentar una ejecuci\u00F3n</h4>
 <p>
@@ -1134,6 +1153,37 @@ const es: DocsContent = [
   existentes.
 </p>`,
         tip: 'Evite almacenar credenciales altamente sensibles como variables de entorno. Considere usar un gestor de secretos para despliegues en producci\u00F3n.'
+      },
+      {
+        id: 'docker-build',
+        title: 'Build Docker y obsolescencia de imagen',
+        content: `
+<h4>Terminal de build Docker</h4>
+<p>
+  Al construir una imagen Docker para un entorno, RoboScope transmite la salida del
+  build en vivo a un <strong>componente de terminal</strong> en la interfaz. El terminal
+  muestra un punto pulsante durante builds activos, auto-scroll para seguir la salida
+  y un bot\u00F3n mostrar/ocultar para minimizarlo.
+</p>
+<h4>Detecci\u00F3n de obsolescencia de imagen</h4>
+<p>
+  Despu\u00E9s de instalar o eliminar paquetes, la imagen Docker puede quedar desactualizada.
+  RoboScope rastrea cu\u00E1ndo se cambiaron los paquetes (<code>packages_changed_at</code>)
+  y cu\u00E1ndo se construy\u00F3 la imagen (<code>docker_image_built_at</code>). Si los paquetes
+  han cambiado desde el \u00FAltimo build, aparece un <strong>banner de advertencia \u00E1mbar</strong>
+  en las vistas de Ejecuci\u00F3n y Explorador.
+</p>
+<p>
+  Haga clic en <strong>Reconstruir</strong> para iniciar un nuevo build Docker.
+</p>
+<h4>Inicializaci\u00F3n de la biblioteca Browser</h4>
+<p>
+  Al usar <code>robotframework-browser</code>, RoboScope verifica autom\u00E1ticamente si los
+  <code>node_modules</code> de la biblioteca Browser est\u00E1n correctamente inicializados
+  despu\u00E9s de la instalaci\u00F3n. Si se necesita inicializaci\u00F3n, aparece un indicador
+  <strong>inicializando</strong> en la interfaz, y una verificaci\u00F3n previa asegura que
+  la biblioteca est\u00E9 lista antes de la ejecuci\u00F3n.
+</p>`
       },
       {
         id: 'clone-delete-env',

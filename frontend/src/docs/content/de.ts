@@ -282,6 +282,19 @@ const de: DocsContent = [
 <p>
   Der Sync-Status zeigt den Zeitpunkt der letzten erfolgreichen Synchronisation
   an. Bei Fehlern (z.\u202FB. Merge-Konflikte) wird eine Warnung angezeigt.
+</p>
+<h4>Branch-Wechsel</h4>
+<p>
+  Jede Git-Projektkarte zeigt ein <strong>Branch-Dropdown</strong>, mit dem Sie zwischen
+  verf\u00FCgbaren Branches wechseln k\u00F6nnen. W\u00E4hlen Sie einen anderen Branch aus, um ihn
+  auszuchecken. Dies ist n\u00FCtzlich zum Testen von Feature-Branches oder zum Vergleichen
+  von Ergebnissen zwischen Branches.
+</p>
+<h4>Auto-Sync-Umschalter</h4>
+<p>
+  Die <strong>Auto-Sync</strong>-Checkbox auf jeder Projektkarte steuert, ob das
+  Repository vor Testausf\u00FChrungen automatisch synchronisiert wird. Aktivieren Sie
+  sie f\u00FCr CI/CD-Workflows, bei denen immer der neueste Code getestet werden soll.
 </p>`
       },
       {
@@ -584,7 +597,8 @@ const de: DocsContent = [
 <h4>Einzelnen Run abbrechen</h4>
 <p>
   Klicken Sie auf das <strong>Abbrechen</strong>-Symbol in der Aktionsspalte.
-  Der Run erh\u00E4lt den Status <code>cancelled</code>.
+  Der zugeh\u00F6rige Subprozess wird tats\u00E4chlich beendet (nicht nur markiert), sodass
+  Ressourcen sofort freigegeben werden. Der Run erh\u00E4lt den Status <code>cancelled</code>.
 </p>
 <h4>Alle Runs abbrechen</h4>
 <p>
@@ -1015,6 +1029,37 @@ const de: DocsContent = [
 <p>
   Variablen werden als Schl\u00FCssel-Wert-Paare angelegt und k\u00F6nnen jederzeit
   bearbeitet oder gel\u00F6scht werden.
+</p>`
+      },
+      {
+        id: 'environments-docker-build',
+        title: 'Docker-Build & Image-Aktualit\u00E4t',
+        content: `
+<h4>Docker-Build-Terminal</h4>
+<p>
+  Beim Erstellen eines Docker-Images f\u00FCr eine Umgebung streamt RoboScope die Build-Ausgabe
+  live in eine <strong>Terminal-Komponente</strong> in der Oberfl\u00E4che. Das Terminal zeigt einen
+  pulsierenden Punkt w\u00E4hrend aktiver Builds, scrollt automatisch mit und kann \u00FCber einen
+  Ein-/Ausblenden-Schalter minimiert werden.
+</p>
+<h4>Image-Aktualit\u00E4tserkennung</h4>
+<p>
+  Nach der Installation oder Entfernung von Paketen kann das Docker-Image veraltet sein.
+  RoboScope verfolgt, wann Pakete zuletzt ge\u00E4ndert (<code>packages_changed_at</code>) und
+  wann das Image zuletzt gebaut wurde (<code>docker_image_built_at</code>). Wenn sich Pakete
+  seit dem letzten Build ge\u00E4ndert haben, erscheint ein <strong>gelbes Warnbanner</strong>
+  in den Ausf\u00FChrungs- und Explorer-Ansichten mit der Aufforderung, das Image neu zu bauen.
+</p>
+<p>
+  Klicken Sie auf <strong>Neu bauen</strong>, um einen neuen Docker-Build zu starten.
+</p>
+<h4>Browser-Library-Initialisierung</h4>
+<p>
+  Bei Verwendung von <code>robotframework-browser</code> pr\u00FCft RoboScope automatisch, ob
+  die <code>node_modules</code> der Browser-Library nach der Installation korrekt initialisiert
+  sind. Falls eine Initialisierung n\u00F6tig ist, zeigt die Oberfl\u00E4che den Status
+  <strong>Initialisierung</strong> an, und eine Vorab-Pr\u00FCfung stellt sicher, dass die
+  Browser-Library vor der Testausf\u00FChrung bereit ist.
 </p>`
       },
       {

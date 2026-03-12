@@ -327,6 +327,24 @@ const fr: DocsContent = [
         tip: 'La synchronisation automatique garantit que vous testez toujours le code le plus r\u00E9cent. Activez-la pour les flux CI/CD.'
       },
       {
+        id: 'branch-switching',
+        title: 'Changement de branche et auto-synchronisation',
+        content: `
+<h4>Changement de branche</h4>
+<p>
+  Chaque carte de projet Git affiche un <strong>menu d\u00E9roulant de branche</strong> qui
+  vous permet de basculer entre les branches disponibles. S\u00E9lectionnez une branche
+  diff\u00E9rente pour la r\u00E9cup\u00E9rer. Ceci est utile pour tester des branches de
+  fonctionnalit\u00E9s ou comparer les r\u00E9sultats entre branches.
+</p>
+<h4>Case \u00E0 cocher Auto-Sync</h4>
+<p>
+  La case <strong>Auto-Sync</strong> sur chaque carte de projet contr\u00F4le si le d\u00E9p\u00F4t
+  est automatiquement synchronis\u00E9 avant les ex\u00E9cutions de tests. Activez-la pour les
+  flux CI/CD o\u00F9 vous souhaitez toujours tester le code le plus r\u00E9cent.
+</p>`
+      },
+      {
         id: 'library-check',
         title: 'V\u00E9rification des biblioth\u00E8ques (Gestionnaire de paquets)',
         content: `
@@ -621,8 +639,9 @@ const fr: DocsContent = [
 <p>
   Cliquez sur le bouton <strong>Annuler</strong> d\u2019une ex\u00E9cution <code>running</code> ou
   <code>pending</code> pour la terminer. Le processus sous-jacent re\u00E7oit un signal de
-  terminaison et le statut de l\u2019ex\u00E9cution passe \u00E0 <code>cancelled</code>. N\u00E9cessite le
-  r\u00F4le <strong>Runner</strong> ou sup\u00E9rieur.
+  terminaison et le sous-processus est r\u00E9ellement arr\u00EAt\u00E9 (pas seulement marqu\u00E9),
+  lib\u00E9rant imm\u00E9diatement les ressources. Le statut passe \u00E0 <code>cancelled</code>.
+  N\u00E9cessite le r\u00F4le <strong>Runner</strong> ou sup\u00E9rieur.
 </p>
 <h4>R\u00E9essayer une ex\u00E9cution</h4>
 <p>
@@ -1092,6 +1111,37 @@ const fr: DocsContent = [
   nouvelle entr\u00E9e, ou utilisez les ic\u00F4nes d\u2019\u00E9dition/suppression pour modifier les entr\u00E9es existantes.
 </p>`,
         tip: '\u00C9vitez de stocker des identifiants hautement sensibles comme variables d\u2019environnement. Envisagez d\u2019utiliser un gestionnaire de secrets pour les d\u00E9ploiements en production.'
+      },
+      {
+        id: 'docker-build',
+        title: 'Build Docker & Obsolescence de l\u2019image',
+        content: `
+<h4>Terminal de build Docker</h4>
+<p>
+  Lors de la construction d\u2019une image Docker pour un environnement, RoboScope diffuse
+  la sortie du build en direct dans un <strong>composant terminal</strong>. Le terminal
+  affiche un point pulsant pendant les builds actifs, d\u00E9file automatiquement et dispose
+  d\u2019un bouton afficher/masquer pour le r\u00E9duire.
+</p>
+<h4>D\u00E9tection d\u2019obsolescence de l\u2019image</h4>
+<p>
+  Apr\u00E8s l\u2019installation ou la suppression de paquets, l\u2019image Docker peut \u00EAtre obsol\u00E8te.
+  RoboScope suit quand les paquets ont \u00E9t\u00E9 modifi\u00E9s (<code>packages_changed_at</code>)
+  et quand l\u2019image a \u00E9t\u00E9 construite (<code>docker_image_built_at</code>). Si des paquets
+  ont chang\u00E9 depuis le dernier build, une <strong>banni\u00E8re d\u2019avertissement ambre</strong>
+  appara\u00EEt dans les vues Ex\u00E9cution et Explorateur.
+</p>
+<p>
+  Cliquez sur <strong>Reconstruire</strong> pour lancer un nouveau build Docker.
+</p>
+<h4>Initialisation de la biblioth\u00E8que Browser</h4>
+<p>
+  Lors de l\u2019utilisation de <code>robotframework-browser</code>, RoboScope v\u00E9rifie
+  automatiquement si les <code>node_modules</code> de la biblioth\u00E8que Browser sont
+  correctement initialis\u00E9s apr\u00E8s l\u2019installation. Si une initialisation est n\u00E9cessaire,
+  un indicateur <strong>initialisation</strong> appara\u00EEt, et une v\u00E9rification pr\u00E9-ex\u00E9cution
+  s\u2019assure que la biblioth\u00E8que est pr\u00EAte.
+</p>`
       },
       {
         id: 'clone-delete-env',
