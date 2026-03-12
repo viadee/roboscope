@@ -412,6 +412,7 @@ function isTerminal(status: string): boolean {
         <thead>
           <tr>
             <th>{{ t('common.id') }}</th>
+            <th>{{ t('execution.runDialog.repository') }}</th>
             <th>{{ t('execution.target') }}</th>
             <th>{{ t('execution.runDialog.environment') }}</th>
             <th>{{ t('common.status') }}</th>
@@ -429,6 +430,7 @@ function isTerminal(status: string): boolean {
             @click="toggleRunDetail(run)"
           >
             <td>#{{ run.id }}</td>
+            <td class="text-sm">{{ getRepoName(run.repository_id) }}</td>
             <td class="text-sm" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis;">
               {{ run.target_path }}
             </td>
@@ -504,6 +506,7 @@ function isTerminal(status: string): boolean {
     <div v-if="selectedRunId && getSelectedRun()" class="card detail-card">
       <RunDetailPanel
         :run="getSelectedRun()!"
+        :repo-name="getRepoName(getSelectedRun()!.repository_id)"
         @cancel="cancelRun"
         @retry="retryRun"
         @view-output="viewOutput"

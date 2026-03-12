@@ -15,7 +15,7 @@ import { formatDateTime } from '@/utils/formatDate'
 import { renderMarkdown } from '@/utils/renderMarkdown'
 import type { ExecutionRun } from '@/types/domain.types'
 
-const props = defineProps<{ run: ExecutionRun }>()
+const props = defineProps<{ run: ExecutionRun; repoName?: string }>()
 const emit = defineEmits<{
   cancel: [id: number]
   retry: [id: number]
@@ -149,6 +149,10 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
     <div class="detail-section">
       <div class="section-title">{{ t('execution.detail.runInfo') }}</div>
       <div class="info-grid">
+        <div class="info-item">
+          <span class="info-label">{{ t('execution.runDialog.repository') }}</span>
+          <span class="info-value">{{ repoName || '-' }}</span>
+        </div>
         <div class="info-item">
           <span class="info-label">{{ t('common.status') }}</span>
           <span class="info-value"><BaseBadge :status="run.status" /></span>
