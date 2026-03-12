@@ -99,6 +99,7 @@ export interface RfKeywordResult {
   name: string
   library: string
   doc: string
+  args?: string[]
 }
 
 export interface RfKeywordSearchResponse {

@@ -391,7 +391,7 @@ async def rf_knowledge_keywords(
     results = await rf_knowledge.search_keywords(q, repo_id=repo_id)
     return RfKeywordSearchResponse(
         results=[
-            {"name": r.get("name", ""), "library": r.get("library", ""), "doc": r.get("doc", "")}
+            {"name": r.get("name", ""), "library": r.get("library", ""), "doc": r.get("doc", ""), "args": r.get("args", [])}
             for r in results
         ]
     )

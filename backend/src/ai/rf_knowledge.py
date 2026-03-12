@@ -324,10 +324,16 @@ def _scan_repo_files(repo_id: int) -> tuple[list[dict], set[str]]:
                 if current_kw and current_kw["name"].lower() not in seen_kw:
                     seen_kw.add(current_kw["name"].lower())
                     keywords.append(current_kw)
-                current_kw = {"name": stripped, "library": f.stem, "doc": ""}
+                current_kw = {"name": stripped, "library": f.stem, "doc": "", "args": []}
             elif current_kw and stripped.lower().startswith("[documentation]"):
                 doc = stripped.split("]", 1)[1].strip() if "]" in stripped else ""
                 current_kw["doc"] = doc[:200]
+            elif current_kw and stripped.lower().startswith("[arguments]"):
+                args_str = stripped.split("]", 1)[1].strip() if "]" in stripped else ""
+                if args_str:
+                    # Split on 2+ spaces or tabs (RF cell separator)
+                    parts = args_str.replace("\t", "  ").split("  ")
+                    current_kw["args"] = [a.strip() for a in parts if a.strip()]
 
         if current_kw and current_kw["name"].lower() not in seen_kw:
             seen_kw.add(current_kw["name"].lower())
@@ -370,7 +376,8 @@ def _resolve_library_keywords(library_names: set[str], venv_path: str) -> list[d
         "        from robot.libdocpkg import LibraryDocumentation\n"
         "        libdoc = LibraryDocumentation(lib_name)\n"
         "        for kw in libdoc.keywords:\n"
-        "            results.append({'name': kw.name, 'library': lib_name, 'doc': (kw.doc or '')[:200]})\n"
+        "            kw_args = [str(a) for a in (kw.args or [])]\n"
+        "            results.append({'name': kw.name, 'library': lib_name, 'doc': (kw.doc or '')[:200], 'args': kw_args})\n"
         "    except Exception:\n"
         "        pass\n"
         "print(json.dumps(results))\n"

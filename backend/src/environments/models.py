@@ -1,6 +1,8 @@
 """Environment models."""
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base, TimestampMixin
@@ -16,6 +18,8 @@ class Environment(Base, TimestampMixin):
     python_version: Mapped[str] = mapped_column(String(20), default="3.12")
     venv_path: Mapped[str | None] = mapped_column(String(500), default=None)
     docker_image: Mapped[str | None] = mapped_column(String(500), default=None)
+    docker_image_built_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    packages_changed_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     default_runner_type: Mapped[str] = mapped_column(String(20), default="subprocess")
     max_docker_containers: Mapped[int] = mapped_column(Integer, default=1)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)

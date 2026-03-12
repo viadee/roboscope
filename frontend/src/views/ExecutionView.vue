@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useExecutionStore } from '@/stores/execution.store'
@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useReportsStore } from '@/stores/reports.store'
 import { useToast } from '@/composables/useToast'
 import { getRunOutput } from '@/api/execution.api'
+import { buildDockerImage } from '@/api/environments.api'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
@@ -119,6 +120,15 @@ const runForm = ref({
   timeout_seconds: 3600,
 })
 const starting = ref(false)
+const rebuildDocker = ref(false)
+const selectedRunEnv = computed(() => {
+  if (!runForm.value.environment_id) return null
+  return envs.environments.find(e => e.id === runForm.value.environment_id) ?? null
+})
+const showDockerStaleWarning = computed(() => {
+  return runForm.value.runner_type === 'docker'
+    && selectedRunEnv.value?.docker_image_stale === true
+})
 const showEnvPrompt = ref(false)
 const settingUpDefaultEnv = ref(false)
 
@@ -207,9 +217,14 @@ function handleStartClick() {
 async function doStartRun() {
   starting.value = true
   try {
+    if (rebuildDocker.value && runForm.value.environment_id) {
+      await buildDockerImage(runForm.value.environment_id)
+      await envs.fetchEnvironments()
+    }
     const run = await execution.startRun(runForm.value)
     toast.success(t('execution.toasts.started'), t('execution.toasts.startedMsg', { id: run.id }))
     showRunDialog.value = false
+    rebuildDocker.value = false
   } catch (e: any) {
     toast.error(t('common.error'), e.response?.data?.detail || t('execution.toasts.startError'))
   } finally {
@@ -637,6 +652,18 @@ function isTerminal(status: string): boolean {
             <input v-model.number="runForm.timeout_seconds" type="number" class="form-input" min="30" max="86400" />
           </div>
         </div>
+
+        <!-- Docker image stale warning -->
+        <div v-if="showDockerStaleWarning" class="docker-stale-warning">
+          <div class="docker-stale-message">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>{{ t('execution.errors.dockerImageStale', { env: selectedRunEnv?.name }) }}</span>
+          </div>
+          <label class="rebuild-checkbox">
+            <input v-model="rebuildDocker" type="checkbox" />
+            {{ t('execution.errors.rebuildBeforeRun') }}
+          </label>
+        </div>
       </form>
       <template #footer>
         <BaseButton variant="secondary" @click="showRunDialog = false">{{ t('common.cancel') }}</BaseButton>
@@ -962,5 +989,45 @@ function isTerminal(status: string): boolean {
 
 .mb-3 {
   margin-bottom: 16px;
+}
+
+.docker-stale-warning {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: rgba(234, 179, 8, 0.08);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: var(--radius-sm, 6px);
+}
+
+.docker-stale-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #b45309;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.docker-stale-message svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #d97706;
+}
+
+.rebuild-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-left: 26px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.rebuild-checkbox input[type="checkbox"] {
+  accent-color: var(--color-primary, #3B7DD8);
+  cursor: pointer;
 }
 </style>

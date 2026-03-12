@@ -160,6 +160,7 @@ class RfKeywordResult(BaseModel):
     name: str
     library: str = ""
     doc: str = ""
+    args: list[str] = []
 
 
 class RfKeywordSearchResponse(BaseModel):

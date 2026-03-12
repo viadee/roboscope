@@ -145,6 +145,9 @@ export interface Environment {
   python_version: string
   venv_path: string | null
   docker_image: string | null
+  docker_image_built_at: string | null
+  packages_changed_at: string | null
+  docker_image_stale: boolean
   default_runner_type: string
   max_docker_containers: number
   is_default: boolean

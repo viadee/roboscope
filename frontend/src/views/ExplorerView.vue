@@ -345,7 +345,7 @@ async function installEditorLib(lib: LibraryCheckItem) {
   if (!envId || !lib.pypi_package) return
   editorLibInstalling.value.add(lib.library_name)
   try {
-    await installPackage(envId, lib.pypi_package)
+    await installPackage(envId, { package_name: lib.pypi_package })
     editorMissingLibs.value = editorMissingLibs.value.filter(l => l.library_name !== lib.library_name)
     toast.success(t('explorer.libInstalled', { name: lib.pypi_package }))
   } catch (e: any) {

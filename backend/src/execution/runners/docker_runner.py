@@ -8,6 +8,20 @@ from src.config import settings
 from src.execution.runners.base import AbstractRunner, RunResult
 
 
+class DockerNotAvailableError(RuntimeError):
+    """Raised when Docker daemon is not reachable."""
+
+    def __init__(self) -> None:
+        super().__init__("DOCKER_NOT_AVAILABLE")
+
+
+class DockerImageNotFoundError(RuntimeError):
+    """Raised when the Docker image does not exist locally or in any registry."""
+
+    def __init__(self, image: str) -> None:
+        super().__init__(f"DOCKER_IMAGE_NOT_FOUND:{image}")
+
+
 class DockerRunner(AbstractRunner):
     """Runs Robot Framework tests inside a Docker container."""
 
@@ -24,7 +38,7 @@ class DockerRunner(AbstractRunner):
             try:
                 self._client = docker.from_env()
                 self._client.ping()
-            except Exception:
+            except Exception as orig_err:
                 # docker.from_env() fails when DOCKER_HOST is unset and the
                 # default /var/run/docker.sock doesn't exist (e.g. Rancher
                 # Desktop, Colima, Docker Desktop on macOS).  Fall back to the
@@ -46,9 +60,13 @@ class DockerRunner(AbstractRunner):
                     pass
 
                 if base_url:
-                    self._client = docker.DockerClient(base_url=base_url)
+                    try:
+                        self._client = docker.DockerClient(base_url=base_url)
+                        self._client.ping()
+                    except Exception:
+                        raise DockerNotAvailableError() from orig_err
                 else:
-                    raise
+                    raise DockerNotAvailableError() from orig_err
         return self._client
 
     def prepare(self, repo_path: str, target_path: str, env_config: dict | None = None) -> None:
@@ -63,7 +81,10 @@ class DockerRunner(AbstractRunner):
         try:
             client.images.get(image)
         except Exception:
-            client.images.pull(image)
+            try:
+                client.images.pull(image)
+            except Exception:
+                raise DockerImageNotFoundError(image)
 
     def execute(
         self,

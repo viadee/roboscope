@@ -36,6 +36,16 @@ def _broadcast_package_status(env_id: int, package_name: str, status: str, **ext
         logger.warning("No event loop available to broadcast package %s status", package_name)
 
 
+def _mark_packages_changed(session, env_id: int) -> None:
+    """Update packages_changed_at timestamp on the environment."""
+    from datetime import datetime, timezone
+    env = session.execute(
+        select(Environment).where(Environment.id == env_id)
+    ).scalar_one_or_none()
+    if env:
+        env.packages_changed_at = datetime.now(timezone.utc)
+
+
 BROWSER_PACKAGE_NAMES = {"robotframework-browser", "robotframework_browser"}
 
 
@@ -232,6 +242,8 @@ def install_package(env_id: int, package_name: str, version: str | None = None) 
                 )
 
             logger.info("Installed %s==%s in env %d", package_name, installed_version, env_id)
+            _mark_packages_changed(session, env_id)
+            session.commit()
 
             # Auto-init rfbrowser after robotframework-browser install
             if _is_browser_package(package_name):
@@ -334,6 +346,8 @@ def upgrade_package(env_id: int, package_name: str) -> dict:
                 )
 
             logger.info("Upgraded %s to %s in env %d", package_name, installed_version, env_id)
+            _mark_packages_changed(session, env_id)
+            session.commit()
 
             # Auto-init rfbrowser after robotframework-browser upgrade
             if _is_browser_package(package_name):
@@ -453,7 +467,9 @@ def build_docker_image(env_id: int) -> dict:
             client.images.build(fileobj=f, custom_context=True, tag=tag, rm=True)
 
             # Update environment's docker_image in DB
+            from datetime import datetime, timezone
             env.docker_image = tag
+            env.docker_image_built_at = datetime.now(timezone.utc)
             session.commit()
 
             logger.info("Built Docker image %s for env %d", tag, env_id)
@@ -482,6 +498,8 @@ def uninstall_package(env_id: int, package_name: str) -> dict:
                 text=True,
             )
             logger.info("Uninstalled %s from env %d", package_name, env_id)
+            _mark_packages_changed(session, env_id)
+            session.commit()
             return {"status": "success", "message": f"Uninstalled {package_name}"}
         except subprocess.CalledProcessError as e:
             logger.error("pip uninstall failed: %s", e.stderr)
