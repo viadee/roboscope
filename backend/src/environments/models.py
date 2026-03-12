@@ -1,6 +1,8 @@
 """Environment models."""
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base, TimestampMixin
@@ -16,12 +18,17 @@ class Environment(Base, TimestampMixin):
     python_version: Mapped[str] = mapped_column(String(20), default="3.12")
     venv_path: Mapped[str | None] = mapped_column(String(500), default=None)
     docker_image: Mapped[str | None] = mapped_column(String(500), default=None)
+    docker_image_built_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    packages_changed_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     default_runner_type: Mapped[str] = mapped_column(String(20), default="subprocess")
     max_docker_containers: Mapped[int] = mapped_column(Integer, default=1)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     description: Mapped[str | None] = mapped_column(Text, default=None)
     index_url: Mapped[str | None] = mapped_column(String(500), default=None)
     extra_index_url: Mapped[str | None] = mapped_column(String(500), default=None)
+    docker_build_status: Mapped[str | None] = mapped_column(String(20), default=None)
+    docker_build_error: Mapped[str | None] = mapped_column(Text, default=None)
+    docker_build_log: Mapped[str | None] = mapped_column(Text, default=None)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
 
 

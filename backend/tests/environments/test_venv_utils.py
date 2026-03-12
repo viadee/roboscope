@@ -241,6 +241,46 @@ class TestValidatePythonVersion:
         assert validate_python_version("3.14") == "3.14"
 
 
+class TestCheckRfbrowserInitialized:
+    def test_unix_initialized(self, tmp_path):
+        """Returns True when node_modules exists under Browser/wrapper."""
+        venv = tmp_path / "venv"
+        node_modules = venv / "lib" / "python3.12" / "site-packages" / "Browser" / "wrapper" / "node_modules"
+        node_modules.mkdir(parents=True)
+        with patch.object(venv_utils.sys, "platform", "linux"):
+            assert venv_utils.check_rfbrowser_initialized(str(venv)) is True
+
+    def test_unix_not_initialized(self, tmp_path):
+        """Returns False when node_modules does not exist."""
+        venv = tmp_path / "venv"
+        venv.mkdir()
+        with patch.object(venv_utils.sys, "platform", "linux"):
+            assert venv_utils.check_rfbrowser_initialized(str(venv)) is False
+
+    def test_windows_initialized(self, tmp_path):
+        """Returns True on Windows path layout."""
+        venv = tmp_path / "venv"
+        node_modules = venv / "Lib" / "site-packages" / "Browser" / "wrapper" / "node_modules"
+        node_modules.mkdir(parents=True)
+        with patch.object(venv_utils.sys, "platform", "win32"):
+            assert venv_utils.check_rfbrowser_initialized(str(venv)) is True
+
+    def test_windows_not_initialized(self, tmp_path):
+        """Returns False on Windows when node_modules missing."""
+        venv = tmp_path / "venv"
+        venv.mkdir()
+        with patch.object(venv_utils.sys, "platform", "win32"):
+            assert venv_utils.check_rfbrowser_initialized(str(venv)) is False
+
+    def test_unix_different_python_version(self, tmp_path):
+        """Glob matches any python3.X version."""
+        venv = tmp_path / "venv"
+        node_modules = venv / "lib" / "python3.13" / "site-packages" / "Browser" / "wrapper" / "node_modules"
+        node_modules.mkdir(parents=True)
+        with patch.object(venv_utils.sys, "platform", "linux"):
+            assert venv_utils.check_rfbrowser_initialized(str(venv)) is True
+
+
 class TestCheckPythonVersionCompatibility:
     def test_stable_version_no_warning(self):
         assert check_python_version_compatibility("3.12") is None

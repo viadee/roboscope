@@ -104,6 +104,10 @@ export function useWebSocket() {
         break
       }
 
+      case 'docker_build_log':
+        envStore.appendBuildLog(data.environment_id, data.line, data.done)
+        break
+
       case 'notification':
         ui.addToast(data.title, data.message, data.level || 'info')
         break

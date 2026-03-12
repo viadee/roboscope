@@ -1,27 +1,24 @@
 """rf-mcp server process manager.
 
-Manages the lifecycle of an rf-mcp server instance:
-- Install rf-mcp package into a RoboScope Python environment
-- Start/stop the server process
-- Check status (running, installed, etc.)
+Manages the lifecycle of an rf-mcp server instance.
+rf-mcp is a default dependency of RoboScope — no separate installation needed.
 
-This enables a one-click setup from the Settings UI.
+The server can be started in two modes:
+1. Bundled mode (start_bundled): Uses RoboScope's own Python with optional
+   environment site-packages for library discovery.
+2. Legacy mode (setup): For backwards compatibility with the Settings UI.
 """
 
 import logging
 import os
 import socket
 import subprocess
+import sys
 import time
 from pathlib import Path
 
 from src.config import settings
-from src.environments.venv_utils import (
-    get_python_path,
-    get_venv_bin_dir,
-    pip_install_cmd,
-    pip_show_cmd,
-)
+from src.environments.venv_utils import get_venv_bin_dir
 
 logger = logging.getLogger("roboscope.ai.rf_mcp_manager")
 
@@ -32,7 +29,7 @@ _process: subprocess.Popen | None = None
 _environment_id: int | None = None
 _venv_path: str | None = None
 _port: int = 9090
-_status: str = "stopped"  # stopped, installing, starting, running, error
+_status: str = "stopped"  # stopped, starting, running, error
 _error_message: str = ""
 _installed_version: str | None = None
 
@@ -61,51 +58,8 @@ def is_running() -> bool:
     return True
 
 
-def check_installed(venv_path: str) -> tuple[bool, str | None]:
-    """Check if rf-mcp is installed and return (installed, version)."""
-    python_path = get_python_path(venv_path)
-    if not Path(python_path).exists():
-        return False, None
-    try:
-        result = subprocess.run(
-            pip_show_cmd(venv_path, RF_MCP_PACKAGE),
-            capture_output=True, text=True, timeout=10,
-        )
-        if result.returncode != 0:
-            return False, None
-        version = None
-        for line in result.stdout.splitlines():
-            if line.startswith("Version:"):
-                version = line.split(":", 1)[1].strip()
-        return True, version
-    except Exception:
-        return False, None
-
-
-def _install_package(venv_path: str) -> dict:
-    """Install rf-mcp into the given venv."""
-    try:
-        result = subprocess.run(
-            pip_install_cmd(venv_path, RF_MCP_PACKAGE, "fastmcp<3"),
-            capture_output=True, text=True, timeout=300,
-        )
-        if result.returncode != 0:
-            return {"status": "error", "message": result.stderr}
-
-        _, version = check_installed(venv_path)
-        return {"status": "success", "version": version}
-    except subprocess.TimeoutExpired:
-        return {"status": "error", "message": "Installation timed out (5 minutes)"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-
 def _find_available_port(start_port: int, max_attempts: int = 10) -> int:
-    """Find an available port starting from start_port.
-
-    Tries binding to successive ports. Returns the first available one,
-    or falls back to start_port if none are free (letting the subprocess report the error).
-    """
+    """Find an available port starting from start_port."""
     for offset in range(max_attempts):
         port = start_port + offset
         try:
@@ -117,43 +71,62 @@ def _find_available_port(start_port: int, max_attempts: int = 10) -> int:
     return start_port
 
 
-def _start_server(venv_path: str, port: int = 9090) -> dict:
-    """Start the rf-mcp server process."""
+def _get_env_site_packages(venv_path: str) -> str | None:
+    """Get the site-packages directory from an environment's venv."""
+    venv = Path(venv_path)
+    # Unix: lib/pythonX.Y/site-packages
+    for sp in venv.glob("lib/python*/site-packages"):
+        if sp.is_dir():
+            return str(sp)
+    # Windows: Lib/site-packages
+    sp = venv / "Lib" / "site-packages"
+    if sp.is_dir():
+        return str(sp)
+    return None
+
+
+def _start_server_process(port: int, env_site_packages: str | None = None) -> dict:
+    """Start the rf-mcp server process using RoboScope's own Python.
+
+    Args:
+        port: Port to listen on.
+        env_site_packages: Optional path to an environment's site-packages
+            for additional library discovery.
+    """
     global _process, _port, _status
 
     port = _find_available_port(port)
 
     if is_running():
-        proc = _process  # Local ref after is_running confirmed non-None
+        proc = _process
         return {"status": "already_running", "port": _port, "pid": proc.pid if proc else 0}
 
     from src.ai.rf_knowledge import reset_session
     reset_session()
 
-    bin_dir = get_venv_bin_dir(venv_path)
-    robotmcp_bin = str(Path(bin_dir) / "robotmcp")
-    if not Path(robotmcp_bin).exists():
-        return {"status": "error", "message": f"robotmcp CLI not found: {robotmcp_bin}"}
-
     _port = port
 
     try:
         env = {**os.environ}
-        env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
-        env["VIRTUAL_ENV"] = venv_path
 
+        # Add environment's site-packages to PYTHONPATH for library discovery
+        if env_site_packages:
+            existing = env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = env_site_packages + (os.pathsep + existing if existing else "")
+
+        # Use RoboScope's own Python to run robotmcp (it's a default dependency)
         proc = subprocess.Popen(
-            [robotmcp_bin, "--transport", "http", "--port", str(port)],
+            [sys.executable, "-m", "robotmcp.server",
+             "--transport", "http", "--port", str(port)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=env,
         )
-        _process = proc  # Publish to global after creation
+        _process = proc
 
         # Give server a moment to start (or fail)
         time.sleep(2)
 
-        # Use local ref to avoid race with concurrent is_running() calls
         if proc.poll() is not None:
             stderr = ""
             if proc.stderr:
@@ -167,13 +140,68 @@ def _start_server(venv_path: str, port: int = 9090) -> dict:
         return {"status": "started", "port": port, "pid": proc.pid}
     except FileNotFoundError:
         _status = "error"
-        msg = f"Could not start rf-mcp. Ensure '{RF_MCP_PACKAGE}' is properly installed (robotmcp CLI)."
+        msg = "Could not start rf-mcp. The robotmcp module was not found."
         logger.error(msg)
         return {"status": "error", "message": msg}
     except Exception as e:
         logger.exception("Failed to start rf-mcp")
         _status = "error"
         return {"status": "error", "message": str(e)}
+
+
+def start_bundled(env_id: int | None = None, port: int = 0) -> dict:
+    """Start rf-mcp using RoboScope's bundled installation.
+
+    Args:
+        env_id: Optional environment ID whose site-packages should be available
+            for library keyword discovery.
+        port: Port to listen on. 0 = use settings.RF_MCP_PORT.
+    """
+    global _environment_id, _error_message, _status
+
+    if is_running():
+        return get_status()
+
+    _environment_id = env_id
+    _error_message = ""
+    _status = "starting"
+    port = port or settings.RF_MCP_PORT
+
+    env_site_packages = None
+    if env_id:
+        try:
+            from sqlalchemy import select
+
+            import src.auth.models  # noqa: F401
+            from src.database import get_sync_session
+            from src.environments.models import Environment
+
+            with get_sync_session() as session:
+                env = session.execute(
+                    select(Environment).where(Environment.id == env_id)
+                ).scalar_one_or_none()
+                if env and env.venv_path:
+                    env_site_packages = _get_env_site_packages(env.venv_path)
+        except Exception:
+            logger.warning("Could not resolve environment %d site-packages", env_id)
+
+    result = _start_server_process(port, env_site_packages)
+    if result["status"] in ("started", "already_running"):
+        _status = "running"
+
+        # Try to get installed version
+        global _installed_version
+        try:
+            import importlib.metadata
+            _installed_version = importlib.metadata.version("rf-mcp")
+        except Exception:
+            _installed_version = None
+
+        return result
+
+    _status = "error"
+    _error_message = result.get("message", "Failed to start server")
+    return result
 
 
 def stop_server() -> dict:
@@ -183,7 +211,7 @@ def stop_server() -> dict:
     from src.ai.rf_knowledge import reset_session
     reset_session()
 
-    proc = _process  # Local ref to avoid race with concurrent threads
+    proc = _process
     if proc is None or not is_running():
         _process = None
         _status = "stopped"
@@ -215,7 +243,7 @@ def get_status() -> dict:
     effective_status = _status
     if running:
         effective_status = "running"
-    elif effective_status not in ("installing", "starting", "error"):
+    elif effective_status not in ("starting", "error"):
         effective_status = "stopped"
 
     return {
@@ -231,67 +259,19 @@ def get_status() -> dict:
 
 
 def setup(env_id: int, port: int = 9090) -> dict:
-    """Background task: install rf-mcp if needed, then start the server.
+    """Background task: start the rf-mcp server.
 
-    Called via dispatch_task() from the API endpoint.
+    Kept for backwards compatibility with the Settings UI / dispatch_task().
+    Since rf-mcp is now a default dependency, no installation step is needed.
     """
-    global _status, _error_message, _environment_id, _venv_path, _installed_version
-
+    global _status, _error_message, _environment_id
     _environment_id = env_id
     _error_message = ""
 
     try:
-        return _setup_inner(env_id, port)
+        return start_bundled(env_id, port)
     except Exception as e:
         logger.exception("rf-mcp setup failed unexpectedly")
         _status = "error"
         _error_message = str(e)
         return {"status": "error", "message": str(e)}
-
-
-def _setup_inner(env_id: int, port: int) -> dict:
-    """Inner setup logic, called by setup() with error handling."""
-    global _status, _error_message, _venv_path, _installed_version
-
-    # Get environment venv path from DB
-    from sqlalchemy import select
-
-    import src.auth.models  # noqa: F401
-    from src.database import get_sync_session
-    from src.environments.models import Environment
-
-    with get_sync_session() as session:
-        env = session.execute(
-            select(Environment).where(Environment.id == env_id)
-        ).scalar_one_or_none()
-        if not env or not env.venv_path:
-            _status = "error"
-            _error_message = "Environment not found or has no virtual environment"
-            return {"status": "error", "message": _error_message}
-        _venv_path = env.venv_path
-
-    # Check if already installed
-    installed, version = check_installed(_venv_path)
-    if not installed:
-        _status = "installing"
-        logger.info("Installing %s in env %d...", RF_MCP_PACKAGE, env_id)
-        result = _install_package(_venv_path)
-        if result["status"] != "success":
-            _status = "error"
-            _error_message = result.get("message", "Installation failed")
-            return result
-        _installed_version = result.get("version")
-        logger.info("Installed %s %s", RF_MCP_PACKAGE, _installed_version)
-    else:
-        _installed_version = version
-
-    # Start the server
-    _status = "starting"
-    result = _start_server(_venv_path, port)
-    if result["status"] in ("started", "already_running"):
-        _status = "running"
-        return result
-
-    _status = "error"
-    _error_message = result.get("message", "Failed to start server")
-    return result

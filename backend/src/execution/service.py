@@ -107,10 +107,13 @@ def cancel_run(db: Session, run: ExecutionRun) -> ExecutionRun:
     if run.status not in (RunStatus.PENDING, RunStatus.RUNNING):
         raise ValueError(f"Cannot cancel run with status {run.status}")
 
-    # Note: in-process executor doesn't support cancellation of running tasks.
-    # The run will be marked as cancelled in the DB.
+    result = update_run_status(db, run, RunStatus.CANCELLED)
 
-    return update_run_status(db, run, RunStatus.CANCELLED)
+    # Kill the spawned process if the run is currently executing
+    from src.execution.tasks import cancel_active_run
+    cancel_active_run(run.id)
+
+    return result
 
 
 def retry_run(db: Session, run: ExecutionRun, user_id: int) -> ExecutionRun:

@@ -145,6 +145,12 @@ export interface Environment {
   python_version: string
   venv_path: string | null
   docker_image: string | null
+  docker_image_built_at: string | null
+  packages_changed_at: string | null
+  docker_image_stale: boolean
+  docker_build_status: 'building' | 'success' | 'error' | null
+  docker_build_error: string | null
+  docker_build_log: string | null
   default_runner_type: string
   max_docker_containers: number
   is_default: boolean
@@ -163,7 +169,7 @@ export interface EnvironmentPackage {
   package_name: string
   version: string | null
   installed_version: string | null
-  install_status: 'pending' | 'installing' | 'installed' | 'failed'
+  install_status: 'pending' | 'installing' | 'initializing' | 'installed' | 'failed'
   install_error: string | null
 }
 

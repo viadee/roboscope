@@ -8,7 +8,7 @@ import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
 import { createRun } from '@/api/execution.api'
 import { checkLibraries } from '@/api/explorer.api'
-import { installPackage } from '@/api/environments.api'
+import { installPackage, buildDockerImage } from '@/api/environments.api'
 import type { LibraryCheckItem } from '@/types/domain.types'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
@@ -67,6 +67,15 @@ const showLibCheckPrompt = ref(false)
 const missingLibraries = ref<LibraryCheckItem[]>([])
 const installingLibs = ref(false)
 
+// Docker image stale check before run
+const showDockerStalePrompt = ref(false)
+const rebuildingDocker = ref(false)
+
+// Editor library check banner
+const editorMissingLibs = ref<LibraryCheckItem[]>([])
+const editorLibCheckLoading = ref(false)
+const editorLibInstalling = ref<Set<string>>(new Set())
+
 // AI Generation
 const showGenerateModal = ref(false)
 const aiMode = ref<'generate' | 'reverse'>('generate')
@@ -109,7 +118,7 @@ const absolutePath = computed(() => {
 })
 
 onMounted(async () => {
-  await Promise.all([repos.fetchRepos(), envs.fetchEnvironments()])
+  await Promise.all([repos.fetchRepos(), envs.fetchEnvironments().catch(() => {})])
   const repoId = Number(route.params.repoId)
   let targetRepoId: number | null = null
   if (repoId && repos.repos.find(r => r.id === repoId)) {
@@ -318,7 +327,35 @@ async function onNodeClick(node: TreeNode) {
     await nextTick()
     initEditor()
     setTimeout(() => { ignoreContentUpdates.value = false }, 0)
+    checkEditorLibraries()
   }
+}
+
+async function checkEditorLibraries() {
+  editorMissingLibs.value = []
+  if (!selectedRepoId.value || !isRobotOrResource.value) return
+  const env = currentRepo.value?.environment_id
+  if (!env) return
+  editorLibCheckLoading.value = true
+  try {
+    const result = await checkLibraries(selectedRepoId.value, env)
+    editorMissingLibs.value = result.libraries.filter(l => l.status === 'missing')
+  } catch { /* ignore */ }
+  editorLibCheckLoading.value = false
+}
+
+async function installEditorLib(lib: LibraryCheckItem) {
+  const envId = currentRepo.value?.environment_id
+  if (!envId || !lib.pypi_package) return
+  editorLibInstalling.value.add(lib.library_name)
+  try {
+    await installPackage(envId, { package_name: lib.pypi_package })
+    editorMissingLibs.value = editorMissingLibs.value.filter(l => l.library_name !== lib.library_name)
+    toast.success(t('explorer.libInstalled', { name: lib.pypi_package }))
+  } catch (e: any) {
+    toast.error(e?.response?.data?.detail || 'Install failed')
+  }
+  editorLibInstalling.value.delete(lib.library_name)
 }
 
 async function openBinaryAnyway() {
@@ -506,7 +543,41 @@ async function checkAndRunRobot(node: TreeNode) {
       // Library check failed — proceed anyway
     }
   }
+  // Check if Docker image is stale
+  if (envForCheck?.docker_image_stale && envForCheck.default_runner_type === 'docker') {
+    pendingRunNode.value = node
+    showDockerStalePrompt.value = true
+    return
+  }
   doRunRobot(node)
+}
+
+async function rebuildAndRun() {
+  const defaultEnv = envs.environments.find(e => e.is_default)
+  const envForRebuild = currentRepo.value?.environment_id
+    ? envs.environments.find(e => e.id === currentRepo.value?.environment_id)
+    : defaultEnv
+  if (!envForRebuild) return
+  rebuildingDocker.value = true
+  try {
+    await buildDockerImage(envForRebuild.id)
+    await envs.fetchEnvironments()
+  } catch {
+    toast.error(t('common.error'))
+  } finally {
+    rebuildingDocker.value = false
+  }
+  showDockerStalePrompt.value = false
+  const node = pendingRunNode.value
+  pendingRunNode.value = null
+  if (node) doRunRobot(node)
+}
+
+function skipRebuildAndRun() {
+  showDockerStalePrompt.value = false
+  const node = pendingRunNode.value
+  pendingRunNode.value = null
+  if (node) doRunRobot(node)
 }
 
 async function installAndRun() {
@@ -888,11 +959,30 @@ const flatNodes = computed(() => {
               {{ t('explorer.openAnyway') }}
             </BaseButton>
           </div>
+          <!-- Missing library banner -->
+          <div v-if="editorMissingLibs.length && isRobotOrResource" class="lib-banner">
+            <span class="lib-banner-label">{{ t('explorer.missingLibraries.editorBanner') }}</span>
+            <span v-for="lib in editorMissingLibs" :key="lib.library_name" class="lib-banner-chip">
+              {{ lib.library_name }}
+              <button
+                v-if="lib.pypi_package"
+                class="lib-install-btn"
+                :disabled="editorLibInstalling.has(lib.library_name)"
+                @click="installEditorLib(lib)"
+              >{{ editorLibInstalling.has(lib.library_name) ? '...' : t('explorer.missingLibraries.install') }}</button>
+            </span>
+          </div>
+          <!-- No environment banner -->
+          <div v-if="isRobotOrResource && !currentRepo?.environment_id && !editorMissingLibs.length" class="lib-banner lib-banner-warn">
+            <span>{{ t('explorer.noEnvironment') }}</span>
+            <router-link to="/environments" class="lib-banner-link">{{ t('explorer.createEnvironment') }}</router-link>
+          </div>
           <!-- Two-tab spec editor for .roboscope files (replaces CodeMirror) -->
           <SpecEditor
-            v-else-if="isRoboscope"
+            v-if="isRoboscope"
             :content="editorContent"
             :file-path="explorer.selectedFile.path"
+            :repo-id="selectedRepoId ?? undefined"
             @save="handleSave"
             @update:content="onEditorContentUpdate($event)"
           />
@@ -901,6 +991,7 @@ const flatNodes = computed(() => {
             v-else-if="isRobotOrResource"
             :content="editorContent"
             :file-path="explorer.selectedFile.path"
+            :repo-id="selectedRepoId ?? undefined"
             @save="handleSave"
             @update:content="onEditorContentUpdate($event)"
           />
@@ -1020,6 +1111,25 @@ const flatNodes = computed(() => {
         </BaseButton>
         <BaseButton size="sm" :loading="installingLibs" @click="installAndRun">
           {{ t('explorer.missingLibraries.installAndRun') }}
+        </BaseButton>
+      </template>
+    </BaseModal>
+
+    <!-- Docker Image Stale Prompt -->
+    <BaseModal v-model="showDockerStalePrompt" :title="t('explorer.dockerStale.title')" size="md">
+      <div class="docker-stale-body">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <p>{{ t('explorer.dockerStale.message') }}</p>
+      </div>
+      <template #footer>
+        <BaseButton variant="secondary" size="sm" @click="showDockerStalePrompt = false; pendingRunNode = null">
+          {{ t('common.cancel') }}
+        </BaseButton>
+        <BaseButton variant="secondary" size="sm" @click="skipRebuildAndRun">
+          {{ t('explorer.dockerStale.runAnyway') }}
+        </BaseButton>
+        <BaseButton size="sm" :loading="rebuildingDocker" @click="rebuildAndRun">
+          {{ t('explorer.dockerStale.rebuildAndRun') }}
         </BaseButton>
       </template>
     </BaseModal>
@@ -1357,6 +1467,22 @@ const flatNodes = computed(() => {
   font-weight: 500;
 }
 
+.docker-stale-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.docker-stale-body p {
+  color: var(--color-text-muted, #5C688C);
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 380px;
+}
+
 .missing-lib-list {
   margin-top: 12px;
   display: flex;
@@ -1373,6 +1499,24 @@ const flatNodes = computed(() => {
   border-radius: 6px;
   font-size: 14px;
 }
+
+.lib-banner {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 8px 14px; background: #fef3cd; border-bottom: 1px solid #ffc107;
+  font-size: 13px; color: #856404;
+}
+.lib-banner-warn { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+.lib-banner-label { font-weight: 600; margin-right: 4px; }
+.lib-banner-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 2px 8px;
+}
+.lib-install-btn {
+  background: var(--color-primary); color: #fff; border: none; border-radius: 3px;
+  padding: 1px 6px; font-size: 11px; cursor: pointer;
+}
+.lib-install-btn:disabled { opacity: 0.5; cursor: wait; }
+.lib-banner-link { color: var(--color-primary); font-weight: 600; text-decoration: underline; }
 
 .binary-placeholder {
   display: flex;

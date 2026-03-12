@@ -15,7 +15,7 @@ import { formatDateTime } from '@/utils/formatDate'
 import { renderMarkdown } from '@/utils/renderMarkdown'
 import type { ExecutionRun } from '@/types/domain.types'
 
-const props = defineProps<{ run: ExecutionRun }>()
+const props = defineProps<{ run: ExecutionRun; repoName?: string }>()
 const emit = defineEmits<{
   cancel: [id: number]
   retry: [id: number]
@@ -26,6 +26,17 @@ const { t } = useI18n()
 const reports = useReportsStore()
 const aiStore = useAiStore()
 const envs = useEnvironmentsStore()
+
+function isDockerError(msg: string): boolean {
+  return msg.includes('DOCKER_NOT_AVAILABLE') || msg.includes('DOCKER_IMAGE_NOT_FOUND:')
+}
+
+function formatRunError(msg: string): string {
+  if (msg.includes('DOCKER_NOT_AVAILABLE')) return t('execution.errors.dockerNotAvailable')
+  const imgMatch = msg.match(/DOCKER_IMAGE_NOT_FOUND:(.+)/)
+  if (imgMatch) return t('execution.errors.dockerImageNotFound', { image: imgMatch[1] })
+  return msg
+}
 
 const envName = computed(() => {
   if (!props.run.environment_id) return t('execution.runDialog.noEnv')
@@ -139,6 +150,10 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
       <div class="section-title">{{ t('execution.detail.runInfo') }}</div>
       <div class="info-grid">
         <div class="info-item">
+          <span class="info-label">{{ t('execution.runDialog.repository') }}</span>
+          <span class="info-value">{{ repoName || '-' }}</span>
+        </div>
+        <div class="info-item">
           <span class="info-label">{{ t('common.status') }}</span>
           <span class="info-value"><BaseBadge :status="run.status" /></span>
         </div>
@@ -170,9 +185,14 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
           <span class="info-label">{{ t('common.duration') }}</span>
           <span class="info-value">{{ formatDuration(run.duration_seconds) }}</span>
         </div>
-        <div class="info-item" v-if="run.error_message">
-          <span class="info-label">{{ t('execution.detail.error') }}</span>
-          <span class="info-value text-danger">{{ run.error_message }}</span>
+      </div>
+
+      <!-- Error banner -->
+      <div v-if="run.error_message" class="run-error-banner" :class="{ 'docker-error': isDockerError(run.error_message) }">
+        <span class="run-error-icon">{{ isDockerError(run.error_message) ? '🐳' : '⚠' }}</span>
+        <div class="run-error-content">
+          <strong>{{ t('execution.detail.error') }}</strong>
+          <span>{{ formatRunError(run.error_message) }}</span>
         </div>
       </div>
 
@@ -558,6 +578,20 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
 }
 
 .text-danger { color: var(--color-danger); }
+
+/* Run error banner */
+.run-error-banner {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin-top: 12px; padding: 12px 16px;
+  background: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid var(--color-danger);
+  border-radius: 6px; font-size: 13px; color: #991b1b; line-height: 1.5;
+}
+.run-error-banner.docker-error {
+  background: #eff6ff; border-color: #bfdbfe; border-left-color: #3b82f6; color: #1e3a5f;
+}
+.run-error-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+.run-error-content { display: flex; flex-direction: column; gap: 2px; }
+.run-error-content strong { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
 
 /* AI Analysis Card */
 .analysis-card {

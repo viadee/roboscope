@@ -165,3 +165,20 @@ def rfbrowser_init_cmd(venv_path: str) -> list[str]:
     else:
         rfbrowser = str(bin_dir / "rfbrowser")
     return [rfbrowser, "init"]
+
+
+def check_rfbrowser_initialized(venv_path: str) -> bool:
+    """Check if rfbrowser init has been run successfully.
+
+    Verifies that the Browser wrapper's node_modules directory exists,
+    which is created by 'rfbrowser init'.
+    """
+    venv = Path(venv_path)
+    # Unix: lib/python3.X/site-packages/Browser/wrapper/node_modules
+    # Windows: Lib/site-packages/Browser/wrapper/node_modules
+    if sys.platform == "win32":
+        wrapper = venv / "Lib" / "site-packages" / "Browser" / "wrapper" / "node_modules"
+        return wrapper.is_dir()
+    # Unix — python version in path varies, use glob
+    matches = list(venv.glob("lib/python*/site-packages/Browser/wrapper/node_modules"))
+    return len(matches) > 0

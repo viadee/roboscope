@@ -119,6 +119,17 @@ class ConnectionManager:
             "line": line,
         })
 
+    async def broadcast_docker_build_log(
+        self, env_id: int, line: str, done: bool = False,
+    ) -> None:
+        """Broadcast a Docker build log line to all listeners."""
+        await self.broadcast({
+            "type": "docker_build_log",
+            "environment_id": env_id,
+            "line": line,
+            "done": done,
+        })
+
     async def broadcast_notification(self, title: str, message: str, level: str = "info") -> None:
         """Broadcast a notification to all connections."""
         await self.broadcast({

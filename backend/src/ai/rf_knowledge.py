@@ -17,6 +17,8 @@ Uses the MCP Streamable HTTP transport protocol which requires:
 
 import json
 import logging
+import subprocess
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -30,6 +32,14 @@ _REQUEST_ID_COUNTER = 0
 # Cached MCP session state (reset on server restart)
 _session_id: str | None = None
 _session_url: str | None = None  # URL the session was created against
+
+# Track which repos have had their keywords scanned
+_imported_repos: set[int] = set()
+_repo_keywords_cache: dict[int, list[dict]] = {}
+
+# Cache for library keywords resolved via robot.libdocpkg
+# Key: (frozenset of library names, venv_path)
+_library_keywords_cache: dict[tuple[frozenset[str], str], list[dict]] = {}
 
 _MCP_HEADERS = {
     "Content-Type": "application/json",
@@ -141,9 +151,12 @@ async def _ensure_session(client: httpx.AsyncClient, url: str) -> str | None:
 
 def reset_session() -> None:
     """Reset the cached MCP session (e.g. when the server restarts)."""
-    global _session_id, _session_url
+    global _session_id, _session_url, _imported_repos, _repo_keywords_cache, _library_keywords_cache
     _session_id = None
     _session_url = None
+    _imported_repos = set()
+    _repo_keywords_cache = {}
+    _library_keywords_cache = {}
 
 
 async def _call_mcp_tool(tool_name: str, arguments: dict[str, Any] | None = None) -> Any:
@@ -230,20 +243,241 @@ def is_available() -> bool:
     return bool(get_effective_url())
 
 
-async def search_keywords(query: str) -> list[dict]:
-    """Search for Robot Framework keywords matching a query.
+_RF_BUILTINS = frozenset({
+    "builtin", "collections", "datetime", "dialogs", "operatingsystem",
+    "process", "string", "telnet", "xml",
+})
 
-    Returns a list of dicts with keys: name, library, doc (or empty list).
+
+def _scan_repo_files(repo_id: int) -> tuple[list[dict], set[str]]:
+    """Scan a repo's .robot/.resource files.
+
+    Returns (user_keywords, library_imports).
+    Cached per repo_id.
     """
-    if not is_available():
+    global _imported_repos
+
+    if repo_id in _imported_repos:
+        return _repo_keywords_cache.get(repo_id, ([], set()))
+
+    from sqlalchemy import select
+
+    import src.auth.models  # noqa: F401
+    from src.database import get_sync_session
+    from src.repos.models import Repository
+
+    with get_sync_session() as session:
+        repo = session.execute(
+            select(Repository).where(Repository.id == repo_id)
+        ).scalar_one_or_none()
+        if not repo or not repo.local_path:
+            _imported_repos.add(repo_id)
+            return [], set()
+        local_path = repo.local_path
+
+    repo_dir = Path(local_path)
+    if not repo_dir.is_dir():
+        _imported_repos.add(repo_id)
+        return [], set()
+
+    files = list(repo_dir.rglob("*.resource")) + list(repo_dir.rglob("*.robot"))
+    keywords: list[dict] = []
+    library_imports: set[str] = set()
+    seen_kw: set[str] = set()
+
+    for f in files:
+        try:
+            content = f.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+
+        in_settings = False
+        in_keywords = False
+        current_kw: dict | None = None
+
+        for line in content.splitlines():
+            stripped = line.strip()
+
+            if stripped.startswith("***"):
+                lower = stripped.lower().replace("*", "").strip()
+                # Flush pending keyword
+                if current_kw and current_kw["name"].lower() not in seen_kw:
+                    seen_kw.add(current_kw["name"].lower())
+                    keywords.append(current_kw)
+                current_kw = None
+                in_settings = lower in ("settings", "setting")
+                in_keywords = lower in ("keywords", "keyword")
+                continue
+
+            # Parse Library imports from Settings
+            if in_settings and stripped.lower().startswith("library"):
+                parts = stripped.split(None, 1)
+                if len(parts) >= 2:
+                    lib_name = parts[1].split("  ")[0].split("\t")[0].strip()
+                    if lib_name and lib_name.lower() not in _RF_BUILTINS:
+                        library_imports.add(lib_name)
+
+            # Parse Keywords
+            if not in_keywords:
+                continue
+            if stripped and not line[0].isspace():
+                if current_kw and current_kw["name"].lower() not in seen_kw:
+                    seen_kw.add(current_kw["name"].lower())
+                    keywords.append(current_kw)
+                current_kw = {"name": stripped, "library": f.stem, "doc": "", "args": []}
+            elif current_kw and stripped.lower().startswith("[documentation]"):
+                doc = stripped.split("]", 1)[1].strip() if "]" in stripped else ""
+                current_kw["doc"] = doc[:200]
+            elif current_kw and stripped.lower().startswith("[arguments]"):
+                args_str = stripped.split("]", 1)[1].strip() if "]" in stripped else ""
+                if args_str:
+                    # Split on 2+ spaces or tabs (RF cell separator)
+                    parts = args_str.replace("\t", "  ").split("  ")
+                    current_kw["args"] = [a.strip() for a in parts if a.strip()]
+
+        if current_kw and current_kw["name"].lower() not in seen_kw:
+            seen_kw.add(current_kw["name"].lower())
+            keywords.append(current_kw)
+
+    _repo_keywords_cache[repo_id] = (keywords, library_imports)
+    _imported_repos.add(repo_id)
+    logger.info(
+        "Scanned repo %d: %d keywords, %d library imports from %d files",
+        repo_id, len(keywords), len(library_imports), len(files),
+    )
+    return keywords, library_imports
+
+
+def _resolve_library_keywords(library_names: set[str], venv_path: str) -> list[dict]:
+    """Resolve keyword names from installed libraries using robot.libdocpkg.
+
+    Runs a subprocess in the environment's Python to introspect libraries.
+    Results are cached.
+    """
+    if not library_names or not venv_path:
         return []
 
-    result = await _call_mcp_tool("search_keyword", {"query": query})
-    if isinstance(result, list):
-        return result
-    if isinstance(result, dict) and "results" in result:
-        return result["results"]
+    cache_key = (frozenset(library_names), venv_path)
+    if cache_key in _library_keywords_cache:
+        return _library_keywords_cache[cache_key]
+
+    from src.environments.venv_utils import get_python_path
+
+    python_path = get_python_path(venv_path)
+    if not Path(python_path).exists():
+        _library_keywords_cache[cache_key] = []
+        return []
+
+    script = (
+        "import json, sys\n"
+        "results = []\n"
+        "for lib_name in sys.argv[1:]:\n"
+        "    try:\n"
+        "        from robot.libdocpkg import LibraryDocumentation\n"
+        "        libdoc = LibraryDocumentation(lib_name)\n"
+        "        for kw in libdoc.keywords:\n"
+        "            kw_args = [str(a) for a in (kw.args or [])]\n"
+        "            results.append({'name': kw.name, 'library': lib_name, 'doc': (kw.doc or '')[:200], 'args': kw_args})\n"
+        "    except Exception:\n"
+        "        pass\n"
+        "print(json.dumps(results))\n"
+    )
+
+    try:
+        result = subprocess.run(
+            [python_path, "-c", script, *library_names],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            kws = json.loads(result.stdout.strip())
+            _library_keywords_cache[cache_key] = kws
+            logger.info("Resolved %d keywords from %d libraries", len(kws), len(library_names))
+            return kws
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception) as e:
+        logger.warning("Failed to resolve library keywords: %s", e)
+
+    _library_keywords_cache[cache_key] = []
     return []
+
+
+def _get_repo_env_venv_path(repo_id: int) -> str | None:
+    """Get the venv_path for a repo's assigned environment."""
+    from sqlalchemy import select
+
+    import src.auth.models  # noqa: F401
+    from src.database import get_sync_session
+    from src.repos.models import Repository
+
+    with get_sync_session() as session:
+        repo = session.execute(
+            select(Repository).where(Repository.id == repo_id)
+        ).scalar_one_or_none()
+        if not repo or not repo.environment_id:
+            return None
+
+        from src.environments.models import Environment
+        env = session.execute(
+            select(Environment).where(Environment.id == repo.environment_id)
+        ).scalar_one_or_none()
+        return env.venv_path if env else None
+
+
+async def search_keywords(query: str, repo_id: int | None = None) -> list[dict]:
+    """Search for Robot Framework keywords matching a query.
+
+    Combines three sources (no rf-mcp needed):
+    1. User-defined keywords from repo .robot/.resource files
+    2. Library keywords from the repo's environment (via robot.libdocpkg)
+    3. rf-mcp built-in keywords (optional fallback)
+
+    Returns a list of dicts with keys: name, library, doc.
+    """
+    results: list[dict] = []
+    seen: set[str] = set()
+    query_lower = query.lower().strip()
+
+    if repo_id is not None:
+        # 1. Custom keywords from repo files
+        custom_keywords, library_imports = _scan_repo_files(repo_id)
+        for kw in custom_keywords:
+            name_lower = kw["name"].lower()
+            if query_lower in name_lower or name_lower in query_lower:
+                seen.add(name_lower)
+                results.append(kw)
+
+        # 2. Library keywords from environment
+        venv_path = _get_repo_env_venv_path(repo_id)
+        if venv_path and library_imports:
+            lib_keywords = _resolve_library_keywords(library_imports, venv_path)
+            for kw in lib_keywords:
+                name_lower = kw["name"].lower()
+                if query_lower in name_lower or name_lower in query_lower:
+                    if name_lower not in seen:
+                        seen.add(name_lower)
+                        results.append(kw)
+
+    # 3. Optional: rf-mcp for built-in keyword semantic search
+    if is_available():
+        mcp_result = await _call_mcp_tool("find_keywords", {"query": query})
+        if isinstance(mcp_result, dict):
+            matches = (
+                mcp_result.get("result", {}).get("matches", [])
+                if isinstance(mcp_result.get("result"), dict)
+                else []
+            )
+            if not matches:
+                matches = mcp_result.get("results", mcp_result.get("matches", []))
+            for m in matches if isinstance(matches, list) else []:
+                name = m.get("keyword_name", m.get("name", ""))
+                if name.lower() not in seen:
+                    seen.add(name.lower())
+                    results.append({
+                        "name": name,
+                        "library": m.get("library", ""),
+                        "doc": (m.get("documentation", "") or "")[:200],
+                    })
+
+    return results
 
 
 async def get_keyword_docs(keyword_name: str) -> str | None:
@@ -254,7 +488,7 @@ async def get_keyword_docs(keyword_name: str) -> str | None:
     if not is_available():
         return None
 
-    result = await _call_mcp_tool("get_keyword_doc", {"keyword": keyword_name})
+    result = await _call_mcp_tool("get_keyword_info", {"keyword_name": keyword_name})
     if isinstance(result, str):
         return result
     if isinstance(result, dict) and "doc" in result:

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useAiStore } from '@/stores/ai.store'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { getInstalledPackages } from '@/api/environments.api'
+import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import * as yaml from 'js-yaml'
 
@@ -17,6 +18,7 @@ import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
 const props = defineProps<{
   content: string
   filePath: string
+  repoId?: number
 }>()
 
 const emit = defineEmits<{
@@ -76,6 +78,87 @@ const showLibraryDropdown = ref(false)
 const libraryDropdownIndex = ref(-1)
 const libraryInputRef = ref<HTMLInputElement | null>(null)
 const libraryDropdownRef = ref<HTMLElement | null>(null)
+
+// --- Keyword Autocomplete State ---
+const keywordSuggestions = ref<RfKeywordResult[]>([])
+const showKeywordDropdown = ref(false)
+const keywordDropdownIndex = ref(-1)
+const activeStepKey = ref<string | null>(null)  // "tsIndex-tcIndex-stepIdx"
+const keywordDropdownRef = ref<HTMLElement | null>(null)
+let keywordSearchTimer: ReturnType<typeof setTimeout> | null = null
+
+function getStepKey(tsIndex: number, tcIndex: number, stepIdx: number): string {
+  return `${tsIndex}-${tcIndex}-${stepIdx}`
+}
+
+async function onStepInput(tsIndex: number, tcIndex: number, stepIdx: number, value: string) {
+  updateSimpleStep(tsIndex, tcIndex, stepIdx, value)
+  debouncedKeywordSearch(value, getStepKey(tsIndex, tcIndex, stepIdx))
+}
+
+async function onStructuredStepActionInput(tsIndex: number, tcIndex: number, stepIdx: number, value: string) {
+  updateStructuredStep(tsIndex, tcIndex, stepIdx, 'action', value)
+  debouncedKeywordSearch(value, getStepKey(tsIndex, tcIndex, stepIdx))
+}
+
+function debouncedKeywordSearch(query: string, stepKey: string) {
+  if (keywordSearchTimer) clearTimeout(keywordSearchTimer)
+  activeStepKey.value = stepKey
+
+  if (query.trim().length < 2) {
+    keywordSuggestions.value = []
+    showKeywordDropdown.value = false
+    return
+  }
+
+  keywordSearchTimer = setTimeout(async () => {
+    try {
+      const response = await searchKeywords(query.trim(), props.repoId)
+      if (activeStepKey.value === stepKey) {
+        keywordSuggestions.value = response.results.slice(0, 12)
+        showKeywordDropdown.value = keywordSuggestions.value.length > 0
+        keywordDropdownIndex.value = -1
+      }
+    } catch {
+      keywordSuggestions.value = []
+      showKeywordDropdown.value = false
+    }
+  }, 300)
+}
+
+function selectKeyword(keyword: RfKeywordResult, tsIndex: number, tcIndex: number, stepIdx: number) {
+  const step = form.test_sets[tsIndex].test_cases[tcIndex].steps[stepIdx]
+  if (isStructuredStep(step)) {
+    updateStructuredStep(tsIndex, tcIndex, stepIdx, 'action', keyword.name)
+  } else {
+    updateSimpleStep(tsIndex, tcIndex, stepIdx, keyword.name)
+  }
+  showKeywordDropdown.value = false
+  keywordSuggestions.value = []
+  activeStepKey.value = null
+}
+
+function onStepKeydown(event: KeyboardEvent, tsIndex: number, tcIndex: number, stepIdx: number) {
+  if (!showKeywordDropdown.value || !keywordSuggestions.value.length) return
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    keywordDropdownIndex.value = Math.min(keywordDropdownIndex.value + 1, keywordSuggestions.value.length - 1)
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    keywordDropdownIndex.value = Math.max(keywordDropdownIndex.value - 1, 0)
+  } else if (event.key === 'Enter' && keywordDropdownIndex.value >= 0) {
+    event.preventDefault()
+    selectKeyword(keywordSuggestions.value[keywordDropdownIndex.value], tsIndex, tcIndex, stepIdx)
+  } else if (event.key === 'Escape') {
+    showKeywordDropdown.value = false
+    keywordDropdownIndex.value = -1
+  }
+}
+
+function onStepBlur() {
+  setTimeout(() => { showKeywordDropdown.value = false }, 200)
+}
 
 // --- Form State ---
 
@@ -1058,20 +1141,60 @@ watch(() => props.content, (newContent) => {
                         <div class="step-row">
                           <span class="step-number">{{ stepIdx + 1 }}.</span>
                           <template v-if="!isStructuredStep(step)">
-                            <input
-                              :value="step as string"
-                              @input="updateSimpleStep(tsIndex, tcIndex, stepIdx, ($event.target as HTMLInputElement).value)"
-                              class="form-input flex-1"
-                              :placeholder="t('ai.specEditor.stepPlaceholder')"
-                            />
+                            <div class="step-input-wrapper flex-1">
+                              <input
+                                :value="step as string"
+                                @input="onStepInput(tsIndex, tcIndex, stepIdx, ($event.target as HTMLInputElement).value)"
+                                @keydown="onStepKeydown($event, tsIndex, tcIndex, stepIdx)"
+                                @blur="onStepBlur"
+                                class="form-input"
+                                :placeholder="t('ai.specEditor.stepPlaceholder')"
+                                autocomplete="off"
+                              />
+                              <div
+                                v-if="showKeywordDropdown && activeStepKey === getStepKey(tsIndex, tcIndex, stepIdx)"
+                                ref="keywordDropdownRef"
+                                class="keyword-dropdown"
+                              >
+                                <div
+                                  v-for="(kw, kwIdx) in keywordSuggestions" :key="kw.name + kw.library"
+                                  class="keyword-item"
+                                  :class="{ active: kwIdx === keywordDropdownIndex }"
+                                  @mousedown.prevent="selectKeyword(kw, tsIndex, tcIndex, stepIdx)"
+                                >
+                                  <span class="keyword-name">{{ kw.name }}</span>
+                                  <span class="keyword-library">{{ kw.library }}</span>
+                                </div>
+                              </div>
+                            </div>
                           </template>
                           <template v-else>
-                            <input
-                              :value="(step as StructuredStep).action"
-                              @input="updateStructuredStep(tsIndex, tcIndex, stepIdx, 'action', ($event.target as HTMLInputElement).value)"
-                              class="form-input flex-1"
-                              :placeholder="t('ai.specEditor.stepActionPlaceholder')"
-                            />
+                            <div class="step-input-wrapper flex-1">
+                              <input
+                                :value="(step as StructuredStep).action"
+                                @input="onStructuredStepActionInput(tsIndex, tcIndex, stepIdx, ($event.target as HTMLInputElement).value)"
+                                @keydown="onStepKeydown($event, tsIndex, tcIndex, stepIdx)"
+                                @blur="onStepBlur"
+                                class="form-input"
+                                :placeholder="t('ai.specEditor.stepActionPlaceholder')"
+                                autocomplete="off"
+                              />
+                              <div
+                                v-if="showKeywordDropdown && activeStepKey === getStepKey(tsIndex, tcIndex, stepIdx)"
+                                ref="keywordDropdownRef"
+                                class="keyword-dropdown"
+                              >
+                                <div
+                                  v-for="(kw, kwIdx) in keywordSuggestions" :key="kw.name + kw.library"
+                                  class="keyword-item"
+                                  :class="{ active: kwIdx === keywordDropdownIndex }"
+                                  @mousedown.prevent="selectKeyword(kw, tsIndex, tcIndex, stepIdx)"
+                                >
+                                  <span class="keyword-name">{{ kw.name }}</span>
+                                  <span class="keyword-library">{{ kw.library }}</span>
+                                </div>
+                              </div>
+                            </div>
                           </template>
                           <button
                             class="step-btn"
@@ -1566,6 +1689,55 @@ watch(() => props.content, (newContent) => {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.step-input-wrapper {
+  position: relative;
+}
+
+.keyword-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  box-shadow: var(--shadow-md);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.keyword-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.keyword-item:hover,
+.keyword-item.active {
+  background: var(--color-bg);
+}
+
+.keyword-name {
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.keyword-library {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .step-number {

@@ -12,6 +12,7 @@ import src.auth.models  # noqa: F401
 from src.database import get_sync_session
 from src.environments.models import Environment, EnvironmentPackage
 from src.environments.venv_utils import (
+    check_rfbrowser_initialized,
     create_venv_cmd,
     get_venv_bin_dir,
     pip_install_cmd,
@@ -34,6 +35,16 @@ def _broadcast_package_status(env_id: int, package_name: str, status: str, **ext
         asyncio.run_coroutine_threadsafe(coro, _event_loop)
     else:
         logger.warning("No event loop available to broadcast package %s status", package_name)
+
+
+def _mark_packages_changed(session, env_id: int) -> None:
+    """Update packages_changed_at timestamp on the environment."""
+    from datetime import datetime, timezone
+    env = session.execute(
+        select(Environment).where(Environment.id == env_id)
+    ).scalar_one_or_none()
+    if env:
+        env.packages_changed_at = datetime.now(timezone.utc)
 
 
 BROWSER_PACKAGE_NAMES = {"robotframework-browser", "robotframework_browser"}
@@ -80,6 +91,25 @@ def _run_rfbrowser_init(
                 output=result.stdout,
                 stderr=result.stderr,
             )
+
+        # Verify node_modules was actually created
+        if not check_rfbrowser_initialized(venv_path):
+            error_msg = (
+                "rfbrowser init completed (exit code 0) but Browser wrapper's "
+                "node_modules directory was not created. This usually means "
+                "Node.js/npm is installed but failed silently. "
+                "Try running 'rfbrowser init' manually in the venv to see details."
+            )
+            logger.error(error_msg)
+            if pkg:
+                pkg.install_status = "failed"
+                pkg.install_error = error_msg
+                session.commit()
+                _broadcast_package_status(
+                    env_id, package_name, "failed", error=error_msg[:500],
+                )
+            return  # Don't raise — the install itself succeeded
+
         logger.info("rfbrowser init completed for env %d", env_id)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         stderr = getattr(exc, "stderr", "") or ""
@@ -232,6 +262,8 @@ def install_package(env_id: int, package_name: str, version: str | None = None) 
                 )
 
             logger.info("Installed %s==%s in env %d", package_name, installed_version, env_id)
+            _mark_packages_changed(session, env_id)
+            session.commit()
 
             # Auto-init rfbrowser after robotframework-browser install
             if _is_browser_package(package_name):
@@ -334,6 +366,8 @@ def upgrade_package(env_id: int, package_name: str) -> dict:
                 )
 
             logger.info("Upgraded %s to %s in env %d", package_name, installed_version, env_id)
+            _mark_packages_changed(session, env_id)
+            session.commit()
 
             # Auto-init rfbrowser after robotframework-browser upgrade
             if _is_browser_package(package_name):
@@ -374,8 +408,68 @@ def upgrade_package(env_id: int, package_name: str) -> dict:
             return {"status": "error", "message": error_msg}
 
 
+def _check_docker_disk_space(
+    client: "docker.DockerClient",  # type: ignore[name-defined]
+    env_id: int,
+    log_lines: list[str],
+    has_browser: bool = False,
+) -> None:
+    """Check available disk space in Docker and warn if low."""
+    try:
+        result = client.containers.run(
+            "alpine", "df -h /", remove=True, stderr=True,
+        )
+        # Parse output: "overlay  2.9G  2.4G  464.0M  84%  /"
+        for raw_line in result.decode().strip().splitlines():
+            parts = raw_line.split()
+            if len(parts) >= 4 and parts[0] != "Filesystem":
+                avail = parts[3]
+                # Parse available space to MB
+                avail_mb = 0.0
+                if avail.endswith("G"):
+                    avail_mb = float(avail[:-1]) * 1024
+                elif avail.endswith("M"):
+                    avail_mb = float(avail[:-1])
+                elif avail.endswith("K"):
+                    avail_mb = float(avail[:-1]) / 1024
+
+                # Browser packages need ~1.5 GB, normal builds ~500 MB
+                threshold_mb = 2048 if has_browser else 1024
+                threshold_label = "2 GB" if has_browser else "1 GB"
+
+                info = f"Docker disk: {avail} available"
+                log_lines.append(info)
+                _broadcast_docker_build_log(env_id, info)
+
+                if avail_mb < threshold_mb:
+                    warning = (
+                        f"WARNING: Low disk space ({avail} free, "
+                        f"recommended: >{threshold_label}"
+                        f"{' for robotframework-browser' if has_browser else ''})."
+                        " Run 'docker system prune -a' to free space."
+                    )
+                    log_lines.append(warning)
+                    _broadcast_docker_build_log(env_id, warning)
+                break
+    except Exception:
+        pass  # Non-critical — don't block the build
+
+
+def _broadcast_docker_build_log(env_id: int, line: str, done: bool = False) -> None:
+    """Broadcast a Docker build log line from a sync background thread."""
+    from src.websocket.manager import ws_manager
+    from src.main import _event_loop
+
+    coro = ws_manager.broadcast_docker_build_log(env_id, line, done=done)
+    asyncio.run_coroutine_threadsafe(coro, _event_loop)
+
+
 def build_docker_image(env_id: int) -> dict:
     """Build a Docker image for an environment with all its packages."""
+    import io
+    import json as _json
+    import tarfile
+
     with get_sync_session() as session:
         env = session.execute(
             select(Environment).where(Environment.id == env_id)
@@ -384,12 +478,15 @@ def build_docker_image(env_id: int) -> dict:
         if env is None:
             return {"status": "error", "message": "Environment not found"}
 
+        # Mark as building, clear previous log
+        env.docker_build_status = "building"
+        env.docker_build_error = None
+        env.docker_build_log = None
+        session.commit()
+
         packages = session.execute(
             select(EnvironmentPackage).where(EnvironmentPackage.environment_id == env_id)
         ).scalars().all()
-
-        if not packages:
-            return {"status": "error", "message": "No packages to install"}
 
         try:
             from src.environments.service import generate_dockerfile
@@ -400,6 +497,10 @@ def build_docker_image(env_id: int) -> dict:
                     pkg_specs.append(f"{pkg.package_name}=={pkg.version}")
                 else:
                     pkg_specs.append(pkg.package_name)
+
+            # Always include robotframework — it's required to run tests
+            if not any(s.split("==")[0].lower() == "robotframework" for s in pkg_specs):
+                pkg_specs.insert(0, "robotframework")
 
             dockerfile_content = generate_dockerfile(
                 python_version=env.python_version or "3.12",
@@ -414,8 +515,6 @@ def build_docker_image(env_id: int) -> dict:
                 client = docker.from_env()
                 client.ping()
             except Exception:
-                import json as _json
-
                 base_url = None
                 try:
                     out = subprocess.check_output(
@@ -435,9 +534,6 @@ def build_docker_image(env_id: int) -> dict:
                     raise
 
             # Build image from in-memory tarball
-            import io
-            import tarfile
-
             dockerfile_bytes = dockerfile_content.encode("utf-8")
             f = io.BytesIO()
             with tarfile.open(fileobj=f, mode="w") as tar:
@@ -450,10 +546,58 @@ def build_docker_image(env_id: int) -> dict:
             tag = f"roboscope/{safe_name}:latest"
 
             logger.info("Building Docker image %s for env %d", tag, env_id)
-            client.images.build(fileobj=f, custom_context=True, tag=tag, rm=True)
+
+            # Pre-build info
+            log_lines: list[str] = []
+            has_browser = any(
+                _is_browser_package(s.split("==")[0]) for s in pkg_specs
+            )
+            _check_docker_disk_space(client, env_id, log_lines, has_browser=has_browser)
+            if has_browser:
+                msg = (
+                    "Using Playwright base image (~2 GB). "
+                    "Step 1 may take several minutes on first build."
+                )
+                log_lines.append(msg)
+                _broadcast_docker_build_log(env_id, msg)
+
+            resp = client.api.build(
+                fileobj=f, custom_context=True, tag=tag, rm=True, decode=True,
+            )
+            for chunk in resp:
+                if "stream" in chunk:
+                    line = chunk["stream"].rstrip("\n")
+                    if line:
+                        log_lines.append(line)
+                        _broadcast_docker_build_log(env_id, line)
+                elif "error" in chunk:
+                    error_msg = chunk["error"].rstrip("\n")
+                    log_lines.append(f"ERROR: {error_msg}")
+                    _broadcast_docker_build_log(env_id, f"ERROR: {error_msg}")
+                    raise RuntimeError(error_msg)
+
+            # Clean up dangling images from previous builds
+            try:
+                pruned = client.images.prune(filters={"dangling": True})
+                reclaimed = pruned.get("SpaceReclaimed", 0)
+                if reclaimed > 0:
+                    mb = reclaimed / 1024 / 1024
+                    msg = f"Cleaned up old images ({mb:.0f} MB freed)"
+                    log_lines.append(msg)
+                    _broadcast_docker_build_log(env_id, msg)
+            except Exception:
+                pass  # Non-critical
+
+            # Signal completion
+            _broadcast_docker_build_log(env_id, "", done=True)
 
             # Update environment's docker_image in DB
+            from datetime import datetime, timezone
             env.docker_image = tag
+            env.docker_image_built_at = datetime.now(timezone.utc)
+            env.docker_build_status = "success"
+            env.docker_build_error = None
+            env.docker_build_log = "\n".join(log_lines)
             session.commit()
 
             logger.info("Built Docker image %s for env %d", tag, env_id)
@@ -461,7 +605,45 @@ def build_docker_image(env_id: int) -> dict:
 
         except Exception as exc:
             logger.exception("Failed to build Docker image for env %d", env_id)
-            return {"status": "error", "message": str(exc)}
+            error_msg = _enrich_docker_error(str(exc))
+            env.docker_build_status = "error"
+            env.docker_build_error = error_msg[:2000]
+            env.docker_build_log = "\n".join(log_lines) if "log_lines" in locals() else None
+            session.commit()
+            _broadcast_docker_build_log(env_id, f"ERROR: {error_msg}", done=True)
+            return {"status": "error", "message": error_msg}
+
+
+def _enrich_docker_error(error: str) -> str:
+    """Add actionable hints to common Docker errors."""
+    lower = error.lower()
+    if "no space left on device" in lower:
+        # Try to get disk usage info
+        disk_info = ""
+        try:
+            out = subprocess.check_output(
+                ["docker", "system", "df", "--format",
+                 "{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)"],
+                text=True, timeout=5,
+            ).strip()
+            disk_info = f"\n\nDocker disk usage:\n{out}"
+        except Exception:
+            pass
+        return (
+            f"{error}\n\n"
+            "Docker has run out of disk space. "
+            "Run 'docker system prune' in a terminal to free up space "
+            "(removes stopped containers and unused images). "
+            "For a more aggressive cleanup: 'docker system prune -a'"
+            f"{disk_info}"
+        )
+    if "connection refused" in lower or "cannot connect" in lower:
+        return (
+            f"{error}\n\n"
+            "Cannot connect to Docker. "
+            "Make sure Docker Desktop is running."
+        )
+    return error
 
 
 def uninstall_package(env_id: int, package_name: str) -> dict:
@@ -482,6 +664,8 @@ def uninstall_package(env_id: int, package_name: str) -> dict:
                 text=True,
             )
             logger.info("Uninstalled %s from env %d", package_name, env_id)
+            _mark_packages_changed(session, env_id)
+            session.commit()
             return {"status": "success", "message": f"Uninstalled {package_name}"}
         except subprocess.CalledProcessError as e:
             logger.error("pip uninstall failed: %s", e.stderr)

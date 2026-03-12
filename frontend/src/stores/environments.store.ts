@@ -8,6 +8,7 @@ export const useEnvironmentsStore = defineStore('environments', () => {
   const environments = ref<Environment[]>([])
   const packages = ref<Record<number, EnvironmentPackage[]>>({})
   const variables = ref<Record<number, EnvironmentVariable[]>>({})
+  const buildLogs = ref<Record<number, string[]>>({})
   const loading = ref(false)
 
   async function fetchEnvironments() {
@@ -76,9 +77,27 @@ export const useEnvironmentsStore = defineStore('environments', () => {
     }
   }
 
+  function appendBuildLog(envId: number, line: string, done: boolean) {
+    if (!buildLogs.value[envId]) {
+      buildLogs.value[envId] = []
+    }
+    if (line) {
+      buildLogs.value[envId].push(line)
+    }
+    if (done) {
+      // Refresh environments to pick up final status
+      fetchEnvironments()
+    }
+  }
+
+  function clearBuildLogs(envId: number) {
+    delete buildLogs.value[envId]
+  }
+
   return {
-    environments, packages, variables, loading,
+    environments, packages, variables, buildLogs, loading,
     fetchEnvironments, addEnvironment, setupDefault, removeEnvironment, cloneEnvironment,
     fetchPackages, installPackage, uninstallPackage, fetchVariables, updatePackageFromWs,
+    appendBuildLog, clearBuildLogs,
   }
 })

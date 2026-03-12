@@ -7,7 +7,7 @@ packages = ["src"]
 
 [project]
 name = "roboscope-backend"
-version = "0.6.0"
+version = "0.7.0"
 description = "RoboScope - Web-based Robot Framework Test Management Tool"
 requires-python = ">=3.11"
 dependencies = [
@@ -32,6 +32,8 @@ dependencies = [
     "httpx>=0.28.0",
     "slowapi>=0.1.9",
     "python-json-logger>=3.0.0",
+    "rf-mcp>=0.30.0",
+    "fastmcp<3",
 ]
 
 [project.optional-dependencies]

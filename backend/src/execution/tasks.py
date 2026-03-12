@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,11 +17,18 @@ import src.repos.models  # noqa: F401
 
 from src.config import settings
 from src.database import get_sync_session
+from src.environments.tasks import _is_browser_package
+from src.environments.venv_utils import check_rfbrowser_initialized
 from src.execution.models import ExecutionRun, RunStatus, RunnerType
 from src.execution.runners.subprocess_runner import SubprocessRunner
-from src.environments.models import Environment
+from src.environments.models import Environment, EnvironmentPackage
 
 logger = logging.getLogger("roboscope.execution.tasks")
+
+# Registry of currently running runners, keyed by run_id.
+# Allows cancel_run() to actually kill the spawned process.
+_active_runners: dict[int, "AbstractRunner"] = {}  # type: ignore[name-defined]
+_active_runners_lock = threading.Lock()
 
 _PLAYWRIGHT_HINTS = [
     "could not connect to the playwright process",
@@ -70,6 +78,20 @@ def _broadcast_run_status(run_id: int, status: str) -> None:
         logger.warning("No event loop available to broadcast run %d status", run_id)
 
 
+def cancel_active_run(run_id: int) -> bool:
+    """Cancel the runner for a currently executing run.
+
+    Returns True if a runner was found and cancelled, False otherwise.
+    """
+    with _active_runners_lock:
+        runner = _active_runners.get(run_id)
+    if runner is not None:
+        logger.info("Cancelling active runner for run %d", run_id)
+        runner.cancel()
+        return True
+    return False
+
+
 def _get_runner(runner_type: str, env_config: dict | None = None):
     """Factory function to get the appropriate runner."""
     if runner_type == RunnerType.DOCKER:
@@ -90,11 +112,28 @@ def _get_env_config(session: Session, env_id: int | None) -> dict | None:
     ).scalar_one_or_none()
     if env is None:
         return None
+    # Load installed packages so SubprocessRunner can bootstrap a new venv
+    packages = session.execute(
+        select(EnvironmentPackage)
+        .where(EnvironmentPackage.environment_id == env_id)
+        .where(EnvironmentPackage.install_status == "installed")
+    ).scalars().all()
+    pkg_specs = []
+    for p in packages:
+        if p.installed_version:
+            pkg_specs.append(f"{p.package_name}=={p.installed_version}")
+        elif p.version:
+            pkg_specs.append(f"{p.package_name}=={p.version}")
+        else:
+            pkg_specs.append(p.package_name)
+
     return {
+        "name": env.name,
         "python_version": env.python_version,
         "venv_path": env.venv_path,
         "docker_image": env.docker_image,
         "default_runner_type": env.default_runner_type,
+        "packages": pkg_specs,
     }
 
 
@@ -125,6 +164,17 @@ def execute_test_run(run_id: int) -> dict:
         # Get environment config
         env_config = _get_env_config(session, run.environment_id)
 
+        if run.environment_id and env_config is None:
+            run.status = RunStatus.ERROR
+            run.error_message = (
+                f"Environment #{run.environment_id} no longer exists. "
+                "Please retry with a valid environment."
+            )
+            run.finished_at = datetime.now(timezone.utc)
+            session.commit()
+            _broadcast_run_status(run_id, RunStatus.ERROR)
+            return {"status": "error", "message": run.error_message}
+
         # Determine effective runner type: use env default if run still has subprocess default
         effective_runner_type = run.runner_type
         if (env_config
@@ -132,8 +182,48 @@ def execute_test_run(run_id: int) -> dict:
                 and run.runner_type == RunnerType.SUBPROCESS):
             effective_runner_type = RunnerType.DOCKER
 
+        # Fail early if Docker runner requested but no Docker image configured
+        if (effective_runner_type == RunnerType.DOCKER
+                and (not env_config or not env_config.get("docker_image"))):
+            env_name = env_config.get("name", f"#{run.environment_id}") if env_config else "None"
+            run.status = RunStatus.ERROR
+            run.error_message = (
+                f"Runner type is Docker but environment \"{env_name}\" has no Docker image. "
+                "Build a Docker image in Package Manager first, or switch to Subprocess runner."
+            )
+            run.finished_at = datetime.now(timezone.utc)
+            session.commit()
+            _broadcast_run_status(run_id, RunStatus.ERROR)
+            return {"status": "error", "message": run.error_message}
+
+        # Pre-run check: verify rfbrowser init if Browser library is installed
+        if (effective_runner_type == RunnerType.SUBPROCESS
+                and env_config and env_config.get("venv_path")):
+            has_browser = any(
+                _is_browser_package(p.split("==")[0])
+                for p in (env_config.get("packages") or [])
+            )
+            if has_browser and not check_rfbrowser_initialized(env_config["venv_path"]):
+                run.status = RunStatus.ERROR
+                run.error_message = (
+                    "robotframework-browser is installed but not initialized. "
+                    "The Browser library requires 'rfbrowser init' to download "
+                    "Playwright browsers and Node.js dependencies. "
+                    "Go to Package Manager, remove and re-install the package, "
+                    "or ensure Node.js 18+ is installed and run 'rfbrowser init' "
+                    "manually in the environment's venv."
+                )
+                run.finished_at = datetime.now(timezone.utc)
+                session.commit()
+                _broadcast_run_status(run_id, RunStatus.ERROR)
+                return {"status": "error", "message": run.error_message}
+
         # Get runner
         runner = _get_runner(effective_runner_type, env_config)
+
+        # Register runner so cancel_active_run() can kill the process
+        with _active_runners_lock:
+            _active_runners[run_id] = runner
 
         try:
             # Prepare runner
@@ -165,6 +255,15 @@ def execute_test_run(run_id: int) -> dict:
                 tags_exclude=run.tags_exclude,
                 timeout=run.timeout_seconds,
             )
+
+            # Re-read run status — it may have been set to CANCELLED while we were executing
+            session.refresh(run)
+            if run.status == RunStatus.CANCELLED:
+                logger.info("Run %d was cancelled during execution", run_id)
+                run.finished_at = datetime.now(timezone.utc)
+                run.duration_seconds = result.duration_seconds
+                session.commit()
+                return {"status": "cancelled", "run_id": run.id}
 
             # Update run with results
             run.duration_seconds = result.duration_seconds
@@ -216,12 +315,17 @@ def execute_test_run(run_id: int) -> dict:
 
         except Exception as e:
             logger.exception("Error executing run %d", run.id)
-            run.status = RunStatus.ERROR
-            run.error_message = str(e)[:1000]
+            # Don't overwrite CANCELLED status
+            session.refresh(run)
+            if run.status != RunStatus.CANCELLED:
+                run.status = RunStatus.ERROR
+                run.error_message = str(e)[:1000]
             run.finished_at = datetime.now(timezone.utc)
             session.commit()
-            _broadcast_run_status(run_id, RunStatus.ERROR)
+            _broadcast_run_status(run_id, run.status)
             return {"status": "error", "message": str(e)}
 
         finally:
+            with _active_runners_lock:
+                _active_runners.pop(run_id, None)
             runner.cleanup()

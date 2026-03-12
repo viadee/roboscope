@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class EnvCreate(BaseModel):
@@ -35,6 +35,12 @@ class EnvResponse(BaseModel):
     python_version: str
     venv_path: str | None = None
     docker_image: str | None = None
+    docker_image_built_at: datetime | None = None
+    packages_changed_at: datetime | None = None
+    docker_image_stale: bool = False
+    docker_build_status: str | None = None
+    docker_build_error: str | None = None
+    docker_build_log: str | None = None
     default_runner_type: str
     max_docker_containers: int
     is_default: bool
@@ -47,6 +53,19 @@ class EnvResponse(BaseModel):
     python_version_warning: str | None = None
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def compute_docker_image_stale(self) -> "EnvResponse":
+        if self.docker_image:
+            if self.docker_image_built_at is None:
+                self.docker_image_stale = True
+            elif self.packages_changed_at and self.packages_changed_at > self.docker_image_built_at:
+                self.docker_image_stale = True
+            else:
+                self.docker_image_stale = False
+        else:
+            self.docker_image_stale = False
+        return self
 
 
 class PackageCreate(BaseModel):

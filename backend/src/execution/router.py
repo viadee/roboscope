@@ -154,6 +154,12 @@ def cancel_all_runs(
         run.finished_at = datetime.now(timezone.utc)
         cancelled += 1
     db.flush()
+
+    # Kill active runner processes
+    from src.execution.tasks import cancel_active_run
+    for run in runs:
+        cancel_active_run(run.id)
+
     logger.info("Cancelled %d runs", cancelled)
     return {"cancelled": cancelled}
 

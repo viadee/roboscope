@@ -98,7 +98,9 @@ class TestRfKnowledgeStatus:
         data = resp.json()
         assert "available" in data
         assert "url" in data
-        assert data["available"] is False  # Not configured in tests
+        # rf-mcp auto-starts as a bundled dependency, so availability
+        # depends on timing. Just verify the field type.
+        assert isinstance(data["available"], bool)
 
 
 class TestRfMcpStatusEndpoint:
@@ -169,7 +171,7 @@ class TestRfMcpSetupEndpoint:
             )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "installing"
+        assert data["status"] == "starting"
         assert data["environment_name"] == "setup-env"
         mock_dispatch.assert_called_once()
 
@@ -211,8 +213,9 @@ class TestRfMcpSetupEndpoint:
         )
         assert resp.status_code == 404
 
-    def test_setup_env_without_venv(self, client, admin_user, db_session):
-        """POST /rf-mcp/setup with env that has no venv_path should return 400."""
+    def test_setup_env_without_venv_still_works(self, client, admin_user, db_session):
+        """POST /rf-mcp/setup with env that has no venv_path should still work
+        since rf-mcp is bundled — venv is only used for library discovery."""
         from src.environments.models import Environment
 
         env = Environment(name="no-venv-env", venv_path=None, created_by=admin_user.id)
@@ -221,12 +224,16 @@ class TestRfMcpSetupEndpoint:
         db_session.refresh(env)
         db_session.commit()
 
-        resp = client.post(
-            "/api/v1/ai/rf-mcp/setup",
-            json={"environment_id": env.id, "port": 9090},
-            headers=auth_header(admin_user),
-        )
-        assert resp.status_code == 400
+        with (
+            patch("src.ai.rf_mcp_manager.stop_server", return_value={"status": "stopped"}),
+            patch("src.ai.router.dispatch_task"),
+        ):
+            resp = client.post(
+                "/api/v1/ai/rf-mcp/setup",
+                json={"environment_id": env.id, "port": 9090},
+                headers=auth_header(admin_user),
+            )
+        assert resp.status_code == 200
 
     def test_setup_requires_admin(self, client, runner_user):
         """POST /rf-mcp/setup should require ADMIN role."""

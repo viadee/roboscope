@@ -22,6 +22,7 @@ from src.repos.schemas import (
 )
 from src.repos.service import (
     add_project_member,
+    checkout_branch,
     create_repository,
     delete_repository,
     get_repository,
@@ -160,6 +161,34 @@ def get_branches(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
     branches = list_branches(repo.local_path)
     return [BranchResponse(**b) for b in branches]
+
+
+@router.post("/{repo_id}/checkout")
+def checkout_branch_endpoint(
+    repo_id: int,
+    branch: str,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Checkout a branch and update default_branch."""
+    repo = get_repository(db, repo_id)
+    if repo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+    if repo.repo_type != "git":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Branch checkout is only available for Git repositories",
+        )
+    result = checkout_branch(repo.local_path, branch)
+    if result.startswith("error:"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result,
+        )
+    repo.default_branch = branch
+    db.flush()
+    db.refresh(repo)
+    return {"status": "success", "branch": branch}
 
 
 # ---------------------------------------------------------------------------

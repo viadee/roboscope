@@ -62,9 +62,10 @@ class TestIsBrowserPackage:
 
 
 class TestRunRfbrowserInit:
+    @patch("src.environments.tasks.check_rfbrowser_initialized", return_value=True)
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")
-    def test_success(self, mock_run, mock_broadcast):
+    def test_success(self, mock_run, mock_broadcast, mock_check):
         mock_run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
         pkg = MagicMock()
         session = MagicMock()
@@ -79,6 +80,30 @@ class TestRunRfbrowserInit:
         # PATH should include venv bin dir
         env_vars = mock_run.call_args[1]["env"]
         assert env_vars["PATH"].startswith("/fake/venv/bin")
+        # Verification check called
+        mock_check.assert_called_once_with("/fake/venv")
+
+    @patch("src.environments.tasks.check_rfbrowser_initialized", return_value=False)
+    @patch("src.environments.tasks._broadcast_package_status")
+    @patch("subprocess.run")
+    def test_success_but_node_modules_missing(self, mock_run, mock_broadcast, mock_check):
+        """rfbrowser init exits 0 but node_modules not created — marks package failed."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+        pkg = MagicMock()
+        session = MagicMock()
+
+        with patch.object(venv_utils.sys, "platform", "linux"):
+            _run_rfbrowser_init("/fake/venv", 1, "robotframework-browser", pkg, session)
+
+        assert pkg.install_status == "failed"
+        assert "node_modules directory was not created" in pkg.install_error
+        session.commit.assert_called_once()
+        # Should broadcast "failed"
+        failed_calls = [
+            c for c in mock_broadcast.call_args_list
+            if len(c[0]) >= 3 and c[0][2] == "failed"
+        ]
+        assert len(failed_calls) == 1
 
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")
@@ -320,22 +345,23 @@ class TestInstallPackageBrowserHook:
 
 
 class TestGenerateDockerfileBrowser:
-    def test_with_browser_package_includes_nodejs_and_playwright_deps(self):
+    def test_with_browser_package_uses_playwright_base_image(self):
         df = generate_dockerfile("3.12", ["robotframework", "robotframework-browser==18.0.0"])
-        assert "nodejs" in df
-        assert "nodesource" in df
+        assert "mcr.microsoft.com/playwright/python" in df
         assert "rfbrowser init" in df
-        # Playwright browser system dependencies
-        assert "libgbm1" in df
-        assert "libnss3" in df
+        assert "nodejs" in df  # rfbrowser init requires npm
+        # Should NOT use python-slim as base
+        assert "python:3.12-slim" not in df
 
-    def test_without_browser_package_no_nodejs(self):
+    def test_without_browser_package_uses_python_slim(self):
         df = generate_dockerfile("3.12", ["robotframework", "requests"])
-        assert "nodejs" not in df
+        assert "python:3.12-slim" in df
+        assert "playwright" not in df
         assert "rfbrowser" not in df
 
     def test_browser_package_with_underscore(self):
         df = generate_dockerfile("3.12", ["robotframework_browser"])
+        assert "mcr.microsoft.com/playwright/python" in df
         assert "nodejs" in df
         assert "rfbrowser init" in df
 
