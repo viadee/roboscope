@@ -210,7 +210,12 @@ export default {
       message: 'The following libraries are not installed in the environment and may cause test failures:',
       installAndRun: 'Install & Run',
       runAnyway: 'Run Anyway',
+      editorBanner: 'Missing libraries:',
+      install: 'Install',
     },
+    noEnvironment: 'No environment assigned — library check and keyword autocomplete unavailable.',
+    createEnvironment: 'Create Environment',
+    libInstalled: '{name} installed successfully',
   },
   execution: {
     title: 'Execution',

@@ -210,7 +210,12 @@ export default {
       message: 'Las siguientes bibliotecas no están instaladas en el entorno y pueden causar fallos en los tests:',
       installAndRun: 'Instalar y Ejecutar',
       runAnyway: 'Ejecutar de todos modos',
+      editorBanner: 'Bibliotecas faltantes:',
+      install: 'Instalar',
     },
+    noEnvironment: 'Sin entorno asignado — verificación de bibliotecas y autocompletado no disponibles.',
+    createEnvironment: 'Crear entorno',
+    libInstalled: '{name} instalado con éxito',
   },
   execution: {
     title: 'Ejecución',

@@ -210,7 +210,12 @@ export default {
       message: "Les bibliothèques suivantes ne sont pas installées dans l'environnement et peuvent provoquer des échecs de tests :",
       installAndRun: 'Installer & Exécuter',
       runAnyway: 'Exécuter quand même',
+      editorBanner: 'Bibliothèques manquantes :',
+      install: 'Installer',
     },
+    noEnvironment: "Aucun environnement assigné — vérification des bibliothèques et autocomplétion indisponibles.",
+    createEnvironment: 'Créer un environnement',
+    libInstalled: '{name} installé avec succès',
   },
   execution: {
     title: 'Exécution',

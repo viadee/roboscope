@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { robotLanguage } from '@/utils/robotLanguage'
 import { RF_KEYWORD_SIGNATURES } from '@/utils/robotKeywordSignatures'
+import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
 
 // CodeMirror imports
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightSpecialChars } from '@codemirror/view'
@@ -15,6 +16,7 @@ import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
 const props = defineProps<{
   content: string
   filePath: string
+  repoId?: number
 }>()
 
 const emit = defineEmits<{
@@ -101,6 +103,8 @@ const activeAutocompleteStep = ref<RobotStep | null>(null)
 const keywordQuery = ref('')
 const keywordDropdownIndex = ref(-1)
 const keywordDropdownRef = ref<HTMLElement | null>(null)
+const rfMcpSuggestions = ref<RfKeywordResult[]>([])
+let rfMcpSearchTimer: ReturnType<typeof setTimeout> | null = null
 
 // Arg variable autocomplete state
 const argAutocompleteItems = ref<string[]>([])
@@ -776,13 +780,36 @@ const rfBuiltinSuggestions = computed<KeywordSuggestion[]>(() => {
 
 const filteredKeywordSuggestions = computed<KeywordSuggestion[]>(() => {
   const query = keywordQuery.value.toLowerCase().trim()
-  const suggestions: KeywordSuggestion[] = [...rfBuiltinSuggestions.value]
-  // Add local keywords from the file
+  const seen = new Set<string>()
+  const suggestions: KeywordSuggestion[] = []
+
+  // 1. rf-mcp results first (custom project keywords + library keywords)
+  for (const kw of rfMcpSuggestions.value) {
+    const key = kw.name.toLowerCase()
+    if (!seen.has(key)) {
+      seen.add(key)
+      suggestions.push({ name: kw.name, source: kw.library || 'project' })
+    }
+  }
+
+  // 2. Local keywords from the current file
   for (const kw of form.keywords) {
-    if (kw.name && !suggestions.some(s => s.name.toLowerCase() === kw.name.toLowerCase())) {
+    const key = kw.name.toLowerCase()
+    if (kw.name && !seen.has(key)) {
+      seen.add(key)
       suggestions.push({ name: kw.name, source: 'local' })
     }
   }
+
+  // 3. Built-in RF keyword signatures (only if no rf-mcp results or as fallback)
+  for (const s of rfBuiltinSuggestions.value) {
+    const key = s.name.toLowerCase()
+    if (!seen.has(key)) {
+      seen.add(key)
+      suggestions.push(s)
+    }
+  }
+
   return suggestions
     .filter(s => !query || s.name.toLowerCase().includes(query))
     .slice(0, 15)
@@ -804,6 +831,23 @@ function onKeywordInput(step: RobotStep) {
   keywordQuery.value = step.keyword
   keywordDropdownIndex.value = -1
   activeAutocompleteStep.value = step
+  debouncedRfMcpSearch(step.keyword)
+}
+
+function debouncedRfMcpSearch(query: string) {
+  if (rfMcpSearchTimer) clearTimeout(rfMcpSearchTimer)
+  if (query.trim().length < 2) {
+    rfMcpSuggestions.value = []
+    return
+  }
+  rfMcpSearchTimer = setTimeout(async () => {
+    try {
+      const response = await searchKeywords(query.trim(), props.repoId)
+      rfMcpSuggestions.value = response.results.slice(0, 15)
+    } catch {
+      rfMcpSuggestions.value = []
+    }
+  }, 300)
 }
 
 function onKeywordKeydown(event: KeyboardEvent, step: RobotStep) {

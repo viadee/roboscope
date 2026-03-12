@@ -67,6 +67,11 @@ const showLibCheckPrompt = ref(false)
 const missingLibraries = ref<LibraryCheckItem[]>([])
 const installingLibs = ref(false)
 
+// Editor library check banner
+const editorMissingLibs = ref<LibraryCheckItem[]>([])
+const editorLibCheckLoading = ref(false)
+const editorLibInstalling = ref<Set<string>>(new Set())
+
 // AI Generation
 const showGenerateModal = ref(false)
 const aiMode = ref<'generate' | 'reverse'>('generate')
@@ -318,7 +323,35 @@ async function onNodeClick(node: TreeNode) {
     await nextTick()
     initEditor()
     setTimeout(() => { ignoreContentUpdates.value = false }, 0)
+    checkEditorLibraries()
   }
+}
+
+async function checkEditorLibraries() {
+  editorMissingLibs.value = []
+  if (!selectedRepoId.value || !isRobotOrResource.value) return
+  const env = currentRepo.value?.environment_id
+  if (!env) return
+  editorLibCheckLoading.value = true
+  try {
+    const result = await checkLibraries(selectedRepoId.value, env)
+    editorMissingLibs.value = result.libraries.filter(l => l.status === 'missing')
+  } catch { /* ignore */ }
+  editorLibCheckLoading.value = false
+}
+
+async function installEditorLib(lib: LibraryCheckItem) {
+  const envId = currentRepo.value?.environment_id
+  if (!envId || !lib.pypi_package) return
+  editorLibInstalling.value.add(lib.library_name)
+  try {
+    await installPackage(envId, lib.pypi_package)
+    editorMissingLibs.value = editorMissingLibs.value.filter(l => l.library_name !== lib.library_name)
+    toast.success(t('explorer.libInstalled', { name: lib.pypi_package }))
+  } catch (e: any) {
+    toast.error(e?.response?.data?.detail || 'Install failed')
+  }
+  editorLibInstalling.value.delete(lib.library_name)
 }
 
 async function openBinaryAnyway() {
@@ -888,11 +921,30 @@ const flatNodes = computed(() => {
               {{ t('explorer.openAnyway') }}
             </BaseButton>
           </div>
+          <!-- Missing library banner -->
+          <div v-if="editorMissingLibs.length && isRobotOrResource" class="lib-banner">
+            <span class="lib-banner-label">{{ t('explorer.missingLibraries.editorBanner') }}</span>
+            <span v-for="lib in editorMissingLibs" :key="lib.library_name" class="lib-banner-chip">
+              {{ lib.library_name }}
+              <button
+                v-if="lib.pypi_package"
+                class="lib-install-btn"
+                :disabled="editorLibInstalling.has(lib.library_name)"
+                @click="installEditorLib(lib)"
+              >{{ editorLibInstalling.has(lib.library_name) ? '...' : t('explorer.missingLibraries.install') }}</button>
+            </span>
+          </div>
+          <!-- No environment banner -->
+          <div v-else-if="isRobotOrResource && !currentRepo?.environment_id" class="lib-banner lib-banner-warn">
+            <span>{{ t('explorer.noEnvironment') }}</span>
+            <router-link to="/environments" class="lib-banner-link">{{ t('explorer.createEnvironment') }}</router-link>
+          </div>
           <!-- Two-tab spec editor for .roboscope files (replaces CodeMirror) -->
           <SpecEditor
             v-else-if="isRoboscope"
             :content="editorContent"
             :file-path="explorer.selectedFile.path"
+            :repo-id="selectedRepoId ?? undefined"
             @save="handleSave"
             @update:content="onEditorContentUpdate($event)"
           />
@@ -901,6 +953,7 @@ const flatNodes = computed(() => {
             v-else-if="isRobotOrResource"
             :content="editorContent"
             :file-path="explorer.selectedFile.path"
+            :repo-id="selectedRepoId ?? undefined"
             @save="handleSave"
             @update:content="onEditorContentUpdate($event)"
           />
@@ -1373,6 +1426,24 @@ const flatNodes = computed(() => {
   border-radius: 6px;
   font-size: 14px;
 }
+
+.lib-banner {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 8px 14px; background: #fef3cd; border-bottom: 1px solid #ffc107;
+  font-size: 13px; color: #856404;
+}
+.lib-banner-warn { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+.lib-banner-label { font-weight: 600; margin-right: 4px; }
+.lib-banner-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 2px 8px;
+}
+.lib-install-btn {
+  background: var(--color-primary); color: #fff; border: none; border-radius: 3px;
+  padding: 1px 6px; font-size: 11px; cursor: pointer;
+}
+.lib-install-btn:disabled { opacity: 0.5; cursor: wait; }
+.lib-banner-link { color: var(--color-primary); font-weight: 600; text-decoration: underline; }
 
 .binary-placeholder {
   display: flex;

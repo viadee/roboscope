@@ -18,6 +18,7 @@ import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
 const props = defineProps<{
   content: string
   filePath: string
+  repoId?: number
 }>()
 
 const emit = defineEmits<{
@@ -112,7 +113,7 @@ function debouncedKeywordSearch(query: string, stepKey: string) {
 
   keywordSearchTimer = setTimeout(async () => {
     try {
-      const response = await searchKeywords(query.trim())
+      const response = await searchKeywords(query.trim(), props.repoId)
       if (activeStepKey.value === stepKey) {
         keywordSuggestions.value = response.results.slice(0, 12)
         showKeywordDropdown.value = keywordSuggestions.value.length > 0

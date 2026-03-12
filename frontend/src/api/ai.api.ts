@@ -114,9 +114,11 @@ export async function getRfKnowledgeStatus(): Promise<RfKnowledgeStatus> {
   return response.data
 }
 
-export async function searchKeywords(query: string): Promise<RfKeywordSearchResponse> {
+export async function searchKeywords(query: string, repoId?: number): Promise<RfKeywordSearchResponse> {
+  const params: Record<string, string | number> = { q: query }
+  if (repoId) params.repo_id = repoId
   const response = await apiClient.get<RfKeywordSearchResponse>('/ai/rf-knowledge/keywords', {
-    params: { q: query },
+    params,
   })
   return response.data
 }

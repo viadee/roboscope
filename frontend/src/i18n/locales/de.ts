@@ -210,7 +210,12 @@ export default {
       message: 'Folgende Bibliotheken sind in der Umgebung nicht installiert und können zu Testfehlern führen:',
       installAndRun: 'Installieren & Ausführen',
       runAnyway: 'Trotzdem ausführen',
+      editorBanner: 'Fehlende Bibliotheken:',
+      install: 'Installieren',
     },
+    noEnvironment: 'Keine Umgebung zugewiesen — Bibliotheksprüfung und Keyword-Autocomplete nicht verfügbar.',
+    createEnvironment: 'Umgebung erstellen',
+    libInstalled: '{name} erfolgreich installiert',
   },
   execution: {
     title: 'Ausführung',

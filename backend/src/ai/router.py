@@ -378,12 +378,17 @@ def rf_knowledge_status(
 @router.get("/rf-knowledge/keywords", response_model=RfKeywordSearchResponse)
 async def rf_knowledge_keywords(
     q: str,
+    repo_id: int | None = None,
     _current_user: User = Depends(get_current_user),
 ):
-    """Search for Robot Framework keywords via rf-mcp."""
+    """Search for Robot Framework keywords via rf-mcp.
+
+    If repo_id is provided, the repo's .robot/.resource files are imported
+    into the rf-mcp session first, making custom keywords discoverable.
+    """
     from src.ai import rf_knowledge
 
-    results = await rf_knowledge.search_keywords(q)
+    results = await rf_knowledge.search_keywords(q, repo_id=repo_id)
     return RfKeywordSearchResponse(
         results=[
             {"name": r.get("name", ""), "library": r.get("library", ""), "doc": r.get("doc", "")}
