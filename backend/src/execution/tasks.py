@@ -18,7 +18,7 @@ from src.config import settings
 from src.database import get_sync_session
 from src.execution.models import ExecutionRun, RunStatus, RunnerType
 from src.execution.runners.subprocess_runner import SubprocessRunner
-from src.environments.models import Environment
+from src.environments.models import Environment, EnvironmentPackage
 
 logger = logging.getLogger("roboscope.execution.tasks")
 
@@ -90,11 +90,27 @@ def _get_env_config(session: Session, env_id: int | None) -> dict | None:
     ).scalar_one_or_none()
     if env is None:
         return None
+    # Load installed packages so SubprocessRunner can bootstrap a new venv
+    packages = session.execute(
+        select(EnvironmentPackage)
+        .where(EnvironmentPackage.environment_id == env_id)
+        .where(EnvironmentPackage.install_status == "installed")
+    ).scalars().all()
+    pkg_specs = []
+    for p in packages:
+        if p.installed_version:
+            pkg_specs.append(f"{p.package_name}=={p.installed_version}")
+        elif p.version:
+            pkg_specs.append(f"{p.package_name}=={p.version}")
+        else:
+            pkg_specs.append(p.package_name)
+
     return {
         "python_version": env.python_version,
         "venv_path": env.venv_path,
         "docker_image": env.docker_image,
         "default_runner_type": env.default_runner_type,
+        "packages": pkg_specs,
     }
 
 
@@ -124,6 +140,17 @@ def execute_test_run(run_id: int) -> dict:
 
         # Get environment config
         env_config = _get_env_config(session, run.environment_id)
+
+        if run.environment_id and env_config is None:
+            run.status = RunStatus.ERROR
+            run.error_message = (
+                f"Environment #{run.environment_id} no longer exists. "
+                "Please retry with a valid environment."
+            )
+            run.finished_at = datetime.now(timezone.utc)
+            session.commit()
+            _broadcast_run_status(run_id, RunStatus.ERROR)
+            return {"status": "error", "message": run.error_message}
 
         # Determine effective runner type: use env default if run still has subprocess default
         effective_runner_type = run.runner_type
