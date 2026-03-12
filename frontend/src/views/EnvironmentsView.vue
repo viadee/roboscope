@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
@@ -218,6 +218,7 @@ async function loadDockerfile(envId: number) {
 }
 
 async function buildDockerImg(envId: number) {
+  envs.clearBuildLogs(envId)
   try {
     await envsApi.buildDockerImage(envId)
     await envs.fetchEnvironments()
@@ -225,6 +226,18 @@ async function buildDockerImg(envId: number) {
     toast.error(t('environments.docker.buildFailed'), e.response?.data?.detail || '')
   }
 }
+
+const buildLogExpanded = ref<Record<number, boolean>>({})
+
+// Auto-scroll terminal when new log lines arrive
+watch(() => envs.buildLogs, () => {
+  nextTick(() => {
+    const terminals = document.querySelectorAll('.docker-build-terminal')
+    terminals.forEach(el => {
+      el.scrollTop = el.scrollHeight
+    })
+  })
+}, { deep: true })
 
 async function dismissDockerError(envId: number) {
   try {
@@ -385,8 +398,24 @@ function isInstalled(envId: number, packageName: string): boolean {
             </details>
             <!-- Docker build status banners -->
             <div v-if="env.docker_build_status === 'building'" class="docker-build-banner docker-build-building">
-              <BaseSpinner />
-              <span>{{ t('environments.docker.buildInProgress') }}</span>
+              <div class="docker-build-building-header">
+                <BaseSpinner />
+                <span>{{ t('environments.docker.buildInProgress') }}</span>
+                <button
+                  class="docker-build-toggle"
+                  @click="buildLogExpanded[env.id] = !buildLogExpanded[env.id]"
+                >
+                  {{ buildLogExpanded[env.id] ? t('environments.docker.hideLog') : t('environments.docker.showLog') }}
+                </button>
+              </div>
+              <div
+                v-if="buildLogExpanded[env.id] !== false && (envs.buildLogs[env.id]?.length || env.docker_build_status === 'building')"
+                class="docker-build-terminal"
+                ref="buildTerminalRefs"
+              >
+                <div v-for="(line, i) in (envs.buildLogs[env.id] || [])" :key="i" class="terminal-line">{{ line }}</div>
+                <div v-if="!envs.buildLogs[env.id]?.length" class="terminal-line terminal-waiting">{{ t('environments.docker.waitingForOutput') }}</div>
+              </div>
             </div>
             <div v-else-if="env.docker_build_status === 'error'" class="docker-build-banner docker-build-error">
               <div class="docker-build-error-content">
@@ -395,6 +424,13 @@ function isInstalled(envId: number, packageName: string): boolean {
               </div>
               <button class="docker-build-dismiss" @click="dismissDockerError(env.id)" :title="t('environments.docker.buildDismiss')">&#10005;</button>
             </div>
+            <!-- Show stored build log for success/error if available -->
+            <details v-if="env.docker_build_status !== 'building' && (env.docker_build_log || envs.buildLogs[env.id]?.length)" class="docker-log-details">
+              <summary class="text-muted text-sm">{{ t('environments.docker.buildLog') }}</summary>
+              <div class="docker-build-terminal">
+                <div v-for="(line, i) in (envs.buildLogs[env.id] || env.docker_build_log?.split('\n') || [])" :key="i" class="terminal-line">{{ line }}</div>
+              </div>
+            </details>
 
             <div class="docker-build-action">
               <BaseButton
@@ -777,6 +813,7 @@ function isInstalled(envId: number, packageName: string): boolean {
   background: rgba(59, 125, 216, 0.08);
   border: 1px solid rgba(59, 125, 216, 0.25);
   color: var(--color-primary, #3B7DD8);
+  flex-direction: column;
 }
 
 .docker-build-error {
@@ -815,6 +852,63 @@ function isInstalled(envId: number, packageName: string): boolean {
 .docker-build-dismiss:hover {
   background: rgba(239, 68, 68, 0.1);
 }
+
+.docker-build-building-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.docker-build-toggle {
+  margin-left: auto;
+  background: none;
+  border: 1px solid rgba(59, 125, 216, 0.3);
+  color: var(--color-primary, #3B7DD8);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.docker-build-toggle:hover {
+  background: rgba(59, 125, 216, 0.08);
+}
+
+.docker-build-terminal {
+  background: var(--color-navy-dark, #0F1A30);
+  color: #c8d0e0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 8px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.terminal-line {
+  min-height: 1em;
+}
+
+.terminal-waiting {
+  color: #5a6380;
+  font-style: italic;
+}
+
+.docker-log-details {
+  margin-top: 8px;
+}
+
+.docker-log-details summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+
 
 /* Install dialog */
 .install-tabs {

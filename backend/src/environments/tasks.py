@@ -388,8 +388,21 @@ def upgrade_package(env_id: int, package_name: str) -> dict:
             return {"status": "error", "message": error_msg}
 
 
+def _broadcast_docker_build_log(env_id: int, line: str, done: bool = False) -> None:
+    """Broadcast a Docker build log line from a sync background thread."""
+    from src.websocket.manager import ws_manager
+    from src.main import _event_loop
+
+    coro = ws_manager.broadcast_docker_build_log(env_id, line, done=done)
+    asyncio.run_coroutine_threadsafe(coro, _event_loop)
+
+
 def build_docker_image(env_id: int) -> dict:
     """Build a Docker image for an environment with all its packages."""
+    import io
+    import json as _json
+    import tarfile
+
     with get_sync_session() as session:
         env = session.execute(
             select(Environment).where(Environment.id == env_id)
@@ -398,9 +411,10 @@ def build_docker_image(env_id: int) -> dict:
         if env is None:
             return {"status": "error", "message": "Environment not found"}
 
-        # Mark as building
+        # Mark as building, clear previous log
         env.docker_build_status = "building"
         env.docker_build_error = None
+        env.docker_build_log = None
         session.commit()
 
         packages = session.execute(
@@ -434,8 +448,6 @@ def build_docker_image(env_id: int) -> dict:
                 client = docker.from_env()
                 client.ping()
             except Exception:
-                import json as _json
-
                 base_url = None
                 try:
                     out = subprocess.check_output(
@@ -455,9 +467,6 @@ def build_docker_image(env_id: int) -> dict:
                     raise
 
             # Build image from in-memory tarball
-            import io
-            import tarfile
-
             dockerfile_bytes = dockerfile_content.encode("utf-8")
             f = io.BytesIO()
             with tarfile.open(fileobj=f, mode="w") as tar:
@@ -470,7 +479,26 @@ def build_docker_image(env_id: int) -> dict:
             tag = f"roboscope/{safe_name}:latest"
 
             logger.info("Building Docker image %s for env %d", tag, env_id)
-            client.images.build(fileobj=f, custom_context=True, tag=tag, rm=True)
+
+            # Use low-level API to stream build output
+            log_lines: list[str] = []
+            resp = client.api.build(
+                fileobj=f, custom_context=True, tag=tag, rm=True, decode=True,
+            )
+            for chunk in resp:
+                if "stream" in chunk:
+                    line = chunk["stream"].rstrip("\n")
+                    if line:
+                        log_lines.append(line)
+                        _broadcast_docker_build_log(env_id, line)
+                elif "error" in chunk:
+                    error_msg = chunk["error"].rstrip("\n")
+                    log_lines.append(f"ERROR: {error_msg}")
+                    _broadcast_docker_build_log(env_id, f"ERROR: {error_msg}")
+                    raise RuntimeError(error_msg)
+
+            # Signal completion
+            _broadcast_docker_build_log(env_id, "", done=True)
 
             # Update environment's docker_image in DB
             from datetime import datetime, timezone
@@ -478,6 +506,7 @@ def build_docker_image(env_id: int) -> dict:
             env.docker_image_built_at = datetime.now(timezone.utc)
             env.docker_build_status = "success"
             env.docker_build_error = None
+            env.docker_build_log = "\n".join(log_lines)
             session.commit()
 
             logger.info("Built Docker image %s for env %d", tag, env_id)
@@ -485,10 +514,45 @@ def build_docker_image(env_id: int) -> dict:
 
         except Exception as exc:
             logger.exception("Failed to build Docker image for env %d", env_id)
+            error_msg = _enrich_docker_error(str(exc))
             env.docker_build_status = "error"
-            env.docker_build_error = str(exc)[:2000]
+            env.docker_build_error = error_msg[:2000]
+            env.docker_build_log = "\n".join(log_lines) if "log_lines" in locals() else None
             session.commit()
-            return {"status": "error", "message": str(exc)}
+            _broadcast_docker_build_log(env_id, f"ERROR: {error_msg}", done=True)
+            return {"status": "error", "message": error_msg}
+
+
+def _enrich_docker_error(error: str) -> str:
+    """Add actionable hints to common Docker errors."""
+    lower = error.lower()
+    if "no space left on device" in lower:
+        # Try to get disk usage info
+        disk_info = ""
+        try:
+            out = subprocess.check_output(
+                ["docker", "system", "df", "--format",
+                 "{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)"],
+                text=True, timeout=5,
+            ).strip()
+            disk_info = f"\n\nDocker disk usage:\n{out}"
+        except Exception:
+            pass
+        return (
+            f"{error}\n\n"
+            "Docker has run out of disk space. "
+            "Run 'docker system prune' in a terminal to free up space "
+            "(removes stopped containers and unused images). "
+            "For a more aggressive cleanup: 'docker system prune -a'"
+            f"{disk_info}"
+        )
+    if "connection refused" in lower or "cannot connect" in lower:
+        return (
+            f"{error}\n\n"
+            "Cannot connect to Docker. "
+            "Make sure Docker Desktop is running."
+        )
+    return error
 
 
 def uninstall_package(env_id: int, package_name: str) -> dict:

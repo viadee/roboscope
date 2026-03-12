@@ -40,6 +40,7 @@ class EnvResponse(BaseModel):
     docker_image_stale: bool = False
     docker_build_status: str | None = None
     docker_build_error: str | None = None
+    docker_build_log: str | None = None
     default_runner_type: str
     max_docker_containers: int
     is_default: bool

@@ -150,6 +150,7 @@ export interface Environment {
   docker_image_stale: boolean
   docker_build_status: 'building' | 'success' | 'error' | null
   docker_build_error: string | null
+  docker_build_log: string | null
   default_runner_type: string
   max_docker_containers: number
   is_default: boolean

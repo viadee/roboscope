@@ -345,6 +345,10 @@ export default {
       runnerDocker: 'Docker Container',
       maxContainers: 'Max. Docker Containers',
       maxContainersHint: 'Maximum parallel Docker containers for this environment',
+      showLog: 'Show Log',
+      hideLog: 'Hide Log',
+      buildLog: 'Build Log',
+      waitingForOutput: 'Waiting for build output...',
     },
     toasts: {
       created: 'Environment created',
