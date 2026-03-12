@@ -299,6 +299,9 @@ function isInstalled(envId: number, packageName: string): boolean {
                     {{ t('environments.installError') }}
                     <span class="pkg-error-detail" :title="pkg.install_error || ''">{{ pkg.install_error }}</span>
                   </span>
+                  <span v-else-if="pkg.install_status === 'initializing'" class="text-muted text-sm">
+                    <span class="pkg-spinner"></span> {{ t('environments.initializingBrowser') }}
+                  </span>
                   <span v-else-if="pkg.install_status === 'installing' || pkg.install_status === 'pending'" class="text-muted text-sm">
                     <span class="pkg-spinner"></span> {{ t('environments.installing') }}
                   </span>

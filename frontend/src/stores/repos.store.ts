@@ -45,6 +45,20 @@ export const useReposStore = defineStore('repos', () => {
     branches.value[repoId] = await reposApi.getBranches(repoId)
   }
 
+  async function checkoutBranch(repoId: number, branch: string) {
+    await reposApi.checkoutBranch(repoId, branch)
+    // Update local state
+    const repo = repos.value.find(r => r.id === repoId)
+    if (repo) repo.default_branch = branch
+    // Update branches active flag
+    if (branches.value[repoId]) {
+      branches.value[repoId] = branches.value[repoId].map(b => ({
+        ...b,
+        is_active: b.name === branch,
+      }))
+    }
+  }
+
   function getRepo(id: number): Repository | undefined {
     return repos.value.find((r) => r.id === id)
   }
@@ -76,5 +90,5 @@ export const useReposStore = defineStore('repos', () => {
     }
   }
 
-  return { repos, loading, branches, members, fetchRepos, addRepo, updateRepo, syncRepo, removeRepo, fetchBranches, getRepo, fetchMembers, addMember, updateMember, removeMember }
+  return { repos, loading, branches, members, fetchRepos, addRepo, updateRepo, syncRepo, removeRepo, fetchBranches, checkoutBranch, getRepo, fetchMembers, addMember, updateMember, removeMember }
 })

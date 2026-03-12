@@ -36,6 +36,11 @@ export async function getBranches(id: number): Promise<Branch[]> {
   return response.data
 }
 
+export async function checkoutBranch(id: number, branch: string): Promise<{ status: string; branch: string }> {
+  const response = await apiClient.post(`/repos/${id}/checkout`, null, { params: { branch } })
+  return response.data
+}
+
 // Project Members
 export async function getProjectMembers(repoId: number): Promise<ProjectMember[]> {
   const response = await apiClient.get<ProjectMember[]>(`/repos/${repoId}/members`)

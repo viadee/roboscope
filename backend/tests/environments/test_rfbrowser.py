@@ -62,9 +62,10 @@ class TestIsBrowserPackage:
 
 
 class TestRunRfbrowserInit:
+    @patch("src.environments.tasks.check_rfbrowser_initialized", return_value=True)
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")
-    def test_success(self, mock_run, mock_broadcast):
+    def test_success(self, mock_run, mock_broadcast, mock_check):
         mock_run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
         pkg = MagicMock()
         session = MagicMock()
@@ -79,6 +80,30 @@ class TestRunRfbrowserInit:
         # PATH should include venv bin dir
         env_vars = mock_run.call_args[1]["env"]
         assert env_vars["PATH"].startswith("/fake/venv/bin")
+        # Verification check called
+        mock_check.assert_called_once_with("/fake/venv")
+
+    @patch("src.environments.tasks.check_rfbrowser_initialized", return_value=False)
+    @patch("src.environments.tasks._broadcast_package_status")
+    @patch("subprocess.run")
+    def test_success_but_node_modules_missing(self, mock_run, mock_broadcast, mock_check):
+        """rfbrowser init exits 0 but node_modules not created — marks package failed."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+        pkg = MagicMock()
+        session = MagicMock()
+
+        with patch.object(venv_utils.sys, "platform", "linux"):
+            _run_rfbrowser_init("/fake/venv", 1, "robotframework-browser", pkg, session)
+
+        assert pkg.install_status == "failed"
+        assert "node_modules directory was not created" in pkg.install_error
+        session.commit.assert_called_once()
+        # Should broadcast "failed"
+        failed_calls = [
+            c for c in mock_broadcast.call_args_list
+            if len(c[0]) >= 3 and c[0][2] == "failed"
+        ]
+        assert len(failed_calls) == 1
 
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")

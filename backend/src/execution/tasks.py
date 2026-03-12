@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,11 +17,18 @@ import src.repos.models  # noqa: F401
 
 from src.config import settings
 from src.database import get_sync_session
+from src.environments.tasks import _is_browser_package
+from src.environments.venv_utils import check_rfbrowser_initialized
 from src.execution.models import ExecutionRun, RunStatus, RunnerType
 from src.execution.runners.subprocess_runner import SubprocessRunner
 from src.environments.models import Environment, EnvironmentPackage
 
 logger = logging.getLogger("roboscope.execution.tasks")
+
+# Registry of currently running runners, keyed by run_id.
+# Allows cancel_run() to actually kill the spawned process.
+_active_runners: dict[int, "AbstractRunner"] = {}  # type: ignore[name-defined]
+_active_runners_lock = threading.Lock()
 
 _PLAYWRIGHT_HINTS = [
     "could not connect to the playwright process",
@@ -68,6 +76,20 @@ def _broadcast_run_status(run_id: int, status: str) -> None:
         asyncio.run_coroutine_threadsafe(coro, _event_loop)
     else:
         logger.warning("No event loop available to broadcast run %d status", run_id)
+
+
+def cancel_active_run(run_id: int) -> bool:
+    """Cancel the runner for a currently executing run.
+
+    Returns True if a runner was found and cancelled, False otherwise.
+    """
+    with _active_runners_lock:
+        runner = _active_runners.get(run_id)
+    if runner is not None:
+        logger.info("Cancelling active runner for run %d", run_id)
+        runner.cancel()
+        return True
+    return False
 
 
 def _get_runner(runner_type: str, env_config: dict | None = None):
@@ -174,8 +196,34 @@ def execute_test_run(run_id: int) -> dict:
             _broadcast_run_status(run_id, RunStatus.ERROR)
             return {"status": "error", "message": run.error_message}
 
+        # Pre-run check: verify rfbrowser init if Browser library is installed
+        if (effective_runner_type == RunnerType.SUBPROCESS
+                and env_config and env_config.get("venv_path")):
+            has_browser = any(
+                _is_browser_package(p.split("==")[0])
+                for p in (env_config.get("packages") or [])
+            )
+            if has_browser and not check_rfbrowser_initialized(env_config["venv_path"]):
+                run.status = RunStatus.ERROR
+                run.error_message = (
+                    "robotframework-browser is installed but not initialized. "
+                    "The Browser library requires 'rfbrowser init' to download "
+                    "Playwright browsers and Node.js dependencies. "
+                    "Go to Package Manager, remove and re-install the package, "
+                    "or ensure Node.js 18+ is installed and run 'rfbrowser init' "
+                    "manually in the environment's venv."
+                )
+                run.finished_at = datetime.now(timezone.utc)
+                session.commit()
+                _broadcast_run_status(run_id, RunStatus.ERROR)
+                return {"status": "error", "message": run.error_message}
+
         # Get runner
         runner = _get_runner(effective_runner_type, env_config)
+
+        # Register runner so cancel_active_run() can kill the process
+        with _active_runners_lock:
+            _active_runners[run_id] = runner
 
         try:
             # Prepare runner
@@ -207,6 +255,15 @@ def execute_test_run(run_id: int) -> dict:
                 tags_exclude=run.tags_exclude,
                 timeout=run.timeout_seconds,
             )
+
+            # Re-read run status — it may have been set to CANCELLED while we were executing
+            session.refresh(run)
+            if run.status == RunStatus.CANCELLED:
+                logger.info("Run %d was cancelled during execution", run_id)
+                run.finished_at = datetime.now(timezone.utc)
+                run.duration_seconds = result.duration_seconds
+                session.commit()
+                return {"status": "cancelled", "run_id": run.id}
 
             # Update run with results
             run.duration_seconds = result.duration_seconds
@@ -258,12 +315,17 @@ def execute_test_run(run_id: int) -> dict:
 
         except Exception as e:
             logger.exception("Error executing run %d", run.id)
-            run.status = RunStatus.ERROR
-            run.error_message = str(e)[:1000]
+            # Don't overwrite CANCELLED status
+            session.refresh(run)
+            if run.status != RunStatus.CANCELLED:
+                run.status = RunStatus.ERROR
+                run.error_message = str(e)[:1000]
             run.finished_at = datetime.now(timezone.utc)
             session.commit()
-            _broadcast_run_status(run_id, RunStatus.ERROR)
+            _broadcast_run_status(run_id, run.status)
             return {"status": "error", "message": str(e)}
 
         finally:
+            with _active_runners_lock:
+                _active_runners.pop(run_id, None)
             runner.cleanup()

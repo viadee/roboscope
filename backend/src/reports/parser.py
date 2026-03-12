@@ -215,11 +215,13 @@ def _parse_test_deep(test_elem: ET.Element) -> dict:
     doc_elem = test_elem.find("doc")
     doc = doc_elem.text.strip() if doc_elem is not None and doc_elem.text else ""
 
-    # Tags
+    # Tags — only direct <tags>/<tag>, not descendant keyword tags
     tags = []
-    for tag_elem in test_elem.findall(".//tag"):
-        if tag_elem.text:
-            tags.append(tag_elem.text)
+    tags_container = test_elem.find("tags")
+    if tags_container is not None:
+        for tag_elem in tags_container.findall("tag"):
+            if tag_elem.text:
+                tags.append(tag_elem.text)
 
     # Keywords
     keywords = []

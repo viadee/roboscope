@@ -121,6 +121,44 @@ onMounted(() => {
   envStore.fetchEnvironments()
 })
 
+// Branch loading state
+const branchLoading = ref<number | null>(null)
+const branchSwitching = ref<number | null>(null)
+
+async function loadBranches(repoId: number) {
+  if (repos.branches[repoId]?.length) return // already loaded
+  branchLoading.value = repoId
+  try {
+    await repos.fetchBranches(repoId)
+  } catch {
+    // silent — dropdown will just show current branch
+  } finally {
+    branchLoading.value = null
+  }
+}
+
+async function switchBranch(repoId: number, branch: string) {
+  branchSwitching.value = repoId
+  try {
+    await repos.checkoutBranch(repoId, branch)
+    toast.success(t('repos.toasts.branchSwitched'), branch)
+  } catch (e: any) {
+    toast.error(t('repos.toasts.branchSwitchFailed'), e.response?.data?.detail || '')
+    await repos.fetchRepos() // revert UI
+  } finally {
+    branchSwitching.value = null
+  }
+}
+
+async function toggleAutoSync(repoId: number, enabled: boolean) {
+  try {
+    await repos.updateRepo(repoId, { auto_sync: enabled } as any)
+  } catch {
+    toast.error(t('common.error'))
+    await repos.fetchRepos() // revert
+  }
+}
+
 function openAddDialog() {
   newRepo.value = { name: '', repo_type: 'local', git_url: '', local_path: '', default_branch: 'main', environment_id: getDefaultEnvId() }
   showAddDialog.value = true
@@ -434,7 +472,32 @@ async function removeMember(member: ProjectMember) {
         <div class="repo-details">
           <div v-if="repo.repo_type === 'git'" class="detail-row">
             <span>{{ t('repos.branch') }}</span>
-            <strong>{{ repo.default_branch }}</strong>
+            <div class="branch-select-wrap">
+              <select
+                v-if="auth.hasMinRole('editor')"
+                class="env-inline-select"
+                :value="repo.default_branch"
+                :disabled="branchSwitching === repo.id"
+                @focus="loadBranches(repo.id)"
+                @change="switchBranch(repo.id, ($event.target as HTMLSelectElement).value)"
+              >
+                <option
+                  v-if="!repos.branches[repo.id]?.length"
+                  :value="repo.default_branch"
+                >
+                  {{ repo.default_branch }}
+                </option>
+                <option
+                  v-for="b in repos.branches[repo.id]"
+                  :key="b.name"
+                  :value="b.name"
+                >
+                  {{ b.name }}
+                </option>
+              </select>
+              <strong v-else>{{ repo.default_branch }}</strong>
+              <span v-if="branchSwitching === repo.id" class="branch-spinner"></span>
+            </div>
           </div>
           <div v-if="repo.repo_type === 'git'" class="detail-row">
             <span>{{ t('repos.lastSync') }}</span>
@@ -442,7 +505,16 @@ async function removeMember(member: ProjectMember) {
           </div>
           <div v-if="repo.repo_type === 'git'" class="detail-row">
             <span>{{ t('repos.autoSync') }}</span>
-            <span>{{ repo.auto_sync ? t('repos.autoSyncYes', { minutes: repo.sync_interval_minutes }) : t('common.no') }}</span>
+            <label v-if="auth.hasMinRole('editor')" class="auto-sync-toggle">
+              <input
+                type="checkbox"
+                :checked="repo.auto_sync"
+                @change="toggleAutoSync(repo.id, ($event.target as HTMLInputElement).checked)"
+              />
+              <span v-if="repo.auto_sync" class="text-sm">{{ t('repos.autoSyncYes', { minutes: repo.sync_interval_minutes }) }}</span>
+              <span v-else class="text-sm text-muted">{{ t('common.no') }}</span>
+            </label>
+            <span v-else>{{ repo.auto_sync ? t('repos.autoSyncYes', { minutes: repo.sync_interval_minutes }) : t('common.no') }}</span>
           </div>
           <div class="detail-row">
             <span>{{ t('repos.defaultEnv') }}</span>
@@ -907,6 +979,38 @@ async function removeMember(member: ProjectMember) {
 
 .lib-check-summary {
   font-weight: 500;
+}
+
+.branch-select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.branch-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.auto-sync-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.auto-sync-toggle input[type="checkbox"] {
+  accent-color: var(--color-primary);
+  cursor: pointer;
 }
 
 .env-inline-select {

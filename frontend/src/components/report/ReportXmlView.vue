@@ -318,12 +318,10 @@ onMounted(async () => {
 /* Shared tree styles (not scoped — used by child components SuiteNode, KeywordNode) */
 .xml-view .tree-node {
   border-left: 2px solid var(--color-border, #e2e8f0);
-  margin-left: 8px;
 }
 
-.xml-view .tree-node:first-child {
+.xml-view .tree-children > .tree-node:first-child {
   border-left: none;
-  margin-left: 0;
 }
 
 .xml-view .tree-header {

@@ -12,6 +12,7 @@ import src.auth.models  # noqa: F401
 from src.database import get_sync_session
 from src.environments.models import Environment, EnvironmentPackage
 from src.environments.venv_utils import (
+    check_rfbrowser_initialized,
     create_venv_cmd,
     get_venv_bin_dir,
     pip_install_cmd,
@@ -90,6 +91,25 @@ def _run_rfbrowser_init(
                 output=result.stdout,
                 stderr=result.stderr,
             )
+
+        # Verify node_modules was actually created
+        if not check_rfbrowser_initialized(venv_path):
+            error_msg = (
+                "rfbrowser init completed (exit code 0) but Browser wrapper's "
+                "node_modules directory was not created. This usually means "
+                "Node.js/npm is installed but failed silently. "
+                "Try running 'rfbrowser init' manually in the venv to see details."
+            )
+            logger.error(error_msg)
+            if pkg:
+                pkg.install_status = "failed"
+                pkg.install_error = error_msg
+                session.commit()
+                _broadcast_package_status(
+                    env_id, package_name, "failed", error=error_msg[:500],
+                )
+            return  # Don't raise — the install itself succeeded
+
         logger.info("rfbrowser init completed for env %d", env_id)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         stderr = getattr(exc, "stderr", "") or ""
