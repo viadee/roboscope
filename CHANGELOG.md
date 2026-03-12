@@ -19,6 +19,7 @@
 - **Report Tree** — Fix `.//tag` XPath finding keyword descendant tags as test tags (now `tags/tag`); fix CSS connector lines (`:first-child` → `:last-child`)
 - **Explorer Editor Chain** — Fix v-if/v-else-if chain where no-environment banner blocked RobotEditor from rendering
 - **Startup Cleanup** — Reset stuck `docker_build_status=building` → `error` and stuck packages on app start
+- **Windows Offline Build** — Fix missing httptools wheels by using separate `requirements-windows.txt` without `uvicorn[standard]` extras (#12)
 
 ### Tests
 - 136 new backend tests (656 → 792 total) covering previously untested modules:
