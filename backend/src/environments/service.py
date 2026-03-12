@@ -285,11 +285,20 @@ def generate_dockerfile(
     """Generate a Dockerfile that installs the given packages.
 
     Pure function, no DB access.
-    When robotframework-browser is among the packages, Node.js 20 LTS
-    is installed and ``rfbrowser init`` is executed automatically.
+    When robotframework-browser is among the packages, the official
+    Microsoft Playwright Python image is used as base (includes Python
+    and all browser system dependencies). Node.js is installed separately
+    because rfbrowser init requires npm. Otherwise, python-slim.
     """
     needs_browser = _has_browser_package(packages)
-    base = base_image or f"python:{python_version}-slim"
+    if base_image:
+        base = base_image
+    elif needs_browser:
+        # Playwright image: Python + browser system deps (no Node.js)
+        base = "mcr.microsoft.com/playwright/python:v1.52.0-noble"
+    else:
+        base = f"python:{python_version}-slim"
+
     lines = [
         f"FROM {base}",
         "",
@@ -297,14 +306,11 @@ def generate_dockerfile(
         "",
     ]
 
-    # Node.js 20 LTS + Playwright browser system deps
+    # Node.js 20 LTS — rfbrowser init requires npm
     if needs_browser:
         lines += [
             "RUN apt-get update && apt-get install -y --no-install-recommends \\",
             "    curl gnupg \\",
-            "    libglib2.0-0 libnspr4 libnss3 libatk1.0-0 libdbus-1-3 \\",
-            "    libatspi2.0-0 libx11-6 libxcomposite1 libxdamage1 libxext6 \\",
-            "    libxfixes3 libxrandr2 libgbm1 libxcb1 libxkbcommon0 libasound2 \\",
             "    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \\",
             "    && apt-get install -y --no-install-recommends nodejs \\",
             "    && rm -rf /var/lib/apt/lists/*",
@@ -317,7 +323,7 @@ def generate_dockerfile(
         lines.append(f"    {pkg}{suffix}")
     lines.append("")
 
-    # rfbrowser init — downloads Playwright browsers + Node deps
+    # rfbrowser init — installs Node wrapper + links Playwright browsers
     if needs_browser:
         lines.append("RUN rfbrowser init")
         lines.append("")

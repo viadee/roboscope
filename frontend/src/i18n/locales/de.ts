@@ -345,6 +345,7 @@ export default {
       runnerDocker: 'Docker Container',
       maxContainers: 'Max. Docker Container',
       maxContainersHint: 'Maximale parallele Docker Container für diese Umgebung',
+      builtAt: 'Gebaut: {date}',
       showLog: 'Log anzeigen',
       hideLog: 'Log ausblenden',
       buildLog: 'Build-Log',

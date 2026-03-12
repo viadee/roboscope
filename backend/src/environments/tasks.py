@@ -388,6 +388,53 @@ def upgrade_package(env_id: int, package_name: str) -> dict:
             return {"status": "error", "message": error_msg}
 
 
+def _check_docker_disk_space(
+    client: "docker.DockerClient",  # type: ignore[name-defined]
+    env_id: int,
+    log_lines: list[str],
+    has_browser: bool = False,
+) -> None:
+    """Check available disk space in Docker and warn if low."""
+    try:
+        result = client.containers.run(
+            "alpine", "df -h /", remove=True, stderr=True,
+        )
+        # Parse output: "overlay  2.9G  2.4G  464.0M  84%  /"
+        for raw_line in result.decode().strip().splitlines():
+            parts = raw_line.split()
+            if len(parts) >= 4 and parts[0] != "Filesystem":
+                avail = parts[3]
+                # Parse available space to MB
+                avail_mb = 0.0
+                if avail.endswith("G"):
+                    avail_mb = float(avail[:-1]) * 1024
+                elif avail.endswith("M"):
+                    avail_mb = float(avail[:-1])
+                elif avail.endswith("K"):
+                    avail_mb = float(avail[:-1]) / 1024
+
+                # Browser packages need ~1.5 GB, normal builds ~500 MB
+                threshold_mb = 2048 if has_browser else 1024
+                threshold_label = "2 GB" if has_browser else "1 GB"
+
+                info = f"Docker disk: {avail} available"
+                log_lines.append(info)
+                _broadcast_docker_build_log(env_id, info)
+
+                if avail_mb < threshold_mb:
+                    warning = (
+                        f"WARNING: Low disk space ({avail} free, "
+                        f"recommended: >{threshold_label}"
+                        f"{' for robotframework-browser' if has_browser else ''})."
+                        " Run 'docker system prune -a' to free space."
+                    )
+                    log_lines.append(warning)
+                    _broadcast_docker_build_log(env_id, warning)
+                break
+    except Exception:
+        pass  # Non-critical — don't block the build
+
+
 def _broadcast_docker_build_log(env_id: int, line: str, done: bool = False) -> None:
     """Broadcast a Docker build log line from a sync background thread."""
     from src.websocket.manager import ws_manager
@@ -480,8 +527,20 @@ def build_docker_image(env_id: int) -> dict:
 
             logger.info("Building Docker image %s for env %d", tag, env_id)
 
-            # Use low-level API to stream build output
+            # Pre-build info
             log_lines: list[str] = []
+            has_browser = any(
+                _is_browser_package(s.split("==")[0]) for s in pkg_specs
+            )
+            _check_docker_disk_space(client, env_id, log_lines, has_browser=has_browser)
+            if has_browser:
+                msg = (
+                    "Using Playwright base image (~2 GB). "
+                    "Step 1 may take several minutes on first build."
+                )
+                log_lines.append(msg)
+                _broadcast_docker_build_log(env_id, msg)
+
             resp = client.api.build(
                 fileobj=f, custom_context=True, tag=tag, rm=True, decode=True,
             )
@@ -496,6 +555,18 @@ def build_docker_image(env_id: int) -> dict:
                     log_lines.append(f"ERROR: {error_msg}")
                     _broadcast_docker_build_log(env_id, f"ERROR: {error_msg}")
                     raise RuntimeError(error_msg)
+
+            # Clean up dangling images from previous builds
+            try:
+                pruned = client.images.prune(filters={"dangling": True})
+                reclaimed = pruned.get("SpaceReclaimed", 0)
+                if reclaimed > 0:
+                    mb = reclaimed / 1024 / 1024
+                    msg = f"Cleaned up old images ({mb:.0f} MB freed)"
+                    log_lines.append(msg)
+                    _broadcast_docker_build_log(env_id, msg)
+            except Exception:
+                pass  # Non-critical
 
             # Signal completion
             _broadcast_docker_build_log(env_id, "", done=True)

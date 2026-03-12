@@ -94,6 +94,30 @@ async def lifespan(app: FastAPI):
             else:
                 logger.warning("Examples directory not found: %s", examples_dir)
 
+    # Reset stuck background tasks from previous runs
+    with SessionLocal() as session:
+        from src.environments.models import Environment, EnvironmentPackage
+        stuck_builds = session.query(Environment).filter(
+            Environment.docker_build_status == "building"
+        ).all()
+        for env in stuck_builds:
+            env.docker_build_status = "error"
+            env.docker_build_error = "Build interrupted — application was restarted."
+            logger.warning("Reset stuck Docker build for env '%s' (id=%d)", env.name, env.id)
+
+        stuck_pkgs = session.query(EnvironmentPackage).filter(
+            EnvironmentPackage.install_status.in_(["pending", "installing"])
+        ).all()
+        for pkg in stuck_pkgs:
+            pkg.install_status = "failed"
+            pkg.install_error = "Installation interrupted — application was restarted."
+            logger.warning(
+                "Reset stuck package '%s' in env %d", pkg.package_name, pkg.environment_id,
+            )
+
+        if stuck_builds or stuck_pkgs:
+            session.commit()
+
     # Discover and load plugins
     from src.plugins.registry import plugin_registry
     plugin_registry.discover_builtin()

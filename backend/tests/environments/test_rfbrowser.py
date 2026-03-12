@@ -320,22 +320,23 @@ class TestInstallPackageBrowserHook:
 
 
 class TestGenerateDockerfileBrowser:
-    def test_with_browser_package_includes_nodejs_and_playwright_deps(self):
+    def test_with_browser_package_uses_playwright_base_image(self):
         df = generate_dockerfile("3.12", ["robotframework", "robotframework-browser==18.0.0"])
-        assert "nodejs" in df
-        assert "nodesource" in df
+        assert "mcr.microsoft.com/playwright/python" in df
         assert "rfbrowser init" in df
-        # Playwright browser system dependencies
-        assert "libgbm1" in df
-        assert "libnss3" in df
+        assert "nodejs" in df  # rfbrowser init requires npm
+        # Should NOT use python-slim as base
+        assert "python:3.12-slim" not in df
 
-    def test_without_browser_package_no_nodejs(self):
+    def test_without_browser_package_uses_python_slim(self):
         df = generate_dockerfile("3.12", ["robotframework", "requests"])
-        assert "nodejs" not in df
+        assert "python:3.12-slim" in df
+        assert "playwright" not in df
         assert "rfbrowser" not in df
 
     def test_browser_package_with_underscore(self):
         df = generate_dockerfile("3.12", ["robotframework_browser"])
+        assert "mcr.microsoft.com/playwright/python" in df
         assert "nodejs" in df
         assert "rfbrowser init" in df
 

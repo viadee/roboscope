@@ -40,34 +40,15 @@ const settingUp = ref(false)
 const pipInstalled = ref<Record<number, { name: string; version: string }[]>>({})
 
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
-const activePollers = new Set<ReturnType<typeof setInterval>>()
 
-// Poll environments while any Docker build is in progress
-const anyBuilding = computed(() => envs.environments.some(e => e.docker_build_status === 'building'))
-let buildPollTimer: ReturnType<typeof setInterval> | null = null
-
-watch(anyBuilding, (building) => {
-  if (building && !buildPollTimer) {
-    buildPollTimer = setInterval(() => envs.fetchEnvironments(), 3000)
-    activePollers.add(buildPollTimer)
-  } else if (!building && buildPollTimer) {
-    clearInterval(buildPollTimer)
-    activePollers.delete(buildPollTimer)
-    buildPollTimer = null
-  }
-})
+// Docker build status is now fully driven by WebSocket (docker_build_log with done=true
+// triggers fetchEnvironments), so no polling needed during builds.
 
 onMounted(async () => {
   await envs.fetchEnvironments()
   try {
     popularPackages.value = await envsApi.getPopularPackages()
   } catch { /* ignore */ }
-})
-
-onUnmounted(() => {
-  activePollers.forEach(id => clearInterval(id))
-  activePollers.clear()
-  buildPollTimer = null
 })
 
 async function addEnvironment() {
@@ -364,6 +345,9 @@ function isInstalled(envId: number, packageName: string): boolean {
             <div v-if="env.docker_image" class="docker-current">
               <span class="text-sm">{{ t('environments.docker.currentImage') }}:</span>
               <code class="docker-tag">{{ env.docker_image }}</code>
+              <span v-if="env.docker_image_built_at" class="text-muted text-sm">
+                {{ t('environments.docker.builtAt', { date: new Date(env.docker_image_built_at).toLocaleString() }) }}
+              </span>
             </div>
             <div class="docker-settings">
               <div class="docker-setting-row">
@@ -399,19 +383,18 @@ function isInstalled(envId: number, packageName: string): boolean {
             <!-- Docker build status banners -->
             <div v-if="env.docker_build_status === 'building'" class="docker-build-banner docker-build-building">
               <div class="docker-build-building-header">
-                <BaseSpinner />
+                <span class="docker-build-dot"></span>
                 <span>{{ t('environments.docker.buildInProgress') }}</span>
                 <button
                   class="docker-build-toggle"
                   @click="buildLogExpanded[env.id] = !buildLogExpanded[env.id]"
                 >
-                  {{ buildLogExpanded[env.id] ? t('environments.docker.hideLog') : t('environments.docker.showLog') }}
+                  {{ buildLogExpanded[env.id] === false ? t('environments.docker.showLog') : t('environments.docker.hideLog') }}
                 </button>
               </div>
               <div
-                v-if="buildLogExpanded[env.id] !== false && (envs.buildLogs[env.id]?.length || env.docker_build_status === 'building')"
+                v-if="buildLogExpanded[env.id] !== false"
                 class="docker-build-terminal"
-                ref="buildTerminalRefs"
               >
                 <div v-for="(line, i) in (envs.buildLogs[env.id] || [])" :key="i" class="terminal-line">{{ line }}</div>
                 <div v-if="!envs.buildLogs[env.id]?.length" class="terminal-line terminal-waiting">{{ t('environments.docker.waitingForOutput') }}</div>
@@ -875,6 +858,20 @@ function isInstalled(envId: number, packageName: string): boolean {
   background: rgba(59, 125, 216, 0.08);
 }
 
+.docker-build-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary, #3B7DD8);
+  animation: pulse-dot 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
 .docker-build-terminal {
   background: var(--color-navy-dark, #0F1A30);
   color: #c8d0e0;
@@ -882,12 +879,15 @@ function isInstalled(envId: number, packageName: string): boolean {
   border-radius: 6px;
   font-size: 11px;
   font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  min-height: 80px;
   max-height: 300px;
   overflow-y: auto;
   margin-top: 8px;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .terminal-line {
