@@ -292,6 +292,22 @@ def docker_build(
     return {"status": "building", "image_tag": image_tag}
 
 
+@router.post("/{env_id}/docker-build-dismiss")
+def dismiss_docker_build_error(
+    env_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Dismiss the Docker build error/success status."""
+    env = get_environment(db, env_id)
+    if env is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
+    env.docker_build_status = None
+    env.docker_build_error = None
+    db.commit()
+    return {"status": "ok"}
+
+
 # --- Packages ---
 
 # Popular Robot Framework libraries for quick install

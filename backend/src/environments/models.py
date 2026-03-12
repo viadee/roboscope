@@ -26,6 +26,8 @@ class Environment(Base, TimestampMixin):
     description: Mapped[str | None] = mapped_column(Text, default=None)
     index_url: Mapped[str | None] = mapped_column(String(500), default=None)
     extra_index_url: Mapped[str | None] = mapped_column(String(500), default=None)
+    docker_build_status: Mapped[str | None] = mapped_column(String(20), default=None)
+    docker_build_error: Mapped[str | None] = mapped_column(Text, default=None)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
 
 

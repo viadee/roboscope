@@ -98,6 +98,10 @@ export async function buildDockerImage(envId: number): Promise<{ status: string;
   return response.data
 }
 
+export async function dismissDockerBuildError(envId: number): Promise<void> {
+  await apiClient.post(`/environments/${envId}/docker-build-dismiss`)
+}
+
 // Variables
 
 export async function getVariables(envId: number): Promise<EnvironmentVariable[]> {

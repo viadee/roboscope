@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
@@ -32,7 +32,7 @@ const installVersion = ref('')
 
 // Docker image build
 const dockerfilePreview = ref<Record<number, string>>({})
-const dockerBuilding = ref<Record<number, boolean>>({})
+
 
 // Pip list
 const settingUp = ref(false)
@@ -41,6 +41,21 @@ const pipInstalled = ref<Record<number, { name: string; version: string }[]>>({}
 
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 const activePollers = new Set<ReturnType<typeof setInterval>>()
+
+// Poll environments while any Docker build is in progress
+const anyBuilding = computed(() => envs.environments.some(e => e.docker_build_status === 'building'))
+let buildPollTimer: ReturnType<typeof setInterval> | null = null
+
+watch(anyBuilding, (building) => {
+  if (building && !buildPollTimer) {
+    buildPollTimer = setInterval(() => envs.fetchEnvironments(), 3000)
+    activePollers.add(buildPollTimer)
+  } else if (!building && buildPollTimer) {
+    clearInterval(buildPollTimer)
+    activePollers.delete(buildPollTimer)
+    buildPollTimer = null
+  }
+})
 
 onMounted(async () => {
   await envs.fetchEnvironments()
@@ -52,6 +67,7 @@ onMounted(async () => {
 onUnmounted(() => {
   activePollers.forEach(id => clearInterval(id))
   activePollers.clear()
+  buildPollTimer = null
 })
 
 async function addEnvironment() {
@@ -202,39 +218,19 @@ async function loadDockerfile(envId: number) {
 }
 
 async function buildDockerImg(envId: number) {
-  dockerBuilding.value[envId] = true
   try {
-    const result = await envsApi.buildDockerImage(envId)
-    toast.success(t('environments.docker.buildStarted'), t('environments.docker.buildStartedMsg'))
-
-    // Poll until docker_image changes
-    const poll = setInterval(async () => {
-      try {
-        const updated = await envsApi.getEnvironment(envId)
-        if (updated.docker_image === result.image_tag) {
-          clearInterval(poll)
-          activePollers.delete(poll)
-          dockerBuilding.value[envId] = false
-          // Refresh environments list to show updated docker_image
-          await envs.fetchEnvironments()
-          toast.success(t('environments.docker.buildComplete'))
-        }
-      } catch {
-        // keep polling
-      }
-    }, 3000)
-    activePollers.add(poll)
-
-    // Safety timeout: stop polling after 5 minutes
-    setTimeout(() => {
-      clearInterval(poll)
-      activePollers.delete(poll)
-      dockerBuilding.value[envId] = false
-    }, 300000)
+    await envsApi.buildDockerImage(envId)
+    await envs.fetchEnvironments()
   } catch (e: any) {
     toast.error(t('environments.docker.buildFailed'), e.response?.data?.detail || '')
-    dockerBuilding.value[envId] = false
   }
+}
+
+async function dismissDockerError(envId: number) {
+  try {
+    await envsApi.dismissDockerBuildError(envId)
+    await envs.fetchEnvironments()
+  } catch { /* ignore */ }
 }
 
 async function setupDefaultEnv() {
@@ -387,13 +383,27 @@ function isInstalled(envId: number, packageName: string): boolean {
               <pre v-if="dockerfilePreview[env.id]" class="dockerfile-code">{{ dockerfilePreview[env.id] }}</pre>
               <BaseSpinner v-else />
             </details>
+            <!-- Docker build status banners -->
+            <div v-if="env.docker_build_status === 'building'" class="docker-build-banner docker-build-building">
+              <BaseSpinner />
+              <span>{{ t('environments.docker.buildInProgress') }}</span>
+            </div>
+            <div v-else-if="env.docker_build_status === 'error'" class="docker-build-banner docker-build-error">
+              <div class="docker-build-error-content">
+                <strong>{{ t('environments.docker.buildError') }}</strong>
+                <p class="docker-build-error-detail">{{ env.docker_build_error }}</p>
+              </div>
+              <button class="docker-build-dismiss" @click="dismissDockerError(env.id)" :title="t('environments.docker.buildDismiss')">&#10005;</button>
+            </div>
+
             <div class="docker-build-action">
               <BaseButton
                 size="sm"
-                :loading="dockerBuilding[env.id]"
+                :loading="env.docker_build_status === 'building'"
+                :disabled="env.docker_build_status === 'building'"
                 @click="buildDockerImg(env.id)"
               >
-                {{ dockerBuilding[env.id] ? t('environments.docker.building') : t('environments.docker.buildImage') }}
+                {{ env.docker_build_status === 'building' ? t('environments.docker.building') : t('environments.docker.buildImage') }}
               </BaseButton>
             </div>
           </div>
@@ -751,6 +761,59 @@ function isInstalled(envId: number, packageName: string): boolean {
 
 .docker-build-action {
   margin-top: 4px;
+}
+
+.docker-build-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.docker-build-building {
+  background: rgba(59, 125, 216, 0.08);
+  border: 1px solid rgba(59, 125, 216, 0.25);
+  color: var(--color-primary, #3B7DD8);
+}
+
+.docker-build-error {
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #b91c1c;
+  justify-content: space-between;
+}
+
+.docker-build-error-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.docker-build-error-detail {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #7f1d1d;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.docker-build-dismiss {
+  background: none;
+  border: none;
+  color: #b91c1c;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.docker-build-dismiss:hover {
+  background: rgba(239, 68, 68, 0.1);
 }
 
 /* Install dialog */

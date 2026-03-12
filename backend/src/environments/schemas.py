@@ -38,6 +38,8 @@ class EnvResponse(BaseModel):
     docker_image_built_at: datetime | None = None
     packages_changed_at: datetime | None = None
     docker_image_stale: bool = False
+    docker_build_status: str | None = None
+    docker_build_error: str | None = None
     default_runner_type: str
     max_docker_containers: int
     is_default: bool

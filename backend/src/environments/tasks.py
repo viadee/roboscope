@@ -398,6 +398,11 @@ def build_docker_image(env_id: int) -> dict:
         if env is None:
             return {"status": "error", "message": "Environment not found"}
 
+        # Mark as building
+        env.docker_build_status = "building"
+        env.docker_build_error = None
+        session.commit()
+
         packages = session.execute(
             select(EnvironmentPackage).where(EnvironmentPackage.environment_id == env_id)
         ).scalars().all()
@@ -471,6 +476,8 @@ def build_docker_image(env_id: int) -> dict:
             from datetime import datetime, timezone
             env.docker_image = tag
             env.docker_image_built_at = datetime.now(timezone.utc)
+            env.docker_build_status = "success"
+            env.docker_build_error = None
             session.commit()
 
             logger.info("Built Docker image %s for env %d", tag, env_id)
@@ -478,6 +485,9 @@ def build_docker_image(env_id: int) -> dict:
 
         except Exception as exc:
             logger.exception("Failed to build Docker image for env %d", env_id)
+            env.docker_build_status = "error"
+            env.docker_build_error = str(exc)[:2000]
+            session.commit()
             return {"status": "error", "message": str(exc)}
 
 
