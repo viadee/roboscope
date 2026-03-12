@@ -106,6 +106,7 @@ def _get_env_config(session: Session, env_id: int | None) -> dict | None:
             pkg_specs.append(p.package_name)
 
     return {
+        "name": env.name,
         "python_version": env.python_version,
         "venv_path": env.venv_path,
         "docker_image": env.docker_image,
@@ -158,6 +159,20 @@ def execute_test_run(run_id: int) -> dict:
                 and env_config.get("default_runner_type") == RunnerType.DOCKER
                 and run.runner_type == RunnerType.SUBPROCESS):
             effective_runner_type = RunnerType.DOCKER
+
+        # Fail early if Docker runner requested but no Docker image configured
+        if (effective_runner_type == RunnerType.DOCKER
+                and (not env_config or not env_config.get("docker_image"))):
+            env_name = env_config.get("name", f"#{run.environment_id}") if env_config else "None"
+            run.status = RunStatus.ERROR
+            run.error_message = (
+                f"Runner type is Docker but environment \"{env_name}\" has no Docker image. "
+                "Build a Docker image in Package Manager first, or switch to Subprocess runner."
+            )
+            run.finished_at = datetime.now(timezone.utc)
+            session.commit()
+            _broadcast_run_status(run_id, RunStatus.ERROR)
+            return {"status": "error", "message": run.error_message}
 
         # Get runner
         runner = _get_runner(effective_runner_type, env_config)
