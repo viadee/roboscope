@@ -406,3 +406,135 @@ class TestProjectMembers:
     def test_list_members_unauthenticated(self, client, seed_repo):
         response = client.get(f"/api/v1/repos/{seed_repo.id}/members")
         assert response.status_code == 401
+
+
+class TestListBranches:
+    """Tests for GET /repos/{id}/branches endpoint."""
+
+    @patch("src.repos.router.list_branches")
+    def test_list_branches_success(self, mock_list, client, admin_user, seed_repo):
+        mock_list.return_value = [
+            {"name": "main", "is_active": True},
+            {"name": "develop", "is_active": False},
+        ]
+        response = client.get(
+            f"/api/v1/repos/{seed_repo.id}/branches",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["name"] == "main"
+        assert data[0]["is_active"] is True
+        assert data[1]["name"] == "develop"
+        assert data[1]["is_active"] is False
+        mock_list.assert_called_once_with(seed_repo.local_path)
+
+    @patch("src.repos.router.list_branches")
+    def test_list_branches_empty(self, mock_list, client, admin_user, seed_repo):
+        mock_list.return_value = []
+        response = client.get(
+            f"/api/v1/repos/{seed_repo.id}/branches",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_list_branches_repo_not_found(self, client, admin_user):
+        response = client.get(
+            "/api/v1/repos/99999/branches",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 404
+
+    def test_list_branches_unauthenticated(self, client, seed_repo):
+        response = client.get(f"/api/v1/repos/{seed_repo.id}/branches")
+        assert response.status_code == 401
+
+    @patch("src.repos.router.list_branches")
+    def test_list_branches_as_viewer(self, mock_list, client, viewer_user, seed_repo):
+        """Viewers should be able to list branches (get_current_user, not require_role)."""
+        mock_list.return_value = [{"name": "main", "is_active": True}]
+        response = client.get(
+            f"/api/v1/repos/{seed_repo.id}/branches",
+            headers=auth_header(viewer_user),
+        )
+        assert response.status_code == 200
+        assert len(response.json()) == 1
+
+
+class TestCheckoutBranch:
+    """Tests for POST /repos/{id}/checkout endpoint."""
+
+    @patch("src.repos.router.checkout_branch")
+    def test_checkout_success(self, mock_checkout, client, admin_user, seed_repo):
+        mock_checkout.return_value = "checked out develop"
+        response = client.post(
+            f"/api/v1/repos/{seed_repo.id}/checkout?branch=develop",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert data["branch"] == "develop"
+        mock_checkout.assert_called_once_with(seed_repo.local_path, "develop")
+
+    @patch("src.repos.router.checkout_branch")
+    def test_checkout_error_bad_branch(self, mock_checkout, client, admin_user, seed_repo):
+        mock_checkout.return_value = "error: pathspec 'nonexistent' did not match"
+        response = client.post(
+            f"/api/v1/repos/{seed_repo.id}/checkout?branch=nonexistent",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 400
+        assert "error:" in response.json()["detail"]
+
+    def test_checkout_repo_not_found(self, client, admin_user):
+        response = client.post(
+            "/api/v1/repos/99999/checkout?branch=main",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 404
+
+    def test_checkout_local_repo_rejected(self, client, admin_user, db_session):
+        """Branch checkout is only available for git repos, not local ones."""
+        repo = _make_repo(admin_user.id, name="local-repo", repo_type="local")
+        db_session.add(repo)
+        db_session.flush()
+        db_session.refresh(repo)
+        response = client.post(
+            f"/api/v1/repos/{repo.id}/checkout?branch=main",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 400
+        assert "Git repositories" in response.json()["detail"]
+
+    def test_checkout_as_viewer_forbidden(self, client, viewer_user, seed_repo):
+        """Viewers cannot checkout branches (requires EDITOR role)."""
+        response = client.post(
+            f"/api/v1/repos/{seed_repo.id}/checkout?branch=main",
+            headers=auth_header(viewer_user),
+        )
+        assert response.status_code == 403
+
+    def test_checkout_as_runner_forbidden(self, client, runner_user, seed_repo):
+        """Runners cannot checkout branches (requires EDITOR role)."""
+        response = client.post(
+            f"/api/v1/repos/{seed_repo.id}/checkout?branch=main",
+            headers=auth_header(runner_user),
+        )
+        assert response.status_code == 403
+
+    @patch("src.repos.router.checkout_branch")
+    def test_checkout_as_editor(self, mock_checkout, client, editor_user, seed_repo):
+        mock_checkout.return_value = "checked out feature-x"
+        response = client.post(
+            f"/api/v1/repos/{seed_repo.id}/checkout?branch=feature-x",
+            headers=auth_header(editor_user),
+        )
+        assert response.status_code == 200
+        assert response.json()["branch"] == "feature-x"
+
+    def test_checkout_unauthenticated(self, client, seed_repo):
+        response = client.post(f"/api/v1/repos/{seed_repo.id}/checkout?branch=main")
+        assert response.status_code == 401

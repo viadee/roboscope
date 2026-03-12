@@ -320,8 +320,8 @@ onMounted(async () => {
   border-left: 2px solid var(--color-border, #e2e8f0);
 }
 
-.xml-view .tree-children > .tree-node:first-child {
-  border-left: none;
+.xml-view .tree-node:last-child {
+  border-left-color: transparent;
 }
 
 .xml-view .tree-header {

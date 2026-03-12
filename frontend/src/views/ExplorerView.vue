@@ -973,13 +973,13 @@ const flatNodes = computed(() => {
             </span>
           </div>
           <!-- No environment banner -->
-          <div v-else-if="isRobotOrResource && !currentRepo?.environment_id" class="lib-banner lib-banner-warn">
+          <div v-if="isRobotOrResource && !currentRepo?.environment_id && !editorMissingLibs.length" class="lib-banner lib-banner-warn">
             <span>{{ t('explorer.noEnvironment') }}</span>
             <router-link to="/environments" class="lib-banner-link">{{ t('explorer.createEnvironment') }}</router-link>
           </div>
           <!-- Two-tab spec editor for .roboscope files (replaces CodeMirror) -->
           <SpecEditor
-            v-else-if="isRoboscope"
+            v-if="isRoboscope"
             :content="editorContent"
             :file-path="explorer.selectedFile.path"
             :repo-id="selectedRepoId ?? undefined"
