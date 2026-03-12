@@ -213,6 +213,12 @@ export default {
       editorBanner: 'Fehlende Bibliotheken:',
       install: 'Installieren',
     },
+    dockerStale: {
+      title: 'Docker-Image veraltet',
+      message: 'Das Docker-Image für diese Umgebung ist veraltet — Pakete wurden seit dem letzten Build geändert. Die Ausführung mit dem aktuellen Image kann zu unerwarteten Ergebnissen führen.',
+      rebuildAndRun: 'Neu bauen & Starten',
+      runAnyway: 'Trotzdem starten',
+    },
     noEnvironment: 'Keine Umgebung zugewiesen — Bibliotheksprüfung und Keyword-Autocomplete nicht verfügbar.',
     createEnvironment: 'Umgebung erstellen',
     libInstalled: '{name} erfolgreich installiert',

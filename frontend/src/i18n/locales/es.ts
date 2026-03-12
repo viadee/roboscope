@@ -213,6 +213,12 @@ export default {
       editorBanner: 'Bibliotecas faltantes:',
       install: 'Instalar',
     },
+    dockerStale: {
+      title: 'Imagen Docker desactualizada',
+      message: 'La imagen Docker de este entorno está desactualizada — se han cambiado paquetes desde la última compilación. Ejecutar con la imagen actual puede producir resultados inesperados.',
+      rebuildAndRun: 'Reconstruir y Ejecutar',
+      runAnyway: 'Ejecutar de todos modos',
+    },
     noEnvironment: 'Sin entorno asignado — verificación de bibliotecas y autocompletado no disponibles.',
     createEnvironment: 'Crear entorno',
     libInstalled: '{name} instalado con éxito',

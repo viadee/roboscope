@@ -213,6 +213,12 @@ export default {
       editorBanner: 'Bibliothèques manquantes :',
       install: 'Installer',
     },
+    dockerStale: {
+      title: 'Image Docker obsolète',
+      message: "L'image Docker de cet environnement est obsolète — des paquets ont été modifiés depuis le dernier build. L'exécution avec l'image actuelle peut produire des résultats inattendus.",
+      rebuildAndRun: 'Reconstruire & Exécuter',
+      runAnyway: 'Exécuter quand même',
+    },
     noEnvironment: "Aucun environnement assigné — vérification des bibliothèques et autocomplétion indisponibles.",
     createEnvironment: 'Créer un environnement',
     libInstalled: '{name} installé avec succès',

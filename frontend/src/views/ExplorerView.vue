@@ -8,7 +8,7 @@ import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
 import { createRun } from '@/api/execution.api'
 import { checkLibraries } from '@/api/explorer.api'
-import { installPackage } from '@/api/environments.api'
+import { installPackage, buildDockerImage } from '@/api/environments.api'
 import type { LibraryCheckItem } from '@/types/domain.types'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
@@ -66,6 +66,10 @@ const skipNextWatch = ref(false)
 const showLibCheckPrompt = ref(false)
 const missingLibraries = ref<LibraryCheckItem[]>([])
 const installingLibs = ref(false)
+
+// Docker image stale check before run
+const showDockerStalePrompt = ref(false)
+const rebuildingDocker = ref(false)
 
 // Editor library check banner
 const editorMissingLibs = ref<LibraryCheckItem[]>([])
@@ -539,7 +543,41 @@ async function checkAndRunRobot(node: TreeNode) {
       // Library check failed — proceed anyway
     }
   }
+  // Check if Docker image is stale
+  if (envForCheck?.docker_image_stale && envForCheck.default_runner_type === 'docker') {
+    pendingRunNode.value = node
+    showDockerStalePrompt.value = true
+    return
+  }
   doRunRobot(node)
+}
+
+async function rebuildAndRun() {
+  const defaultEnv = envs.environments.find(e => e.is_default)
+  const envForRebuild = currentRepo.value?.environment_id
+    ? envs.environments.find(e => e.id === currentRepo.value?.environment_id)
+    : defaultEnv
+  if (!envForRebuild) return
+  rebuildingDocker.value = true
+  try {
+    await buildDockerImage(envForRebuild.id)
+    await envs.fetchEnvironments()
+  } catch {
+    toast.error(t('common.error'))
+  } finally {
+    rebuildingDocker.value = false
+  }
+  showDockerStalePrompt.value = false
+  const node = pendingRunNode.value
+  pendingRunNode.value = null
+  if (node) doRunRobot(node)
+}
+
+function skipRebuildAndRun() {
+  showDockerStalePrompt.value = false
+  const node = pendingRunNode.value
+  pendingRunNode.value = null
+  if (node) doRunRobot(node)
 }
 
 async function installAndRun() {
@@ -1077,6 +1115,25 @@ const flatNodes = computed(() => {
       </template>
     </BaseModal>
 
+    <!-- Docker Image Stale Prompt -->
+    <BaseModal v-model="showDockerStalePrompt" :title="t('explorer.dockerStale.title')" size="md">
+      <div class="docker-stale-body">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <p>{{ t('explorer.dockerStale.message') }}</p>
+      </div>
+      <template #footer>
+        <BaseButton variant="secondary" size="sm" @click="showDockerStalePrompt = false; pendingRunNode = null">
+          {{ t('common.cancel') }}
+        </BaseButton>
+        <BaseButton variant="secondary" size="sm" @click="skipRebuildAndRun">
+          {{ t('explorer.dockerStale.runAnyway') }}
+        </BaseButton>
+        <BaseButton size="sm" :loading="rebuildingDocker" @click="rebuildAndRun">
+          {{ t('explorer.dockerStale.rebuildAndRun') }}
+        </BaseButton>
+      </template>
+    </BaseModal>
+
     <!-- Run Overlay -->
     <BaseModal v-model="runOverlay.show" :title="runOverlay.error ? t('explorer.runOverlay.error') : t('explorer.runOverlay.started')" size="sm">
       <div v-if="runOverlay.error" class="run-overlay-error">
@@ -1408,6 +1465,22 @@ const flatNodes = computed(() => {
   border-radius: 20px;
   font-size: 12px;
   font-weight: 500;
+}
+
+.docker-stale-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.docker-stale-body p {
+  color: var(--color-text-muted, #5C688C);
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 380px;
 }
 
 .missing-lib-list {

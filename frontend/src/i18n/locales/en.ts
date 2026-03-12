@@ -213,6 +213,12 @@ export default {
       editorBanner: 'Missing libraries:',
       install: 'Install',
     },
+    dockerStale: {
+      title: 'Docker Image Outdated',
+      message: 'The Docker image for this environment is outdated — packages have been changed since the last build. Running with the current image may produce unexpected results.',
+      rebuildAndRun: 'Rebuild & Run',
+      runAnyway: 'Run Anyway',
+    },
     noEnvironment: 'No environment assigned — library check and keyword autocomplete unavailable.',
     createEnvironment: 'Create Environment',
     libInstalled: '{name} installed successfully',
