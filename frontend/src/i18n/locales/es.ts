@@ -49,11 +49,25 @@ export default {
   },
   auth: {
     tagline: 'Robot Framework Test Management',
+    subtitle: 'Gestiona, ejecuta y analiza tus pruebas Robot Framework — todo en un solo lugar.',
     login: 'Iniciar sesión',
+    loginDesc: 'Inicia sesión en tu instancia de RoboScope',
     email: 'Correo electrónico',
     password: 'Contraseña',
     loginFailed: 'Error de inicio de sesión',
     hint: "Por defecto: admin{'@'}roboscope.local / admin123",
+    features: {
+      explorer: 'Explorador de pruebas y editor',
+      execution: 'Ejecución y programación',
+      reports: 'Análisis y comparación de informes',
+      environments: 'Gestión de entornos y paquetes',
+      ai: 'Generación de pruebas con IA',
+      rbac: 'Control de acceso basado en roles',
+    },
+    install: {
+      title: 'Inicio rápido — ZIP sin conexión',
+      hint: 'Descarga el ZIP, extrae y ejecuta los scripts anteriores. No se requiere internet.',
+    },
   },
   dashboard: {
     title: 'Panel',

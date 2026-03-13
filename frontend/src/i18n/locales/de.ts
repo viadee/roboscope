@@ -49,11 +49,25 @@ export default {
   },
   auth: {
     tagline: 'Robot Framework Test Management',
+    subtitle: 'Robot Framework Tests verwalten, ausführen und analysieren — alles an einem Ort.',
     login: 'Anmelden',
+    loginDesc: 'Melden Sie sich bei Ihrer RoboScope-Instanz an',
     email: 'E-Mail',
     password: 'Passwort',
     loginFailed: 'Anmeldung fehlgeschlagen',
     hint: "Standard: admin{'@'}roboscope.local / admin123",
+    features: {
+      explorer: 'Test-Explorer & Editor',
+      execution: 'Testausführung & Scheduling',
+      reports: 'Report-Analyse & Vergleich',
+      environments: 'Umgebungs- & Paketverwaltung',
+      ai: 'KI-gestützte Testgenerierung',
+      rbac: 'Rollenbasierte Zugriffskontrolle',
+    },
+    install: {
+      title: 'Schnellstart — Offline-ZIP',
+      hint: 'ZIP herunterladen, entpacken und obige Skripte ausführen. Kein Internet nötig.',
+    },
   },
   dashboard: {
     title: 'Dashboard',
