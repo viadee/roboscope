@@ -415,40 +415,11 @@
     }
 
     /* ── Install ── */
-    .install-methods {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 32px;
-      margin-bottom: 40px;
-    }
     .install-method {
       background: var(--color-bg-card);
       border: 1px solid #e2e8f0;
       border-radius: var(--radius-md);
       padding: 32px 28px;
-      transition: box-shadow 0.3s, transform 0.3s;
-    }
-    .install-method:hover {
-      box-shadow: var(--shadow-md);
-      transform: translateY(-2px);
-    }
-    .install-method-badge {
-      display: inline-block;
-      padding: 3px 12px;
-      border-radius: 12px;
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 14px;
-    }
-    .badge-recommended {
-      background: rgba(59, 125, 216, 0.1);
-      color: var(--color-primary);
-    }
-    .badge-developers {
-      background: rgba(212, 136, 62, 0.1);
-      color: var(--color-accent);
     }
     .install-method h3 {
       font-size: 1.15rem;
@@ -752,19 +723,65 @@
       flex-wrap: wrap;
     }
 
-    /* ── Docker install method ── */
-    .install-methods-3 {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 24px;
-      margin-bottom: 40px;
+    /* ── Install tabs ── */
+    .install-tabs-row {
+      display: flex;
+      justify-content: center;
+      gap: 4px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
     }
+    .install-tab-btn {
+      background: var(--color-bg-card);
+      color: var(--color-text-muted);
+      border: 1px solid #e2e8f0;
+      padding: 10px 24px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      font-family: var(--font);
+      transition: all 0.25s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .install-tab-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+    .install-tab-btn.active {
+      background: var(--color-primary);
+      color: #fff;
+      border-color: var(--color-primary);
+      box-shadow: 0 2px 10px rgba(59, 125, 216, 0.3);
+    }
+    .install-tab-btn .tab-badge {
+      font-size: 0.65rem;
+      padding: 2px 7px;
+      border-radius: 8px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .install-tab-btn.active .tab-badge {
+      background: rgba(255,255,255,0.25);
+      color: #fff;
+    }
+    .install-tab-btn:not(.active) .tab-badge {
+      background: rgba(59, 125, 216, 0.1);
+      color: var(--color-primary);
+    }
+    .install-panel {
+      display: none;
+      max-width: 600px;
+      margin: 0 auto;
+      animation: tabFadeIn 0.4s ease-out;
+    }
+    .install-panel.active { display: block; }
 
     /* ── Responsive ── */
     @media (max-width: 900px) {
       .features-grid { grid-template-columns: repeat(2, 1fr); }
       .highlights { grid-template-columns: repeat(2, 1fr); }
-      .install-methods, .install-methods-3 { grid-template-columns: 1fr; }
+      .install-tab-btn { padding: 8px 16px; font-size: 0.82rem; }
       .why-grid { grid-template-columns: 1fr; gap: 32px; }
       .hero h1 { font-size: 2.2rem; }
     }
@@ -983,10 +1000,15 @@
     <h2 class="section-title fade-up">In Minuten startklar</h2>
     <p class="section-subtitle fade-up">Kein Cloud-Account nötig. Alles läuft lokal auf deinem Rechner.</p>
 
-    <div class="install-methods-3">
-      <!-- Method 1: ZIP Download (recommended for users) -->
-      <div class="install-method fade-up">
-        <span class="install-method-badge badge-recommended">Empfohlen</span>
+    <div class="install-tabs-row fade-up">
+      <button class="install-tab-btn active" onclick="switchInstall('zip', this)">ZIP Download <span class="tab-badge">Empfohlen</span></button>
+      <button class="install-tab-btn" onclick="switchInstall('docker', this)">Docker Compose</button>
+      <button class="install-tab-btn" onclick="switchInstall('dev', this)">Git Clone (Dev)</button>
+    </div>
+
+    <!-- ZIP Download -->
+    <div class="install-panel active fade-up" id="install-zip">
+      <div class="install-method">
         <h3>ZIP Download (Offline)</h3>
         <p>Kein Git, kein Node.js, kein Internet nötig. Nur Python 3.10+ muss installiert sein.</p>
 
@@ -995,7 +1017,7 @@
             <div class="step-mini-num">1</div>
             <div class="step-mini-content">
               <h4>Download &amp; Entpacken</h4>
-              <p>ZIP von <a href="https://github.com/viadee/roboscope/releases" target="_blank" rel="noopener">GitHub Releases</a> herunterladen.</p>
+              <p>ZIP von <a href="https://github.com/viadee/roboscope/releases" target="_blank" rel="noopener">GitHub Releases</a> herunterladen und entpacken.</p>
             </div>
           </div>
           <div class="step-mini">
@@ -1047,10 +1069,11 @@
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Method 2: Docker -->
-      <div class="install-method fade-up fade-up-delay-1">
-        <span class="install-method-badge" style="background: rgba(34,197,94,0.1); color: #16a34a;">Docker</span>
+    <!-- Docker -->
+    <div class="install-panel fade-up" id="install-docker">
+      <div class="install-method">
         <h3>Docker Compose</h3>
         <p>PostgreSQL + Nginx, production-ready. Benötigt nur Docker und Docker Compose.</p>
 
@@ -1090,10 +1113,11 @@ cd roboscope</code>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Method 3: Developer setup -->
-      <div class="install-method fade-up fade-up-delay-2">
-        <span class="install-method-badge badge-developers">Entwickler</span>
+    <!-- Dev Setup -->
+    <div class="install-panel fade-up" id="install-dev">
+      <div class="install-method">
         <h3>Git Clone (Dev-Setup)</h3>
         <p>Quellcode bearbeiten und beitragen. Benötigt Python 3.12+, Node.js 20+ und uv.</p>
 
@@ -1138,7 +1162,7 @@ make install</code>
       </div>
     </div>
 
-    <p class="fade-up" style="text-align:center; color: var(--color-text-muted); font-size: 0.9rem;">Default-Login bei allen Varianten: <strong>admin@roboscope.local</strong> / <strong>admin123</strong></p>
+    <p class="fade-up" style="text-align:center; color: var(--color-text-muted); font-size: 0.9rem; margin-top: 28px;">Default-Login bei allen Varianten: <strong>admin@roboscope.local</strong> / <strong>admin123</strong></p>
   </div>
 </section>
 
@@ -1241,6 +1265,14 @@ make install</code>
 </footer>
 
 <script>
+// Install method tab switching
+function switchInstall(name, btn) {
+  document.querySelectorAll('.install-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.install-tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('install-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
 // Tab switching (screenshots)
 function switchTab(name, btn) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
