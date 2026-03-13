@@ -510,9 +510,9 @@
       margin-bottom: 8px;
     }
     .os-tab {
-      background: rgba(255,255,255,0.06);
-      border: none;
-      color: rgba(255,255,255,0.5);
+      background: var(--color-bg);
+      border: 1px solid #e2e8f0;
+      color: var(--color-text-muted);
       padding: 5px 14px;
       font-size: 0.75rem;
       font-weight: 600;
@@ -522,7 +522,8 @@
     }
     .os-tab:first-child { border-radius: 4px 0 0 4px; }
     .os-tab:last-child { border-radius: 0 4px 4px 0; }
-    .os-tab.active { background: rgba(59, 125, 216, 0.25); color: #fff; }
+    .os-tab.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+    .os-tab:not(.active):hover { border-color: var(--color-primary); color: var(--color-primary); }
     .os-panel { display: none; }
     .os-panel.active { display: block; }
 
