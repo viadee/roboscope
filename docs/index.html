@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RoboScope — Robot Framework Test Management</title>
-  <meta name="description" content="Open-Source Web UI für Robot Framework: Tests ausführen, auswerten und mit KI analysieren. Kostenlos, self-hosted, Apache 2.0.">
+  <meta name="description" content="Open-Source Web UI for Robot Framework: run, analyze, and manage tests. Free, self-hosted, Apache 2.0.">
   <link rel="icon" href="assets/favicon.ico">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -60,8 +60,6 @@
     .fade-up-delay-1 { transition-delay: 0.1s; }
     .fade-up-delay-2 { transition-delay: 0.2s; }
     .fade-up-delay-3 { transition-delay: 0.3s; }
-    .fade-up-delay-4 { transition-delay: 0.4s; }
-    .fade-up-delay-5 { transition-delay: 0.5s; }
 
     /* ── Navigation ── */
     .nav {
@@ -74,9 +72,7 @@
       border-bottom: 1px solid rgba(255,255,255,0.06);
       transition: box-shadow 0.3s;
     }
-    .nav.scrolled {
-      box-shadow: 0 2px 20px rgba(0,0,0,0.3);
-    }
+    .nav.scrolled { box-shadow: 0 2px 20px rgba(0,0,0,0.3); }
     .nav .container {
       display: flex;
       align-items: center;
@@ -92,7 +88,7 @@
     .nav-links {
       display: flex;
       align-items: center;
-      gap: 28px;
+      gap: 24px;
       list-style: none;
     }
     .nav-links a {
@@ -122,6 +118,57 @@
       padding: 4px;
     }
 
+    /* Language switcher */
+    .lang-switcher {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .lang-btn {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.8);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+    }
+    .lang-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    .lang-dropdown {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 6px;
+      background: var(--color-navy-dark);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px;
+      overflow: hidden;
+      min-width: 100px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      z-index: 200;
+    }
+    .lang-dropdown.open { display: block; }
+    .lang-option {
+      display: block;
+      width: 100%;
+      padding: 8px 14px;
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.7);
+      font-size: 0.82rem;
+      font-family: var(--font);
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.15s;
+    }
+    .lang-option:hover { background: rgba(255,255,255,0.08); color: #fff; }
+    .lang-option.active { color: var(--color-primary); font-weight: 600; }
+
     /* ── Hero ── */
     .hero {
       background: linear-gradient(135deg, #0F1A30 0%, #1A2D50 40%, #1B3258 70%, #122240 100%);
@@ -141,11 +188,7 @@
       background-size: 48px 48px;
       pointer-events: none;
     }
-    .hero-orb {
-      position: absolute;
-      border-radius: 50%;
-      pointer-events: none;
-    }
+    .hero-orb { position: absolute; border-radius: 50%; pointer-events: none; }
     .hero-orb-1 {
       width: 600px; height: 600px;
       background: radial-gradient(circle, rgba(59, 125, 216, 0.08) 0%, transparent 70%);
@@ -291,6 +334,45 @@
     }
     .section-dark .section-subtitle { color: rgba(255,255,255,0.6); }
 
+    /* ── Why section ── */
+    .why-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: start;
+    }
+    .why-text p {
+      color: var(--color-text-muted);
+      font-size: 1rem;
+      line-height: 1.75;
+      margin-bottom: 16px;
+    }
+    .why-text p strong { color: var(--color-text); }
+    .why-cards { display: flex; flex-direction: column; gap: 16px; }
+    .why-card {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      background: var(--color-bg-card);
+      border: 1px solid #e2e8f0;
+      border-radius: var(--radius-md);
+      padding: 20px;
+      transition: box-shadow 0.3s, transform 0.3s;
+    }
+    .why-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .why-card-icon {
+      font-size: 1.6rem;
+      flex-shrink: 0;
+      width: 44px; height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(59, 125, 216, 0.08);
+      border-radius: 10px;
+    }
+    .why-card h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 4px; }
+    .why-card p { font-size: 0.85rem; color: var(--color-text-muted); line-height: 1.55; margin: 0; }
+
     /* ── Features ── */
     .features-grid {
       display: grid;
@@ -310,8 +392,7 @@
       border-color: rgba(59, 125, 216, 0.2);
     }
     .feature-icon {
-      width: 48px;
-      height: 48px;
+      width: 48px; height: 48px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -323,16 +404,8 @@
     .feature-icon-amber { background: rgba(212, 136, 62, 0.1); }
     .feature-icon-green { background: rgba(34, 197, 94, 0.1); }
     .feature-icon-purple { background: rgba(139, 92, 246, 0.1); }
-    .feature-card h3 {
-      font-size: 1.1rem;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-    .feature-card p {
-      color: var(--color-text-muted);
-      font-size: 0.92rem;
-      line-height: 1.65;
-    }
+    .feature-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+    .feature-card p { color: var(--color-text-muted); font-size: 0.92rem; line-height: 1.65; }
 
     /* ── Highlights ── */
     .highlights {
@@ -349,10 +422,7 @@
       border: 1px solid rgba(255,255,255,0.08);
       transition: transform 0.3s, border-color 0.3s;
     }
-    .highlight-card:hover {
-      transform: translateY(-3px);
-      border-color: rgba(255,255,255,0.2);
-    }
+    .highlight-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.2); }
     .highlight-number {
       font-size: 2.2rem;
       font-weight: 800;
@@ -362,11 +432,7 @@
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
-    .highlight-label {
-      font-size: 0.85rem;
-      color: rgba(255,255,255,0.55);
-      font-weight: 500;
-    }
+    .highlight-label { font-size: 0.85rem; color: rgba(255,255,255,0.55); font-weight: 500; }
 
     /* ── Screenshots ── */
     .tabs {
@@ -408,11 +474,7 @@
       max-width: 100%;
       border: 1px solid rgba(255,255,255,0.08);
     }
-    .tab-caption {
-      margin-top: 18px;
-      font-size: 0.9rem;
-      color: rgba(255,255,255,0.55);
-    }
+    .tab-caption { margin-top: 18px; font-size: 0.9rem; color: rgba(255,255,255,0.55); }
 
     /* ── Install ── */
     .install-method {
@@ -421,56 +483,27 @@
       border-radius: var(--radius-md);
       padding: 32px 28px;
     }
-    .install-method h3 {
-      font-size: 1.15rem;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
+    .install-method h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 8px; }
     .install-method > p {
       color: var(--color-text-muted);
       font-size: 0.9rem;
       margin-bottom: 20px;
       line-height: 1.6;
     }
-    .install-method .steps-mini {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      counter-reset: mini-step;
-    }
-    .step-mini {
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-    }
+    .install-method .steps-mini { display: flex; flex-direction: column; gap: 12px; }
+    .step-mini { display: flex; gap: 12px; align-items: flex-start; }
     .step-mini-num {
-      width: 26px;
-      height: 26px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      width: 26px; height: 26px;
+      display: flex; align-items: center; justify-content: center;
       border-radius: 50%;
       background: var(--color-primary);
       color: #fff;
-      font-size: 0.75rem;
-      font-weight: 700;
-      flex-shrink: 0;
-      margin-top: 2px;
+      font-size: 0.75rem; font-weight: 700;
+      flex-shrink: 0; margin-top: 2px;
     }
-    .step-mini-content {
-      flex: 1;
-      min-width: 0;
-    }
-    .step-mini-content h4 {
-      font-size: 0.88rem;
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-    .step-mini-content p {
-      font-size: 0.82rem;
-      color: var(--color-text-muted);
-      margin-bottom: 6px;
-    }
+    .step-mini-content { flex: 1; min-width: 0; }
+    .step-mini-content h4 { font-size: 0.88rem; font-weight: 600; margin-bottom: 4px; }
+    .step-mini-content p { font-size: 0.82rem; color: var(--color-text-muted); margin-bottom: 6px; }
     .code-block {
       position: relative;
       background: var(--color-navy-dark);
@@ -490,8 +523,7 @@
     .code-block .comment { color: #5A6380; }
     .copy-btn {
       position: absolute;
-      top: 8px;
-      right: 8px;
+      top: 8px; right: 8px;
       background: rgba(255,255,255,0.08);
       border: none;
       color: rgba(255,255,255,0.45);
@@ -504,11 +536,7 @@
     }
     .copy-btn:hover { background: rgba(255,255,255,0.18); color: #fff; }
 
-    .os-tabs {
-      display: flex;
-      gap: 2px;
-      margin-bottom: 8px;
-    }
+    .os-tabs { display: flex; gap: 2px; margin-bottom: 8px; }
     .os-tab {
       background: var(--color-bg);
       border: 1px solid #e2e8f0;
@@ -526,203 +554,6 @@
     .os-tab:not(.active):hover { border-color: var(--color-primary); color: var(--color-primary); }
     .os-panel { display: none; }
     .os-panel.active { display: block; }
-
-    /* ── Video placeholder ── */
-    .video-placeholder {
-      background: var(--color-navy);
-      border: 2px dashed rgba(255,255,255,0.12);
-      border-radius: var(--radius-md);
-      padding: 60px 24px;
-      text-align: center;
-      max-width: 720px;
-      margin: 0 auto;
-    }
-    .video-placeholder .icon { font-size: 2.5rem; margin-bottom: 12px; }
-    .video-placeholder p {
-      color: rgba(255,255,255,0.5);
-      font-size: 1.1rem;
-      font-weight: 600;
-    }
-
-    /* ── Tech stack ── */
-    .tech-pills {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 10px;
-    }
-    .tech-pill {
-      background: var(--color-bg-card);
-      border: 1px solid #e2e8f0;
-      border-radius: 20px;
-      padding: 8px 20px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--color-text);
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .tech-pill:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-sm);
-    }
-
-    /* ── Footer ── */
-    .footer {
-      background: var(--color-navy-dark);
-      color: rgba(255,255,255,0.6);
-      padding: 48px 0;
-    }
-    .footer .container {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 20px;
-    }
-    .footer-logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .footer-logo img { height: 28px; width: auto; }
-    .footer-links {
-      display: flex;
-      gap: 24px;
-      list-style: none;
-      flex-wrap: wrap;
-    }
-    .footer-links a {
-      color: rgba(255,255,255,0.6);
-      font-size: 0.85rem;
-      transition: color 0.2s;
-    }
-    .footer-links a:hover { color: #fff; }
-    .footer-copy {
-      font-size: 0.8rem;
-      color: rgba(255,255,255,0.4);
-    }
-
-    /* ── Why section ── */
-    .why-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 48px;
-      align-items: start;
-    }
-    .why-text p {
-      color: var(--color-text-muted);
-      font-size: 1rem;
-      line-height: 1.75;
-      margin-bottom: 16px;
-    }
-    .why-text p strong {
-      color: var(--color-text);
-    }
-    .why-cards {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    .why-card {
-      display: flex;
-      gap: 16px;
-      align-items: flex-start;
-      background: var(--color-bg-card);
-      border: 1px solid #e2e8f0;
-      border-radius: var(--radius-md);
-      padding: 20px;
-      transition: box-shadow 0.3s, transform 0.3s;
-    }
-    .why-card:hover {
-      box-shadow: var(--shadow-md);
-      transform: translateY(-2px);
-    }
-    .why-card-icon {
-      font-size: 1.6rem;
-      flex-shrink: 0;
-      width: 44px;
-      height: 44px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(59, 125, 216, 0.08);
-      border-radius: 10px;
-    }
-    .why-card h4 {
-      font-size: 0.95rem;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-    .why-card p {
-      font-size: 0.85rem;
-      color: var(--color-text-muted);
-      line-height: 1.55;
-      margin: 0;
-    }
-
-    /* ── Roadmap ── */
-    .roadmap-list {
-      max-width: 680px;
-      margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    .roadmap-item {
-      display: flex;
-      gap: 16px;
-      align-items: flex-start;
-      padding: 20px 24px;
-      border-radius: var(--radius-md);
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-      transition: transform 0.3s, border-color 0.3s;
-    }
-    .roadmap-item:hover {
-      transform: translateX(4px);
-      border-color: rgba(255,255,255,0.2);
-    }
-    .roadmap-status {
-      flex-shrink: 0;
-      font-size: 1.2rem;
-      margin-top: 2px;
-    }
-    .roadmap-item h4 {
-      font-size: 0.95rem;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-    .roadmap-item p {
-      font-size: 0.85rem;
-      color: rgba(255,255,255,0.55);
-      line-height: 1.55;
-      margin: 0;
-    }
-
-    /* ── CTA Banner ── */
-    .cta-banner {
-      text-align: center;
-      max-width: 640px;
-      margin: 0 auto;
-      padding: 48px 24px;
-    }
-    .cta-banner h2 {
-      font-size: 1.8rem;
-      font-weight: 700;
-      margin-bottom: 12px;
-    }
-    .cta-banner p {
-      color: var(--color-text-muted);
-      font-size: 1.05rem;
-      margin-bottom: 28px;
-      line-height: 1.6;
-    }
-    .cta-actions {
-      display: flex;
-      gap: 14px;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
 
     /* ── Install tabs ── */
     .install-tabs-row {
@@ -762,14 +593,8 @@
       text-transform: uppercase;
       letter-spacing: 0.3px;
     }
-    .install-tab-btn.active .tab-badge {
-      background: rgba(255,255,255,0.25);
-      color: #fff;
-    }
-    .install-tab-btn:not(.active) .tab-badge {
-      background: rgba(59, 125, 216, 0.1);
-      color: var(--color-primary);
-    }
+    .install-tab-btn.active .tab-badge { background: rgba(255,255,255,0.25); color: #fff; }
+    .install-tab-btn:not(.active) .tab-badge { background: rgba(59, 125, 216, 0.1); color: var(--color-primary); }
     .install-panel {
       display: none;
       max-width: 600px;
@@ -777,6 +602,74 @@
       animation: tabFadeIn 0.4s ease-out;
     }
     .install-panel.active { display: block; }
+
+    /* ── Roadmap ── */
+    .roadmap-list { max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+    .roadmap-item {
+      display: flex; gap: 16px; align-items: flex-start;
+      padding: 20px 24px;
+      border-radius: var(--radius-md);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      transition: transform 0.3s, border-color 0.3s;
+    }
+    .roadmap-item:hover { transform: translateX(4px); border-color: rgba(255,255,255,0.2); }
+    .roadmap-status { flex-shrink: 0; font-size: 1.2rem; margin-top: 2px; }
+    .roadmap-item h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 4px; }
+    .roadmap-item p { font-size: 0.85rem; color: rgba(255,255,255,0.55); line-height: 1.55; margin: 0; }
+
+    /* ── CTA Banner ── */
+    .cta-banner { text-align: center; max-width: 640px; margin: 0 auto; padding: 48px 24px; }
+    .cta-banner h2 { font-size: 1.8rem; font-weight: 700; margin-bottom: 12px; }
+    .cta-banner p { color: var(--color-text-muted); font-size: 1.05rem; margin-bottom: 28px; line-height: 1.6; }
+    .cta-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+    /* ── Video placeholder ── */
+    .video-placeholder {
+      background: var(--color-navy);
+      border: 2px dashed rgba(255,255,255,0.12);
+      border-radius: var(--radius-md);
+      padding: 60px 24px;
+      text-align: center;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .video-placeholder .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .video-placeholder p { color: rgba(255,255,255,0.5); font-size: 1.1rem; font-weight: 600; }
+
+    /* ── Tech stack ── */
+    .tech-pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+    .tech-pill {
+      background: var(--color-bg-card);
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      padding: 8px 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--color-text);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .tech-pill:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+
+    /* ── Footer ── */
+    .footer {
+      background: var(--color-navy-dark);
+      color: rgba(255,255,255,0.6);
+      padding: 48px 0;
+    }
+    .footer .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .footer-logo { display: flex; align-items: center; gap: 10px; }
+    .footer-logo img { height: 28px; width: auto; }
+    .footer-links { display: flex; gap: 24px; list-style: none; flex-wrap: wrap; }
+    .footer-links a { color: rgba(255,255,255,0.6); font-size: 0.85rem; transition: color 0.2s; }
+    .footer-links a:hover { color: #fff; }
+    .footer-copy { font-size: 0.8rem; color: rgba(255,255,255,0.4); }
 
     /* ── Responsive ── */
     @media (max-width: 900px) {
@@ -796,15 +689,10 @@
       .section-title { font-size: 1.6rem; }
       .nav-links { display: none; }
       .nav-links.open {
-        display: flex;
-        flex-direction: column;
-        position: absolute;
-        top: 60px;
-        left: 0;
-        right: 0;
+        display: flex; flex-direction: column;
+        position: absolute; top: 60px; left: 0; right: 0;
         background: var(--color-navy-dark);
-        padding: 20px 24px;
-        gap: 16px;
+        padding: 20px 24px; gap: 16px;
         border-bottom: 1px solid rgba(255,255,255,0.1);
       }
       .nav-toggle { display: block; }
@@ -826,10 +714,21 @@
     </a>
     <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">&#9776;</button>
     <ul class="nav-links">
-      <li><a href="#why">Warum?</a></li>
-      <li><a href="#features">Features</a></li>
-      <li><a href="#screenshots">Screenshots</a></li>
-      <li><a href="#install">Installation</a></li>
+      <li><a href="#why" data-i18n="nav.why">Why?</a></li>
+      <li><a href="#features" data-i18n="nav.features">Features</a></li>
+      <li><a href="#screenshots" data-i18n="nav.screenshots">Screenshots</a></li>
+      <li><a href="#install" data-i18n="nav.install">Installation</a></li>
+      <li>
+        <div class="lang-switcher">
+          <button class="lang-btn" onclick="toggleLangDropdown()" id="lang-current">EN</button>
+          <div class="lang-dropdown" id="lang-dropdown">
+            <button class="lang-option active" onclick="setLang('en')">English</button>
+            <button class="lang-option" onclick="setLang('de')">Deutsch</button>
+            <button class="lang-option" onclick="setLang('fr')">Fran&ccedil;ais</button>
+            <button class="lang-option" onclick="setLang('es')">Espa&ntilde;ol</button>
+          </div>
+        </div>
+      </li>
       <li><a href="https://github.com/viadee/roboscope" class="btn-nav" target="_blank" rel="noopener">GitHub</a></li>
     </ul>
   </div>
@@ -842,12 +741,12 @@
   <div class="hero-orb hero-orb-3"></div>
   <div class="container">
     <img src="assets/roboscope_white.png" alt="RoboScope" class="hero-logo-img" />
-    <h1>Robot Framework Test Management&mdash;<br><span>Built for Teams</span></h1>
-    <p class="subline">Open-Source Web UI zum Ausführen, Auswerten und Analysieren von Robot Framework Tests. Kostenlos, self-hosted, Apache 2.0.</p>
+    <h1 data-i18n-html="hero.title">Robot Framework Test Management&mdash;<br><span>Built for Teams</span></h1>
+    <p class="subline" data-i18n="hero.subline">Open-source web UI to run, analyze, and manage Robot Framework tests. Free, self-hosted, Apache 2.0.</p>
     <div class="hero-actions">
-      <a href="https://github.com/viadee/roboscope/releases" class="btn btn-primary" target="_blank" rel="noopener">Download ZIP &darr;</a>
+      <a href="https://github.com/viadee/roboscope/releases" class="btn btn-primary" target="_blank" rel="noopener" data-i18n="hero.download">Download ZIP &darr;</a>
       <a href="https://github.com/viadee/roboscope" class="btn btn-ghost" target="_blank" rel="noopener">GitHub &rarr;</a>
-      <a href="#install" class="btn btn-ghost">Quick Install</a>
+      <a href="#install" class="btn btn-ghost" data-i18n="hero.quickInstall">Quick Install</a>
     </div>
     <div class="badge-row">
       <span class="badge">Open Source</span>
@@ -862,35 +761,35 @@
 <!-- Why RoboScope -->
 <section class="section" id="why">
   <div class="container">
-    <h2 class="section-title fade-up">Warum RoboScope?</h2>
-    <p class="section-subtitle fade-up">Die Lücke zwischen Robot Framework und dem Team schließen</p>
+    <h2 class="section-title fade-up" data-i18n="why.title">Why RoboScope?</h2>
+    <p class="section-subtitle fade-up" data-i18n="why.subtitle">Bridging the gap between Robot Framework and your team</p>
     <div class="why-grid">
       <div class="why-text fade-up">
-        <p>Wer schon einmal versucht hat, ein Team ohne tiefe Kommandozeilen-Erfahrung für Robot Framework zu begeistern, kennt das Muster: Die Syntax ist verständlich, die Keyword-Idee leuchtet ein &mdash; aber dann kommt das Setup. Git klonen, virtuelle Umgebung anlegen, Abhängigkeiten installieren, Tests über das Terminal starten, Output-Dateien suchen und öffnen.</p>
-        <p><strong>Spätestens hier steigen die Kolleg:innen aus, die eigentlich die besten Testideen hätten.</strong></p>
-        <p>Robot Framework bringt eigentlich alles mit, um auch von weniger technisch versierten Nutzer:innen eingesetzt zu werden. Die Keyword-Driven-Architektur ist dafür wie geschaffen. Aber das Tooling drum herum setzt eben doch voraus, dass man sich im Terminal wohlfühlt.</p>
-        <p>RoboScope schließt genau diese Lücke: <strong>Eine Web-Oberfläche, über die das gesamte Team &mdash; von Fachtester:innen bis Product Owner &mdash; Tests verwalten, ausführen und auswerten kann, ohne das Terminal zu öffnen.</strong></p>
+        <p data-i18n="why.p1">If you've ever tried to get a team without deep command-line experience excited about Robot Framework, you know the pattern: the syntax makes sense, the keyword idea clicks &mdash; but then comes the setup. Clone a repo, create a virtual environment, install dependencies, run tests from the terminal, find and open output files.</p>
+        <p data-i18n-html="why.p2"><strong>This is exactly where the colleagues with the best test ideas drop out.</strong></p>
+        <p data-i18n="why.p3">Robot Framework has everything it takes to be used by less technical users. The keyword-driven architecture is perfect for that. But the surrounding tooling still requires comfort with the terminal.</p>
+        <p data-i18n-html="why.p4">RoboScope closes exactly this gap: <strong>A web UI that lets the entire team &mdash; from QA testers to product owners &mdash; manage, run, and analyze tests without opening a terminal.</strong></p>
       </div>
       <div class="why-cards fade-up fade-up-delay-2">
         <div class="why-card">
           <div class="why-card-icon">&#x1F465;</div>
           <div>
-            <h4>Für das ganze Team</h4>
-            <p>QA-Engineers, Fachtester:innen und Product Owner können Tests direkt im Browser erstellen und ausführen &mdash; ohne Kommandozeile.</p>
+            <h4 data-i18n="why.card1.title">For the whole team</h4>
+            <p data-i18n="why.card1.desc">QA engineers, testers, and product owners can create and run tests directly in the browser &mdash; no command line needed.</p>
           </div>
         </div>
         <div class="why-card">
           <div class="why-card-icon">&#x26A1;</div>
           <div>
-            <h4>Schnelles Feedback</h4>
-            <p>Tests starten, Live-Fortschritt verfolgen, Ergebnisse sofort sehen &mdash; ohne erst eine CI-Pipeline aufzusetzen.</p>
+            <h4 data-i18n="why.card2.title">Instant feedback</h4>
+            <p data-i18n="why.card2.desc">Start tests, follow live progress, see results immediately &mdash; without setting up a CI pipeline first.</p>
           </div>
         </div>
         <div class="why-card">
           <div class="why-card-icon">&#x1F3E0;</div>
           <div>
-            <h4>Self-Hosted &amp; Offline</h4>
-            <p>Alles läuft auf deinem Rechner oder Server. Kein Cloud-Account, kein Vendor Lock-in, keine Daten an Dritte.</p>
+            <h4 data-i18n="why.card3.title">Self-hosted &amp; offline</h4>
+            <p data-i18n="why.card3.desc">Everything runs on your machine or server. No cloud account, no vendor lock-in, no data shared with third parties.</p>
           </div>
         </div>
       </div>
@@ -901,38 +800,38 @@
 <!-- Features -->
 <section class="section" id="features">
   <div class="container">
-    <h2 class="section-title fade-up">Alles, was du brauchst</h2>
-    <p class="section-subtitle fade-up">Robot Framework Testmanagement in einer modernen Web-Oberfläche</p>
+    <h2 class="section-title fade-up" data-i18n="features.title">Everything you need</h2>
+    <p class="section-subtitle fade-up" data-i18n="features.subtitle">Robot Framework test management in a modern web interface</p>
     <div class="features-grid">
       <div class="feature-card fade-up">
         <div class="feature-icon feature-icon-blue">&#x1F680;</div>
-        <h3>Test Execution</h3>
-        <p>Subprocess oder Docker, Live-WebSocket-Updates, Cron-Scheduling &mdash; Tests direkt aus dem Browser starten und beobachten.</p>
+        <h3 data-i18n="features.exec.title">Test Execution</h3>
+        <p data-i18n="features.exec.desc">Subprocess or Docker, live WebSocket updates, cron scheduling &mdash; start and monitor tests directly from the browser.</p>
       </div>
       <div class="feature-card fade-up fade-up-delay-1">
         <div class="feature-icon feature-icon-blue">&#x1F4C1;</div>
-        <h3>Projekt &amp; Git Management</h3>
-        <p>Repos klonen, Branches wechseln, automatisch synchronisieren. Integrierter Code-Explorer mit Robot-Parser und CodeMirror-Editor.</p>
+        <h3 data-i18n="features.git.title">Project &amp; Git Management</h3>
+        <p data-i18n="features.git.desc">Clone repos, switch branches, auto-sync. Integrated code explorer with Robot parser and CodeMirror editor.</p>
       </div>
       <div class="feature-card fade-up fade-up-delay-2">
         <div class="feature-icon feature-icon-green">&#x1F40D;</div>
-        <h3>Environment Management</h3>
-        <p>Python-Umgebungen mit uv erstellen und verwalten. Pakete installieren, Library-Checks, alles an einem Ort.</p>
+        <h3 data-i18n="features.env.title">Environment Management</h3>
+        <p data-i18n="features.env.desc">Create and manage Python environments with uv. Install packages, run library checks, all in one place.</p>
       </div>
       <div class="feature-card fade-up fade-up-delay-1">
         <div class="feature-icon feature-icon-amber">&#x1F4CA;</div>
-        <h3>Reports &amp; Deep Analysis</h3>
-        <p>output.xml automatisch parsen. Trends erkennen, Flaky Tests aufspüren, 15 KPIs in 5 Kategorien in der Tiefenanalyse.</p>
+        <h3 data-i18n="features.reports.title">Reports &amp; Deep Analysis</h3>
+        <p data-i18n="features.reports.desc">Auto-parse output.xml. Detect trends, find flaky tests, 15 KPIs across 5 categories in the deep analysis.</p>
       </div>
       <div class="feature-card fade-up fade-up-delay-2">
         <div class="feature-icon feature-icon-purple">&#x1F916;</div>
-        <h3>KI-Fehleranalyse</h3>
-        <p>LLM-gestützte Root-Cause-Analyse und .roboscope&thinsp;&rarr;&thinsp;.robot Generierung. OpenAI, Anthropic, OpenRouter oder Ollama.</p>
+        <h3 data-i18n="features.ai.title">AI Failure Analysis</h3>
+        <p data-i18n="features.ai.desc">LLM-powered root cause analysis and .roboscope &rarr; .robot generation. OpenAI, Anthropic, OpenRouter, or Ollama.</p>
       </div>
       <div class="feature-card fade-up fade-up-delay-3">
         <div class="feature-icon feature-icon-blue">&#x1F512;</div>
-        <h3>Rollen &amp; Zugriff</h3>
-        <p>RBAC mit vier Stufen: Viewer, Runner, Editor, Admin. JWT-Authentifizierung, Multi-User ready.</p>
+        <h3 data-i18n="features.rbac.title">Roles &amp; Access Control</h3>
+        <p data-i18n="features.rbac.desc">RBAC with four levels: Viewer, Runner, Editor, Admin. JWT authentication, multi-user ready.</p>
       </div>
     </div>
   </div>
@@ -941,55 +840,54 @@
 <!-- Screenshots -->
 <section class="section section-dark" id="screenshots">
   <div class="container">
-    <h2 class="section-title fade-up">RoboScope in Aktion</h2>
-    <p class="section-subtitle fade-up">Klicke auf einen Tab, um die verschiedenen Bereiche zu sehen</p>
+    <h2 class="section-title fade-up" data-i18n="screenshots.title">RoboScope in Action</h2>
+    <p class="section-subtitle fade-up" data-i18n="screenshots.subtitle">Click a tab to explore the different areas</p>
     <div class="tabs fade-up">
       <button class="tab-btn active" onclick="switchTab('dashboard', this)">Dashboard</button>
       <button class="tab-btn" onclick="switchTab('execution', this)">Execution</button>
       <button class="tab-btn" onclick="switchTab('explorer', this)">Explorer</button>
-      <button class="tab-btn" onclick="switchTab('stats', this)">Statistiken</button>
-      <button class="tab-btn" onclick="switchTab('ai', this)">KI-Analyse</button>
+      <button class="tab-btn" onclick="switchTab('stats', this)" data-i18n="screenshots.tab.stats">Statistics</button>
+      <button class="tab-btn" onclick="switchTab('ai', this)" data-i18n="screenshots.tab.ai">AI Analysis</button>
     </div>
     <div class="tab-panels fade-up">
       <div class="tab-panel active" id="panel-dashboard">
         <img src="assets/screenshots/dashboard.png" alt="RoboScope Dashboard" loading="lazy">
-        <p class="tab-caption">Dashboard &mdash; Überblick über alle Projekte, letzte Testläufe und KPIs</p>
+        <p class="tab-caption" data-i18n="screenshots.cap.dashboard">Dashboard &mdash; Overview of all projects, recent test runs, and KPIs</p>
       </div>
       <div class="tab-panel" id="panel-execution">
         <img src="assets/screenshots/execution.png" alt="RoboScope Execution" loading="lazy">
-        <p class="tab-caption">Execution &mdash; Tests starten, Live-Logs verfolgen und Ergebnisse einsehen</p>
+        <p class="tab-caption" data-i18n="screenshots.cap.execution">Execution &mdash; Start tests, follow live logs, and view results</p>
       </div>
       <div class="tab-panel" id="panel-explorer">
         <img src="assets/screenshots/explorer.png" alt="RoboScope Explorer" loading="lazy">
-        <p class="tab-caption">Explorer &mdash; Robot-Dateien durchsuchen, bearbeiten und direkt ausführen</p>
+        <p class="tab-caption" data-i18n="screenshots.cap.explorer">Explorer &mdash; Browse, edit, and run Robot files directly</p>
       </div>
       <div class="tab-panel" id="panel-stats">
-        <img src="assets/screenshots/stats.png" alt="RoboScope Statistiken" loading="lazy">
-        <p class="tab-caption">Statistiken &mdash; Trends, Flaky Detection und Tiefen-Analyse mit 15 KPIs</p>
+        <img src="assets/screenshots/stats.png" alt="RoboScope Statistics" loading="lazy">
+        <p class="tab-caption" data-i18n="screenshots.cap.stats">Statistics &mdash; Trends, flaky detection, and deep analysis with 15 KPIs</p>
       </div>
       <div class="tab-panel" id="panel-ai">
-        <img src="assets/screenshots/ai.png" alt="RoboScope KI-Analyse" loading="lazy">
-        <p class="tab-caption">KI-Analyse &mdash; LLM-gestützte Fehleranalyse und .roboscope Generierung</p>
+        <img src="assets/screenshots/ai.png" alt="RoboScope AI Analysis" loading="lazy">
+        <p class="tab-caption" data-i18n="screenshots.cap.ai">AI Analysis &mdash; LLM-powered failure analysis and .roboscope generation</p>
       </div>
     </div>
 
-    <!-- Highlights -->
     <div class="highlights fade-up">
       <div class="highlight-card">
         <div class="highlight-number">15</div>
-        <div class="highlight-label">KPIs in der Tiefenanalyse</div>
+        <div class="highlight-label" data-i18n="highlights.kpis">Deep analysis KPIs</div>
       </div>
       <div class="highlight-card">
         <div class="highlight-number">4</div>
-        <div class="highlight-label">Sprachen (EN/DE/FR/ES)</div>
+        <div class="highlight-label" data-i18n="highlights.langs">Languages (EN/DE/FR/ES)</div>
       </div>
       <div class="highlight-card">
         <div class="highlight-number">555+</div>
-        <div class="highlight-label">Backend-Tests</div>
+        <div class="highlight-label" data-i18n="highlights.tests">Backend tests</div>
       </div>
       <div class="highlight-card">
         <div class="highlight-number">4</div>
-        <div class="highlight-label">LLM-Anbieter</div>
+        <div class="highlight-label" data-i18n="highlights.llm">LLM providers</div>
       </div>
     </div>
   </div>
@@ -998,11 +896,11 @@
 <!-- Installation -->
 <section class="section" id="install">
   <div class="container">
-    <h2 class="section-title fade-up">In Minuten startklar</h2>
-    <p class="section-subtitle fade-up">Kein Cloud-Account nötig. Alles läuft lokal auf deinem Rechner.</p>
+    <h2 class="section-title fade-up" data-i18n="install.title">Ready in minutes</h2>
+    <p class="section-subtitle fade-up" data-i18n="install.subtitle">No cloud account needed. Everything runs locally on your machine.</p>
 
     <div class="install-tabs-row fade-up">
-      <button class="install-tab-btn active" onclick="switchInstall('zip', this)">ZIP Download <span class="tab-badge">Empfohlen</span></button>
+      <button class="install-tab-btn active" onclick="switchInstall('zip', this)">ZIP Download <span class="tab-badge" data-i18n="install.recommended">Recommended</span></button>
       <button class="install-tab-btn" onclick="switchInstall('docker', this)">Docker Compose</button>
       <button class="install-tab-btn" onclick="switchInstall('dev', this)">Git Clone (Dev)</button>
     </div>
@@ -1011,61 +909,34 @@
     <div class="install-panel active fade-up" id="install-zip">
       <div class="install-method">
         <h3>ZIP Download (Offline)</h3>
-        <p>Kein Git, kein Node.js, kein Internet nötig. Nur Python 3.10+ muss installiert sein.</p>
-
+        <p data-i18n="install.zip.desc">No Git, no Node.js, no internet required. Only Python 3.10+ needs to be installed.</p>
         <div class="steps-mini">
           <div class="step-mini">
             <div class="step-mini-num">1</div>
             <div class="step-mini-content">
-              <h4>Download &amp; Entpacken</h4>
-              <p>ZIP von <a href="https://github.com/viadee/roboscope/releases" target="_blank" rel="noopener">GitHub Releases</a> herunterladen und entpacken.</p>
+              <h4 data-i18n="install.zip.step1.title">Download &amp; extract</h4>
+              <p data-i18n-html="install.zip.step1.desc">Download ZIP from <a href="https://github.com/viadee/roboscope/releases" target="_blank" rel="noopener">GitHub Releases</a> and extract.</p>
             </div>
           </div>
           <div class="step-mini">
             <div class="step-mini-num">2</div>
             <div class="step-mini-content">
-              <h4>Installieren</h4>
-              <div class="os-tabs" data-group="zip">
-                <button class="os-tab active" onclick="switchOS(this, 'zip', 'unix')">macOS / Linux</button>
-                <button class="os-tab" onclick="switchOS(this, 'zip', 'win')">Windows</button>
-              </div>
-              <div class="os-panel active" id="zip-unix">
-                <div class="code-block">
-                  <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
-                  <code>chmod +x install-mac-and-linux.sh
-./install-mac-and-linux.sh</code>
-                </div>
-              </div>
-              <div class="os-panel" id="zip-win">
-                <div class="code-block">
-                  <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
-                  <code>install-windows.bat</code>
-                </div>
-              </div>
+              <h4 data-i18n="install.zip.step2.title">Install</h4>
+              <div class="os-tabs"><button class="os-tab active" onclick="switchOS(this, 'zip', 'unix')">macOS / Linux</button><button class="os-tab" onclick="switchOS(this, 'zip', 'win')">Windows</button></div>
+              <div class="os-panel active" id="zip-unix"><div class="code-block"><button class="copy-btn" data-i18n="copy">Copy</button><code>chmod +x install-mac-and-linux.sh
+./install-mac-and-linux.sh</code></div></div>
+              <div class="os-panel" id="zip-win"><div class="code-block"><button class="copy-btn" data-i18n="copy">Copy</button><code>install-windows.bat</code></div></div>
             </div>
           </div>
           <div class="step-mini">
             <div class="step-mini-num">3</div>
             <div class="step-mini-content">
-              <h4>Starten</h4>
-              <div class="os-tabs" data-group="zip-start">
-                <button class="os-tab active" onclick="switchOS(this, 'zip-start', 'unix')">macOS / Linux</button>
-                <button class="os-tab" onclick="switchOS(this, 'zip-start', 'win')">Windows</button>
-              </div>
-              <div class="os-panel active" id="zip-start-unix">
-                <div class="code-block">
-                  <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
-                  <code>./start-mac-and-linux.sh
-<span class="comment"># http://localhost:8145</span></code>
-                </div>
-              </div>
-              <div class="os-panel" id="zip-start-win">
-                <div class="code-block">
-                  <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
-                  <code>start-windows.bat
-<span class="comment">REM http://localhost:8145</span></code>
-                </div>
-              </div>
+              <h4 data-i18n="install.zip.step3.title">Start</h4>
+              <div class="os-tabs"><button class="os-tab active" onclick="switchOS(this, 'zip-start', 'unix')">macOS / Linux</button><button class="os-tab" onclick="switchOS(this, 'zip-start', 'win')">Windows</button></div>
+              <div class="os-panel active" id="zip-start-unix"><div class="code-block"><button class="copy-btn" data-i18n="copy">Copy</button><code>./start-mac-and-linux.sh
+<span class="comment"># http://localhost:8145</span></code></div></div>
+              <div class="os-panel" id="zip-start-win"><div class="code-block"><button class="copy-btn" data-i18n="copy">Copy</button><code>start-windows.bat
+<span class="comment">REM http://localhost:8145</span></code></div></div>
             </div>
           </div>
         </div>
@@ -1076,40 +947,30 @@
     <div class="install-panel fade-up" id="install-docker">
       <div class="install-method">
         <h3>Docker Compose</h3>
-        <p>PostgreSQL + Nginx, production-ready. Benötigt nur Docker und Docker Compose.</p>
-
+        <p data-i18n="install.docker.desc">PostgreSQL + Nginx, production-ready. Only requires Docker and Docker Compose.</p>
         <div class="steps-mini">
           <div class="step-mini">
             <div class="step-mini-num">1</div>
             <div class="step-mini-content">
-              <h4>Repository klonen</h4>
-              <div class="code-block">
-                <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
-                <code>git clone https://github.com/viadee/roboscope.git
-cd roboscope</code>
-              </div>
+              <h4 data-i18n="install.docker.step1.title">Clone repository</h4>
+              <div class="code-block"><button class="copy-btn" data-i18n="copy">Copy</button><code>git clone https://github.com/viadee/roboscope.git
+cd roboscope</code></div>
             </div>
           </div>
           <div class="step-mini">
             <div class="step-mini-num">2</div>
             <div class="step-mini-content">
-              <h4>Production starten</h4>
-              <div class="code-block">
-                <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
-                <code>docker compose up -d
-<span class="comment"># http://localhost:8000</span></code>
-              </div>
+              <h4 data-i18n="install.docker.step2.title">Start production</h4>
+              <div class="code-block"><button class="copy-btn" data-i18n="copy">Copy</button><code>docker compose up -d
+<span class="comment"># http://localhost:8000</span></code></div>
             </div>
           </div>
           <div class="step-mini">
             <div class="step-mini-num">3</div>
             <div class="step-mini-content">
-              <h4>Oder Dev-Modus (SQLite)</h4>
-              <div class="code-block">
-                <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
-                <code>docker compose -f docker-compose.dev.yml up
-<span class="comment"># http://localhost:5173</span></code>
-              </div>
+              <h4 data-i18n="install.docker.step3.title">Or dev mode (SQLite)</h4>
+              <div class="code-block"><button class="copy-btn" data-i18n="copy">Copy</button><code>docker compose -f docker-compose.dev.yml up
+<span class="comment"># http://localhost:5173</span></code></div>
             </div>
           </div>
         </div>
@@ -1120,57 +981,46 @@ cd roboscope</code>
     <div class="install-panel fade-up" id="install-dev">
       <div class="install-method">
         <h3>Git Clone (Dev-Setup)</h3>
-        <p>Quellcode bearbeiten und beitragen. Benötigt Python 3.12+, Node.js 20+ und uv.</p>
-
+        <p data-i18n="install.dev.desc">Edit source code and contribute. Requires Python 3.12+, Node.js 20+, and uv.</p>
         <div class="steps-mini">
           <div class="step-mini">
             <div class="step-mini-num">1</div>
             <div class="step-mini-content">
-              <h4>Voraussetzungen</h4>
-              <div class="code-block">
-                <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
-                <code><span class="comment"># uv installieren</span>
-curl -LsSf https://astral.sh/uv/install.sh | sh</code>
-              </div>
+              <h4 data-i18n="install.dev.step1.title">Prerequisites</h4>
+              <div class="code-block"><button class="copy-btn" data-i18n="copy">Copy</button><code><span class="comment"># install uv</span>
+curl -LsSf https://astral.sh/uv/install.sh | sh</code></div>
             </div>
           </div>
           <div class="step-mini">
             <div class="step-mini-num">2</div>
             <div class="step-mini-content">
               <h4>Clone &amp; Install</h4>
-              <div class="code-block">
-                <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
-                <code>git clone https://github.com/viadee/roboscope.git
+              <div class="code-block"><button class="copy-btn" data-i18n="copy">Copy</button><code>git clone https://github.com/viadee/roboscope.git
 cd roboscope
 cp backend/.env.example backend/.env
-make install</code>
-              </div>
+make install</code></div>
             </div>
           </div>
           <div class="step-mini">
             <div class="step-mini-num">3</div>
             <div class="step-mini-content">
-              <h4>Dev-Server starten</h4>
-              <div class="code-block">
-                <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
-                <code>make dev
+              <h4 data-i18n="install.dev.step3.title">Start dev server</h4>
+              <div class="code-block"><button class="copy-btn" data-i18n="copy">Copy</button><code>make dev
 <span class="comment"># Backend:  http://localhost:8000</span>
-<span class="comment"># Frontend: http://localhost:5173</span></code>
-              </div>
+<span class="comment"># Frontend: http://localhost:5173</span></code></div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <p class="fade-up" style="text-align:center; color: var(--color-text-muted); font-size: 0.9rem; margin-top: 28px;">Default-Login bei allen Varianten: <strong>admin@roboscope.local</strong> / <strong>admin123</strong></p>
+    <p class="fade-up" style="text-align:center; color: var(--color-text-muted); font-size: 0.9rem; margin-top: 28px;" data-i18n-html="install.defaultLogin">Default login for all methods: <strong>admin@roboscope.local</strong> / <strong>admin123</strong></p>
   </div>
 </section>
 
 <!-- Demo Video Placeholder -->
 <section class="section section-dark" id="demo">
   <div class="container">
-    <!-- REPLACE_WITH_VIDEO: embed demo video here -->
     <div class="video-placeholder fade-up">
       <div class="icon">&#x1F3AC;</div>
       <p>Demo Video coming soon</p>
@@ -1182,7 +1032,7 @@ make install</code>
 <section class="section" id="tech">
   <div class="container">
     <h2 class="section-title fade-up">Tech Stack</h2>
-    <p class="section-subtitle fade-up">Moderne, bewährte Technologien &mdash; kein Vendor Lock-in</p>
+    <p class="section-subtitle fade-up" data-i18n="tech.subtitle">Modern, proven technologies &mdash; no vendor lock-in</p>
     <div class="tech-pills fade-up">
       <span class="tech-pill">FastAPI</span>
       <span class="tech-pill">SQLAlchemy 2.0</span>
@@ -1204,28 +1054,28 @@ make install</code>
 <!-- Roadmap -->
 <section class="section section-dark" id="roadmap">
   <div class="container">
-    <h2 class="section-title fade-up">Was kommt als Nächstes?</h2>
-    <p class="section-subtitle fade-up">Aktuelle Roadmap &mdash; Ideen und Pull Requests sind willkommen</p>
+    <h2 class="section-title fade-up" data-i18n="roadmap.title">What's next?</h2>
+    <p class="section-subtitle fade-up" data-i18n="roadmap.subtitle">Current roadmap &mdash; ideas and pull requests are welcome</p>
     <div class="roadmap-list">
       <div class="roadmap-item fade-up">
         <div class="roadmap-status">&#x1F6A7;</div>
         <div>
-          <h4>Visueller Editor für .robot-Dateien</h4>
-          <p>Die Keyword-Driven-Struktur als Formular abbilden &mdash; für alle, die lieber in Formularen als in Textdateien arbeiten. Settings, Variables, Test Cases und Keywords visuell bearbeiten.</p>
+          <h4 data-i18n="roadmap.editor.title">Visual editor for .robot files</h4>
+          <p data-i18n="roadmap.editor.desc">Map the keyword-driven structure as a form &mdash; for everyone who prefers forms over text files. Visually edit Settings, Variables, Test Cases, and Keywords.</p>
         </div>
       </div>
       <div class="roadmap-item fade-up fade-up-delay-1">
         <div class="roadmap-status">&#x1F4E6;</div>
         <div>
-          <h4>Offline-Archiv-Analyse</h4>
-          <p>Alte Report-ZIPs hochladen und analysieren &mdash; ohne Git-Repository oder laufende Umgebung. Historische Daten jederzeit auswerten.</p>
+          <h4 data-i18n="roadmap.archive.title">Offline archive analysis</h4>
+          <p data-i18n="roadmap.archive.desc">Upload and analyze old report ZIPs &mdash; without a Git repository or running environment. Evaluate historical data anytime.</p>
         </div>
       </div>
       <div class="roadmap-item fade-up fade-up-delay-2">
         <div class="roadmap-status">&#x2728;</div>
         <div>
-          <h4>UI-Verfeinerungen &amp; Accessibility</h4>
-          <p>Allgemeine Polish-Runde: Ladeanimationen, Error-States, leere Zustände, ARIA-Labels und Keyboard-Navigation.</p>
+          <h4 data-i18n="roadmap.ui.title">UI refinements &amp; accessibility</h4>
+          <p data-i18n="roadmap.ui.desc">General polish: loading animations, error states, empty states, ARIA labels, and keyboard navigation.</p>
         </div>
       </div>
     </div>
@@ -1236,11 +1086,11 @@ make install</code>
 <section class="section" id="cta">
   <div class="container">
     <div class="cta-banner fade-up">
-      <h2>Was fehlt euch?</h2>
-      <p>RoboScope lebt von Feedback. Was würde das Tool für euren Alltag nützlich machen? Wo hakt es? Issues, Ideen und Pull Requests sind ausdrücklich willkommen.</p>
+      <h2 data-i18n="cta.title">What's missing for you?</h2>
+      <p data-i18n="cta.desc">RoboScope thrives on feedback. What would make this tool useful for your workflow? Where does it fall short? Issues, ideas, and pull requests are very welcome.</p>
       <div class="cta-actions">
         <a href="https://github.com/viadee/roboscope/releases" class="btn btn-primary" target="_blank" rel="noopener">Download &darr;</a>
-        <a href="https://github.com/viadee/roboscope/issues" class="btn btn-accent" target="_blank" rel="noopener">Feedback geben</a>
+        <a href="https://github.com/viadee/roboscope/issues" class="btn btn-accent" target="_blank" rel="noopener" data-i18n="cta.feedback">Give feedback</a>
         <a href="https://github.com/viadee/roboscope" class="btn btn-ghost" style="color: var(--color-text); border-color: #d1d5db;" target="_blank" rel="noopener">GitHub &rarr;</a>
       </div>
     </div>
@@ -1258,14 +1108,387 @@ make install</code>
       <li><a href="https://github.com/viadee/roboscope/issues" target="_blank" rel="noopener">Issues</a></li>
       <li><a href="https://github.com/viadee/roboscope#readme" target="_blank" rel="noopener">Docs</a></li>
       <li><a href="https://github.com/viadee/roboscope/blob/main/LICENSE" target="_blank" rel="noopener">Apache 2.0 License</a></li>
-      <li><a href="datenschutz.html">Datenschutz</a></li>
-      <li><a href="impressum.html">Impressum</a></li>
+      <li><a href="datenschutz.html" data-i18n="footer.privacy">Privacy</a></li>
+      <li><a href="impressum.html" data-i18n="footer.imprint">Imprint</a></li>
     </ul>
     <p class="footer-copy">&copy; 2026 viadee Unternehmensberatung AG &middot; Apache 2.0</p>
   </div>
 </footer>
 
 <script>
+// ── Translations ──
+const T = {
+  en: {
+    'nav.why': 'Why?',
+    'nav.features': 'Features',
+    'nav.screenshots': 'Screenshots',
+    'nav.install': 'Installation',
+    'hero.title': 'Robot Framework Test Management&mdash;<br><span>Built for Teams</span>',
+    'hero.subline': 'Open-source web UI to run, analyze, and manage Robot Framework tests. Free, self-hosted, Apache 2.0.',
+    'hero.download': 'Download ZIP \u2193',
+    'hero.quickInstall': 'Quick Install',
+    'why.title': 'Why RoboScope?',
+    'why.subtitle': 'Bridging the gap between Robot Framework and your team',
+    'why.p1': 'If you\u2019ve ever tried to get a team without deep command-line experience excited about Robot Framework, you know the pattern: the syntax makes sense, the keyword idea clicks \u2014 but then comes the setup. Clone a repo, create a virtual environment, install dependencies, run tests from the terminal, find and open output files.',
+    'why.p2': '<strong>This is exactly where the colleagues with the best test ideas drop out.</strong>',
+    'why.p3': 'Robot Framework has everything it takes to be used by less technical users. The keyword-driven architecture is perfect for that. But the surrounding tooling still requires comfort with the terminal.',
+    'why.p4': 'RoboScope closes exactly this gap: <strong>A web UI that lets the entire team \u2014 from QA testers to product owners \u2014 manage, run, and analyze tests without opening a terminal.</strong>',
+    'why.card1.title': 'For the whole team',
+    'why.card1.desc': 'QA engineers, testers, and product owners can create and run tests directly in the browser \u2014 no command line needed.',
+    'why.card2.title': 'Instant feedback',
+    'why.card2.desc': 'Start tests, follow live progress, see results immediately \u2014 without setting up a CI pipeline first.',
+    'why.card3.title': 'Self-hosted & offline',
+    'why.card3.desc': 'Everything runs on your machine or server. No cloud account, no vendor lock-in, no data shared with third parties.',
+    'features.title': 'Everything you need',
+    'features.subtitle': 'Robot Framework test management in a modern web interface',
+    'features.exec.title': 'Test Execution',
+    'features.exec.desc': 'Subprocess or Docker, live WebSocket updates, cron scheduling \u2014 start and monitor tests directly from the browser.',
+    'features.git.title': 'Project & Git Management',
+    'features.git.desc': 'Clone repos, switch branches, auto-sync. Integrated code explorer with Robot parser and CodeMirror editor.',
+    'features.env.title': 'Environment Management',
+    'features.env.desc': 'Create and manage Python environments with uv. Install packages, run library checks, all in one place.',
+    'features.reports.title': 'Reports & Deep Analysis',
+    'features.reports.desc': 'Auto-parse output.xml. Detect trends, find flaky tests, 15 KPIs across 5 categories in the deep analysis.',
+    'features.ai.title': 'AI Failure Analysis',
+    'features.ai.desc': 'LLM-powered root cause analysis and .roboscope \u2192 .robot generation. OpenAI, Anthropic, OpenRouter, or Ollama.',
+    'features.rbac.title': 'Roles & Access Control',
+    'features.rbac.desc': 'RBAC with four levels: Viewer, Runner, Editor, Admin. JWT authentication, multi-user ready.',
+    'screenshots.title': 'RoboScope in Action',
+    'screenshots.subtitle': 'Click a tab to explore the different areas',
+    'screenshots.tab.stats': 'Statistics',
+    'screenshots.tab.ai': 'AI Analysis',
+    'screenshots.cap.dashboard': 'Dashboard \u2014 Overview of all projects, recent test runs, and KPIs',
+    'screenshots.cap.execution': 'Execution \u2014 Start tests, follow live logs, and view results',
+    'screenshots.cap.explorer': 'Explorer \u2014 Browse, edit, and run Robot files directly',
+    'screenshots.cap.stats': 'Statistics \u2014 Trends, flaky detection, and deep analysis with 15 KPIs',
+    'screenshots.cap.ai': 'AI Analysis \u2014 LLM-powered failure analysis and .roboscope generation',
+    'highlights.kpis': 'Deep analysis KPIs',
+    'highlights.langs': 'Languages (EN/DE/FR/ES)',
+    'highlights.tests': 'Backend tests',
+    'highlights.llm': 'LLM providers',
+    'install.title': 'Ready in minutes',
+    'install.subtitle': 'No cloud account needed. Everything runs locally on your machine.',
+    'install.recommended': 'Recommended',
+    'install.zip.desc': 'No Git, no Node.js, no internet required. Only Python 3.10+ needs to be installed.',
+    'install.zip.step1.title': 'Download & extract',
+    'install.zip.step1.desc': 'Download ZIP from <a href="https://github.com/viadee/roboscope/releases" target="_blank" rel="noopener">GitHub Releases</a> and extract.',
+    'install.zip.step2.title': 'Install',
+    'install.zip.step3.title': 'Start',
+    'install.docker.desc': 'PostgreSQL + Nginx, production-ready. Only requires Docker and Docker Compose.',
+    'install.docker.step1.title': 'Clone repository',
+    'install.docker.step2.title': 'Start production',
+    'install.docker.step3.title': 'Or dev mode (SQLite)',
+    'install.dev.desc': 'Edit source code and contribute. Requires Python 3.12+, Node.js 20+, and uv.',
+    'install.dev.step1.title': 'Prerequisites',
+    'install.dev.step3.title': 'Start dev server',
+    'install.defaultLogin': 'Default login for all methods: <strong>admin@roboscope.local</strong> / <strong>admin123</strong>',
+    'copy': 'Copy',
+    'copied': 'Copied!',
+    'tech.subtitle': 'Modern, proven technologies \u2014 no vendor lock-in',
+    'roadmap.title': 'What\u2019s next?',
+    'roadmap.subtitle': 'Current roadmap \u2014 ideas and pull requests are welcome',
+    'roadmap.editor.title': 'Visual editor for .robot files',
+    'roadmap.editor.desc': 'Map the keyword-driven structure as a form \u2014 for everyone who prefers forms over text files. Visually edit Settings, Variables, Test Cases, and Keywords.',
+    'roadmap.archive.title': 'Offline archive analysis',
+    'roadmap.archive.desc': 'Upload and analyze old report ZIPs \u2014 without a Git repository or running environment. Evaluate historical data anytime.',
+    'roadmap.ui.title': 'UI refinements & accessibility',
+    'roadmap.ui.desc': 'General polish: loading animations, error states, empty states, ARIA labels, and keyboard navigation.',
+    'cta.title': 'What\u2019s missing for you?',
+    'cta.desc': 'RoboScope thrives on feedback. What would make this tool useful for your workflow? Where does it fall short? Issues, ideas, and pull requests are very welcome.',
+    'cta.feedback': 'Give feedback',
+    'footer.privacy': 'Privacy',
+    'footer.imprint': 'Imprint',
+  },
+  de: {
+    'nav.why': 'Warum?',
+    'nav.features': 'Features',
+    'nav.screenshots': 'Screenshots',
+    'nav.install': 'Installation',
+    'hero.title': 'Robot Framework Test Management&mdash;<br><span>Built for Teams</span>',
+    'hero.subline': 'Open-Source Web UI zum Ausf\u00fchren, Auswerten und Analysieren von Robot Framework Tests. Kostenlos, self-hosted, Apache 2.0.',
+    'hero.download': 'Download ZIP \u2193',
+    'hero.quickInstall': 'Quick Install',
+    'why.title': 'Warum RoboScope?',
+    'why.subtitle': 'Die L\u00fccke zwischen Robot Framework und dem Team schlie\u00dfen',
+    'why.p1': 'Wer schon einmal versucht hat, ein Team ohne tiefe Kommandozeilen-Erfahrung f\u00fcr Robot Framework zu begeistern, kennt das Muster: Die Syntax ist verst\u00e4ndlich, die Keyword-Idee leuchtet ein \u2014 aber dann kommt das Setup. Git klonen, virtuelle Umgebung anlegen, Abh\u00e4ngigkeiten installieren, Tests \u00fcber das Terminal starten, Output-Dateien suchen und \u00f6ffnen.',
+    'why.p2': '<strong>Sp\u00e4testens hier steigen die Kolleg:innen aus, die eigentlich die besten Testideen h\u00e4tten.</strong>',
+    'why.p3': 'Robot Framework bringt eigentlich alles mit, um auch von weniger technisch versierten Nutzer:innen eingesetzt zu werden. Die Keyword-Driven-Architektur ist daf\u00fcr wie geschaffen. Aber das Tooling drum herum setzt eben doch voraus, dass man sich im Terminal wohlf\u00fchlt.',
+    'why.p4': 'RoboScope schlie\u00dft genau diese L\u00fccke: <strong>Eine Web-Oberfl\u00e4che, \u00fcber die das gesamte Team \u2014 von Fachtester:innen bis Product Owner \u2014 Tests verwalten, ausf\u00fchren und auswerten kann, ohne das Terminal zu \u00f6ffnen.</strong>',
+    'why.card1.title': 'F\u00fcr das ganze Team',
+    'why.card1.desc': 'QA-Engineers, Fachtester:innen und Product Owner k\u00f6nnen Tests direkt im Browser erstellen und ausf\u00fchren \u2014 ohne Kommandozeile.',
+    'why.card2.title': 'Schnelles Feedback',
+    'why.card2.desc': 'Tests starten, Live-Fortschritt verfolgen, Ergebnisse sofort sehen \u2014 ohne erst eine CI-Pipeline aufzusetzen.',
+    'why.card3.title': 'Self-Hosted & Offline',
+    'why.card3.desc': 'Alles l\u00e4uft auf deinem Rechner oder Server. Kein Cloud-Account, kein Vendor Lock-in, keine Daten an Dritte.',
+    'features.title': 'Alles, was du brauchst',
+    'features.subtitle': 'Robot Framework Testmanagement in einer modernen Web-Oberfl\u00e4che',
+    'features.exec.title': 'Test Execution',
+    'features.exec.desc': 'Subprocess oder Docker, Live-WebSocket-Updates, Cron-Scheduling \u2014 Tests direkt aus dem Browser starten und beobachten.',
+    'features.git.title': 'Projekt & Git Management',
+    'features.git.desc': 'Repos klonen, Branches wechseln, automatisch synchronisieren. Integrierter Code-Explorer mit Robot-Parser und CodeMirror-Editor.',
+    'features.env.title': 'Environment Management',
+    'features.env.desc': 'Python-Umgebungen mit uv erstellen und verwalten. Pakete installieren, Library-Checks, alles an einem Ort.',
+    'features.reports.title': 'Reports & Tiefenanalyse',
+    'features.reports.desc': 'output.xml automatisch parsen. Trends erkennen, Flaky Tests aufsp\u00fcren, 15 KPIs in 5 Kategorien in der Tiefenanalyse.',
+    'features.ai.title': 'KI-Fehleranalyse',
+    'features.ai.desc': 'LLM-gest\u00fctzte Root-Cause-Analyse und .roboscope \u2192 .robot Generierung. OpenAI, Anthropic, OpenRouter oder Ollama.',
+    'features.rbac.title': 'Rollen & Zugriff',
+    'features.rbac.desc': 'RBAC mit vier Stufen: Viewer, Runner, Editor, Admin. JWT-Authentifizierung, Multi-User ready.',
+    'screenshots.title': 'RoboScope in Aktion',
+    'screenshots.subtitle': 'Klicke auf einen Tab, um die verschiedenen Bereiche zu sehen',
+    'screenshots.tab.stats': 'Statistiken',
+    'screenshots.tab.ai': 'KI-Analyse',
+    'screenshots.cap.dashboard': 'Dashboard \u2014 \u00dcberblick \u00fcber alle Projekte, letzte Testl\u00e4ufe und KPIs',
+    'screenshots.cap.execution': 'Execution \u2014 Tests starten, Live-Logs verfolgen und Ergebnisse einsehen',
+    'screenshots.cap.explorer': 'Explorer \u2014 Robot-Dateien durchsuchen, bearbeiten und direkt ausf\u00fchren',
+    'screenshots.cap.stats': 'Statistiken \u2014 Trends, Flaky Detection und Tiefen-Analyse mit 15 KPIs',
+    'screenshots.cap.ai': 'KI-Analyse \u2014 LLM-gest\u00fctzte Fehleranalyse und .roboscope Generierung',
+    'highlights.kpis': 'KPIs in der Tiefenanalyse',
+    'highlights.langs': 'Sprachen (EN/DE/FR/ES)',
+    'highlights.tests': 'Backend-Tests',
+    'highlights.llm': 'LLM-Anbieter',
+    'install.title': 'In Minuten startklar',
+    'install.subtitle': 'Kein Cloud-Account n\u00f6tig. Alles l\u00e4uft lokal auf deinem Rechner.',
+    'install.recommended': 'Empfohlen',
+    'install.zip.desc': 'Kein Git, kein Node.js, kein Internet n\u00f6tig. Nur Python 3.10+ muss installiert sein.',
+    'install.zip.step1.title': 'Download & Entpacken',
+    'install.zip.step1.desc': 'ZIP von <a href="https://github.com/viadee/roboscope/releases" target="_blank" rel="noopener">GitHub Releases</a> herunterladen und entpacken.',
+    'install.zip.step2.title': 'Installieren',
+    'install.zip.step3.title': 'Starten',
+    'install.docker.desc': 'PostgreSQL + Nginx, production-ready. Ben\u00f6tigt nur Docker und Docker Compose.',
+    'install.docker.step1.title': 'Repository klonen',
+    'install.docker.step2.title': 'Production starten',
+    'install.docker.step3.title': 'Oder Dev-Modus (SQLite)',
+    'install.dev.desc': 'Quellcode bearbeiten und beitragen. Ben\u00f6tigt Python 3.12+, Node.js 20+ und uv.',
+    'install.dev.step1.title': 'Voraussetzungen',
+    'install.dev.step3.title': 'Dev-Server starten',
+    'install.defaultLogin': 'Default-Login bei allen Varianten: <strong>admin@roboscope.local</strong> / <strong>admin123</strong>',
+    'copy': 'Kopieren',
+    'copied': 'Kopiert!',
+    'tech.subtitle': 'Moderne, bew\u00e4hrte Technologien \u2014 kein Vendor Lock-in',
+    'roadmap.title': 'Was kommt als N\u00e4chstes?',
+    'roadmap.subtitle': 'Aktuelle Roadmap \u2014 Ideen und Pull Requests sind willkommen',
+    'roadmap.editor.title': 'Visueller Editor f\u00fcr .robot-Dateien',
+    'roadmap.editor.desc': 'Die Keyword-Driven-Struktur als Formular abbilden \u2014 f\u00fcr alle, die lieber in Formularen als in Textdateien arbeiten. Settings, Variables, Test Cases und Keywords visuell bearbeiten.',
+    'roadmap.archive.title': 'Offline-Archiv-Analyse',
+    'roadmap.archive.desc': 'Alte Report-ZIPs hochladen und analysieren \u2014 ohne Git-Repository oder laufende Umgebung. Historische Daten jederzeit auswerten.',
+    'roadmap.ui.title': 'UI-Verfeinerungen & Accessibility',
+    'roadmap.ui.desc': 'Allgemeine Polish-Runde: Ladeanimationen, Error-States, leere Zust\u00e4nde, ARIA-Labels und Keyboard-Navigation.',
+    'cta.title': 'Was fehlt euch?',
+    'cta.desc': 'RoboScope lebt von Feedback. Was w\u00fcrde das Tool f\u00fcr euren Alltag n\u00fctzlich machen? Wo hakt es? Issues, Ideen und Pull Requests sind ausdr\u00fccklich willkommen.',
+    'cta.feedback': 'Feedback geben',
+    'footer.privacy': 'Datenschutz',
+    'footer.imprint': 'Impressum',
+  },
+  fr: {
+    'nav.why': 'Pourquoi\u00a0?',
+    'nav.features': 'Fonctionnalit\u00e9s',
+    'nav.screenshots': 'Captures d\u2019\u00e9cran',
+    'nav.install': 'Installation',
+    'hero.title': 'Robot Framework Test Management&mdash;<br><span>Built for Teams</span>',
+    'hero.subline': 'Interface web open-source pour ex\u00e9cuter, analyser et g\u00e9rer vos tests Robot Framework. Gratuit, auto-h\u00e9berg\u00e9, Apache 2.0.',
+    'hero.download': 'T\u00e9l\u00e9charger ZIP \u2193',
+    'hero.quickInstall': 'Installation rapide',
+    'why.title': 'Pourquoi RoboScope\u00a0?',
+    'why.subtitle': 'Combler le foss\u00e9 entre Robot Framework et votre \u00e9quipe',
+    'why.p1': 'Si vous avez d\u00e9j\u00e0 essay\u00e9 d\u2019enthousiasmer une \u00e9quipe sans exp\u00e9rience approfondie de la ligne de commande pour Robot Framework, vous connaissez le sch\u00e9ma\u00a0: la syntaxe est compr\u00e9hensible, l\u2019id\u00e9e des keywords fait sens \u2014 mais ensuite vient la configuration. Cloner un repo, cr\u00e9er un environnement virtuel, installer les d\u00e9pendances, lancer les tests depuis le terminal, chercher et ouvrir les fichiers de sortie.',
+    'why.p2': '<strong>C\u2019est exactement l\u00e0 que les coll\u00e8gues avec les meilleures id\u00e9es de tests d\u00e9crochent.</strong>',
+    'why.p3': 'Robot Framework a tout ce qu\u2019il faut pour \u00eatre utilis\u00e9 par des utilisateurs moins techniques. L\u2019architecture keyword-driven est parfaite pour cela. Mais l\u2019outillage environnant n\u00e9cessite encore une aisance avec le terminal.',
+    'why.p4': 'RoboScope comble exactement cette lacune\u00a0: <strong>Une interface web qui permet \u00e0 toute l\u2019\u00e9quipe \u2014 des testeurs aux product owners \u2014 de g\u00e9rer, ex\u00e9cuter et analyser les tests sans ouvrir un terminal.</strong>',
+    'why.card1.title': 'Pour toute l\u2019\u00e9quipe',
+    'why.card1.desc': 'Ing\u00e9nieurs QA, testeurs et product owners peuvent cr\u00e9er et ex\u00e9cuter des tests directement dans le navigateur \u2014 sans ligne de commande.',
+    'why.card2.title': 'Feedback instantan\u00e9',
+    'why.card2.desc': 'Lancez des tests, suivez la progression en direct, voyez les r\u00e9sultats imm\u00e9diatement \u2014 sans configurer un pipeline CI.',
+    'why.card3.title': 'Auto-h\u00e9berg\u00e9 & hors ligne',
+    'why.card3.desc': 'Tout fonctionne sur votre machine ou serveur. Pas de compte cloud, pas de d\u00e9pendance fournisseur, pas de donn\u00e9es partag\u00e9es.',
+    'features.title': 'Tout ce dont vous avez besoin',
+    'features.subtitle': 'Gestion des tests Robot Framework dans une interface web moderne',
+    'features.exec.title': 'Ex\u00e9cution de tests',
+    'features.exec.desc': 'Subprocess ou Docker, mises \u00e0 jour WebSocket en direct, planification cron \u2014 lancez et surveillez les tests directement depuis le navigateur.',
+    'features.git.title': 'Projets & gestion Git',
+    'features.git.desc': 'Cloner des repos, changer de branche, synchronisation automatique. Explorateur de code int\u00e9gr\u00e9 avec parseur Robot et \u00e9diteur CodeMirror.',
+    'features.env.title': 'Gestion des environnements',
+    'features.env.desc': 'Cr\u00e9ez et g\u00e9rez des environnements Python avec uv. Installez des paquets, v\u00e9rifiez les biblioth\u00e8ques, tout en un seul endroit.',
+    'features.reports.title': 'Rapports & analyse approfondie',
+    'features.reports.desc': 'Analyse automatique d\u2019output.xml. D\u00e9tectez les tendances, trouvez les tests instables, 15 KPIs dans 5 cat\u00e9gories.',
+    'features.ai.title': 'Analyse IA des \u00e9checs',
+    'features.ai.desc': 'Analyse des causes profondes par LLM et g\u00e9n\u00e9ration .roboscope \u2192 .robot. OpenAI, Anthropic, OpenRouter ou Ollama.',
+    'features.rbac.title': 'R\u00f4les & contr\u00f4le d\u2019acc\u00e8s',
+    'features.rbac.desc': 'RBAC \u00e0 quatre niveaux\u00a0: Viewer, Runner, Editor, Admin. Authentification JWT, multi-utilisateurs.',
+    'screenshots.title': 'RoboScope en action',
+    'screenshots.subtitle': 'Cliquez sur un onglet pour explorer les diff\u00e9rentes zones',
+    'screenshots.tab.stats': 'Statistiques',
+    'screenshots.tab.ai': 'Analyse IA',
+    'screenshots.cap.dashboard': 'Dashboard \u2014 Vue d\u2019ensemble de tous les projets, ex\u00e9cutions r\u00e9centes et KPIs',
+    'screenshots.cap.execution': 'Ex\u00e9cution \u2014 Lancez des tests, suivez les logs en direct et consultez les r\u00e9sultats',
+    'screenshots.cap.explorer': 'Explorateur \u2014 Parcourez, \u00e9ditez et ex\u00e9cutez des fichiers Robot directement',
+    'screenshots.cap.stats': 'Statistiques \u2014 Tendances, d\u00e9tection de tests instables et analyse approfondie avec 15 KPIs',
+    'screenshots.cap.ai': 'Analyse IA \u2014 Analyse des \u00e9checs par LLM et g\u00e9n\u00e9ration .roboscope',
+    'highlights.kpis': 'KPIs d\u2019analyse approfondie',
+    'highlights.langs': 'Langues (EN/DE/FR/ES)',
+    'highlights.tests': 'Tests backend',
+    'highlights.llm': 'Fournisseurs LLM',
+    'install.title': 'Pr\u00eat en quelques minutes',
+    'install.subtitle': 'Pas de compte cloud n\u00e9cessaire. Tout fonctionne localement sur votre machine.',
+    'install.recommended': 'Recommand\u00e9',
+    'install.zip.desc': 'Pas de Git, pas de Node.js, pas d\u2019internet requis. Seul Python 3.10+ doit \u00eatre install\u00e9.',
+    'install.zip.step1.title': 'T\u00e9l\u00e9charger & extraire',
+    'install.zip.step1.desc': 'T\u00e9l\u00e9chargez le ZIP depuis <a href="https://github.com/viadee/roboscope/releases" target="_blank" rel="noopener">GitHub Releases</a> et extrayez-le.',
+    'install.zip.step2.title': 'Installer',
+    'install.zip.step3.title': 'D\u00e9marrer',
+    'install.docker.desc': 'PostgreSQL + Nginx, pr\u00eat pour la production. N\u00e9cessite uniquement Docker et Docker Compose.',
+    'install.docker.step1.title': 'Cloner le d\u00e9p\u00f4t',
+    'install.docker.step2.title': 'D\u00e9marrer en production',
+    'install.docker.step3.title': 'Ou mode dev (SQLite)',
+    'install.dev.desc': 'Modifier le code source et contribuer. N\u00e9cessite Python 3.12+, Node.js 20+ et uv.',
+    'install.dev.step1.title': 'Pr\u00e9requis',
+    'install.dev.step3.title': 'D\u00e9marrer le serveur dev',
+    'install.defaultLogin': 'Connexion par d\u00e9faut pour toutes les m\u00e9thodes\u00a0: <strong>admin@roboscope.local</strong> / <strong>admin123</strong>',
+    'copy': 'Copier',
+    'copied': 'Copi\u00e9\u00a0!',
+    'tech.subtitle': 'Technologies modernes et \u00e9prouv\u00e9es \u2014 pas de d\u00e9pendance fournisseur',
+    'roadmap.title': 'Et ensuite\u00a0?',
+    'roadmap.subtitle': 'Feuille de route actuelle \u2014 id\u00e9es et pull requests bienvenues',
+    'roadmap.editor.title': '\u00c9diteur visuel pour fichiers .robot',
+    'roadmap.editor.desc': 'Repr\u00e9senter la structure keyword-driven sous forme de formulaire \u2014 pour ceux qui pr\u00e9f\u00e8rent les formulaires aux fichiers texte. \u00c9diter visuellement Settings, Variables, Test Cases et Keywords.',
+    'roadmap.archive.title': 'Analyse d\u2019archives hors ligne',
+    'roadmap.archive.desc': 'T\u00e9l\u00e9charger et analyser d\u2019anciens rapports ZIP \u2014 sans d\u00e9p\u00f4t Git ni environnement actif. \u00c9valuer les donn\u00e9es historiques \u00e0 tout moment.',
+    'roadmap.ui.title': 'Am\u00e9liorations UI & accessibilit\u00e9',
+    'roadmap.ui.desc': 'Finitions g\u00e9n\u00e9rales\u00a0: animations de chargement, \u00e9tats d\u2019erreur, \u00e9tats vides, labels ARIA et navigation clavier.',
+    'cta.title': 'Que manque-t-il pour vous\u00a0?',
+    'cta.desc': 'RoboScope vit du feedback. Qu\u2019est-ce qui rendrait cet outil utile pour votre quotidien\u00a0? O\u00f9 \u00e7a coince\u00a0? Issues, id\u00e9es et pull requests sont les bienvenues.',
+    'cta.feedback': 'Donner un avis',
+    'footer.privacy': 'Confidentialit\u00e9',
+    'footer.imprint': 'Mentions l\u00e9gales',
+  },
+  es: {
+    'nav.why': '\u00bfPor qu\u00e9?',
+    'nav.features': 'Funcionalidades',
+    'nav.screenshots': 'Capturas',
+    'nav.install': 'Instalaci\u00f3n',
+    'hero.title': 'Robot Framework Test Management&mdash;<br><span>Built for Teams</span>',
+    'hero.subline': 'Interfaz web open-source para ejecutar, analizar y gestionar pruebas Robot Framework. Gratuito, auto-alojado, Apache 2.0.',
+    'hero.download': 'Descargar ZIP \u2193',
+    'hero.quickInstall': 'Instalaci\u00f3n r\u00e1pida',
+    'why.title': '\u00bfPor qu\u00e9 RoboScope?',
+    'why.subtitle': 'Cerrando la brecha entre Robot Framework y tu equipo',
+    'why.p1': 'Si alguna vez has intentado entusiasmar a un equipo sin experiencia profunda en l\u00ednea de comandos con Robot Framework, conoces el patr\u00f3n: la sintaxis se entiende, la idea de keywords tiene sentido \u2014 pero luego viene la configuraci\u00f3n. Clonar un repo, crear un entorno virtual, instalar dependencias, ejecutar pruebas desde la terminal, buscar y abrir archivos de salida.',
+    'why.p2': '<strong>Es exactamente aqu\u00ed donde los colegas con las mejores ideas de pruebas abandonan.</strong>',
+    'why.p3': 'Robot Framework tiene todo lo necesario para ser utilizado por usuarios menos t\u00e9cnicos. La arquitectura keyword-driven es perfecta para eso. Pero las herramientas circundantes a\u00fan requieren comodidad con la terminal.',
+    'why.p4': 'RoboScope cierra exactamente esta brecha: <strong>Una interfaz web que permite a todo el equipo \u2014 desde testers hasta product owners \u2014 gestionar, ejecutar y analizar pruebas sin abrir una terminal.</strong>',
+    'why.card1.title': 'Para todo el equipo',
+    'why.card1.desc': 'Ingenieros QA, testers y product owners pueden crear y ejecutar pruebas directamente en el navegador \u2014 sin l\u00ednea de comandos.',
+    'why.card2.title': 'Feedback instant\u00e1neo',
+    'why.card2.desc': 'Inicia pruebas, sigue el progreso en vivo, ve resultados inmediatamente \u2014 sin configurar un pipeline CI primero.',
+    'why.card3.title': 'Auto-alojado y offline',
+    'why.card3.desc': 'Todo funciona en tu m\u00e1quina o servidor. Sin cuenta en la nube, sin dependencia de proveedor, sin datos compartidos con terceros.',
+    'features.title': 'Todo lo que necesitas',
+    'features.subtitle': 'Gesti\u00f3n de pruebas Robot Framework en una interfaz web moderna',
+    'features.exec.title': 'Ejecuci\u00f3n de pruebas',
+    'features.exec.desc': 'Subprocess o Docker, actualizaciones WebSocket en vivo, programaci\u00f3n cron \u2014 inicia y supervisa pruebas directamente desde el navegador.',
+    'features.git.title': 'Proyectos y gesti\u00f3n Git',
+    'features.git.desc': 'Clona repos, cambia ramas, sincronizaci\u00f3n autom\u00e1tica. Explorador de c\u00f3digo integrado con parser Robot y editor CodeMirror.',
+    'features.env.title': 'Gesti\u00f3n de entornos',
+    'features.env.desc': 'Crea y gestiona entornos Python con uv. Instala paquetes, verifica bibliotecas, todo en un solo lugar.',
+    'features.reports.title': 'Informes y an\u00e1lisis profundo',
+    'features.reports.desc': 'Parseo autom\u00e1tico de output.xml. Detecta tendencias, encuentra pruebas inestables, 15 KPIs en 5 categor\u00edas.',
+    'features.ai.title': 'An\u00e1lisis IA de fallos',
+    'features.ai.desc': 'An\u00e1lisis de causa ra\u00edz con LLM y generaci\u00f3n .roboscope \u2192 .robot. OpenAI, Anthropic, OpenRouter u Ollama.',
+    'features.rbac.title': 'Roles y control de acceso',
+    'features.rbac.desc': 'RBAC con cuatro niveles: Viewer, Runner, Editor, Admin. Autenticaci\u00f3n JWT, multi-usuario.',
+    'screenshots.title': 'RoboScope en acci\u00f3n',
+    'screenshots.subtitle': 'Haz clic en una pesta\u00f1a para explorar las diferentes \u00e1reas',
+    'screenshots.tab.stats': 'Estad\u00edsticas',
+    'screenshots.tab.ai': 'An\u00e1lisis IA',
+    'screenshots.cap.dashboard': 'Dashboard \u2014 Visi\u00f3n general de todos los proyectos, ejecuciones recientes y KPIs',
+    'screenshots.cap.execution': 'Ejecuci\u00f3n \u2014 Inicia pruebas, sigue logs en vivo y consulta resultados',
+    'screenshots.cap.explorer': 'Explorador \u2014 Navega, edita y ejecuta archivos Robot directamente',
+    'screenshots.cap.stats': 'Estad\u00edsticas \u2014 Tendencias, detecci\u00f3n de pruebas inestables y an\u00e1lisis profundo con 15 KPIs',
+    'screenshots.cap.ai': 'An\u00e1lisis IA \u2014 An\u00e1lisis de fallos con LLM y generaci\u00f3n .roboscope',
+    'highlights.kpis': 'KPIs de an\u00e1lisis profundo',
+    'highlights.langs': 'Idiomas (EN/DE/FR/ES)',
+    'highlights.tests': 'Tests de backend',
+    'highlights.llm': 'Proveedores LLM',
+    'install.title': 'Listo en minutos',
+    'install.subtitle': 'Sin cuenta en la nube. Todo funciona localmente en tu m\u00e1quina.',
+    'install.recommended': 'Recomendado',
+    'install.zip.desc': 'Sin Git, sin Node.js, sin internet. Solo necesitas Python 3.10+ instalado.',
+    'install.zip.step1.title': 'Descargar y extraer',
+    'install.zip.step1.desc': 'Descarga el ZIP de <a href="https://github.com/viadee/roboscope/releases" target="_blank" rel="noopener">GitHub Releases</a> y extr\u00e1elo.',
+    'install.zip.step2.title': 'Instalar',
+    'install.zip.step3.title': 'Iniciar',
+    'install.docker.desc': 'PostgreSQL + Nginx, listo para producci\u00f3n. Solo requiere Docker y Docker Compose.',
+    'install.docker.step1.title': 'Clonar repositorio',
+    'install.docker.step2.title': 'Iniciar producci\u00f3n',
+    'install.docker.step3.title': 'O modo dev (SQLite)',
+    'install.dev.desc': 'Editar c\u00f3digo fuente y contribuir. Requiere Python 3.12+, Node.js 20+ y uv.',
+    'install.dev.step1.title': 'Requisitos previos',
+    'install.dev.step3.title': 'Iniciar servidor dev',
+    'install.defaultLogin': 'Login por defecto en todos los m\u00e9todos: <strong>admin@roboscope.local</strong> / <strong>admin123</strong>',
+    'copy': 'Copiar',
+    'copied': '\u00a1Copiado!',
+    'tech.subtitle': 'Tecnolog\u00edas modernas y probadas \u2014 sin dependencia de proveedor',
+    'roadmap.title': '\u00bfQu\u00e9 viene despu\u00e9s?',
+    'roadmap.subtitle': 'Hoja de ruta actual \u2014 ideas y pull requests son bienvenidos',
+    'roadmap.editor.title': 'Editor visual para archivos .robot',
+    'roadmap.editor.desc': 'Representar la estructura keyword-driven como formulario \u2014 para quienes prefieren formularios a archivos de texto. Editar visualmente Settings, Variables, Test Cases y Keywords.',
+    'roadmap.archive.title': 'An\u00e1lisis de archivos offline',
+    'roadmap.archive.desc': 'Subir y analizar ZIPs de informes antiguos \u2014 sin repositorio Git ni entorno activo. Evaluar datos hist\u00f3ricos en cualquier momento.',
+    'roadmap.ui.title': 'Mejoras UI y accesibilidad',
+    'roadmap.ui.desc': 'Pulido general: animaciones de carga, estados de error, estados vac\u00edos, etiquetas ARIA y navegaci\u00f3n por teclado.',
+    'cta.title': '\u00bfQu\u00e9 te falta?',
+    'cta.desc': 'RoboScope vive del feedback. \u00bfQu\u00e9 har\u00eda esta herramienta \u00fatil para tu d\u00eda a d\u00eda? \u00bfD\u00f3nde falla? Issues, ideas y pull requests son muy bienvenidos.',
+    'cta.feedback': 'Dar feedback',
+    'footer.privacy': 'Privacidad',
+    'footer.imprint': 'Aviso legal',
+  }
+};
+
+let currentLang = localStorage.getItem('roboscope-lang') || (navigator.language.startsWith('de') ? 'de' : navigator.language.startsWith('fr') ? 'fr' : navigator.language.startsWith('es') ? 'es' : 'en');
+
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('roboscope-lang', lang);
+  document.documentElement.lang = lang;
+  document.getElementById('lang-current').textContent = lang.toUpperCase();
+
+  // Update all data-i18n elements (textContent)
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (T[lang] && T[lang][key]) el.textContent = T[lang][key];
+  });
+
+  // Update all data-i18n-html elements (innerHTML)
+  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+    const key = el.getAttribute('data-i18n-html');
+    if (T[lang] && T[lang][key]) el.innerHTML = T[lang][key];
+  });
+
+  // Update lang dropdown active state
+  document.querySelectorAll('.lang-option').forEach(btn => {
+    btn.classList.toggle('active', btn.textContent.toLowerCase().startsWith(lang === 'en' ? 'eng' : lang === 'de' ? 'deu' : lang === 'fr' ? 'fra' : 'esp'));
+  });
+
+  // Close dropdown
+  document.getElementById('lang-dropdown').classList.remove('open');
+
+  // Update copy buttons to use the right text
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    if (!btn._copying) btn.textContent = T[lang]['copy'];
+  });
+}
+
+function toggleLangDropdown() {
+  document.getElementById('lang-dropdown').classList.toggle('open');
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.lang-switcher')) {
+    document.getElementById('lang-dropdown').classList.remove('open');
+  }
+});
+
 // Install method tab switching
 function switchInstall(name, btn) {
   document.querySelectorAll('.install-panel').forEach(p => p.classList.remove('active'));
@@ -1295,9 +1518,13 @@ function switchOS(btn, group, os) {
 function copyCode(btn) {
   const code = btn.parentElement.querySelector('code');
   const text = code.innerText;
+  btn._copying = true;
   navigator.clipboard.writeText(text).then(() => {
-    btn.textContent = 'Kopiert!';
-    setTimeout(() => { btn.textContent = 'Kopieren'; }, 1500);
+    btn.textContent = T[currentLang]['copied'] || 'Copied!';
+    setTimeout(() => {
+      btn.textContent = T[currentLang]['copy'] || 'Copy';
+      btn._copying = false;
+    }, 1500);
   });
 }
 
@@ -1316,13 +1543,14 @@ window.addEventListener('scroll', () => {
 // Scroll-based fade-in animations
 const observer = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      entry.target.classList.add('visible');
-    }
+    if (entry.isIntersecting) entry.target.classList.add('visible');
   });
 }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
 
 document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+// Apply saved language on load
+setLang(currentLang);
 </script>
 
 <script data-goatcounter="https://roboscope.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
