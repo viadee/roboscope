@@ -15,6 +15,16 @@ const toast = useToast()
 const { t } = useI18n()
 
 const showAddDialog = ref(false)
+const defaultEnvName = () => {
+  const existing = envs.environments.map(e => e.name)
+  let name = 'my-environment'
+  let i = 2
+  while (existing.includes(name)) {
+    name = `my-environment-${i}`
+    i++
+  }
+  return name
+}
 const newEnv = ref({ name: '', python_version: '3.12', docker_image: '', description: '', index_url: '', extra_index_url: '' })
 const adding = ref(false)
 const selectedEnvId = ref<number | null>(null)
@@ -67,9 +77,24 @@ async function addEnvironment() {
       toast.warning(t('environments.toasts.pythonVersionWarning'), (env as any).python_version_warning)
     }
     showAddDialog.value = false
-    newEnv.value = { name: '', python_version: '3.12', docker_image: '', description: '', index_url: '', extra_index_url: '' }
+    newEnv.value = { name: defaultEnvName(), python_version: '3.12', docker_image: '', description: '', index_url: '', extra_index_url: '' }
   } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || t('environments.toasts.createError'))
+    let msg = t('environments.toasts.createError')
+    if (e.response?.data?.detail) {
+      const detail = e.response.data.detail
+      if (typeof detail === 'string') {
+        msg = detail
+      } else if (Array.isArray(detail)) {
+        // Pydantic validation errors
+        msg = detail.map((err: any) => {
+          const field = err.loc?.slice(-1)[0] || ''
+          if (field === 'name' && err.type?.includes('missing')) return t('environments.toasts.nameRequired')
+          if (field === 'name' && err.type?.includes('string_too_short')) return t('environments.toasts.nameRequired')
+          return err.msg || String(err)
+        }).join('; ')
+      }
+    }
+    toast.error(t('common.error'), msg)
   } finally {
     adding.value = false
   }
@@ -264,7 +289,7 @@ function isInstalled(envId: number, packageName: string): boolean {
   <div class="page-content">
     <div class="page-header">
       <h1>{{ t('environments.title') }}</h1>
-      <BaseButton @click="showAddDialog = true">{{ t('environments.newEnv') }}</BaseButton>
+      <BaseButton @click="newEnv.name = defaultEnvName(); showAddDialog = true">{{ t('environments.newEnv') }}</BaseButton>
     </div>
 
     <BaseSpinner v-if="envs.loading" />

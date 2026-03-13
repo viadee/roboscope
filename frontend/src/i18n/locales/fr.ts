@@ -371,6 +371,7 @@ export default {
     toasts: {
       created: 'Environnement créé',
       createError: 'Erreur lors de la création',
+      nameRequired: 'Veuillez saisir un nom pour l\'environnement',
       clonePrompt: 'Nouveau nom pour le clone de « {name} » :',
       cloned: 'Environnement cloné',
       cloneFailed: 'Échec du clonage',
