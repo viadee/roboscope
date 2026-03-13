@@ -176,6 +176,13 @@
     }
 
     .hero .container { position: relative; z-index: 1; }
+    .hero-logo-img {
+      height: 80px;
+      width: auto;
+      margin-bottom: 24px;
+      filter: drop-shadow(0 4px 16px rgba(59, 125, 216, 0.3));
+      animation: heroFadeIn 0.8s ease-out both;
+    }
     .hero h1 {
       font-size: 3rem;
       font-weight: 800;
@@ -623,11 +630,142 @@
       color: rgba(255,255,255,0.4);
     }
 
+    /* ── Why section ── */
+    .why-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: start;
+    }
+    .why-text p {
+      color: var(--color-text-muted);
+      font-size: 1rem;
+      line-height: 1.75;
+      margin-bottom: 16px;
+    }
+    .why-text p strong {
+      color: var(--color-text);
+    }
+    .why-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .why-card {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      background: var(--color-bg-card);
+      border: 1px solid #e2e8f0;
+      border-radius: var(--radius-md);
+      padding: 20px;
+      transition: box-shadow 0.3s, transform 0.3s;
+    }
+    .why-card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
+    }
+    .why-card-icon {
+      font-size: 1.6rem;
+      flex-shrink: 0;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(59, 125, 216, 0.08);
+      border-radius: 10px;
+    }
+    .why-card h4 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .why-card p {
+      font-size: 0.85rem;
+      color: var(--color-text-muted);
+      line-height: 1.55;
+      margin: 0;
+    }
+
+    /* ── Roadmap ── */
+    .roadmap-list {
+      max-width: 680px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .roadmap-item {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 20px 24px;
+      border-radius: var(--radius-md);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      transition: transform 0.3s, border-color 0.3s;
+    }
+    .roadmap-item:hover {
+      transform: translateX(4px);
+      border-color: rgba(255,255,255,0.2);
+    }
+    .roadmap-status {
+      flex-shrink: 0;
+      font-size: 1.2rem;
+      margin-top: 2px;
+    }
+    .roadmap-item h4 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .roadmap-item p {
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.55;
+      margin: 0;
+    }
+
+    /* ── CTA Banner ── */
+    .cta-banner {
+      text-align: center;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+    .cta-banner h2 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .cta-banner p {
+      color: var(--color-text-muted);
+      font-size: 1.05rem;
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+    .cta-actions {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* ── Docker install method ── */
+    .install-methods-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+
     /* ── Responsive ── */
     @media (max-width: 900px) {
       .features-grid { grid-template-columns: repeat(2, 1fr); }
       .highlights { grid-template-columns: repeat(2, 1fr); }
-      .install-methods { grid-template-columns: 1fr; }
+      .install-methods, .install-methods-3 { grid-template-columns: 1fr; }
+      .why-grid { grid-template-columns: 1fr; gap: 32px; }
       .hero h1 { font-size: 2.2rem; }
     }
     @media (max-width: 640px) {
@@ -670,10 +808,10 @@
     </a>
     <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">&#9776;</button>
     <ul class="nav-links">
+      <li><a href="#why">Warum?</a></li>
       <li><a href="#features">Features</a></li>
       <li><a href="#screenshots">Screenshots</a></li>
       <li><a href="#install">Installation</a></li>
-      <li><a href="#tech">Tech Stack</a></li>
       <li><a href="https://github.com/viadee/roboscope" class="btn-nav" target="_blank" rel="noopener">GitHub</a></li>
     </ul>
   </div>
@@ -685,6 +823,7 @@
   <div class="hero-orb hero-orb-2"></div>
   <div class="hero-orb hero-orb-3"></div>
   <div class="container">
+    <img src="assets/roboscope_white.png" alt="RoboScope" class="hero-logo-img" />
     <h1>Robot Framework Test Management&mdash;<br><span>Built for Teams</span></h1>
     <p class="subline">Open-Source Web UI zum Ausführen, Auswerten und Analysieren von Robot Framework Tests. Kostenlos, self-hosted, Apache 2.0.</p>
     <div class="hero-actions">
@@ -698,6 +837,45 @@
       <span class="badge">Self-Hosted</span>
       <span class="badge">Python + Vue 3</span>
       <span class="badge">SQLite / PostgreSQL</span>
+    </div>
+  </div>
+</section>
+
+<!-- Why RoboScope -->
+<section class="section" id="why">
+  <div class="container">
+    <h2 class="section-title fade-up">Warum RoboScope?</h2>
+    <p class="section-subtitle fade-up">Die Lücke zwischen Robot Framework und dem Team schließen</p>
+    <div class="why-grid">
+      <div class="why-text fade-up">
+        <p>Wer schon einmal versucht hat, ein Team ohne tiefe Kommandozeilen-Erfahrung für Robot Framework zu begeistern, kennt das Muster: Die Syntax ist verständlich, die Keyword-Idee leuchtet ein &mdash; aber dann kommt das Setup. Git klonen, virtuelle Umgebung anlegen, Abhängigkeiten installieren, Tests über das Terminal starten, Output-Dateien suchen und öffnen.</p>
+        <p><strong>Spätestens hier steigen die Kolleg:innen aus, die eigentlich die besten Testideen hätten.</strong></p>
+        <p>Robot Framework bringt eigentlich alles mit, um auch von weniger technisch versierten Nutzer:innen eingesetzt zu werden. Die Keyword-Driven-Architektur ist dafür wie geschaffen. Aber das Tooling drum herum setzt eben doch voraus, dass man sich im Terminal wohlfühlt.</p>
+        <p>RoboScope schließt genau diese Lücke: <strong>Eine Web-Oberfläche, über die das gesamte Team &mdash; von Fachtester:innen bis Product Owner &mdash; Tests verwalten, ausführen und auswerten kann, ohne das Terminal zu öffnen.</strong></p>
+      </div>
+      <div class="why-cards fade-up fade-up-delay-2">
+        <div class="why-card">
+          <div class="why-card-icon">&#x1F465;</div>
+          <div>
+            <h4>Für das ganze Team</h4>
+            <p>QA-Engineers, Fachtester:innen und Product Owner können Tests direkt im Browser erstellen und ausführen &mdash; ohne Kommandozeile.</p>
+          </div>
+        </div>
+        <div class="why-card">
+          <div class="why-card-icon">&#x26A1;</div>
+          <div>
+            <h4>Schnelles Feedback</h4>
+            <p>Tests starten, Live-Fortschritt verfolgen, Ergebnisse sofort sehen &mdash; ohne erst eine CI-Pipeline aufzusetzen.</p>
+          </div>
+        </div>
+        <div class="why-card">
+          <div class="why-card-icon">&#x1F3E0;</div>
+          <div>
+            <h4>Self-Hosted &amp; Offline</h4>
+            <p>Alles läuft auf deinem Rechner oder Server. Kein Cloud-Account, kein Vendor Lock-in, keine Daten an Dritte.</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -805,19 +983,19 @@
     <h2 class="section-title fade-up">In Minuten startklar</h2>
     <p class="section-subtitle fade-up">Kein Cloud-Account nötig. Alles läuft lokal auf deinem Rechner.</p>
 
-    <div class="install-methods">
+    <div class="install-methods-3">
       <!-- Method 1: ZIP Download (recommended for users) -->
       <div class="install-method fade-up">
         <span class="install-method-badge badge-recommended">Empfohlen</span>
         <h3>ZIP Download (Offline)</h3>
-        <p>Lade das ZIP-Archiv herunter, entpacke es und starte mit einem Befehl. Kein Git, kein Node.js, kein Internet nötig.</p>
+        <p>Kein Git, kein Node.js, kein Internet nötig. Nur Python 3.10+ muss installiert sein.</p>
 
         <div class="steps-mini">
           <div class="step-mini">
             <div class="step-mini-num">1</div>
             <div class="step-mini-content">
               <h4>Download &amp; Entpacken</h4>
-              <p>ZIP von <a href="https://github.com/viadee/roboscope/releases" target="_blank" rel="noopener">GitHub Releases</a> herunterladen und entpacken.</p>
+              <p>ZIP von <a href="https://github.com/viadee/roboscope/releases" target="_blank" rel="noopener">GitHub Releases</a> herunterladen.</p>
             </div>
           </div>
           <div class="step-mini">
@@ -855,16 +1033,14 @@
                 <div class="code-block">
                   <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
                   <code>./start-mac-and-linux.sh
-<span class="comment"># Öffne http://localhost:8145</span>
-<span class="comment"># Login: admin@roboscope.local / admin123</span></code>
+<span class="comment"># http://localhost:8145</span></code>
                 </div>
               </div>
               <div class="os-panel" id="zip-start-win">
                 <div class="code-block">
                   <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
                   <code>start-windows.bat
-<span class="comment">REM Öffne http://localhost:8145</span>
-<span class="comment">REM Login: admin@roboscope.local / admin123</span></code>
+<span class="comment">REM http://localhost:8145</span></code>
                 </div>
               </div>
             </div>
@@ -872,11 +1048,54 @@
         </div>
       </div>
 
-      <!-- Method 2: Developer setup -->
+      <!-- Method 2: Docker -->
+      <div class="install-method fade-up fade-up-delay-1">
+        <span class="install-method-badge" style="background: rgba(34,197,94,0.1); color: #16a34a;">Docker</span>
+        <h3>Docker Compose</h3>
+        <p>PostgreSQL + Nginx, production-ready. Benötigt nur Docker und Docker Compose.</p>
+
+        <div class="steps-mini">
+          <div class="step-mini">
+            <div class="step-mini-num">1</div>
+            <div class="step-mini-content">
+              <h4>Repository klonen</h4>
+              <div class="code-block">
+                <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
+                <code>git clone https://github.com/viadee/roboscope.git
+cd roboscope</code>
+              </div>
+            </div>
+          </div>
+          <div class="step-mini">
+            <div class="step-mini-num">2</div>
+            <div class="step-mini-content">
+              <h4>Production starten</h4>
+              <div class="code-block">
+                <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
+                <code>docker compose up -d
+<span class="comment"># http://localhost:8000</span></code>
+              </div>
+            </div>
+          </div>
+          <div class="step-mini">
+            <div class="step-mini-num">3</div>
+            <div class="step-mini-content">
+              <h4>Oder Dev-Modus (SQLite)</h4>
+              <div class="code-block">
+                <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
+                <code>docker compose -f docker-compose.dev.yml up
+<span class="comment"># http://localhost:5173</span></code>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Method 3: Developer setup -->
       <div class="install-method fade-up fade-up-delay-2">
         <span class="install-method-badge badge-developers">Entwickler</span>
         <h3>Git Clone (Dev-Setup)</h3>
-        <p>Für Entwickler, die den Quellcode bearbeiten und zum Projekt beitragen möchten. Benötigt Python 3.12+, Node.js 20+ und uv.</p>
+        <p>Quellcode bearbeiten und beitragen. Benötigt Python 3.12+, Node.js 20+ und uv.</p>
 
         <div class="steps-mini">
           <div class="step-mini">
@@ -885,7 +1104,7 @@
               <h4>Voraussetzungen</h4>
               <div class="code-block">
                 <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
-                <code><span class="comment"># uv installieren (Package Manager)</span>
+                <code><span class="comment"># uv installieren</span>
 curl -LsSf https://astral.sh/uv/install.sh | sh</code>
               </div>
             </div>
@@ -911,14 +1130,15 @@ make install</code>
                 <button class="copy-btn" onclick="copyCode(this)">Kopieren</button>
                 <code>make dev
 <span class="comment"># Backend:  http://localhost:8000</span>
-<span class="comment"># Frontend: http://localhost:5173</span>
-<span class="comment"># Login:    admin@roboscope.local / admin123</span></code>
+<span class="comment"># Frontend: http://localhost:5173</span></code>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <p class="fade-up" style="text-align:center; color: var(--color-text-muted); font-size: 0.9rem;">Default-Login bei allen Varianten: <strong>admin@roboscope.local</strong> / <strong>admin123</strong></p>
   </div>
 </section>
 
@@ -956,6 +1176,52 @@ make install</code>
   </div>
 </section>
 
+<!-- Roadmap -->
+<section class="section section-dark" id="roadmap">
+  <div class="container">
+    <h2 class="section-title fade-up">Was kommt als Nächstes?</h2>
+    <p class="section-subtitle fade-up">Aktuelle Roadmap &mdash; Ideen und Pull Requests sind willkommen</p>
+    <div class="roadmap-list">
+      <div class="roadmap-item fade-up">
+        <div class="roadmap-status">&#x1F6A7;</div>
+        <div>
+          <h4>Visueller Editor für .robot-Dateien</h4>
+          <p>Die Keyword-Driven-Struktur als Formular abbilden &mdash; für alle, die lieber in Formularen als in Textdateien arbeiten. Settings, Variables, Test Cases und Keywords visuell bearbeiten.</p>
+        </div>
+      </div>
+      <div class="roadmap-item fade-up fade-up-delay-1">
+        <div class="roadmap-status">&#x1F4E6;</div>
+        <div>
+          <h4>Offline-Archiv-Analyse</h4>
+          <p>Alte Report-ZIPs hochladen und analysieren &mdash; ohne Git-Repository oder laufende Umgebung. Historische Daten jederzeit auswerten.</p>
+        </div>
+      </div>
+      <div class="roadmap-item fade-up fade-up-delay-2">
+        <div class="roadmap-status">&#x2728;</div>
+        <div>
+          <h4>UI-Verfeinerungen &amp; Accessibility</h4>
+          <p>Allgemeine Polish-Runde: Ladeanimationen, Error-States, leere Zustände, ARIA-Labels und Keyboard-Navigation.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="section" id="cta">
+  <div class="container">
+    <div class="cta-banner fade-up">
+      <h2>Was fehlt euch?</h2>
+      <p>RoboScope lebt von Feedback. Was würde das Tool für euren Alltag nützlich machen? Wo hakt es? Issues, Ideen und Pull Requests sind ausdrücklich willkommen.</p>
+      <div class="cta-actions">
+        <a href="https://github.com/viadee/roboscope/releases" class="btn btn-primary" target="_blank" rel="noopener">Download &darr;</a>
+        <a href="https://github.com/viadee/roboscope/issues" class="btn btn-accent" target="_blank" rel="noopener">Feedback geben</a>
+        <a href="https://github.com/viadee/roboscope" class="btn btn-ghost" style="color: var(--color-text); border-color: #d1d5db;" target="_blank" rel="noopener">GitHub &rarr;</a>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- Footer -->
 <footer class="footer">
   <div class="container">
@@ -970,7 +1236,7 @@ make install</code>
       <li><a href="datenschutz.html">Datenschutz</a></li>
       <li><a href="impressum.html">Impressum</a></li>
     </ul>
-    <p class="footer-copy">&copy; 2025 viadee Unternehmensberatung AG &middot; Apache 2.0</p>
+    <p class="footer-copy">&copy; 2026 viadee Unternehmensberatung AG &middot; Apache 2.0</p>
   </div>
 </footer>
 
