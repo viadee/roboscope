@@ -192,17 +192,33 @@ def list_variables(db: Session, env_id: int) -> list[EnvironmentVariable]:
 
 
 def add_variable(db: Session, env_id: int, data: EnvVarCreate) -> EnvironmentVariable:
-    """Add a variable to an environment."""
+    """Add a variable to an environment. Secret values are encrypted at rest."""
+    value = data.value
+    if data.is_secret and value:
+        from src.encryption import encrypt_value
+        value = encrypt_value(value)
+
     var = EnvironmentVariable(
         environment_id=env_id,
         key=data.key,
-        value=data.value,
+        value=value,
         is_secret=data.is_secret,
     )
     db.add(var)
     db.flush()
     db.refresh(var)
     return var
+
+
+def decrypt_variable_value(var: EnvironmentVariable) -> str:
+    """Decrypt a secret variable's value. Returns plaintext for non-secrets."""
+    if not var.is_secret or not var.value:
+        return var.value or ""
+    from src.encryption import decrypt_value, is_encrypted
+    if is_encrypted(var.value):
+        return decrypt_value(var.value)
+    # Legacy plaintext secret — return as-is
+    return var.value
 
 
 def _unset_defaults(db: Session) -> None:
