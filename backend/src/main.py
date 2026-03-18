@@ -185,6 +185,10 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Audit middleware — logs all write operations (POST/PUT/PATCH/DELETE) to audit_logs
+    from src.audit.middleware import AuditMiddleware
+    app.add_middleware(AuditMiddleware)
+
     # Request ID middleware — attaches a unique ID to each request for log correlation
     @app.middleware("http")
     async def add_request_id(request: Request, call_next):
