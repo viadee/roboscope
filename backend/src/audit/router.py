@@ -88,3 +88,13 @@ def get_filter_options(
         "actions": get_distinct_actions(db),
         "resource_types": get_distinct_resource_types(db),
     }
+
+
+@router.post("/retention/run")
+def trigger_retention(
+    dry_run: bool = Query(default=True),
+    _current_user: User = Depends(require_role(Role.ADMIN)),
+):
+    """Manually trigger retention enforcement (admin only). Defaults to dry-run."""
+    from src.audit.retention import enforce_retention
+    return enforce_retention(dry_run=dry_run)
