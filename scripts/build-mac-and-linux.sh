@@ -79,10 +79,10 @@ curl -fsSL "$UV_BASE/uv-x86_64-pc-windows-msvc.zip" -o "$DIST/uv-bin/uv-windows.
 echo "    uv binaries: $(ls "$DIST/uv-bin/" 2>/dev/null | wc -l | tr -d ' ') files"
 
 # ── 4. Download Python wheels for offline install ─────────────
-echo "==> Downloading Python wheels..."
+echo "==> Preparing requirements and downloading Python wheels..."
 mkdir -p "$DIST/wheels"
 
-# Helper: extract dependencies from pyproject.toml (works with Python 3.10+)
+# Helper: extract direct dependencies from pyproject.toml (fallback)
 _read_deps() {
   cd "$ROOT/backend"
   python3 -c "
@@ -115,20 +115,53 @@ for dep in data['project']['dependencies']:
 }
 
 DEPS_FILE=$(mktemp)
-_read_deps > "$DEPS_FILE"
-
-# Windows: uvicorn[standard] includes uvloop which is Unix-only; strip extras
 WIN_DEPS_FILE=$(mktemp)
-sed 's/uvicorn\[standard\]/uvicorn/' "$DEPS_FILE" > "$WIN_DEPS_FILE"
+
+# Use uv pip compile to generate a fully-pinned requirements file with ALL
+# transitive dependencies resolved (including greenlet, etc.).
+# This ensures packages like greenlet (conditional dep of SQLAlchemy on
+# Windows/x86_64) are always explicitly listed and downloaded.
+if command -v uv >/dev/null 2>&1; then
+  echo "    Using uv pip compile to resolve all transitive dependencies..."
+  _COMPILE_ERR=$(mktemp)
+  if uv pip compile "$ROOT/backend/pyproject.toml" \
+      --no-header --quiet \
+      --output-file "$DEPS_FILE" 2>"$_COMPILE_ERR"; then
+    echo "    Resolved $(wc -l < "$DEPS_FILE" | tr -d ' ') packages (Linux/Mac)"
+  else
+    echo "    WARN: uv pip compile failed, falling back to direct deps from pyproject.toml"
+    cat "$_COMPILE_ERR" >&2 || true
+    _read_deps > "$DEPS_FILE"
+  fi
+
+  # Windows: resolve without uvloop (Unix-only) by targeting Windows platform
+  if uv pip compile "$ROOT/backend/pyproject.toml" \
+      --no-header --quiet \
+      --python-platform x86_64-pc-windows-msvc \
+      --output-file "$WIN_DEPS_FILE" 2>"$_COMPILE_ERR"; then
+    echo "    Resolved $(wc -l < "$WIN_DEPS_FILE" | tr -d ' ') packages (Windows)"
+  else
+    echo "    WARN: uv pip compile for Windows failed, falling back"
+    cat "$_COMPILE_ERR" >&2 || true
+    sed 's/uvicorn\[standard\]/uvicorn/' "$DEPS_FILE" > "$WIN_DEPS_FILE"
+  fi
+  rm -f "$_COMPILE_ERR"
+else
+  echo "    uv not found — falling back to direct deps from pyproject.toml"
+  echo "    TIP: Install uv for full transitive dependency resolution."
+  _read_deps > "$DEPS_FILE"
+  # Windows: uvicorn[standard] includes uvloop which is Unix-only; strip extras
+  sed 's/uvicorn\[standard\]/uvicorn/' "$DEPS_FILE" > "$WIN_DEPS_FILE"
+fi
 
 # Download platform-specific binary wheels for all targets and Python versions
-for plat in manylinux2014_x86_64 macosx_11_0_arm64 macosx_11_0_x86_64 win_amd64; do
-  # Use Windows-specific deps (no uvloop) for win_amd64
-  if [ "$plat" = "win_amd64" ]; then
-    REQ_FILE="$WIN_DEPS_FILE"
-  else
-    REQ_FILE="$DEPS_FILE"
-  fi
+# Includes win_arm64 for Windows on ARM64 (e.g., Snapdragon X Elite laptops)
+for plat in manylinux2014_x86_64 macosx_11_0_arm64 macosx_11_0_x86_64 win_amd64 win_arm64; do
+  # Use Windows-specific deps (no uvloop) for Windows platforms
+  case "$plat" in
+    win_*)  REQ_FILE="$WIN_DEPS_FILE" ;;
+    *)      REQ_FILE="$DEPS_FILE" ;;
+  esac
   for pyver in 3.10 3.11 3.12 3.13 3.14; do
     abi="cp${pyver//./}"
     echo "    Downloading wheels for $plat (Python $pyver)..."
@@ -144,14 +177,14 @@ for plat in manylinux2014_x86_64 macosx_11_0_arm64 macosx_11_0_x86_64 win_amd64;
   done
 done
 
-# Download for host platform (catches deps the cross-platform pass missed)
+# Download for host platform (catches any deps the cross-platform pass missed)
 echo "    Downloading wheels for host platform..."
 python3 -m pip download \
   -r "$DEPS_FILE" \
   -d "$DIST/wheels" \
   2>/dev/null || true
 
-# Ensure conditional transitive deps are included
+# Ensure conditional transitive deps are always included
 # (e.g., tomli is needed by alembic on Python <3.11 but not on 3.12+)
 echo "    Downloading conditional dependencies..."
 for pkg in "tomli>=2.0.0" "exceptiongroup>=1.0.0" "typing_extensions>=4.0.0"; do
