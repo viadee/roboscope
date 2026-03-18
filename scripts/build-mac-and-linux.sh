@@ -199,9 +199,10 @@ if [ "$IS_WINDOWS" = false ]; then
 fi
 
 # Ensure conditional transitive deps are included
-# (e.g., tomli is needed by alembic on Python <3.11 but not on 3.12+)
+# (e.g., tomli is needed by alembic on Python <3.11 but not on 3.12+,
+#  greenlet is required by SQLAlchemy on x86_64/aarch64/AMD64/WIN32)
 echo "    Downloading conditional dependencies..."
-for pkg in "tomli>=2.0.0" "exceptiongroup>=1.0.0" "typing_extensions>=4.0.0"; do
+for pkg in "tomli>=2.0.0" "exceptiongroup>=1.0.0" "typing_extensions>=4.0.0" "greenlet>=3.1.0"; do
   python3 -m pip download "$pkg" -d "$DIST/wheels" --no-deps 2>/dev/null || true
 done
 
