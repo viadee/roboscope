@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as settingsApi from '@/api/settings.api'
 import * as authApi from '@/api/auth.api'
+import * as auditApi from '@/api/audit.api'
+import type { AuditLogEntry, AuditFilters } from '@/api/audit.api'
 import { useToast } from '@/composables/useToast'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
@@ -30,7 +32,7 @@ const settings = ref<AppSetting[]>([])
 const users = ref<User[]>([])
 const loading = ref(true)
 const saving = ref(false)
-const activeTab = ref<'general' | 'users' | 'docker' | 'ai' | 'tokens' | 'webhooks'>('general')
+const activeTab = ref<'general' | 'users' | 'docker' | 'tokens' | 'webhooks' | 'audit' | 'ai'>('general')
 const editedValues = ref<Record<string, string>>({})
 
 // --- API Tokens state ---
@@ -194,6 +196,75 @@ function toggleEvent(event: string) {
     newWebhook.value.events.splice(idx, 1)
   } else {
     newWebhook.value.events.push(event)
+  }
+}
+
+// --- Audit Log state ---
+const auditLogs = ref<AuditLogEntry[]>([])
+const auditTotal = ref(0)
+const auditPage = ref(1)
+const auditPageSize = ref(50)
+const auditLoading = ref(false)
+const auditFilters = ref<AuditFilters>({ actions: [], resource_types: [] })
+const auditFilterAction = ref<string>('')
+const auditFilterResourceType = ref<string>('')
+
+async function loadAuditLogs() {
+  auditLoading.value = true
+  try {
+    const [logsResp, filtersResp] = await Promise.all([
+      auditApi.getAuditLogs({
+        page: auditPage.value,
+        page_size: auditPageSize.value,
+        action: auditFilterAction.value || undefined,
+        resource_type: auditFilterResourceType.value || undefined,
+      }),
+      auditApi.getAuditFilters(),
+    ])
+    auditLogs.value = logsResp.items
+    auditTotal.value = logsResp.total
+    auditFilters.value = filtersResp
+  } finally {
+    auditLoading.value = false
+  }
+}
+
+async function auditPageChange(newPage: number) {
+  auditPage.value = newPage
+  await loadAuditLogs()
+}
+
+async function applyAuditFilter() {
+  auditPage.value = 1
+  await loadAuditLogs()
+}
+
+async function exportAuditCsv() {
+  try {
+    const blob = await auditApi.exportAuditCsv({
+      action: auditFilterAction.value || undefined,
+      resource_type: auditFilterResourceType.value || undefined,
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'audit-log.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    toast.error(t('common.error'))
+  }
+}
+
+async function triggerRetention(dryRun: boolean) {
+  try {
+    const result = await auditApi.triggerRetention(dryRun)
+    const msg = dryRun
+      ? t('settings.audit.retentionDryRun', { reports: result.deleted_reports, runs: result.deleted_runs })
+      : t('settings.audit.retentionComplete', { reports: result.deleted_reports, runs: result.deleted_runs })
+    toast.success(msg)
+  } catch {
+    toast.error(t('common.error'))
   }
 }
 
@@ -432,6 +503,9 @@ function formatSize(bytes: number): string {
       </button>
       <button class="tab" :class="{ active: activeTab === 'webhooks' }" @click="activeTab = 'webhooks'; loadWebhooks()">
         {{ t('settings.webhooks.title') }}
+      </button>
+      <button class="tab" :class="{ active: activeTab === 'audit' }" @click="activeTab = 'audit'; loadAuditLogs()">
+        {{ t('settings.audit.title') }}
       </button>
       <button class="tab" :class="{ active: activeTab === 'ai' }" @click="activeTab = 'ai'; loadRfMcpTab()">
         {{ t('ai.settingsTab') }}
@@ -722,6 +796,77 @@ function formatSize(bytes: number): string {
             </tbody>
           </table>
           <p v-else class="text-muted" style="padding: 20px">{{ t('settings.webhooks.noWebhooks') }}</p>
+        </template>
+      </div>
+    </template>
+
+    <!-- Audit Log Tab -->
+    <template v-else-if="activeTab === 'audit'">
+      <!-- Retention Enforcement -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3>{{ t('settings.audit.retention') }}</h3>
+          <div class="action-buttons">
+            <BaseButton variant="secondary" size="sm" @click="triggerRetention(true)">{{ t('settings.audit.retentionDryRunBtn') }}</BaseButton>
+            <BaseButton variant="danger" size="sm" @click="triggerRetention(false)">{{ t('settings.audit.retentionRunBtn') }}</BaseButton>
+          </div>
+        </div>
+        <p class="text-muted text-sm" style="padding: 12px 20px">{{ t('settings.audit.retentionDescription') }}</p>
+      </div>
+
+      <!-- Audit Log -->
+      <div class="card">
+        <div class="card-header">
+          <h3>{{ t('settings.audit.title') }}</h3>
+          <BaseButton variant="secondary" size="sm" @click="exportAuditCsv">{{ t('settings.audit.exportCsv') }}</BaseButton>
+        </div>
+
+        <!-- Filters -->
+        <div style="padding: 12px 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--color-border)">
+          <select v-model="auditFilterAction" class="form-select" style="max-width: 180px" @change="applyAuditFilter">
+            <option value="">{{ t('settings.audit.allActions') }}</option>
+            <option v-for="a in auditFilters.actions" :key="a" :value="a">{{ a }}</option>
+          </select>
+          <select v-model="auditFilterResourceType" class="form-select" style="max-width: 180px" @change="applyAuditFilter">
+            <option value="">{{ t('settings.audit.allResources') }}</option>
+            <option v-for="r in auditFilters.resource_types" :key="r" :value="r">{{ r }}</option>
+          </select>
+          <span class="text-muted text-sm">{{ auditTotal }} {{ t('settings.audit.entries') }}</span>
+        </div>
+
+        <BaseSpinner v-if="auditLoading" />
+        <template v-else>
+          <table v-if="auditLogs.length" class="data-table">
+            <thead>
+              <tr>
+                <th>{{ t('settings.audit.timestamp') }}</th>
+                <th>{{ t('settings.audit.user') }}</th>
+                <th>{{ t('settings.audit.action') }}</th>
+                <th>{{ t('settings.audit.resource') }}</th>
+                <th>{{ t('settings.audit.ip') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="log in auditLogs" :key="log.id">
+                <td class="text-sm text-muted">{{ formatDateTime(log.timestamp) }}</td>
+                <td>{{ log.username || '—' }}</td>
+                <td><BaseBadge variant="info">{{ log.action }}</BaseBadge></td>
+                <td class="text-sm">
+                  <span>{{ log.resource_type }}</span>
+                  <span v-if="log.resource_id" class="text-muted"> #{{ log.resource_id }}</span>
+                </td>
+                <td class="text-sm text-muted">{{ log.ip_address || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="text-muted" style="padding: 20px">{{ t('settings.audit.noEntries') }}</p>
+
+          <!-- Pagination -->
+          <div v-if="auditTotal > auditPageSize" class="pagination" style="padding: 12px 20px; display: flex; gap: 8px; justify-content: center">
+            <BaseButton variant="ghost" size="sm" :disabled="auditPage <= 1" @click="auditPageChange(auditPage - 1)">&lt;</BaseButton>
+            <span class="text-sm" style="line-height: 32px">{{ auditPage }} / {{ Math.ceil(auditTotal / auditPageSize) }}</span>
+            <BaseButton variant="ghost" size="sm" :disabled="auditPage >= Math.ceil(auditTotal / auditPageSize)" @click="auditPageChange(auditPage + 1)">&gt;</BaseButton>
+          </div>
         </template>
       </div>
     </template>
