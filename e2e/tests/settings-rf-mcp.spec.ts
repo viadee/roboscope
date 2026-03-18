@@ -15,9 +15,9 @@ async function getAuthToken(page: Page): Promise<string> {
 
 /** Click the AI tab on the settings page (DE: "KI & Generierung", EN: "AI & Generation") */
 async function clickAiTab(page: Page) {
-  // The tab is the 4th .tab button
+  // The tab is the 6th .tab button (General, Users, Docker, API Tokens, Webhooks, AI)
   const tabs = page.locator('.tab');
-  await tabs.nth(3).click();
+  await tabs.nth(5).click();
   await page.waitForTimeout(500);
 }
 
