@@ -97,8 +97,23 @@ db-downgrade: ## Rollback last migration
 build-dist: ## Build distribution ZIP (online, requires internet at install time)
 	./scripts/build-online-mac-and-linux.sh
 
-build-dist-offline: ## Build offline distribution ZIP (includes all wheels)
-	./scripts/build-mac-and-linux.sh
+build-dist-offline: ## Build offline distribution ZIPs for all platforms
+	./scripts/build-mac-and-linux.sh linux
+	./scripts/build-mac-and-linux.sh macos-arm64
+	./scripts/build-mac-and-linux.sh macos-x86_64
+	./scripts/build-mac-and-linux.sh windows
+
+build-dist-offline-linux: ## Build offline distribution ZIP for Linux x86_64
+	./scripts/build-mac-and-linux.sh linux
+
+build-dist-offline-macos-arm64: ## Build offline distribution ZIP for macOS ARM64
+	./scripts/build-mac-and-linux.sh macos-arm64
+
+build-dist-offline-macos-x86_64: ## Build offline distribution ZIP for macOS x86_64
+	./scripts/build-mac-and-linux.sh macos-x86_64
+
+build-dist-offline-windows: ## Build offline distribution ZIP for Windows x86_64
+	./scripts/build-mac-and-linux.sh windows
 
 # --- Cleanup ---
 

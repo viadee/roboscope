@@ -1,19 +1,77 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────
-# RoboScope — Build script for standalone distribution
+# RoboScope — Build script for standalone offline distribution
 #
-# Creates a self-contained directory 'dist/roboscope-offline/' that can be
-# zipped and deployed on any machine with Python 3.12+.
+# Creates a self-contained directory 'dist/roboscope-offline-<platform>/'
+# that can be zipped and deployed on the target machine without internet.
 #
-# Usage:  ./scripts/build-mac-and-linux.sh
+# Usage:  ./scripts/build-mac-and-linux.sh <platform>
+#
+# Platforms:
+#   linux        — Linux x86_64
+#   macos-arm64  — macOS Apple Silicon (ARM64)
+#   macos-x86_64 — macOS Intel (x86_64)
+#   windows      — Windows x86_64
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DIST="$ROOT/dist/roboscope-offline"
+PLATFORM="${1:-}"
 
-echo "==> RoboScope Build (offline)"
+if [ -z "$PLATFORM" ]; then
+  echo "Usage: $0 <platform>"
+  echo ""
+  echo "Platforms:"
+  echo "  linux        — Linux x86_64"
+  echo "  macos-arm64  — macOS Apple Silicon (ARM64)"
+  echo "  macos-x86_64 — macOS Intel (x86_64)"
+  echo "  windows      — Windows x86_64"
+  exit 1
+fi
+
+UV_BASE="https://github.com/astral-sh/uv/releases/latest/download"
+IS_WINDOWS=false
+
+case "$PLATFORM" in
+  linux)
+    UV_ARCHIVE="uv-x86_64-unknown-linux-gnu.tar.gz"
+    UV_ARCHIVE_TYPE="tar"
+    UV_BIN_NAME="uv-linux-x86_64"
+    WHEEL_PLATFORM="manylinux2014_x86_64"
+    ;;
+  macos-arm64)
+    UV_ARCHIVE="uv-aarch64-apple-darwin.tar.gz"
+    UV_ARCHIVE_TYPE="tar"
+    UV_BIN_NAME="uv-macos-arm64"
+    WHEEL_PLATFORM="macosx_11_0_arm64"
+    ;;
+  macos-x86_64)
+    UV_ARCHIVE="uv-x86_64-apple-darwin.tar.gz"
+    UV_ARCHIVE_TYPE="tar"
+    UV_BIN_NAME="uv-macos-x86_64"
+    WHEEL_PLATFORM="macosx_11_0_x86_64"
+    ;;
+  windows)
+    UV_ARCHIVE="uv-x86_64-pc-windows-msvc.zip"
+    UV_ARCHIVE_TYPE="zip"
+    UV_BIN_NAME="uv-windows.exe"
+    WHEEL_PLATFORM="win_amd64"
+    IS_WINDOWS=true
+    ;;
+  *)
+    echo "Unknown platform: $PLATFORM"
+    echo "Supported: linux, macos-arm64, macos-x86_64, windows"
+    exit 1
+    ;;
+esac
+
+ZIP_NAME="roboscope_offline_${PLATFORM}.zip"
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+DIST="$ROOT/dist/roboscope-offline-$PLATFORM"
+
+echo "==> RoboScope Build (offline, $PLATFORM)"
 echo "    Root: $ROOT"
+echo "    Dist: $DIST"
 echo ""
 
 # ── 1. Clean previous build ──────────────────────────────────
@@ -51,35 +109,24 @@ fi
 cp "$ROOT/scripts/dist-README.md" "$DIST/README.md"
 echo "    README: $DIST/README.md"
 
-# ── 3b. Download uv binaries for all platforms ──────────────
-echo "==> Downloading uv binaries..."
+# ── 3b. Download uv binary for this platform ─────────────────
+echo "==> Downloading uv binary for $PLATFORM..."
 mkdir -p "$DIST/uv-bin"
-UV_VERSION="latest"
-UV_BASE="https://github.com/astral-sh/uv/releases/${UV_VERSION}/download"
 
-# Linux x86_64
-curl -fsSL "$UV_BASE/uv-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C "$DIST/uv-bin" --strip-components=1 2>/dev/null \
-  && echo "    uv-linux-x86_64" || echo "    WARN: failed to download uv for linux-x86_64"
-
-# macOS ARM (Apple Silicon)
-curl -fsSL "$UV_BASE/uv-aarch64-apple-darwin.tar.gz" | tar -xz -C "$DIST/uv-bin" --strip-components=1 2>/dev/null \
-  && mv "$DIST/uv-bin/uv" "$DIST/uv-bin/uv-macos-arm64" 2>/dev/null || true
-# Rename linux one if it exists
-[ -f "$DIST/uv-bin/uv" ] && mv "$DIST/uv-bin/uv" "$DIST/uv-bin/uv-linux-x86_64" || true
-
-# macOS x86_64
-curl -fsSL "$UV_BASE/uv-x86_64-apple-darwin.tar.gz" | tar -xz -C "$DIST/uv-bin" --strip-components=1 2>/dev/null \
-  && mv "$DIST/uv-bin/uv" "$DIST/uv-bin/uv-macos-x86_64" 2>/dev/null || true
-
-# Windows x86_64
-curl -fsSL "$UV_BASE/uv-x86_64-pc-windows-msvc.zip" -o "$DIST/uv-bin/uv-windows.zip" 2>/dev/null \
-  && (cd "$DIST/uv-bin" && unzip -qo uv-windows.zip uv.exe && mv uv.exe uv-windows.exe && rm -f uv-windows.zip) \
-  || echo "    WARN: failed to download uv for windows"
-
-echo "    uv binaries: $(ls "$DIST/uv-bin/" 2>/dev/null | wc -l | tr -d ' ') files"
+if [ "$UV_ARCHIVE_TYPE" = "tar" ]; then
+  curl -fsSL "$UV_BASE/$UV_ARCHIVE" | tar -xz -C "$DIST/uv-bin" --strip-components=1 2>/dev/null \
+    && mv "$DIST/uv-bin/uv" "$DIST/uv-bin/$UV_BIN_NAME" \
+    && echo "    uv binary: $UV_BIN_NAME" \
+    || echo "    WARN: failed to download uv binary for $PLATFORM"
+else
+  curl -fsSL "$UV_BASE/$UV_ARCHIVE" -o "$DIST/uv-bin/$UV_ARCHIVE" 2>/dev/null \
+    && (cd "$DIST/uv-bin" && unzip -qo "$UV_ARCHIVE" uv.exe && mv uv.exe "$UV_BIN_NAME" && rm -f "$UV_ARCHIVE") \
+    && echo "    uv binary: $UV_BIN_NAME" \
+    || echo "    WARN: failed to download uv binary for $PLATFORM"
+fi
 
 # ── 4. Download Python wheels for offline install ─────────────
-echo "==> Downloading Python wheels..."
+echo "==> Downloading Python wheels for $PLATFORM ($WHEEL_PLATFORM)..."
 mkdir -p "$DIST/wheels"
 
 # Helper: extract dependencies from pyproject.toml (works with Python 3.10+)
@@ -121,35 +168,35 @@ _read_deps > "$DEPS_FILE"
 WIN_DEPS_FILE=$(mktemp)
 sed 's/uvicorn\[standard\]/uvicorn/' "$DEPS_FILE" > "$WIN_DEPS_FILE"
 
-# Download platform-specific binary wheels for all targets and Python versions
-for plat in manylinux2014_x86_64 macosx_11_0_arm64 macosx_11_0_x86_64 win_amd64; do
-  # Use Windows-specific deps (no uvloop) for win_amd64
-  if [ "$plat" = "win_amd64" ]; then
-    REQ_FILE="$WIN_DEPS_FILE"
-  else
-    REQ_FILE="$DEPS_FILE"
-  fi
-  for pyver in 3.10 3.11 3.12 3.13 3.14; do
-    abi="cp${pyver//./}"
-    echo "    Downloading wheels for $plat (Python $pyver)..."
-    python3 -m pip download \
-      -r "$REQ_FILE" \
-      -d "$DIST/wheels" \
-      --platform "$plat" \
-      --python-version "$pyver" \
-      --implementation cp \
-      --abi "$abi" \
-      --only-binary :all: \
-      2>&1 | grep -i "error\|saved" || true
-  done
+if [ "$IS_WINDOWS" = true ]; then
+  REQ_FILE="$WIN_DEPS_FILE"
+else
+  REQ_FILE="$DEPS_FILE"
+fi
+
+# Download platform-specific binary wheels
+for pyver in 3.10 3.11 3.12 3.13 3.14; do
+  abi="cp${pyver//./}"
+  echo "    Downloading wheels for $WHEEL_PLATFORM (Python $pyver)..."
+  python3 -m pip download \
+    -r "$REQ_FILE" \
+    -d "$DIST/wheels" \
+    --platform "$WHEEL_PLATFORM" \
+    --python-version "$pyver" \
+    --implementation cp \
+    --abi "$abi" \
+    --only-binary :all: \
+    2>&1 | grep -i "error\|saved" || true
 done
 
-# Download for host platform (catches deps the cross-platform pass missed)
-echo "    Downloading wheels for host platform..."
-python3 -m pip download \
-  -r "$DEPS_FILE" \
-  -d "$DIST/wheels" \
-  2>/dev/null || true
+# For Unix platforms, also download for host platform (catches deps missed by cross-platform pass)
+if [ "$IS_WINDOWS" = false ]; then
+  echo "    Downloading wheels for host platform..."
+  python3 -m pip download \
+    -r "$REQ_FILE" \
+    -d "$DIST/wheels" \
+    2>/dev/null || true
+fi
 
 # Ensure conditional transitive deps are included
 # (e.g., tomli is needed by alembic on Python <3.11 but not on 3.12+)
@@ -159,8 +206,7 @@ for pkg in "tomli>=2.0.0" "exceptiongroup>=1.0.0" "typing_extensions>=4.0.0"; do
 done
 
 # Save requirements for install scripts
-cp "$DEPS_FILE" "$DIST/requirements.txt"
-cp "$WIN_DEPS_FILE" "$DIST/requirements-windows.txt"
+cp "$REQ_FILE" "$DIST/requirements.txt"
 rm -f "$DEPS_FILE" "$WIN_DEPS_FILE"
 echo "    Wheels: $(ls "$DIST/wheels" | wc -l | tr -d ' ') packages"
 
@@ -189,39 +235,32 @@ LOG_LEVEL=INFO
 # VENVS_DIR=~/.roboscope/venvs
 ENVEOF
 
-# ── 6. Create install script ─────────────────────────────────
-cat > "$DIST/install-mac-and-linux.sh" << 'INSTALLEOF'
+# ── 6. Create platform-specific install/start/stop scripts ───
+if [ "$IS_WINDOWS" = false ]; then
+  # Unix (Linux / macOS) scripts
+  UV_BIN_UNIX="uv-bin/$UV_BIN_NAME"
+
+  cat > "$DIST/install-mac-and-linux.sh" << INSTALLEOF
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "\$(dirname "\$0")"
 
 echo "==> Installing RoboScope..."
 
-# Detect platform and select correct uv binary
-UV_BIN=""
-case "$(uname -s)-$(uname -m)" in
-  Linux-x86_64)  UV_BIN="uv-bin/uv-linux-x86_64" ;;
-  Darwin-arm64)  UV_BIN="uv-bin/uv-macos-arm64" ;;
-  Darwin-x86_64) UV_BIN="uv-bin/uv-macos-x86_64" ;;
-  *)
-    echo "WARN: No bundled uv for $(uname -s)-$(uname -m), trying system uv..."
-    UV_BIN="$(command -v uv 2>/dev/null || true)"
-    ;;
-esac
+UV_BIN="$UV_BIN_UNIX"
 
-if [ -n "$UV_BIN" ] && [ -f "$UV_BIN" ]; then
-  chmod +x "$UV_BIN"
-  cp "$UV_BIN" .venv-uv 2>/dev/null || true
+if [ -f "\$UV_BIN" ]; then
+  chmod +x "\$UV_BIN"
 else
-  echo "Error: uv binary not found. Cannot create virtual environment."
+  echo "Error: uv binary not found at \$UV_BIN."
   exit 1
 fi
 
 # Create virtual environment with uv
-./"$UV_BIN" venv .venv
+./"\$UV_BIN" venv .venv
 
 # Install dependencies offline
-./"$UV_BIN" pip install --python .venv/bin/python --no-index --find-links=wheels -r requirements.txt
+./"\$UV_BIN" pip install --python .venv/bin/python --no-index --find-links=wheels -r requirements.txt
 
 # Copy default config if not exists
 [ -f .env ] || cp .env.example .env
@@ -230,10 +269,9 @@ echo ""
 echo "==> RoboScope installed successfully!"
 echo "    Start with: ./start-mac-and-linux.sh"
 INSTALLEOF
-chmod +x "$DIST/install-mac-and-linux.sh"
+  chmod +x "$DIST/install-mac-and-linux.sh"
 
-# ── 7. Create start script ───────────────────────────────────
-cat > "$DIST/start-mac-and-linux.sh" << 'STARTEOF'
+  cat > "$DIST/start-mac-and-linux.sh" << 'STARTEOF'
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -276,10 +314,9 @@ echo ""
 
 python -m uvicorn src.main:app --host "${HOST:-0.0.0.0}" --port "${PORT}"
 STARTEOF
-chmod +x "$DIST/start-mac-and-linux.sh"
+  chmod +x "$DIST/start-mac-and-linux.sh"
 
-# ── 7b. Create stop script ───────────────────────────────────
-cat > "$DIST/stop-mac-and-linux.sh" << 'STOPEOF'
+  cat > "$DIST/stop-mac-and-linux.sh" << 'STOPEOF'
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -324,10 +361,11 @@ fi
 
 echo "    RoboScope stopped."
 STOPEOF
-chmod +x "$DIST/stop-mac-and-linux.sh"
+  chmod +x "$DIST/stop-mac-and-linux.sh"
 
-# ── 8. Create Windows install script ─────────────────────────
-cat > "$DIST/install-windows.bat" << 'BATEOF'
+else
+  # Windows scripts
+  cat > "$DIST/install-windows.bat" << 'BATEOF'
 @echo off
 echo ==> Installing RoboScope...
 
@@ -337,7 +375,7 @@ cd /d "%~dp0"
 uv-bin\uv-windows.exe venv .venv
 
 :: Install dependencies offline
-uv-bin\uv-windows.exe pip install --python .venv\Scripts\python.exe --no-index --find-links=wheels -r requirements-windows.txt
+uv-bin\uv-windows.exe pip install --python .venv\Scripts\python.exe --no-index --find-links=wheels -r requirements.txt
 
 if not exist .env copy .env.example .env
 
@@ -346,8 +384,7 @@ echo ==> RoboScope installed successfully!
 echo     Start with: start-windows.bat
 BATEOF
 
-# ── 9. Create Windows start script ───────────────────────────
-cat > "$DIST/start-windows.bat" << 'BATEOF'
+  cat > "$DIST/start-windows.bat" << 'BATEOF'
 @echo off
 cd /d "%~dp0"
 
@@ -389,8 +426,7 @@ echo.
 python -m uvicorn src.main:app --host 0.0.0.0 --port %PORT%
 BATEOF
 
-# ── 9b. Create Windows stop script ──────────────────────────
-cat > "$DIST/stop-windows.bat" << 'BATEOF'
+  cat > "$DIST/stop-windows.bat" << 'BATEOF'
 @echo off
 cd /d "%~dp0"
 
@@ -417,18 +453,27 @@ if %FOUND%==0 (
     echo     RoboScope stopped.
 )
 BATEOF
+fi
 
-# ── 10. Create ZIP ───────────────────────────────────────────
+# ── 7. Create ZIP ─────────────────────────────────────────────
 echo ""
 echo "==> Creating ZIP archive..."
 cd "$ROOT/dist"
-zip -r "roboscope_offline_version.zip" roboscope-offline/ -x "roboscope-offline/.venv/*" "roboscope-offline/__pycache__/*"
+zip -r "$ZIP_NAME" "roboscope-offline-$PLATFORM/" -x "roboscope-offline-$PLATFORM/.venv/*" "roboscope-offline-$PLATFORM/__pycache__/*"
 echo ""
 echo "==> Build complete!"
-echo "    Distribution: $ROOT/dist/roboscope_offline_version.zip"
+echo "    Distribution: $ROOT/dist/$ZIP_NAME"
 echo "    Directory:    $DIST"
 echo ""
-echo "To deploy:"
-echo "  1. Extract roboscope_offline_version.zip"
-echo "  2. Run install-mac-and-linux.sh (Linux/Mac) or install-windows.bat (Windows)"
-echo "  3. Run start-mac-and-linux.sh (Linux/Mac) or start-windows.bat (Windows)"
+if [ "$IS_WINDOWS" = false ]; then
+  PLATFORM_DISPLAY="$(echo "$PLATFORM" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
+  echo "To deploy on $PLATFORM_DISPLAY:"
+  echo "  1. Extract $ZIP_NAME"
+  echo "  2. Run ./install-mac-and-linux.sh"
+  echo "  3. Run ./start-mac-and-linux.sh"
+else
+  echo "To deploy on Windows:"
+  echo "  1. Extract $ZIP_NAME"
+  echo "  2. Run install-windows.bat"
+  echo "  3. Run start-windows.bat"
+fi
