@@ -3,6 +3,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Build Distribution](https://github.com/viadee-internal/roboscope/actions/workflows/build.yml/badge.svg)](https://github.com/viadee-internal/roboscope/actions/workflows/build.yml)
 [![E2E Tests](https://github.com/viadee-internal/roboscope/actions/workflows/e2e.yml/badge.svg)](https://github.com/viadee-internal/roboscope/actions/workflows/e2e.yml)
+[![Website](https://img.shields.io/badge/website-roboscope.eu-blue)](https://roboscope.eu)
 
 Web-based Robot Framework Test Management Tool with Git integration, GUI execution, report analysis, environment management, and container runtime.
 
