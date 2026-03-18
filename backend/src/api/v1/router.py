@@ -11,6 +11,7 @@ from src.reports.router import router as reports_router
 from src.repos.router import router as repos_router
 from src.settings.router import router as settings_router
 from src.stats.router import router as stats_router
+from src.webhooks.router import router as webhooks_router
 
 api_router = APIRouter()
 
@@ -23,3 +24,4 @@ api_router.include_router(reports_router, prefix="/reports", tags=["Reports"])
 api_router.include_router(stats_router, prefix="/stats", tags=["Statistics"])
 api_router.include_router(settings_router, prefix="/settings", tags=["Settings"])
 api_router.include_router(ai_router, prefix="/ai", tags=["AI Generation"])
+api_router.include_router(webhooks_router, prefix="/webhooks", tags=["Webhooks & Tokens"])

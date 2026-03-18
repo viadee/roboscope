@@ -460,3 +460,53 @@ export interface ValidateSpecResponse {
   errors: string[]
   test_count: number
 }
+
+// --- API Token types ---
+
+export interface ApiToken {
+  id: number
+  name: string
+  prefix: string
+  role: Role
+  user_id: number
+  expires_at: string | null
+  last_used_at: string | null
+  is_active: boolean
+  created_at: string
+}
+
+export interface ApiTokenCreated extends ApiToken {
+  token: string
+}
+
+// --- Webhook types ---
+
+export interface WebhookConfig {
+  id: number
+  name: string
+  url: string
+  has_secret: boolean
+  events: string[]
+  is_active: boolean
+  repository_id: number | null
+  created_by: number
+  last_triggered_at: string | null
+  last_status_code: number | null
+  created_at: string
+}
+
+export interface WebhookDelivery {
+  id: number
+  webhook_id: number
+  event: string
+  status_code: number | null
+  error_message: string | null
+  duration_ms: number | null
+  created_at: string
+}
+
+export interface WebhookTestResult {
+  success: boolean
+  status_code: number | null
+  error: string | null
+}

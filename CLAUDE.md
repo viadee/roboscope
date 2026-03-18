@@ -136,6 +136,34 @@ Schlüsseldatei: `backend/src/task_executor.py` — enthält `dispatch_task()`, 
 - [ ] **Offline-Archiv-Analyse** — Upload alter Report-ZIPs zur Analyse ohne Git-Repo/Environment
 - [ ] **UI-Verfeinerungen** — Allgemeine Polish-Runde (Ladeanimationen, Error-States, leere Zustände)
 
+### Milestone: Enterprise-Readiness für RF-Integration in Unternehmen
+
+Ziel: RoboScope für den produktiven Einsatz in Unternehmens-Umgebungen vorbereiten — CI/CD-Integration, Compliance, Sicherheit und Team-Workflows.
+
+**Phase 1 — CI/CD-Anbindung (API-Tokens + Webhooks) ✅ DONE**
+- [x] **API-Tokens / Service Accounts** — `ApiToken`-Model mit SHA256-Hash, `rbs_`-Prefix, Rollen-Scoping (RUNNER/EDITOR), Ablaufdatum. Auth-Dependency akzeptiert JWT + API-Token. CRUD unter `/api/v1/webhooks/tokens` (ADMIN). 34 Tests. Frontend: Settings-Tab "API Tokens" mit Erstellen, Kopieren, Widerrufen.
+- [x] **Webhooks Outbound** — `Webhook` + `WebhookDelivery` Models. CRUD unter `/api/v1/webhooks/hooks` (EDITOR+). HMAC-SHA256 Signatur (`X-RoboScope-Signature`), 6 Events (run.started/passed/failed/error/cancelled/timeout), Retry mit Backoff (3 Versuche), Test-Ping, Delivery-Log. Hook in `execution/tasks.py` dispatcht Events bei Run-Status-Änderungen. Frontend: Settings-Tab "Webhooks".
+- [x] **Git-Webhook-Trigger Inbound** — `POST /api/v1/webhooks/git` akzeptiert GitHub/GitLab Push-Payloads. Matched Repo via `git_url` (mit/ohne `.git`), extrahiert Branch aus `refs/heads/...`, erstellt automatisch `ExecutionRun`. i18n (EN/DE/FR/ES).
+
+**Phase 2 — Audit & Compliance**
+- [ ] **Audit-Log** — Neues `AuditLog`-Model (user_id, action, resource_type, resource_id, detail JSON, ip_address, timestamp). Middleware/Decorator für alle schreibenden Endpoints. Admin-UI: Filterbares Audit-Log (Benutzer, Aktion, Zeitraum). Export als CSV.
+- [ ] **Retention-Enforcement** — Scheduled Background-Task (täglich) löscht Reports/Runs älter als `report_retention_days`. Optional pro Projekt überschreibbar. Trockenlauf-Modus vor erstem Einsatz.
+- [ ] **Secrets-Verschlüsselung** — Fernet-Verschlüsselung (Pattern aus AI-Modul) auf Environment-Variablen mit `is_secret=True` ausweiten. Migration: bestehende Plaintext-Secrets einmalig verschlüsseln. Secrets in API-Responses maskiert (`****`).
+
+**Phase 3 — Authentifizierung & Zugriffskontrolle**
+- [ ] **OAuth2 / SSO** — OAuth2 Authorization Code Flow für Azure AD, Google, GitHub. Konfiguration via Settings (Client-ID, Secret, Tenant). Auto-Provisioning: Erster Login erstellt User mit Default-Rolle (VIEWER). Optional: SAML 2.0 via python-saml für Enterprise-IdPs (Okta, ADFS).
+- [ ] **Team-/Organisations-Ebene** — `Team`-Model (name, members). Projekte können Teams zugewiesen werden statt einzelner User. Team-Rollen vererben sich auf Projekt-Ebene. Vereinfacht Onboarding großer Abteilungen.
+
+**Phase 4 — Skalierung & Reporting**
+- [ ] **Report-Export** — CSV/JSON-Export für Einzelreports und Statistiken. PDF-Generierung (WeasyPrint oder Puppeteer) für Management-Reports mit KPI-Zusammenfassung, Trend-Charts, Top-Failures.
+- [ ] **Verteilte Ausführung** — TaskExecutor auf `max_workers=N` erweitern (konfigurierbar). Remote-Runner-Konzept: Agent-basiert (Polling) oder SSH-Dispatch. Kubernetes-Runner als Plugin (Job-Spec → K8s API).
+- [ ] **Prometheus Metrics** — `/metrics` Endpoint (prometheus_client): runs_total, runs_active, run_duration_seconds, tests_passed/failed, queue_depth. Grafana-Dashboard-Template als JSON mitliefern.
+
+**Phase 5 — Qualität & Ergonomie**
+- [ ] **Gespeicherte Run-Templates** — Benannte Konfigurationen (Name, Target, Branch, Tags, Environment, Variables) pro Projekt. "Smoke Test", "Full Regression" als One-Click-Actions auf Dashboard und Execution-Seite.
+- [ ] **Jira/Issue-Tracker-Integration** — Plugin: Bei fehlgeschlagenem Run automatisch Jira-Ticket erstellen (Summary, Fehlermeldung, Link zum Report). Konfiguration: Jira-URL, API-Token, Projekt-Key, Issue-Type.
+- [ ] **Helm Chart** — Kubernetes-Deployment mit Helm: Backend (Deployment + Service), Frontend (Nginx), PostgreSQL (optional external), PVC für Workspace/Reports/Venvs, Ingress, ConfigMap/Secrets.
+
 ## Architektur
 
 ```

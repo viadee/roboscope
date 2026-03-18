@@ -65,7 +65,7 @@ def _enrich_error_with_hints(
     return " | ".join(hints)
 
 
-def _broadcast_run_status(run_id: int, status: str) -> None:
+def _broadcast_run_status(run_id: int, status: str, run: "ExecutionRun | None" = None) -> None:
     """Broadcast a run status change from a sync background thread."""
     from src.websocket.manager import ws_manager
     from src.main import _event_loop
@@ -76,6 +76,42 @@ def _broadcast_run_status(run_id: int, status: str) -> None:
         asyncio.run_coroutine_threadsafe(coro, _event_loop)
     else:
         logger.warning("No event loop available to broadcast run %d status", run_id)
+
+    # Dispatch outbound webhooks for run status events
+    _dispatch_run_webhook(run_id, status, run)
+
+
+def _dispatch_run_webhook(
+    run_id: int, status: str, run: "ExecutionRun | None" = None,
+) -> None:
+    """Fire outbound webhooks for run status changes."""
+    event = f"run.{status}"
+    try:
+        from src.webhooks.schemas import VALID_EVENTS
+        if event not in VALID_EVENTS:
+            return
+
+        payload = {
+            "event": event,
+            "run_id": run_id,
+            "status": status,
+        }
+        repository_id = None
+        if run:
+            payload.update({
+                "repository_id": run.repository_id,
+                "target_path": run.target_path,
+                "branch": run.branch,
+                "triggered_by": run.triggered_by,
+                "duration_seconds": run.duration_seconds,
+                "error_message": run.error_message,
+            })
+            repository_id = run.repository_id
+
+        from src.webhooks.service import dispatch_webhook_event
+        dispatch_webhook_event(event, payload, repository_id=repository_id)
+    except Exception:
+        logger.warning("Failed to dispatch webhook for run %d", run_id, exc_info=True)
 
 
 def cancel_active_run(run_id: int) -> bool:
@@ -285,7 +321,7 @@ def execute_test_run(run_id: int) -> dict:
                 )[:1000]
 
             session.commit()
-            _broadcast_run_status(run_id, run.status)
+            _broadcast_run_status(run_id, run.status, run)
 
             # Save stdout/stderr to files in output_dir
             out_path = Path(output_dir)
@@ -322,7 +358,7 @@ def execute_test_run(run_id: int) -> dict:
                 run.error_message = str(e)[:1000]
             run.finished_at = datetime.now(timezone.utc)
             session.commit()
-            _broadcast_run_status(run_id, run.status)
+            _broadcast_run_status(run_id, run.status, run)
             return {"status": "error", "message": str(e)}
 
         finally:
