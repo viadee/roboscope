@@ -6,14 +6,17 @@
 # and runs HTTP-based E2E checks to verify everything works.
 #
 # Usage:
-#   ./scripts/test-dist-mac-and-linux.sh              # test offline dist
-#   ./scripts/test-dist-mac-and-linux.sh online       # test online dist
-#   ./scripts/test-dist-mac-and-linux.sh --skip-build # test existing dist without rebuilding
+#   ./scripts/test-dist-mac-and-linux.sh                          # test offline dist (auto-detect platform)
+#   ./scripts/test-dist-mac-and-linux.sh linux                    # test offline linux dist
+#   ./scripts/test-dist-mac-and-linux.sh online                   # test online dist
+#   ./scripts/test-dist-mac-and-linux.sh --skip-build             # test existing dist without rebuilding
+#   ./scripts/test-dist-mac-and-linux.sh online --skip-build      # test existing online dist
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MODE="offline"
+PLATFORM=""
 SKIP_BUILD=false
 PORT=8199
 PASSED=0
@@ -24,15 +27,27 @@ for arg in "$@"; do
   case "$arg" in
     online) MODE="online" ;;
     --skip-build) SKIP_BUILD=true ;;
+    linux|macos-arm64|macos-x86_64|windows) PLATFORM="$arg" ;;
   esac
 done
 
 if [ "$MODE" = "online" ]; then
   DIST="$ROOT/dist/roboscope"
-  BUILD_SCRIPT="$ROOT/scripts/build-online-mac-and-linux.sh"
+  BUILD_CMD="$ROOT/scripts/build-online-mac-and-linux.sh"
+  BUILD_ARGS=""
 else
-  DIST="$ROOT/dist/roboscope-offline"
-  BUILD_SCRIPT="$ROOT/scripts/build-mac-and-linux.sh"
+  # Auto-detect platform if not specified
+  if [ -z "$PLATFORM" ]; then
+    case "$(uname -s)-$(uname -m)" in
+      Linux-x86_64)  PLATFORM="linux" ;;
+      Darwin-arm64)  PLATFORM="macos-arm64" ;;
+      Darwin-x86_64) PLATFORM="macos-x86_64" ;;
+      *) PLATFORM="linux" ;;
+    esac
+  fi
+  DIST="$ROOT/dist/roboscope-offline-$PLATFORM"
+  BUILD_CMD="$ROOT/scripts/build-mac-and-linux.sh"
+  BUILD_ARGS="$PLATFORM"
 fi
 
 BASE_URL="http://127.0.0.1:$PORT"
@@ -117,7 +132,7 @@ check_http_size() {
 
 # ── 1. Build ────────────────────────────────────────────────
 
-echo "==> RoboScope Distribution Test ($MODE)"
+echo "==> RoboScope Distribution Test ($MODE${PLATFORM:+, $PLATFORM})"
 echo "    Root: $ROOT"
 echo "    Dist: $DIST"
 echo "    Port: $PORT"
@@ -125,7 +140,7 @@ echo ""
 
 if [ "$SKIP_BUILD" = false ]; then
   echo "==> Step 1: Building distribution..."
-  bash "$BUILD_SCRIPT"
+  bash "$BUILD_CMD" $BUILD_ARGS
   echo ""
 else
   echo "==> Step 1: Skipping build (--skip-build)"
@@ -143,12 +158,18 @@ echo "==> Step 2: Checking dist contents..."
 [ -f "$DIST/frontend_dist/index.html" ] && pass "frontend_dist/index.html" || fail "index.html missing"
 [ -d "$DIST/frontend_dist/assets" ] && pass "frontend_dist/assets/" || fail "assets/ missing"
 [ -f "$DIST/requirements.txt" ] && pass "requirements.txt" || fail "requirements.txt missing"
-[ -f "$DIST/install-mac-and-linux.sh" ] && pass "install-mac-and-linux.sh" || fail "install-mac-and-linux.sh missing"
-[ -f "$DIST/start-mac-and-linux.sh" ] && pass "start-mac-and-linux.sh" || fail "start-mac-and-linux.sh missing"
-[ -f "$DIST/install-windows.bat" ] && pass "install-windows.bat" || fail "install-windows.bat missing"
-[ -f "$DIST/start-windows.bat" ] && pass "start-windows.bat" || fail "start-windows.bat missing"
-[ -f "$DIST/stop-mac-and-linux.sh" ] && pass "stop-mac-and-linux.sh" || fail "stop-mac-and-linux.sh missing"
-[ -f "$DIST/stop-windows.bat" ] && pass "stop-windows.bat" || fail "stop-windows.bat missing"
+
+if [ "$MODE" = "online" ] || [ "$PLATFORM" != "windows" ]; then
+  [ -f "$DIST/install-mac-and-linux.sh" ] && pass "install-mac-and-linux.sh" || fail "install-mac-and-linux.sh missing"
+  [ -f "$DIST/start-mac-and-linux.sh" ] && pass "start-mac-and-linux.sh" || fail "start-mac-and-linux.sh missing"
+  [ -f "$DIST/stop-mac-and-linux.sh" ] && pass "stop-mac-and-linux.sh" || fail "stop-mac-and-linux.sh missing"
+fi
+
+if [ "$MODE" = "online" ] || [ "$PLATFORM" = "windows" ]; then
+  [ -f "$DIST/install-windows.bat" ] && pass "install-windows.bat" || fail "install-windows.bat missing"
+  [ -f "$DIST/start-windows.bat" ] && pass "start-windows.bat" || fail "start-windows.bat missing"
+  [ -f "$DIST/stop-windows.bat" ] && pass "stop-windows.bat" || fail "stop-windows.bat missing"
+fi
 [ -f "$DIST/.env.example" ] && pass ".env.example" || fail ".env.example missing"
 [ -f "$DIST/pyproject.toml" ] && pass "pyproject.toml" || fail "pyproject.toml missing"
 [ -f "$DIST/README.md" ] && pass "README.md" || fail "README.md missing"
@@ -368,7 +389,7 @@ echo ""
 echo "════════════════════════════════════════════════════════"
 echo "  Results: $PASSED passed, $FAILED failed, $WARNINGS warnings"
 echo "  Python:  $(python3 --version)"
-echo "  Mode:    $MODE"
+echo "  Mode:    $MODE${PLATFORM:+ ($PLATFORM)}"
 echo "════════════════════════════════════════════════════════"
 
 if [ "$FAILED" -gt 0 ]; then
