@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as settingsApi from '@/api/settings.api'
 import * as authApi from '@/api/auth.api'
@@ -11,22 +11,191 @@ import BaseModal from '@/components/ui/BaseModal.vue'
 import ProviderConfig from '@/components/ai/ProviderConfig.vue'
 import { useAiStore } from '@/stores/ai.store'
 import { useEnvironmentsStore } from '@/stores/environments.store'
-import type { AppSetting, User, Role, DockerStatus } from '@/types/domain.types'
+import { useReposStore } from '@/stores/repos.store'
+import type { AppSetting, User, Role, DockerStatus, ApiToken, ApiTokenCreated, WebhookConfig } from '@/types/domain.types'
 import { formatDateTime } from '@/utils/formatDate'
+import * as webhooksApi from '@/api/webhooks.api'
 
 const toast = useToast()
 const { t } = useI18n()
 const aiStore = useAiStore()
 const envStore = useEnvironmentsStore()
+const reposStore = useReposStore()
 
 const allRoles: Role[] = ['viewer', 'runner', 'editor', 'admin']
+const tokenRoles: Role[] = ['viewer', 'runner', 'editor']
+const gitWebhookUrl = computed(() => `${window.location.origin}/api/v1/webhooks/git`)
 
 const settings = ref<AppSetting[]>([])
 const users = ref<User[]>([])
 const loading = ref(true)
 const saving = ref(false)
-const activeTab = ref<'general' | 'users' | 'docker' | 'ai'>('general')
+const activeTab = ref<'general' | 'users' | 'docker' | 'ai' | 'tokens' | 'webhooks'>('general')
 const editedValues = ref<Record<string, string>>({})
+
+// --- API Tokens state ---
+const tokens = ref<ApiToken[]>([])
+const tokensLoading = ref(false)
+const showCreateTokenDialog = ref(false)
+const creatingToken = ref(false)
+const newToken = ref({ name: '', role: 'runner' as Role, expires_in_days: null as number | null })
+const createdTokenValue = ref<string | null>(null)
+
+async function loadTokens() {
+  tokensLoading.value = true
+  try {
+    tokens.value = await webhooksApi.getTokens()
+  } finally {
+    tokensLoading.value = false
+  }
+}
+
+function openCreateTokenDialog() {
+  newToken.value = { name: '', role: 'runner', expires_in_days: null }
+  createdTokenValue.value = null
+  showCreateTokenDialog.value = true
+}
+
+async function createApiToken() {
+  creatingToken.value = true
+  try {
+    const result = await webhooksApi.createToken({
+      name: newToken.value.name,
+      role: newToken.value.role,
+      expires_in_days: newToken.value.expires_in_days,
+    })
+    createdTokenValue.value = result.token
+    tokens.value.unshift(result)
+    toast.success(t('settings.tokens.createdToken'))
+  } catch (e: any) {
+    const detail = e.response?.data?.detail || t('common.error')
+    toast.error(detail)
+  } finally {
+    creatingToken.value = false
+  }
+}
+
+async function copyToken() {
+  if (createdTokenValue.value) {
+    await navigator.clipboard.writeText(createdTokenValue.value)
+    toast.success(t('settings.tokens.copied'))
+  }
+}
+
+async function revokeApiToken(token: ApiToken) {
+  if (!confirm(t('settings.tokens.revokeConfirm', { name: token.name }))) return
+  try {
+    await webhooksApi.revokeToken(token.id)
+    tokens.value = tokens.value.filter(t => t.id !== token.id)
+    toast.success(t('settings.tokens.revoked'))
+  } catch {
+    toast.error(t('common.error'))
+  }
+}
+
+// --- Webhooks state ---
+const webhooks = ref<WebhookConfig[]>([])
+const webhooksLoading = ref(false)
+const showCreateWebhookDialog = ref(false)
+const creatingWebhook = ref(false)
+const availableEvents = ref<string[]>([])
+const newWebhook = ref({
+  name: '',
+  url: '',
+  secret: '',
+  events: [] as string[],
+  repository_id: null as number | null,
+})
+
+async function loadWebhooks() {
+  webhooksLoading.value = true
+  try {
+    const [wh, events] = await Promise.all([
+      webhooksApi.getWebhooks(),
+      webhooksApi.getAvailableEvents(),
+    ])
+    webhooks.value = wh
+    availableEvents.value = events
+    await reposStore.fetchRepos()
+  } finally {
+    webhooksLoading.value = false
+  }
+}
+
+function openCreateWebhookDialog() {
+  newWebhook.value = {
+    name: '',
+    url: '',
+    secret: '',
+    events: [...availableEvents.value],
+    repository_id: null,
+  }
+  showCreateWebhookDialog.value = true
+}
+
+async function createNewWebhook() {
+  creatingWebhook.value = true
+  try {
+    const wh = await webhooksApi.createWebhook({
+      name: newWebhook.value.name,
+      url: newWebhook.value.url,
+      secret: newWebhook.value.secret || undefined,
+      events: newWebhook.value.events,
+      repository_id: newWebhook.value.repository_id,
+    })
+    webhooks.value.unshift(wh)
+    showCreateWebhookDialog.value = false
+    toast.success(t('settings.webhooks.created'))
+  } catch (e: any) {
+    const detail = e.response?.data?.detail || t('common.error')
+    toast.error(detail)
+  } finally {
+    creatingWebhook.value = false
+  }
+}
+
+async function toggleWebhookActive(wh: WebhookConfig) {
+  try {
+    const updated = await webhooksApi.updateWebhook(wh.id, { is_active: !wh.is_active })
+    const idx = webhooks.value.findIndex(w => w.id === wh.id)
+    if (idx >= 0) webhooks.value[idx] = updated
+  } catch {
+    toast.error(t('common.error'))
+  }
+}
+
+async function testWebhookPing(wh: WebhookConfig) {
+  try {
+    const result = await webhooksApi.testWebhook(wh.id)
+    if (result.success) {
+      toast.success(t('settings.webhooks.testSuccess', { code: result.status_code }))
+    } else {
+      toast.error(t('settings.webhooks.testFailed', { error: result.error || 'Unknown' }))
+    }
+  } catch {
+    toast.error(t('common.error'))
+  }
+}
+
+async function deleteWebhookItem(wh: WebhookConfig) {
+  if (!confirm(t('settings.webhooks.deleteConfirm', { name: wh.name }))) return
+  try {
+    await webhooksApi.deleteWebhook(wh.id)
+    webhooks.value = webhooks.value.filter(w => w.id !== wh.id)
+    toast.success(t('settings.webhooks.deleted'))
+  } catch {
+    toast.error(t('common.error'))
+  }
+}
+
+function toggleEvent(event: string) {
+  const idx = newWebhook.value.events.indexOf(event)
+  if (idx >= 0) {
+    newWebhook.value.events.splice(idx, 1)
+  } else {
+    newWebhook.value.events.push(event)
+  }
+}
 
 // Docker status
 const dockerStatus = ref<DockerStatus | null>(null)
@@ -258,6 +427,12 @@ function formatSize(bytes: number): string {
       <button class="tab" :class="{ active: activeTab === 'docker' }" @click="activeTab = 'docker'; if (!dockerStatus) loadDockerStatus()">
         {{ t('settings.docker.docker') }}
       </button>
+      <button class="tab" :class="{ active: activeTab === 'tokens' }" @click="activeTab = 'tokens'; loadTokens()">
+        {{ t('settings.tokens.title') }}
+      </button>
+      <button class="tab" :class="{ active: activeTab === 'webhooks' }" @click="activeTab = 'webhooks'; loadWebhooks()">
+        {{ t('settings.webhooks.title') }}
+      </button>
       <button class="tab" :class="{ active: activeTab === 'ai' }" @click="activeTab = 'ai'; loadRfMcpTab()">
         {{ t('ai.settingsTab') }}
       </button>
@@ -435,6 +610,122 @@ function formatSize(bytes: number): string {
       </template>
     </template>
 
+    <!-- Tokens Tab -->
+    <template v-else-if="activeTab === 'tokens'">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3>{{ t('settings.tokens.title') }}</h3>
+            <p class="text-muted text-sm" style="margin-top: 4px">{{ t('settings.tokens.description') }}</p>
+          </div>
+          <BaseButton size="sm" @click="openCreateTokenDialog">{{ t('settings.tokens.addToken') }}</BaseButton>
+        </div>
+        <BaseSpinner v-if="tokensLoading" />
+        <template v-else>
+          <table v-if="tokens.length" class="data-table">
+            <thead>
+              <tr>
+                <th>{{ t('settings.tokens.name') }}</th>
+                <th>{{ t('settings.tokens.prefix') }}</th>
+                <th>{{ t('settings.tokens.role') }}</th>
+                <th>{{ t('settings.tokens.expiresAt') }}</th>
+                <th>{{ t('settings.tokens.lastUsed') }}</th>
+                <th>{{ t('common.actions') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="token in tokens" :key="token.id">
+                <td><strong>{{ token.name }}</strong></td>
+                <td><code>{{ token.prefix }}...</code></td>
+                <td><BaseBadge variant="info">{{ token.role }}</BaseBadge></td>
+                <td class="text-sm text-muted">{{ token.expires_at ? formatDateTime(token.expires_at) : t('settings.tokens.noExpiry') }}</td>
+                <td class="text-sm text-muted">{{ token.last_used_at ? formatDateTime(token.last_used_at) : t('settings.tokens.never') }}</td>
+                <td>
+                  <BaseButton variant="danger" size="sm" @click="revokeApiToken(token)">{{ t('common.delete') }}</BaseButton>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="text-muted" style="padding: 20px">{{ t('settings.tokens.noTokens') }}</p>
+        </template>
+      </div>
+    </template>
+
+    <!-- Webhooks Tab -->
+    <template v-else-if="activeTab === 'webhooks'">
+      <!-- Git Inbound Webhook Info -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3>{{ t('settings.webhooks.gitInbound.title') }}</h3>
+        </div>
+        <div style="padding: 16px 20px">
+          <p class="text-muted text-sm mb-3">{{ t('settings.webhooks.gitInbound.description') }}</p>
+          <div class="setting-row">
+            <div class="setting-info"><strong>{{ t('settings.webhooks.gitInbound.urlLabel') }}</strong></div>
+            <code class="text-sm">{{ gitWebhookUrl }}</code>
+          </div>
+          <p class="text-muted text-sm mt-1">{{ t('settings.webhooks.gitInbound.urlHelp') }}</p>
+        </div>
+      </div>
+
+      <!-- Outbound Webhooks -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3>{{ t('settings.webhooks.title') }}</h3>
+            <p class="text-muted text-sm" style="margin-top: 4px">{{ t('settings.webhooks.description') }}</p>
+          </div>
+          <BaseButton size="sm" @click="openCreateWebhookDialog">{{ t('settings.webhooks.addWebhook') }}</BaseButton>
+        </div>
+        <BaseSpinner v-if="webhooksLoading" />
+        <template v-else>
+          <table v-if="webhooks.length" class="data-table">
+            <thead>
+              <tr>
+                <th>{{ t('settings.webhooks.name') }}</th>
+                <th>{{ t('settings.webhooks.url') }}</th>
+                <th>{{ t('settings.webhooks.events') }}</th>
+                <th>{{ t('settings.webhooks.status') }}</th>
+                <th>{{ t('settings.webhooks.lastTriggered') }}</th>
+                <th>{{ t('common.actions') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="wh in webhooks" :key="wh.id">
+                <td>
+                  <strong>{{ wh.name }}</strong>
+                  <BaseBadge v-if="wh.has_secret" variant="info" class="ml-1">{{ t('settings.webhooks.hasSecret') }}</BaseBadge>
+                </td>
+                <td class="text-sm"><code>{{ wh.url.length > 50 ? wh.url.slice(0, 50) + '...' : wh.url }}</code></td>
+                <td class="text-sm">{{ wh.events.length }} events</td>
+                <td>
+                  <BaseBadge :variant="wh.is_active ? 'success' : 'danger'" style="cursor: pointer" @click="toggleWebhookActive(wh)">
+                    {{ wh.is_active ? t('settings.webhooks.active') : t('settings.webhooks.inactive') }}
+                  </BaseBadge>
+                </td>
+                <td class="text-sm text-muted">
+                  <template v-if="wh.last_triggered_at">
+                    {{ formatDateTime(wh.last_triggered_at) }}
+                    <BaseBadge v-if="wh.last_status_code" :variant="wh.last_status_code < 400 ? 'success' : 'danger'">
+                      {{ wh.last_status_code }}
+                    </BaseBadge>
+                  </template>
+                  <template v-else>—</template>
+                </td>
+                <td>
+                  <div class="action-buttons">
+                    <BaseButton variant="secondary" size="sm" @click="testWebhookPing(wh)">{{ t('settings.webhooks.test') }}</BaseButton>
+                    <BaseButton variant="ghost" size="sm" @click="deleteWebhookItem(wh)">{{ t('common.delete') }}</BaseButton>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="text-muted" style="padding: 20px">{{ t('settings.webhooks.noWebhooks') }}</p>
+        </template>
+      </div>
+    </template>
+
     <!-- AI & Generation Tab -->
     <template v-else-if="activeTab === 'ai'">
       <!-- rf-mcp Server Management -->
@@ -587,6 +878,87 @@ function formatSize(bytes: number): string {
       </template>
     </BaseModal>
 
+    <!-- Create Token Dialog -->
+    <BaseModal v-model="showCreateTokenDialog" :title="createdTokenValue ? t('settings.tokens.createdToken') : t('settings.tokens.createDialog.title')">
+      <template v-if="createdTokenValue">
+        <p class="text-muted text-sm mb-3">{{ t('settings.tokens.copyWarning') }}</p>
+        <div class="token-display">
+          <code>{{ createdTokenValue }}</code>
+          <BaseButton size="sm" variant="secondary" @click="copyToken">Copy</BaseButton>
+        </div>
+      </template>
+      <template v-else>
+        <form @submit.prevent="createApiToken">
+          <div class="form-group">
+            <label class="form-label">{{ t('settings.tokens.createDialog.nameLabel') }}</label>
+            <input v-model="newToken.name" class="form-input" :placeholder="t('settings.tokens.createDialog.namePlaceholder')" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ t('settings.tokens.createDialog.roleLabel') }}</label>
+            <select v-model="newToken.role" class="form-select">
+              <option v-for="role in tokenRoles" :key="role" :value="role">{{ role }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ t('settings.tokens.createDialog.expiryLabel') }}</label>
+            <select v-model="newToken.expires_in_days" class="form-select">
+              <option :value="null">{{ t('settings.tokens.createDialog.expiryNone') }}</option>
+              <option :value="30">{{ t('settings.tokens.createDialog.expiryDays', { days: 30 }) }}</option>
+              <option :value="90">{{ t('settings.tokens.createDialog.expiryDays', { days: 90 }) }}</option>
+              <option :value="180">{{ t('settings.tokens.createDialog.expiryDays', { days: 180 }) }}</option>
+              <option :value="365">{{ t('settings.tokens.createDialog.expiryDays', { days: 365 }) }}</option>
+            </select>
+          </div>
+        </form>
+      </template>
+      <template #footer>
+        <BaseButton variant="secondary" @click="showCreateTokenDialog = false; createdTokenValue = null">{{ t('common.close') }}</BaseButton>
+        <BaseButton v-if="!createdTokenValue" :loading="creatingToken" @click="createApiToken">{{ t('common.create') }}</BaseButton>
+      </template>
+    </BaseModal>
+
+    <!-- Create Webhook Dialog -->
+    <BaseModal v-model="showCreateWebhookDialog" :title="t('settings.webhooks.createDialog.title')">
+      <form @submit.prevent="createNewWebhook">
+        <div class="form-group">
+          <label class="form-label">{{ t('settings.webhooks.createDialog.nameLabel') }}</label>
+          <input v-model="newWebhook.name" class="form-input" :placeholder="t('settings.webhooks.createDialog.namePlaceholder')" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('settings.webhooks.createDialog.urlLabel') }}</label>
+          <input v-model="newWebhook.url" class="form-input" :placeholder="t('settings.webhooks.createDialog.urlPlaceholder')" type="url" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('settings.webhooks.createDialog.secretLabel') }}</label>
+          <input v-model="newWebhook.secret" class="form-input" :placeholder="t('settings.webhooks.createDialog.secretPlaceholder')" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('settings.webhooks.createDialog.eventsLabel') }}</label>
+          <div class="events-grid">
+            <label v-for="event in availableEvents" :key="event" class="event-checkbox">
+              <input
+                type="checkbox"
+                :checked="newWebhook.events.includes(event)"
+                @change="toggleEvent(event)"
+              />
+              <code>{{ event }}</code>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('settings.webhooks.createDialog.repoLabel') }}</label>
+          <select v-model="newWebhook.repository_id" class="form-select">
+            <option :value="null">{{ t('settings.webhooks.createDialog.repoAll') }}</option>
+            <option v-for="repo in reposStore.repos" :key="repo.id" :value="repo.id">{{ repo.name }}</option>
+          </select>
+        </div>
+      </form>
+      <template #footer>
+        <BaseButton variant="secondary" @click="showCreateWebhookDialog = false">{{ t('common.cancel') }}</BaseButton>
+        <BaseButton :loading="creatingWebhook" @click="createNewWebhook">{{ t('common.create') }}</BaseButton>
+      </template>
+    </BaseModal>
+
     <!-- Reset Password Dialog -->
     <BaseModal v-model="showResetPwDialog" :title="t('settings.resetPwDialog.title')">
       <p class="text-muted text-sm mb-3">{{ t('settings.resetPwDialog.description', { name: resetPwUser.username }) }}</p>
@@ -694,5 +1066,42 @@ function formatSize(bytes: number): string {
 .mb-4 { margin-bottom: 16px; }
 .mt-1 { margin-top: 4px; }
 .mt-3 { margin-top: 12px; }
+.ml-1 { margin-left: 4px; }
 .text-warning { color: var(--color-warning); }
+
+/* Token display */
+.token-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  word-break: break-all;
+}
+
+.token-display code {
+  flex: 1;
+  font-size: 13px;
+}
+
+/* Webhook event checkboxes */
+.events-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.event-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.event-checkbox input[type="checkbox"] {
+  accent-color: var(--color-primary);
+}
 </style>
