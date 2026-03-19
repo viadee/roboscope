@@ -1,8 +1,8 @@
 """Audit logging — automatic middleware + manual helper."""
 
-import json
 import logging
 import re
+import threading
 
 from fastapi import Request, Response
 from sqlalchemy.orm import Session
@@ -74,8 +74,66 @@ def _method_to_action(method: str) -> str:
     }.get(method, method.lower())
 
 
+def _log_audit_in_background(
+    method: str, path: str, status_code: int, auth_header_value: str, ip: str | None,
+) -> None:
+    """Fire-and-forget audit log write in a daemon thread.
+
+    This avoids blocking the async event loop with sync DB operations.
+    """
+    def _write():
+        try:
+            from src.database import SessionLocal
+
+            user_id = None
+            username = None
+            if auth_header_value.startswith("Bearer "):
+                token = auth_header_value[7:]
+                try:
+                    if token.startswith("rbs_"):
+                        from src.webhooks.service import get_token_by_hash, verify_token
+                        token_hash = verify_token(token)
+                        with SessionLocal() as session:
+                            api_token = get_token_by_hash(session, token_hash)
+                            if api_token:
+                                user_id = api_token.user_id
+                                from src.auth.service import get_user_by_id
+                                user = get_user_by_id(session, api_token.user_id)
+                                username = user.username if user else None
+                    else:
+                        from src.auth.service import decode_token, get_user_by_id
+                        payload = decode_token(token)
+                        user_id = int(payload.get("sub", 0))
+                        with SessionLocal() as session:
+                            user = get_user_by_id(session, user_id)
+                            username = user.username if user else None
+                except Exception:
+                    pass
+
+            with SessionLocal() as session:
+                log_audit(
+                    session,
+                    user_id=user_id,
+                    username=username,
+                    action=_method_to_action(method),
+                    resource_type=_get_resource_type(path),
+                    resource_id=_extract_resource_id(path),
+                    detail={"method": method, "path": path, "status": status_code},
+                    ip_address=ip,
+                )
+                session.commit()
+        except Exception:
+            logger.debug("Could not log audit entry", exc_info=True)
+
+    t = threading.Thread(target=_write, daemon=True)
+    t.start()
+
+
 class AuditMiddleware(BaseHTTPMiddleware):
-    """Automatically logs write operations (POST/PUT/PATCH/DELETE) to the audit log."""
+    """Automatically logs write operations (POST/PUT/PATCH/DELETE) to the audit log.
+
+    DB writes happen in a daemon thread to avoid blocking the async event loop.
+    """
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         response = await call_next(request)
@@ -88,60 +146,16 @@ class AuditMiddleware(BaseHTTPMiddleware):
         ):
             return response
 
-        # Extract user from JWT (best-effort, don't fail the request)
-        try:
-            self._log_audit_entry(request, response)
-        except Exception:
-            logger.debug("Could not log audit entry", exc_info=True)
+        # Fire-and-forget audit log in background thread
+        _log_audit_in_background(
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            auth_header_value=request.headers.get("authorization", ""),
+            ip=request.client.host if request.client else None,
+        )
 
         return response
-
-    def _log_audit_entry(self, request: Request, response: Response) -> None:
-        from src.database import SessionLocal
-
-        # Decode user from Authorization header (best-effort)
-        user_id = None
-        username = None
-        auth_header = request.headers.get("authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-            try:
-                if token.startswith("rbs_"):
-                    # API token — look up owner
-                    from src.webhooks.service import get_token_by_hash, verify_token
-                    token_hash = verify_token(token)
-                    with SessionLocal() as session:
-                        api_token = get_token_by_hash(session, token_hash)
-                        if api_token:
-                            user_id = api_token.user_id
-                            from src.auth.service import get_user_by_id
-                            user = get_user_by_id(session, api_token.user_id)
-                            username = user.username if user else None
-                else:
-                    from src.auth.service import decode_token, get_user_by_id
-                    payload = decode_token(token)
-                    user_id = int(payload.get("sub", 0))
-                    with SessionLocal() as session:
-                        user = get_user_by_id(session, user_id)
-                        username = user.username if user else None
-            except Exception:
-                pass  # Anonymous or invalid token — still log
-
-        path = request.url.path
-        ip = request.client.host if request.client else None
-
-        with SessionLocal() as session:
-            log_audit(
-                session,
-                user_id=user_id,
-                username=username,
-                action=_method_to_action(request.method),
-                resource_type=_get_resource_type(path),
-                resource_id=_extract_resource_id(path),
-                detail={"method": request.method, "path": path, "status": response.status_code},
-                ip_address=ip,
-            )
-            session.commit()
 
 
 def audit(
