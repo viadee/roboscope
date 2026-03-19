@@ -374,7 +374,10 @@ class TestVariables:
         var = add_variable(db_session, env.id, data)
 
         assert var.key == "API_TOKEN"
-        assert var.value == "super-secret-token"
+        # Secret values are encrypted at rest
+        assert var.value != "super-secret-token"
+        from src.environments.service import decrypt_variable_value
+        assert decrypt_variable_value(var) == "super-secret-token"
         assert var.is_secret is True
 
     def test_list_variables_ordered_by_key(self, db_session, admin_user):

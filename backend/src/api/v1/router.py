@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from src.ai.router import router as ai_router
+from src.audit.router import router as audit_router
 from src.auth.router import router as auth_router
 from src.environments.router import router as environments_router
 from src.execution.router import router as execution_router
@@ -25,3 +26,4 @@ api_router.include_router(stats_router, prefix="/stats", tags=["Statistics"])
 api_router.include_router(settings_router, prefix="/settings", tags=["Settings"])
 api_router.include_router(ai_router, prefix="/ai", tags=["AI Generation"])
 api_router.include_router(webhooks_router, prefix="/webhooks", tags=["Webhooks & Tokens"])
+api_router.include_router(audit_router, prefix="/audit", tags=["Audit Log"])

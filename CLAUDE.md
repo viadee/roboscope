@@ -125,6 +125,9 @@ Schlüsseldatei: `backend/src/task_executor.py` — enthält `dispatch_task()`, 
 - [x] Dependabot: minimatch ReDoS-Vulnerability behoben (npm override minimatch>=10.2.1, editorconfig>=2.0.0)
 - [x] **uv-Migration**: pip/venv → uv für alle Package-Management-Operationen (venv_utils.py, cross-platform, 21 neue Tests, CI/Docker/Build-Skripte aktualisiert)
 - [x] E2E-Fixes: Selector-Ambiguity in `notifications.spec.ts` (`.notification-btn:not(.tour-btn)`) und `scheduling.spec.ts` (`getByText` statt `.text-muted.text-center`) — alle 217 E2E-Tests grün
+- [x] **Visueller Editor für .robot/.resource Dateien** — RobotEditor.vue (2.530 Zeilen): Dual-Tab (Visual Form + Code), strukturierter Form-Editor für Settings, Variables, Test Cases, Keywords mit Autocomplete, Collapsible Sections, Step-Typen (keyword, assignment, for, if/else, try/except)
+- [x] **Offline-Archiv-Analyse** — `POST /reports/upload` akzeptiert ZIP-Archive mit output.xml/report.html/log.html, parsed und analysiert ohne Git-Repo/Environment
+- [x] **Xray Bridge** — Bidirektionale Konvertierung `.roboscope v2` ↔ Xray JSON (ai/xray_bridge.py, 241 Zeilen): roboscope_to_xray(), xray_to_roboscope(), Priority-Mapping, Test-Keys, Preconditions
 
 **Offen / Roadmap (priorisiert):**
 - [x] **Responsive Design** — Sidebar, Tabellen, iframe-Layout für kleinere Bildschirme optimieren
@@ -132,8 +135,6 @@ Schlüsseldatei: `backend/src/task_executor.py` — enthält `dispatch_task()`, 
 - [x] **Benachrichtigungen** — Browser-Notifications bei Testlauf-Abschluss; optional Slack/Email-Integration bei Fehlschlägen
 - [x] **Scheduling UX** — Cron-artiges Scheduling mit visuellem Editor im Frontend prominenter machen
 - [x] **Benutzer-/Projekt-Scoping** — Projekt-Level-Berechtigungen / Multi-Tenancy für wachsende Teams
-- [ ] **Visueller Editor für .robot/.resource Dateien** — Strukturierter Form-Editor (Settings, Variables, Test Cases, Keywords) analog zum .roboscope SpecEditor
-- [ ] **Offline-Archiv-Analyse** — Upload alter Report-ZIPs zur Analyse ohne Git-Repo/Environment
 - [ ] **UI-Verfeinerungen** — Allgemeine Polish-Runde (Ladeanimationen, Error-States, leere Zustände)
 
 ### Milestone: Enterprise-Readiness für RF-Integration in Unternehmen
@@ -145,10 +146,10 @@ Ziel: RoboScope für den produktiven Einsatz in Unternehmens-Umgebungen vorberei
 - [x] **Webhooks Outbound** — `Webhook` + `WebhookDelivery` Models. CRUD unter `/api/v1/webhooks/hooks` (EDITOR+). HMAC-SHA256 Signatur (`X-RoboScope-Signature`), 6 Events (run.started/passed/failed/error/cancelled/timeout), Retry mit Backoff (3 Versuche), Test-Ping, Delivery-Log. Hook in `execution/tasks.py` dispatcht Events bei Run-Status-Änderungen. Frontend: Settings-Tab "Webhooks".
 - [x] **Git-Webhook-Trigger Inbound** — `POST /api/v1/webhooks/git` akzeptiert GitHub/GitLab Push-Payloads. Matched Repo via `git_url` (mit/ohne `.git`), extrahiert Branch aus `refs/heads/...`, erstellt automatisch `ExecutionRun`. i18n (EN/DE/FR/ES).
 
-**Phase 2 — Audit & Compliance**
-- [ ] **Audit-Log** — Neues `AuditLog`-Model (user_id, action, resource_type, resource_id, detail JSON, ip_address, timestamp). Middleware/Decorator für alle schreibenden Endpoints. Admin-UI: Filterbares Audit-Log (Benutzer, Aktion, Zeitraum). Export als CSV.
-- [ ] **Retention-Enforcement** — Scheduled Background-Task (täglich) löscht Reports/Runs älter als `report_retention_days`. Optional pro Projekt überschreibbar. Trockenlauf-Modus vor erstem Einsatz.
-- [ ] **Secrets-Verschlüsselung** — Fernet-Verschlüsselung (Pattern aus AI-Modul) auf Environment-Variablen mit `is_secret=True` ausweiten. Migration: bestehende Plaintext-Secrets einmalig verschlüsseln. Secrets in API-Responses maskiert (`****`).
+**Phase 2 — Audit & Compliance ✅ DONE**
+- [x] **Audit-Log** — `AuditLog`-Model (user_id, username, action, resource_type, resource_id, detail JSON, ip_address, timestamp). Automatische `AuditMiddleware` loggt alle POST/PUT/PATCH/DELETE-Operationen. Admin-UI: Filterbares Audit-Log (Aktion, Ressource, Paginierung), CSV-Export. Manueller `audit()` Helper für Endpoints. 23 Tests.
+- [x] **Retention-Enforcement** — APScheduler `BackgroundScheduler` (24h Intervall) führt `enforce_retention()` aus. Löscht Reports/Runs älter als `report_retention_days`. Räumt Output-Verzeichnisse auf. Trockenlauf-Modus. Manueller Trigger via `POST /audit/retention/run` (ADMIN). 5 Tests.
+- [x] **Secrets-Verschlüsselung** — Gemeinsames `src/encryption.py` Modul (Fernet, abgeleitet von SECRET_KEY). Environment-Variablen mit `is_secret=True` werden verschlüsselt gespeichert. `decrypt_variable_value()` für Execution. Legacy-Plaintext-Secrets funktionieren weiterhin (graceful degradation). 11 Tests.
 
 **Phase 3 — Authentifizierung & Zugriffskontrolle**
 - [ ] **OAuth2 / SSO** — OAuth2 Authorization Code Flow für Azure AD, Google, GitHub. Konfiguration via Settings (Client-ID, Secret, Tenant). Auto-Provisioning: Erster Login erstellt User mit Default-Rolle (VIEWER). Optional: SAML 2.0 via python-saml für Enterprise-IdPs (Okta, ADFS).

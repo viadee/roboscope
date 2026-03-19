@@ -140,11 +140,30 @@ async def lifespan(app: FastAPI):
         except Exception:
             logger.warning("Failed to auto-start rf-mcp", exc_info=True)
 
+    # Start retention enforcement scheduler (daily cleanup)
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from apscheduler.triggers.interval import IntervalTrigger
+    from src.audit.retention import enforce_retention
+
+    _scheduler = BackgroundScheduler()
+    _scheduler.add_job(
+        enforce_retention,
+        trigger=IntervalTrigger(hours=24),
+        id="retention_enforcement",
+        name="Retention Enforcement (daily)",
+        replace_existing=True,
+    )
+    _scheduler.start()
+    logger.info("Retention enforcement scheduler started (every 24h)")
+
     logger.info("RoboScope started successfully")
     yield
 
     # Shutdown
     logger.info("Shutting down RoboScope...")
+
+    # Shut down retention scheduler
+    _scheduler.shutdown(wait=False)
 
     # Stop rf-mcp server if running
     from src.ai import rf_mcp_manager
@@ -184,6 +203,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Audit middleware — logs all write operations (POST/PUT/PATCH/DELETE) to audit_logs
+    from src.audit.middleware import AuditMiddleware
+    app.add_middleware(AuditMiddleware)
 
     # Request ID middleware — attaches a unique ID to each request for log correlation
     @app.middleware("http")
