@@ -1008,8 +1008,17 @@ export default {
       stepExpectedResultPlaceholder: 'Expected result for this step...',
     },
   },
+  flowEditor: {
+    noTestCases: 'No test cases to visualize. Add a test case in the Visual Editor first.',
+    keyword: 'Keyword',
+    arguments: 'Arguments',
+    condition: 'Condition',
+    returnVars: 'Return Variables',
+    comment: 'Comment',
+  },
   robotEditor: {
     visualTab: 'Visual Editor',
+    flowTab: 'Flow',
     codeTab: 'Code',
     tests: 'tests',
     keywordsCount: 'keywords',

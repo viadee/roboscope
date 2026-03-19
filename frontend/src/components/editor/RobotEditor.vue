@@ -2,6 +2,7 @@
 import { ref, reactive, watch, computed, nextTick, onMounted, onUnmounted, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import FlowEditor from '@/components/editor/FlowEditor.vue'
 import { robotLanguage } from '@/utils/robotLanguage'
 import { RF_KEYWORD_SIGNATURES } from '@/utils/robotKeywordSignatures'
 import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
@@ -87,7 +88,7 @@ function makeStep(type: StepType = 'keyword'): RobotStep {
 }
 
 // --- State ---
-const activeTab = ref<'visual' | 'code'>('visual')
+const activeTab = ref<'visual' | 'flow' | 'code'>('visual')
 const parseError = ref<string | null>(null)
 const codeEditorContainer = ref<HTMLElement | null>(null)
 const codeEditorView = shallowRef<EditorView | null>(null)
@@ -630,7 +631,7 @@ function serializeFormToRobot(): string {
 }
 
 // --- Tab Switching ---
-function switchTab(tab: 'visual' | 'code') {
+function switchTab(tab: 'visual' | 'flow' | 'code') {
   if (tab === activeTab.value) return
   if (tab === 'code') {
     internalCode.value = serializeFormToRobot()
@@ -638,11 +639,13 @@ function switchTab(tab: 'visual' | 'code') {
     parseError.value = null
     nextTick(() => initCodeEditor())
   } else {
-    const currentCode = getCodeEditorContent()
-    if (parseRobotToForm(currentCode)) {
-      activeTab.value = 'visual'
+    // Switching to visual or flow — parse from code editor if coming from code tab
+    if (activeTab.value === 'code') {
+      const currentCode = getCodeEditorContent()
+      if (!parseRobotToForm(currentCode)) return
       destroyCodeEditor()
     }
+    activeTab.value = tab
   }
 }
 
@@ -1451,6 +1454,9 @@ watch(() => props.content, (newContent) => {
         <button class="tab-btn" :class="{ active: activeTab === 'visual' }" @click="switchTab('visual')">
           {{ t('robotEditor.visualTab') }}
         </button>
+        <button class="tab-btn" :class="{ active: activeTab === 'flow' }" @click="switchTab('flow')">
+          {{ t('robotEditor.flowTab') }}
+        </button>
         <button class="tab-btn" :class="{ active: activeTab === 'code' }" @click="switchTab('code')">
           {{ t('robotEditor.codeTab') }}
         </button>
@@ -2189,6 +2195,11 @@ watch(() => props.content, (newContent) => {
       </div>
     </div>
 
+    <!-- Flow Tab -->
+    <div v-if="activeTab === 'flow'" class="flow-tab-wrapper">
+      <FlowEditor :form="form" />
+    </div>
+
     <!-- Code Tab -->
     <div v-show="activeTab === 'code'" class="code-editor" ref="codeEditorContainer"></div>
   </div>
@@ -2447,6 +2458,7 @@ watch(() => props.content, (newContent) => {
 .empty-hint { padding: 16px; text-align: center; color: var(--color-text-muted); font-size: 13px; font-style: italic; }
 
 /* Code Editor */
+.flow-tab-wrapper { flex: 1; overflow: hidden; }
 .code-editor { flex: 1; overflow: hidden; }
 .code-editor :deep(.cm-editor) { height: 100%; }
 
