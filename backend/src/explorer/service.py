@@ -180,6 +180,64 @@ def parse_robot_testcases(base_path: str, relative_path: str) -> list[TestCaseIn
     return testcases
 
 
+def parse_robot_keywords_in_repo(base_path: str) -> list[dict]:
+    """Extract all user-defined keyword names from .robot/.resource files in a repo.
+
+    Returns a list of {name, file_path, arguments} dicts.
+    """
+    base = Path(base_path)
+    if not base.exists():
+        return []
+
+    keywords: list[dict] = []
+
+    for ext in (".robot", ".resource"):
+        for rf_file in base.rglob(f"*{ext}"):
+            relative = str(rf_file.relative_to(base))
+            try:
+                content = rf_file.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                continue
+
+            in_keyword_section = False
+            current_kw: dict | None = None
+
+            for line in content.splitlines():
+                stripped = line.strip()
+
+                if stripped.lower().startswith("*** keyword"):
+                    in_keyword_section = True
+                    continue
+                if stripped.startswith("***"):
+                    if current_kw:
+                        keywords.append(current_kw)
+                        current_kw = None
+                    in_keyword_section = False
+                    continue
+
+                if not in_keyword_section:
+                    continue
+
+                if stripped and not line.startswith((" ", "\t")) and not stripped.startswith("#"):
+                    if current_kw:
+                        keywords.append(current_kw)
+                    current_kw = {
+                        "name": stripped,
+                        "file_path": relative,
+                        "arguments": [],
+                    }
+                elif current_kw and stripped.lower().startswith("[arguments]"):
+                    args_str = stripped[11:].strip()
+                    current_kw["arguments"] = [
+                        a.strip() for a in args_str.split("    ") if a.strip()
+                    ]
+
+            if current_kw:
+                keywords.append(current_kw)
+
+    return keywords
+
+
 def search_in_repo(base_path: str, query: str, file_type: str | None = None) -> list[SearchResult]:
     """Search for test cases, keywords, and files matching a query."""
     results: list[SearchResult] = []

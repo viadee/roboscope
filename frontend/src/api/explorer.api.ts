@@ -57,6 +57,17 @@ export async function openInFileBrowser(repoId: number, path: string): Promise<v
   await apiClient.post(`/explorer/${repoId}/folder/open`, { path })
 }
 
+export interface ProjectKeyword {
+  name: string
+  file_path: string
+  arguments: string[]
+}
+
+export async function getProjectKeywords(repoId: number): Promise<ProjectKeyword[]> {
+  const response = await apiClient.get<ProjectKeyword[]>(`/explorer/${repoId}/keywords`)
+  return response.data
+}
+
 export async function checkLibraries(repoId: number, environmentId: number): Promise<LibraryCheckResponse> {
   const response = await apiClient.get<LibraryCheckResponse>(`/explorer/${repoId}/library-check`, {
     params: { environment_id: environmentId },

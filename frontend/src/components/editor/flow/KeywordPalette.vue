@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
+import { getProjectKeywords, type ProjectKeyword } from '@/api/explorer.api'
 import type { StepType, RobotStep } from './flowConverter'
 
 const props = defineProps<{
@@ -14,26 +15,36 @@ const emit = defineEmits<{
   (e: 'add-node', step: RobotStep): void
 }>()
 
-// Dynamic keywords from rf-mcp
+// Dynamic keywords from rf-mcp + project .resource files
 const dynamicLibraries = ref<Map<string, RfKeywordResult[]>>(new Map())
+const projectKeywords = ref<ProjectKeyword[]>([])
 const loadingKeywords = ref(false)
 
 async function loadDynamicKeywords() {
   if (!props.repoId) return
   loadingKeywords.value = true
   try {
-    // Search with empty query returns all available keywords
-    const result = await searchKeywords('*', props.repoId)
-    // Group by library
-    const grouped = new Map<string, RfKeywordResult[]>()
-    for (const kw of result.results) {
-      const lib = kw.library || 'Unknown'
-      if (!grouped.has(lib)) grouped.set(lib, [])
-      grouped.get(lib)!.push(kw)
+    // Load both in parallel: rf-mcp library keywords + project user keywords
+    const [rfResult, projKws] = await Promise.allSettled([
+      searchKeywords('*', props.repoId),
+      getProjectKeywords(props.repoId),
+    ])
+
+    // rf-mcp library keywords (grouped by library)
+    if (rfResult.status === 'fulfilled') {
+      const grouped = new Map<string, RfKeywordResult[]>()
+      for (const kw of rfResult.value.results) {
+        const lib = kw.library || 'Unknown'
+        if (!grouped.has(lib)) grouped.set(lib, [])
+        grouped.get(lib)!.push(kw)
+      }
+      dynamicLibraries.value = grouped
     }
-    dynamicLibraries.value = grouped
-  } catch {
-    // rf-mcp might not be running — fall back to static list
+
+    // Project keywords from .robot/.resource files
+    if (projKws.status === 'fulfilled') {
+      projectKeywords.value = projKws.value
+    }
   } finally {
     loadingKeywords.value = false
   }
@@ -137,9 +148,22 @@ const categories = [
   },
 ]
 
-// Build categories: dynamic (from rf-mcp) + static fallbacks + control
+// Build categories: project keywords + dynamic (from rf-mcp) + static fallbacks + control
 const allCategories = computed(() => {
   const cats: typeof categories = []
+
+  // Project keywords from .robot/.resource files (grouped by file)
+  if (projectKeywords.value.length > 0) {
+    const byFile = new Map<string, string[]>()
+    for (const kw of projectKeywords.value) {
+      const file = kw.file_path.split('/').pop() || kw.file_path
+      if (!byFile.has(file)) byFile.set(file, [])
+      byFile.get(file)!.push(kw.name)
+    }
+    for (const [file, names] of byFile) {
+      cats.push({ name: `Project: ${file}`, keywords: names } as any)
+    }
+  }
 
   // Dynamic library keywords (from rf-mcp, if available)
   for (const [lib, keywords] of dynamicLibraries.value) {
@@ -150,7 +174,7 @@ const allCategories = computed(() => {
   }
 
   // If no dynamic keywords loaded, use static fallbacks
-  if (cats.length === 0) {
+  if (dynamicLibraries.value.size === 0 && projectKeywords.value.length === 0) {
     cats.push(...categories.filter(c => c.name !== 'Control'))
   }
 
