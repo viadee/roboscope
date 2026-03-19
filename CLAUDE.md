@@ -151,16 +151,23 @@ Ziel: RoboScope für den produktiven Einsatz in Unternehmens-Umgebungen vorberei
 - [x] **Retention-Enforcement** — APScheduler `BackgroundScheduler` (24h Intervall) führt `enforce_retention()` aus. Löscht Reports/Runs älter als `report_retention_days`. Räumt Output-Verzeichnisse auf. Trockenlauf-Modus. Manueller Trigger via `POST /audit/retention/run` (ADMIN). 5 Tests.
 - [x] **Secrets-Verschlüsselung** — Gemeinsames `src/encryption.py` Modul (Fernet, abgeleitet von SECRET_KEY). Environment-Variablen mit `is_secret=True` werden verschlüsselt gespeichert. `decrypt_variable_value()` für Execution. Legacy-Plaintext-Secrets funktionieren weiterhin (graceful degradation). 11 Tests.
 
-**Phase 3 — Authentifizierung & Zugriffskontrolle**
+**Phase 3 — Visueller Flow-Editor für Robot Framework ✅ DONE**
+- [x] **Vue Flow Integration** — Node-basierter grafischer Editor als dritter Tab "Flow" in RobotEditor (neben "Visual Editor" und "Code"). Vue Flow mit Custom Nodes: KeywordNode (blau, Library-Aufruf + Argumente), ControlNode (dashed, IF/FOR/WHILE/TRY), StartEndNode (rund, Test-Name). MiniMap, Controls, Background-Grid. Detail-Panel bei Node-Klick.
+- [x] **RF-zu-Graph Parser** — `flowConverter.ts`: `robotFormToFlow()` konvertiert bestehende RobotForm AST (bereits client-seitig geparst) in Vue Flow Nodes + Edges. Jeder Test Case als separater Sub-Graph, Keyword-Steps als Nodes, Kontrollstrukturen mit Edge-Labels (true/false). Kein Backend nötig.
+- [x] **Graph-zu-RF Generator** — Bidirektional via RobotEditor Tab-Switching: Flow ↔ Visual ↔ Code teilen dieselbe RobotForm AST. Änderungen im Flow (neue Nodes via Palette) aktualisieren die Form, die dann in .robot serialisiert wird.
+- [x] **Keyword-Palette** — Seitliche `KeywordPalette.vue` mit 5 Kategorien (BuiltIn, Collections, String, Browser, Control). Suchfilter, Click-to-Add und Drag & Drop auf Canvas. Control-Strukturen generieren automatisch END-Nodes. i18n EN/DE/FR/ES.
+- [x] **Control-Flow-Nodes** — `ControlNode.vue` mit farbcodierten Typen (IF=amber, FOR/WHILE=violett, TRY=teal, EXCEPT=rot). Condition/Loop-Variable als Node-Body. Edge-Labels für Verzweigungen.
+
+**Phase 4 — Authentifizierung & Zugriffskontrolle**
 - [ ] **OAuth2 / SSO** — OAuth2 Authorization Code Flow für Azure AD, Google, GitHub. Konfiguration via Settings (Client-ID, Secret, Tenant). Auto-Provisioning: Erster Login erstellt User mit Default-Rolle (VIEWER). Optional: SAML 2.0 via python-saml für Enterprise-IdPs (Okta, ADFS).
 - [ ] **Team-/Organisations-Ebene** — `Team`-Model (name, members). Projekte können Teams zugewiesen werden statt einzelner User. Team-Rollen vererben sich auf Projekt-Ebene. Vereinfacht Onboarding großer Abteilungen.
 
-**Phase 4 — Skalierung & Reporting**
+**Phase 5 — Skalierung & Reporting**
 - [ ] **Report-Export** — CSV/JSON-Export für Einzelreports und Statistiken. PDF-Generierung (WeasyPrint oder Puppeteer) für Management-Reports mit KPI-Zusammenfassung, Trend-Charts, Top-Failures.
 - [ ] **Verteilte Ausführung** — TaskExecutor auf `max_workers=N` erweitern (konfigurierbar). Remote-Runner-Konzept: Agent-basiert (Polling) oder SSH-Dispatch. Kubernetes-Runner als Plugin (Job-Spec → K8s API).
 - [ ] **Prometheus Metrics** — `/metrics` Endpoint (prometheus_client): runs_total, runs_active, run_duration_seconds, tests_passed/failed, queue_depth. Grafana-Dashboard-Template als JSON mitliefern.
 
-**Phase 5 — Qualität & Ergonomie**
+**Phase 6 — Qualität & Ergonomie**
 - [ ] **Gespeicherte Run-Templates** — Benannte Konfigurationen (Name, Target, Branch, Tags, Environment, Variables) pro Projekt. "Smoke Test", "Full Regression" als One-Click-Actions auf Dashboard und Execution-Seite.
 - [ ] **Jira/Issue-Tracker-Integration** — Plugin: Bei fehlgeschlagenem Run automatisch Jira-Ticket erstellen (Summary, Fehlermeldung, Link zum Report). Konfiguration: Jira-URL, API-Token, Projekt-Key, Issue-Type.
 - [ ] **Helm Chart** — Kubernetes-Deployment mit Helm: Backend (Deployment + Service), Frontend (Nginx), PostgreSQL (optional external), PVC für Workspace/Reports/Venvs, Ingress, ConfigMap/Secrets.
