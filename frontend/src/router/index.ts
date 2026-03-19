@@ -95,15 +95,32 @@ const ROLE_HIERARCHY: Record<string, number> = {
   admin: 3,
 }
 
-router.beforeEach(async (to) => {
+router.beforeEach(async (to, from) => {
   const auth = useAuthStore()
+
+  // Prevent redirect loops: if we just came from dashboard→login or login→dashboard, stop
+  if (to.path === from.path) return
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { path: '/login', query: { redirect: to.fullPath } }
   }
 
+  // Validate token by fetching current user (only once per session)
   if (to.meta.requiresAuth && auth.isAuthenticated && !auth.user) {
-    await auth.fetchCurrentUser()
+    try {
+      await auth.fetchCurrentUser()
+    } catch {
+      // Token is stale/invalid — already logged out by fetchCurrentUser
+      // Redirect to login without creating a loop
+      if (to.path !== '/login') {
+        return { path: '/login' }
+      }
+      return
+    }
+    // After fetchCurrentUser, token may have been invalidated
+    if (!auth.isAuthenticated) {
+      return { path: '/login' }
+    }
   }
 
   if (to.meta.minRole && auth.user) {

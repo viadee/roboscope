@@ -368,6 +368,9 @@ make db-downgrade
 
 ## Bekannte Patterns und Gotchas
 
+### Keine externen Online-Ressourcen
+RoboScope muss **vollständig offline funktionieren**. Keine Google Fonts, kein CDN, keine externen CSS/JS-Imports. Alle Assets (Fonts, Icons, Libraries) müssen lokal gebündelt sein. Font-Stack nutzt System-Fonts (`-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`). Diese Regel gilt für Frontend UND Backend.
+
 ### DB Commit vor dispatch_task()
 Background-Tasks laufen in separaten Threads mit eigener sync DB-Session. Die SQLAlchemy-Session im FastAPI-Request committed erst nach dem Handler-Return. Deshalb **muss immer `db.commit()` VOR `dispatch_task()` aufgerufen werden**, damit der Background-Thread die Daten sieht.
 
