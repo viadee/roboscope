@@ -178,6 +178,68 @@ function addNodeFromPalette(step: RobotStep) {
   buildGraph()
 }
 
+// --- Move step up/down ---
+
+function getActiveSteps(): RobotStep[] | null {
+  return activeSection.value === 'testcases'
+    ? props.form.testCases[activeItemIndex.value]?.steps ?? null
+    : props.form.keywords[activeItemIndex.value]?.steps ?? null
+}
+
+function moveStepUp() {
+  if (!selectedNodeData.value) return
+  const steps = getActiveSteps()
+  if (!steps) return
+  const idx = selectedNodeData.value.stepIndex
+  if (idx <= 0) return
+  // Swap with previous non-end step
+  const temp = steps[idx]
+  steps[idx] = steps[idx - 1]
+  steps[idx - 1] = temp
+  selectedNodeData.value.stepIndex = idx - 1
+  buildGraph()
+  emit('update:step', selectedNodeData.value)
+}
+
+function moveStepDown() {
+  if (!selectedNodeData.value) return
+  const steps = getActiveSteps()
+  if (!steps) return
+  const idx = selectedNodeData.value.stepIndex
+  if (idx >= steps.length - 1) return
+  const temp = steps[idx]
+  steps[idx] = steps[idx + 1]
+  steps[idx + 1] = temp
+  selectedNodeData.value.stepIndex = idx + 1
+  buildGraph()
+  emit('update:step', selectedNodeData.value)
+}
+
+function deleteStep() {
+  if (!selectedNodeData.value) return
+  const steps = getActiveSteps()
+  if (!steps) return
+  steps.splice(selectedNodeData.value.stepIndex, 1)
+  selectedNode.value = null
+  buildGraph()
+}
+
+function insertStepBefore(step: RobotStep) {
+  if (!selectedNodeData.value) return
+  const steps = getActiveSteps()
+  if (!steps) return
+  const idx = selectedNodeData.value.stepIndex
+  steps.splice(idx, 0, step)
+  if (['if', 'for', 'while', 'try'].includes(step.type)) {
+    steps.splice(idx + 1, 0, {
+      type: 'end', keyword: '', args: [], returnVars: [],
+      condition: '', loopVar: '', loopFlavor: '', loopValues: [],
+      exceptPattern: '', exceptVar: '', varScope: '', comment: '',
+    })
+  }
+  buildGraph()
+}
+
 function onCanvasDrop(event: DragEvent) {
   const keyword = event.dataTransfer?.getData('application/rf-keyword')
   const control = event.dataTransfer?.getData('application/rf-control')
@@ -286,7 +348,14 @@ function onCanvasDragOver(event: DragEvent) {
 
       <!-- Editable Node Detail Panel -->
       <div v-if="selectedNodeData" class="flow-detail-panel">
-        <h4>{{ selectedNodeData.stepType.toUpperCase().replace('_', ' ') }}</h4>
+        <div class="flow-detail-header">
+          <h4>{{ selectedNodeData.stepType.toUpperCase().replace('_', ' ') }}</h4>
+          <div class="flow-detail-actions">
+            <button class="flow-action-btn" @click="moveStepUp" title="Move up">&#x2191;</button>
+            <button class="flow-action-btn" @click="moveStepDown" title="Move down">&#x2193;</button>
+            <button class="flow-action-btn flow-action-delete" @click="deleteStep" title="Delete">&times;</button>
+          </div>
+        </div>
 
         <!-- Keyword name -->
         <div v-if="['keyword', 'assignment'].includes(selectedNodeData.stepType)" class="flow-detail-row">
@@ -483,12 +552,44 @@ function onCanvasDragOver(event: DragEvent) {
   max-height: 80%;
   overflow-y: auto;
 }
+.flow-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
 .flow-detail-panel h4 {
-  margin: 0 0 12px 0;
+  margin: 0;
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--color-primary, #3B7DD8);
+}
+.flow-detail-actions {
+  display: flex;
+  gap: 2px;
+}
+.flow-action-btn {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.flow-action-btn:hover {
+  background: var(--color-bg, #F4F7FA);
+}
+.flow-action-delete {
+  color: #c33;
+  border-color: #fcc;
+}
+.flow-action-delete:hover {
+  background: #fee;
 }
 .flow-detail-row {
   margin-bottom: 10px;

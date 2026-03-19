@@ -44,6 +44,7 @@ watch(() => props.repoId, () => loadDynamicKeywords())
 
 const searchQuery = ref('')
 const collapsedCategories = ref<Set<string>>(new Set())
+const selectedKeyword = ref<{ name: string; type?: StepType } | null>(null)
 
 function toggleCategory(name: string) {
   if (collapsedCategories.value.has(name)) {
@@ -53,9 +54,32 @@ function toggleCategory(name: string) {
   }
 }
 function isCategoryOpen(name: string): boolean {
-  // Always open when searching
   if (searchQuery.value) return true
   return !collapsedCategories.value.has(name)
+}
+function expandAll() {
+  collapsedCategories.value.clear()
+}
+function collapseAll() {
+  for (const cat of allCategories.value) {
+    collapsedCategories.value.add(cat.name)
+  }
+}
+
+function selectKeyword(name: string, type?: StepType) {
+  selectedKeyword.value = { name, type }
+}
+function isSelected(name: string): boolean {
+  return selectedKeyword.value?.name === name
+}
+function addSelectedKeyword() {
+  if (!selectedKeyword.value) return
+  if (selectedKeyword.value.type) {
+    addControlNode(selectedKeyword.value.type)
+  } else {
+    addKeywordNode(selectedKeyword.value.name)
+  }
+  selectedKeyword.value = null
 }
 
 // Built-in keyword categories
@@ -196,12 +220,21 @@ function onControlDragStart(event: DragEvent, type: StepType) {
   <div class="keyword-palette">
     <div class="palette-header">
       <h4>{{ t('flowEditor.palette') || 'Keywords' }}</h4>
+      <div class="palette-actions">
+        <button class="palette-action-btn" @click="expandAll" title="Expand all">&#x229E;</button>
+        <button class="palette-action-btn" @click="collapseAll" title="Collapse all">&#x229F;</button>
+      </div>
     </div>
     <input
       v-model="searchQuery"
       class="palette-search"
       :placeholder="t('flowEditor.searchKeywords') || 'Search keywords...'"
     />
+    <!-- Add selected keyword button -->
+    <div v-if="selectedKeyword" class="palette-add-bar">
+      <span class="palette-add-label">{{ selectedKeyword.name }}</span>
+      <button class="palette-add-btn" @click="addSelectedKeyword">+</button>
+    </div>
     <div class="palette-categories">
       <div v-for="cat in filteredCategories" :key="cat!.name" class="palette-category">
         <div class="category-header" @click="toggleCategory(cat!.name)">
@@ -218,13 +251,14 @@ function onControlDragStart(event: DragEvent, type: StepType) {
             <div
               v-for="kw in (cat as any).keywords"
               :key="kw"
-              class="palette-item palette-item-keyword"
+              :class="['palette-item', 'palette-item-keyword', { selected: isSelected(kw) }]"
               draggable="true"
               @dragstart="onDragStart($event, kw)"
-              @click="addKeywordNode(kw)"
+              @click="selectKeyword(kw)"
+              @dblclick="addKeywordNode(kw)"
             >
               <span class="palette-icon">&#x2699;</span>
-              {{ kw }}
+              <span class="palette-item-name">{{ kw }}</span>
             </div>
           </template>
 
@@ -233,13 +267,14 @@ function onControlDragStart(event: DragEvent, type: StepType) {
             <div
               v-for="item in (cat as any).items"
               :key="item.label"
-              class="palette-item palette-item-control"
+              :class="['palette-item', 'palette-item-control', { selected: isSelected(item.label) }]"
               draggable="true"
               @dragstart="onControlDragStart($event, item.type)"
-              @click="addControlNode(item.type)"
+              @click="selectKeyword(item.label, item.type)"
+              @dblclick="addControlNode(item.type)"
             >
               <span class="palette-icon">&#x25C6;</span>
-              {{ item.label }}
+              <span class="palette-item-name">{{ item.label }}</span>
             </div>
           </template>
         </template>
@@ -263,10 +298,68 @@ function onControlDragStart(event: DragEvent, type: StepType) {
 .palette-header {
   padding: 10px 12px 6px;
 }
+.palette-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 .palette-header h4 {
   margin: 0;
   font-size: 13px;
   font-weight: 700;
+}
+.palette-actions {
+  display: flex;
+  gap: 2px;
+}
+.palette-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: var(--color-text-muted, #5A6380);
+}
+.palette-action-btn:hover {
+  background: #e2e8f0;
+}
+.palette-add-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 10px 8px;
+  padding: 5px 8px;
+  background: #EBF4FF;
+  border: 1px solid var(--color-primary, #3B7DD8);
+  border-radius: 6px;
+}
+.palette-add-label {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary, #3B7DD8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-add-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: var(--color-primary, #3B7DD8);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.palette-add-btn:hover {
+  background: var(--color-navy, #1A2D50);
 }
 .palette-search {
   margin: 0 10px 8px;
@@ -330,6 +423,16 @@ function onControlDragStart(event: DragEvent, type: StepType) {
 }
 .palette-item:hover {
   background: #e2e8f0;
+}
+.palette-item.selected {
+  background: #EBF4FF;
+  border: 1px solid var(--color-primary, #3B7DD8);
+  margin: -1px 0;
+}
+.palette-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .palette-item:active {
   cursor: grabbing;
