@@ -91,8 +91,15 @@ const visibleEdges = computed(() => {
   return edges.value.filter(e => e.id.startsWith(prefix))
 })
 
+// Flag to suppress fitView during inline edits/reorder
+let suppressFitView = false
+
 // Rebuild graph when form or section changes
 watch([() => props.form, activeSection], () => {
+  if (suppressFitView) {
+    suppressFitView = false
+    return
+  }
   activeItemIndex.value = 0
   selectedNode.value = null
   buildGraph()
@@ -122,42 +129,60 @@ function onPaneClick() {
 
 // --- Editable step fields ---
 
+function rebuildAndReselect() {
+  const selectedId = selectedNode.value?.id
+  suppressFitView = true
+  buildGraph()
+  if (selectedId) {
+    nextTick(() => {
+      const reselected = nodes.value.find(n => n.id === selectedId)
+      selectedNode.value = reselected || null
+    })
+  }
+}
+
 function onStepFieldChange() {
   if (!selectedNodeData.value) return
   updateStepFromNode(props.form, selectedNodeData.value)
-  buildGraph()
+  rebuildAndReselect()
   emit('update:step', selectedNodeData.value)
 }
 
 function addArg() {
   if (!selectedNodeData.value) return
   selectedNodeData.value.step.args.push('')
-  onStepFieldChange()
+  updateStepFromNode(props.form, selectedNodeData.value)
+  rebuildAndReselect()
 }
 function removeArg(index: number) {
   if (!selectedNodeData.value) return
   selectedNodeData.value.step.args.splice(index, 1)
-  onStepFieldChange()
+  updateStepFromNode(props.form, selectedNodeData.value)
+  rebuildAndReselect()
 }
 function addReturnVar() {
   if (!selectedNodeData.value) return
   selectedNodeData.value.step.returnVars.push('${var}')
-  onStepFieldChange()
+  updateStepFromNode(props.form, selectedNodeData.value)
+  rebuildAndReselect()
 }
 function removeReturnVar(index: number) {
   if (!selectedNodeData.value) return
   selectedNodeData.value.step.returnVars.splice(index, 1)
-  onStepFieldChange()
+  updateStepFromNode(props.form, selectedNodeData.value)
+  rebuildAndReselect()
 }
 function addLoopValue() {
   if (!selectedNodeData.value) return
   selectedNodeData.value.step.loopValues.push('')
-  onStepFieldChange()
+  updateStepFromNode(props.form, selectedNodeData.value)
+  rebuildAndReselect()
 }
 function removeLoopValue(index: number) {
   if (!selectedNodeData.value) return
   selectedNodeData.value.step.loopValues.splice(index, 1)
-  onStepFieldChange()
+  updateStepFromNode(props.form, selectedNodeData.value)
+  rebuildAndReselect()
 }
 
 // --- Add node from palette ---
@@ -192,12 +217,11 @@ function moveStepUp() {
   if (!steps) return
   const idx = selectedNodeData.value.stepIndex
   if (idx <= 0) return
-  // Swap with previous non-end step
   const temp = steps[idx]
   steps[idx] = steps[idx - 1]
   steps[idx - 1] = temp
   selectedNodeData.value.stepIndex = idx - 1
-  buildGraph()
+  rebuildAndReselect()
   emit('update:step', selectedNodeData.value)
 }
 
@@ -211,7 +235,7 @@ function moveStepDown() {
   steps[idx] = steps[idx + 1]
   steps[idx + 1] = temp
   selectedNodeData.value.stepIndex = idx + 1
-  buildGraph()
+  rebuildAndReselect()
   emit('update:step', selectedNodeData.value)
 }
 
@@ -221,6 +245,7 @@ function deleteStep() {
   if (!steps) return
   steps.splice(selectedNodeData.value.stepIndex, 1)
   selectedNode.value = null
+  suppressFitView = true
   buildGraph()
 }
 
