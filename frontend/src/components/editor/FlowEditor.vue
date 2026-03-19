@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, computed } from 'vue'
+import { ref, watch, onMounted, computed, nextTick } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -13,6 +13,7 @@ import StartEndNode from './flow/StartEndNode.vue'
 import KeywordPalette from './flow/KeywordPalette.vue'
 import {
   robotFormToFlow,
+  robotKeywordsToFlow,
   updateStepFromNode,
   type RobotForm,
   type RobotStep,
@@ -39,27 +40,74 @@ const edges = ref<Edge[]>([])
 
 const { fitView } = useVueFlow()
 
-// Selected node for detail panel
-const selectedNode = ref<Node | null>(null)
+// --- Section tabs: Test Cases vs Keywords ---
+const activeSection = ref<'testcases' | 'keywords'>('testcases')
 
+// Active item within section
+const activeItemIndex = ref(0)
+
+const testCaseNames = computed(() =>
+  props.form.testCases.map((tc, i) => tc.name || `Test Case ${i + 1}`)
+)
+const keywordNames = computed(() =>
+  props.form.keywords.map((kw, i) => kw.name || `Keyword ${i + 1}`)
+)
+
+const hasTestCases = computed(() => props.form.testCases.length > 0)
+const hasKeywords = computed(() => props.form.keywords.length > 0)
+const hasContent = computed(() => hasTestCases.value || hasKeywords.value)
+
+// Selected node for editable detail panel
+const selectedNode = ref<Node | null>(null)
 const selectedNodeData = computed<FlowNodeData | null>(() => {
   if (!selectedNode.value) return null
   return selectedNode.value.data as FlowNodeData
 })
 
 function buildGraph() {
-  const result = robotFormToFlow(props.form)
-  nodes.value = result.nodes
-  edges.value = result.edges
+  if (activeSection.value === 'testcases') {
+    const result = robotFormToFlow(props.form)
+    nodes.value = result.nodes
+    edges.value = result.edges
+  } else {
+    const result = robotKeywordsToFlow(props.form)
+    nodes.value = result.nodes
+    edges.value = result.edges
+  }
 }
 
-// Rebuild graph when form changes
-watch(() => props.form, () => {
+// Filter nodes/edges for active item only
+const visibleNodes = computed(() => {
+  const prefix = activeSection.value === 'testcases'
+    ? `tc${activeItemIndex.value}-`
+    : `kw${activeItemIndex.value}-`
+  return nodes.value.filter(n => n.id.startsWith(prefix))
+})
+const visibleEdges = computed(() => {
+  const prefix = activeSection.value === 'testcases'
+    ? `tc${activeItemIndex.value}-`
+    : `kw${activeItemIndex.value}-`
+  return edges.value.filter(e => e.id.startsWith(prefix))
+})
+
+// Rebuild graph when form or section changes
+watch([() => props.form, activeSection], () => {
+  activeItemIndex.value = 0
+  selectedNode.value = null
   buildGraph()
-  setTimeout(() => fitView({ padding: 0.2 }), 100)
+  nextTick(() => fitView({ padding: 0.2 }))
 }, { deep: true })
 
+watch(activeItemIndex, () => {
+  selectedNode.value = null
+  nextTick(() => fitView({ padding: 0.2 }))
+})
+
 onMounted(() => {
+  // Default to keywords section if no test cases
+  if (!hasTestCases.value && hasKeywords.value) {
+    activeSection.value = 'keywords'
+  }
   buildGraph()
   setTimeout(() => fitView({ padding: 0.2 }), 200)
 })
@@ -67,40 +115,65 @@ onMounted(() => {
 function onNodeClick(event: { node: Node }) {
   selectedNode.value = event.node
 }
-
 function onPaneClick() {
   selectedNode.value = null
 }
 
-// Test case tabs
-const activeTestCase = ref(0)
-const testCaseNames = computed(() =>
-  props.form.testCases.map((tc, i) => tc.name || `Test Case ${i + 1}`)
-)
+// --- Editable step fields ---
 
-// Filter nodes/edges for active test case only
-const visibleNodes = computed(() =>
-  nodes.value.filter(n => n.id.startsWith(`tc${activeTestCase.value}-`))
-)
-const visibleEdges = computed(() =>
-  edges.value.filter(e => e.id.startsWith(`tc${activeTestCase.value}-`))
-)
+function onStepFieldChange() {
+  if (!selectedNodeData.value) return
+  updateStepFromNode(props.form, selectedNodeData.value)
+  buildGraph()
+  emit('update:step', selectedNodeData.value)
+}
 
-// --- Add node from palette (click or drag & drop) ---
+function addArg() {
+  if (!selectedNodeData.value) return
+  selectedNodeData.value.step.args.push('')
+  onStepFieldChange()
+}
+function removeArg(index: number) {
+  if (!selectedNodeData.value) return
+  selectedNodeData.value.step.args.splice(index, 1)
+  onStepFieldChange()
+}
+function addReturnVar() {
+  if (!selectedNodeData.value) return
+  selectedNodeData.value.step.returnVars.push('${var}')
+  onStepFieldChange()
+}
+function removeReturnVar(index: number) {
+  if (!selectedNodeData.value) return
+  selectedNodeData.value.step.returnVars.splice(index, 1)
+  onStepFieldChange()
+}
+function addLoopValue() {
+  if (!selectedNodeData.value) return
+  selectedNodeData.value.step.loopValues.push('')
+  onStepFieldChange()
+}
+function removeLoopValue(index: number) {
+  if (!selectedNodeData.value) return
+  selectedNodeData.value.step.loopValues.splice(index, 1)
+  onStepFieldChange()
+}
+
+// --- Add node from palette ---
 
 function addNodeFromPalette(step: RobotStep) {
-  const tc = props.form.testCases[activeTestCase.value]
-  if (!tc) return
-  tc.steps.push(step)
-  // Also add END for control structures
+  const list = activeSection.value === 'testcases'
+    ? props.form.testCases[activeItemIndex.value]?.steps
+    : props.form.keywords[activeItemIndex.value]?.steps
+  if (!list) return
+  list.push(step)
   if (['if', 'for', 'while', 'try'].includes(step.type)) {
-    tc.steps.push({
+    list.push({
       type: 'end', keyword: '', args: [], returnVars: [],
       condition: '', loopVar: '', loopFlavor: '', loopValues: [],
       exceptPattern: '', exceptVar: '', varScope: '', comment: '',
     })
   }
-  emit('update:step', { step, testCaseIndex: activeTestCase.value, stepIndex: tc.steps.length - 1 } as FlowNodeData)
   buildGraph()
 }
 
@@ -124,7 +197,6 @@ function onCanvasDrop(event: DragEvent) {
     })
   }
 }
-
 function onCanvasDragOver(event: DragEvent) {
   event.preventDefault()
   event.dataTransfer!.dropEffect = 'copy'
@@ -133,94 +205,188 @@ function onCanvasDragOver(event: DragEvent) {
 
 <template>
   <div class="flow-editor">
-    <!-- Test case selector (if multiple) -->
-    <div v-if="testCaseNames.length > 1" class="flow-tc-tabs">
-      <button
-        v-for="(name, i) in testCaseNames"
-        :key="i"
-        :class="['flow-tc-tab', { active: activeTestCase === i }]"
-        @click="activeTestCase = i"
-      >
-        {{ name }}
-      </button>
+    <!-- Section tabs: Test Cases | Keywords -->
+    <div class="flow-section-bar">
+      <div class="flow-section-tabs">
+        <button
+          v-if="hasTestCases"
+          :class="['flow-section-tab', { active: activeSection === 'testcases' }]"
+          @click="activeSection = 'testcases'"
+        >
+          {{ t('robotEditor.testCasesSection') }} ({{ props.form.testCases.length }})
+        </button>
+        <button
+          v-if="hasKeywords"
+          :class="['flow-section-tab', { active: activeSection === 'keywords' }]"
+          @click="activeSection = 'keywords'"
+        >
+          {{ t('robotEditor.keywordsSection') }} ({{ props.form.keywords.length }})
+        </button>
+      </div>
+
+      <!-- Item tabs within section -->
+      <div class="flow-item-tabs">
+        <template v-if="activeSection === 'testcases'">
+          <button
+            v-for="(name, i) in testCaseNames" :key="'tc'+i"
+            :class="['flow-item-tab', { active: activeItemIndex === i }]"
+            @click="activeItemIndex = i"
+          >{{ name }}</button>
+        </template>
+        <template v-else>
+          <button
+            v-for="(name, i) in keywordNames" :key="'kw'+i"
+            :class="['flow-item-tab', { active: activeItemIndex === i }]"
+            @click="activeItemIndex = i"
+          >{{ name }}</button>
+        </template>
+      </div>
     </div>
 
     <!-- Empty state -->
-    <div v-if="!props.form.testCases.length" class="flow-empty">
+    <div v-if="!hasContent" class="flow-empty">
       <p>{{ t('flowEditor.noTestCases') }}</p>
     </div>
 
     <!-- Vue Flow Canvas + Palette -->
     <div v-else class="flow-canvas-wrapper">
       <KeywordPalette @add-node="addNodeFromPalette" />
-      <VueFlow
-        @drop="onCanvasDrop"
-        @dragover="onCanvasDragOver"
-        :nodes="visibleNodes"
-        :edges="visibleEdges"
-        :default-viewport="{ zoom: 0.9, x: 0, y: 0 }"
-        :min-zoom="0.2"
-        :max-zoom="2"
-        fit-view-on-init
-        @node-click="onNodeClick"
-        @pane-click="onPaneClick"
-      >
-        <!-- Custom node types -->
-        <template #node-keyword="nodeProps">
-          <KeywordNode v-bind="nodeProps" />
-        </template>
-        <template #node-assignment="nodeProps">
-          <KeywordNode v-bind="nodeProps" />
-        </template>
-        <template #node-control="nodeProps">
-          <ControlNode v-bind="nodeProps" />
-        </template>
-        <template #node-start="nodeProps">
-          <StartEndNode v-bind="nodeProps" type="start" />
-        </template>
-        <template #node-end="nodeProps">
-          <StartEndNode v-bind="nodeProps" type="end" />
-        </template>
-        <template #node-comment="nodeProps">
-          <div class="flow-node-comment">
-            <span>{{ nodeProps.data.label }}</span>
-          </div>
-        </template>
-        <template #node-flow-control="nodeProps">
-          <div class="flow-node-flowctrl">
-            <span>{{ nodeProps.data.label }}</span>
-          </div>
-        </template>
 
-        <Background />
-        <Controls />
-        <MiniMap />
-      </VueFlow>
+      <div class="flow-canvas">
+        <VueFlow
+          @drop="onCanvasDrop"
+          @dragover="onCanvasDragOver"
+          :nodes="visibleNodes"
+          :edges="visibleEdges"
+          :default-viewport="{ zoom: 0.9, x: 0, y: 0 }"
+          :min-zoom="0.2"
+          :max-zoom="2"
+          fit-view-on-init
+          @node-click="onNodeClick"
+          @pane-click="onPaneClick"
+        >
+          <template #node-keyword="nodeProps"><KeywordNode v-bind="nodeProps" /></template>
+          <template #node-assignment="nodeProps"><KeywordNode v-bind="nodeProps" /></template>
+          <template #node-control="nodeProps"><ControlNode v-bind="nodeProps" /></template>
+          <template #node-start="nodeProps"><StartEndNode v-bind="nodeProps" type="start" /></template>
+          <template #node-end="nodeProps"><StartEndNode v-bind="nodeProps" type="end" /></template>
+          <template #node-comment="nodeProps">
+            <div class="flow-node-comment"><span>{{ nodeProps.data.label }}</span></div>
+          </template>
+          <template #node-flow-control="nodeProps">
+            <div class="flow-node-flowctrl"><span>{{ nodeProps.data.label }}</span></div>
+          </template>
 
-      <!-- Node detail panel -->
+          <Background />
+          <Controls />
+          <MiniMap />
+        </VueFlow>
+      </div>
+
+      <!-- Editable Node Detail Panel -->
       <div v-if="selectedNodeData" class="flow-detail-panel">
-        <h4>{{ selectedNodeData.step.type.toUpperCase().replace('_', ' ') }}</h4>
-        <div class="flow-detail-row">
+        <h4>{{ selectedNodeData.stepType.toUpperCase().replace('_', ' ') }}</h4>
+
+        <!-- Keyword name -->
+        <div v-if="['keyword', 'assignment'].includes(selectedNodeData.stepType)" class="flow-detail-row">
           <label>{{ t('flowEditor.keyword') }}</label>
-          <span class="flow-detail-value">{{ selectedNodeData.step.keyword || '—' }}</span>
+          <input
+            v-model="selectedNodeData.step.keyword"
+            class="flow-input"
+            @change="onStepFieldChange"
+          />
         </div>
-        <div v-if="selectedNodeData.step.args.length" class="flow-detail-row">
+
+        <!-- Arguments -->
+        <div v-if="['keyword', 'assignment'].includes(selectedNodeData.stepType)" class="flow-detail-row">
           <label>{{ t('flowEditor.arguments') }}</label>
-          <div class="flow-detail-args">
-            <code v-for="(arg, i) in selectedNodeData.step.args" :key="i">{{ arg }}</code>
+          <div v-for="(arg, i) in selectedNodeData.step.args" :key="i" class="flow-arg-row">
+            <input
+              v-model="selectedNodeData.step.args[i]"
+              class="flow-input flow-input-sm"
+              :placeholder="'arg ' + (i+1)"
+              @change="onStepFieldChange"
+            />
+            <button class="flow-btn-remove" @click="removeArg(i)">&times;</button>
           </div>
+          <button class="flow-btn-add" @click="addArg">+ {{ t('flowEditor.addArg') }}</button>
         </div>
-        <div v-if="selectedNodeData.step.condition" class="flow-detail-row">
-          <label>{{ t('flowEditor.condition') }}</label>
-          <code>{{ selectedNodeData.step.condition }}</code>
-        </div>
-        <div v-if="selectedNodeData.step.returnVars.length" class="flow-detail-row">
+
+        <!-- Return variables (assignment) -->
+        <div v-if="selectedNodeData.stepType === 'assignment'" class="flow-detail-row">
           <label>{{ t('flowEditor.returnVars') }}</label>
-          <code>{{ selectedNodeData.step.returnVars.join(', ') }}</code>
+          <div v-for="(rv, i) in selectedNodeData.step.returnVars" :key="i" class="flow-arg-row">
+            <input
+              v-model="selectedNodeData.step.returnVars[i]"
+              class="flow-input flow-input-sm"
+              @change="onStepFieldChange"
+            />
+            <button class="flow-btn-remove" @click="removeReturnVar(i)">&times;</button>
+          </div>
+          <button class="flow-btn-add" @click="addReturnVar">+ {{ t('flowEditor.addVar') }}</button>
         </div>
-        <div v-if="selectedNodeData.step.comment" class="flow-detail-row">
+
+        <!-- Condition (IF/ELSE IF/WHILE) -->
+        <div v-if="['if', 'else_if', 'while'].includes(selectedNodeData.stepType)" class="flow-detail-row">
+          <label>{{ t('flowEditor.condition') }}</label>
+          <input
+            v-model="selectedNodeData.step.condition"
+            class="flow-input"
+            @change="onStepFieldChange"
+          />
+        </div>
+
+        <!-- FOR loop -->
+        <div v-if="selectedNodeData.stepType === 'for'" class="flow-detail-row">
+          <label>{{ t('flowEditor.loopVar') }}</label>
+          <input v-model="selectedNodeData.step.loopVar" class="flow-input" @change="onStepFieldChange" />
+        </div>
+        <div v-if="selectedNodeData.stepType === 'for'" class="flow-detail-row">
+          <label>{{ t('flowEditor.loopFlavor') }}</label>
+          <select v-model="selectedNodeData.step.loopFlavor" class="flow-input" @change="onStepFieldChange">
+            <option>IN</option>
+            <option>IN RANGE</option>
+            <option>IN ENUMERATE</option>
+            <option>IN ZIP</option>
+          </select>
+        </div>
+        <div v-if="selectedNodeData.stepType === 'for'" class="flow-detail-row">
+          <label>{{ t('flowEditor.loopValues') }}</label>
+          <div v-for="(val, i) in selectedNodeData.step.loopValues" :key="i" class="flow-arg-row">
+            <input v-model="selectedNodeData.step.loopValues[i]" class="flow-input flow-input-sm" @change="onStepFieldChange" />
+            <button class="flow-btn-remove" @click="removeLoopValue(i)">&times;</button>
+          </div>
+          <button class="flow-btn-add" @click="addLoopValue">+ {{ t('flowEditor.addValue') }}</button>
+        </div>
+
+        <!-- EXCEPT -->
+        <div v-if="selectedNodeData.stepType === 'except'" class="flow-detail-row">
+          <label>{{ t('flowEditor.exceptPattern') }}</label>
+          <input v-model="selectedNodeData.step.exceptPattern" class="flow-input" @change="onStepFieldChange" />
+        </div>
+        <div v-if="selectedNodeData.stepType === 'except'" class="flow-detail-row">
+          <label>{{ t('flowEditor.exceptVar') }}</label>
+          <input v-model="selectedNodeData.step.exceptVar" class="flow-input" placeholder="AS ${error}" @change="onStepFieldChange" />
+        </div>
+
+        <!-- VAR -->
+        <div v-if="selectedNodeData.stepType === 'var'" class="flow-detail-row">
+          <label>{{ t('flowEditor.varName') }}</label>
+          <input v-model="selectedNodeData.step.keyword" class="flow-input" @change="onStepFieldChange" />
+        </div>
+        <div v-if="selectedNodeData.stepType === 'var'" class="flow-detail-row">
+          <label>{{ t('flowEditor.varScope') }}</label>
+          <select v-model="selectedNodeData.step.varScope" class="flow-input" @change="onStepFieldChange">
+            <option value="">default</option>
+            <option>LOCAL</option><option>TEST</option><option>TASK</option>
+            <option>SUITE</option><option>GLOBAL</option>
+          </select>
+        </div>
+
+        <!-- Comment -->
+        <div v-if="selectedNodeData.stepType === 'comment'" class="flow-detail-row">
           <label>{{ t('flowEditor.comment') }}</label>
-          <span class="flow-detail-value">{{ selectedNodeData.step.comment }}</span>
+          <input v-model="selectedNodeData.step.comment" class="flow-input" @change="onStepFieldChange" />
         </div>
       </div>
     </div>
@@ -235,28 +401,51 @@ function onCanvasDragOver(event: DragEvent) {
   min-height: 500px;
 }
 
-.flow-tc-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 8px 12px;
+/* Section bar: Test Cases | Keywords + item tabs */
+.flow-section-bar {
   border-bottom: 1px solid var(--color-border, #e2e8f0);
   background: var(--color-bg, #F4F7FA);
-  overflow-x: auto;
+  padding: 6px 12px 0;
 }
-
-.flow-tc-tab {
-  padding: 4px 12px;
+.flow-section-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.flow-section-tab {
+  padding: 5px 14px;
   border: 1px solid var(--color-border, #e2e8f0);
-  border-radius: 6px;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
   background: #fff;
   font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  white-space: nowrap;
 }
-.flow-tc-tab.active {
+.flow-section-tab.active {
   background: var(--color-primary, #3B7DD8);
   color: #fff;
   border-color: var(--color-primary, #3B7DD8);
+}
+.flow-item-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+.flow-item-tab {
+  padding: 3px 10px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 4px;
+  background: #fff;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.flow-item-tab.active {
+  background: var(--color-navy, #1A2D50);
+  color: #fff;
+  border-color: var(--color-navy, #1A2D50);
 }
 
 .flow-empty {
@@ -271,21 +460,26 @@ function onCanvasDragOver(event: DragEvent) {
   flex: 1;
   position: relative;
   display: flex;
+  overflow: hidden;
+}
+.flow-canvas {
+  flex: 1;
+  position: relative;
 }
 
-/* Detail panel */
+/* Editable detail panel */
 .flow-detail-panel {
   position: absolute;
   top: 12px;
   right: 12px;
-  width: 280px;
+  width: 300px;
   background: #fff;
   border: 1px solid var(--color-border, #e2e8f0);
   border-radius: 10px;
   padding: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   z-index: 10;
-  max-height: 400px;
+  max-height: 80%;
   overflow-y: auto;
 }
 .flow-detail-panel h4 {
@@ -296,7 +490,7 @@ function onCanvasDragOver(event: DragEvent) {
   color: var(--color-primary, #3B7DD8);
 }
 .flow-detail-row {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 .flow-detail-row label {
   display: block;
@@ -304,28 +498,54 @@ function onCanvasDragOver(event: DragEvent) {
   font-weight: 600;
   text-transform: uppercase;
   color: var(--color-text-muted, #5A6380);
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
-.flow-detail-value {
-  font-size: 13px;
-}
-.flow-detail-args {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.flow-detail-args code {
-  background: var(--color-bg, #F4F7FA);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 11px;
-}
-.flow-detail-row code {
+.flow-input {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 5px;
   font-size: 12px;
-  word-break: break-all;
+  font-family: monospace;
+  outline: none;
+  box-sizing: border-box;
+}
+.flow-input:focus {
+  border-color: var(--color-primary, #3B7DD8);
+}
+.flow-input-sm {
+  flex: 1;
+}
+.flow-arg-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+  align-items: center;
+}
+.flow-btn-remove {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: #fee;
+  color: #c33;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.flow-btn-add {
+  font-size: 11px;
+  color: var(--color-primary, #3B7DD8);
+  background: none;
+  border: 1px dashed var(--color-primary, #3B7DD8);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  margin-top: 2px;
 }
 
-/* Comment node inline style */
+/* Comment/flow-control inline nodes */
 .flow-node-comment {
   padding: 6px 12px;
   border-radius: 6px;

@@ -65,7 +65,10 @@ export interface FlowNodeData {
   label: string
   stepType: StepType
   step: RobotStep
-  testCaseIndex: number
+  /** 'testcase' or 'keyword' — which section this node belongs to */
+  section: 'testcase' | 'keyword'
+  /** Index within form.testCases or form.keywords */
+  sectionIndex: number
   stepIndex: number
 }
 
@@ -75,29 +78,31 @@ const NODE_SPACING_Y = 80
 const NODE_START_Y = 60
 const NODE_X = 250
 
-// --- Converter: RobotTestCase → Nodes + Edges ---
+// --- Converter: Steps → Nodes + Edges (generic for both test cases and keywords) ---
 
-export function testCaseToFlow(
-  tc: RobotTestCase,
-  testCaseIndex: number,
+export function stepsToFlow(
+  steps: RobotStep[],
+  name: string,
+  prefix: string,
+  section: 'testcase' | 'keyword',
+  sectionIndex: number,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
-  const prefix = `tc${testCaseIndex}`
 
   // Start node
   nodes.push({
     id: `${prefix}-start`,
     type: 'start',
     position: { x: NODE_X, y: 0 },
-    data: { label: tc.name },
+    data: { label: name },
   })
 
   let prevId = `${prefix}-start`
   let y = NODE_START_Y
 
-  for (let i = 0; i < tc.steps.length; i++) {
-    const step = tc.steps[i]
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i]
     // Skip 'end' steps — they're implicit in the visual graph
     if (step.type === 'end') continue
 
@@ -113,13 +118,14 @@ export function testCaseToFlow(
         label,
         stepType: step.type,
         step: { ...step },
-        testCaseIndex,
+        section,
+        sectionIndex,
         stepIndex: i,
       } as FlowNodeData,
     })
 
     // Edge from previous node
-    const edgeLabel = getEdgeLabel(step, tc.steps[i - 1])
+    const edgeLabel = getEdgeLabel(step, steps[i - 1])
     edges.push({
       id: `${prefix}-e-${prevId}-${nodeId}`,
       source: prevId,
@@ -149,7 +155,21 @@ export function testCaseToFlow(
   return { nodes, edges }
 }
 
-// --- Converter: Full RobotForm → Nodes + Edges (all test cases) ---
+/** Convert a single test case to flow graph. */
+export function testCaseToFlow(
+  tc: RobotTestCase, index: number,
+): { nodes: Node[]; edges: Edge[] } {
+  return stepsToFlow(tc.steps, tc.name, `tc${index}`, 'testcase', index)
+}
+
+/** Convert a single keyword definition to flow graph. */
+export function keywordDefToFlow(
+  kw: RobotKeywordDef, index: number,
+): { nodes: Node[]; edges: Edge[] } {
+  return stepsToFlow(kw.steps, kw.name, `kw${index}`, 'keyword', index)
+}
+
+// --- Converter: Full RobotForm → Nodes + Edges ---
 
 export function robotFormToFlow(form: RobotForm): { nodes: Node[]; edges: Edge[] } {
   const allNodes: Node[] = []
@@ -157,7 +177,24 @@ export function robotFormToFlow(form: RobotForm): { nodes: Node[]; edges: Edge[]
 
   for (let i = 0; i < form.testCases.length; i++) {
     const { nodes, edges } = testCaseToFlow(form.testCases[i], i)
-    // Offset X for multiple test cases side by side
+    const xOffset = i * 500
+    for (const node of nodes) {
+      node.position.x += xOffset
+      allNodes.push(node)
+    }
+    allEdges.push(...edges)
+  }
+
+  return { nodes: allNodes, edges: allEdges }
+}
+
+/** Convert all keyword definitions to flow. */
+export function robotKeywordsToFlow(form: RobotForm): { nodes: Node[]; edges: Edge[] } {
+  const allNodes: Node[] = []
+  const allEdges: Edge[] = []
+
+  for (let i = 0; i < form.keywords.length; i++) {
+    const { nodes, edges } = keywordDefToFlow(form.keywords[i], i)
     const xOffset = i * 500
     for (const node of nodes) {
       node.position.x += xOffset
@@ -172,9 +209,11 @@ export function robotFormToFlow(form: RobotForm): { nodes: Node[]; edges: Edge[]
 // --- Reverse: Update RobotForm step from edited node data ---
 
 export function updateStepFromNode(form: RobotForm, nodeData: FlowNodeData): void {
-  const tc = form.testCases[nodeData.testCaseIndex]
-  if (!tc) return
-  const step = tc.steps[nodeData.stepIndex]
+  const list = nodeData.section === 'testcase'
+    ? form.testCases[nodeData.sectionIndex]?.steps
+    : form.keywords[nodeData.sectionIndex]?.steps
+  if (!list) return
+  const step = list[nodeData.stepIndex]
   if (!step) return
 
   // Copy edited fields back

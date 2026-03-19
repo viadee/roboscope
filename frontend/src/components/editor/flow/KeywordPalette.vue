@@ -10,6 +10,20 @@ const emit = defineEmits<{
 }>()
 
 const searchQuery = ref('')
+const collapsedCategories = ref<Set<string>>(new Set())
+
+function toggleCategory(name: string) {
+  if (collapsedCategories.value.has(name)) {
+    collapsedCategories.value.delete(name)
+  } else {
+    collapsedCategories.value.add(name)
+  }
+}
+function isCategoryOpen(name: string): boolean {
+  // Always open when searching
+  if (searchQuery.value) return true
+  return !collapsedCategories.value.has(name)
+}
 
 // Built-in keyword categories
 const categories = [
@@ -52,9 +66,16 @@ const categories = [
     name: 'Control',
     items: [
       { label: 'IF / ELSE', type: 'if' as StepType },
+      { label: 'ELSE IF', type: 'else_if' as StepType },
+      { label: 'ELSE', type: 'else' as StepType },
       { label: 'FOR Loop', type: 'for' as StepType },
       { label: 'WHILE Loop', type: 'while' as StepType },
       { label: 'TRY / EXCEPT', type: 'try' as StepType },
+      { label: 'VAR', type: 'var' as StepType },
+      { label: 'RETURN', type: 'return' as StepType },
+      { label: 'BREAK', type: 'break' as StepType },
+      { label: 'CONTINUE', type: 'continue' as StepType },
+      { label: 'Comment', type: 'comment' as StepType },
     ],
   },
 ]
@@ -126,36 +147,44 @@ function onControlDragStart(event: DragEvent, type: StepType) {
     />
     <div class="palette-categories">
       <div v-for="cat in filteredCategories" :key="cat!.name" class="palette-category">
-        <div class="category-name">{{ cat!.name }}</div>
+        <div class="category-header" @click="toggleCategory(cat!.name)">
+          <span class="collapse-icon">{{ isCategoryOpen(cat!.name) ? '\u25BC' : '\u25B6' }}</span>
+          <span class="category-name">{{ cat!.name }}</span>
+          <span class="category-count">
+            {{ 'keywords' in cat! ? (cat as any).keywords?.length : (cat as any).items?.length }}
+          </span>
+        </div>
 
-        <!-- Keyword items -->
-        <template v-if="'keywords' in cat!">
-          <div
-            v-for="kw in (cat as any).keywords"
-            :key="kw"
-            class="palette-item palette-item-keyword"
-            draggable="true"
-            @dragstart="onDragStart($event, kw)"
-            @click="addKeywordNode(kw)"
-          >
-            <span class="palette-icon">&#x2699;</span>
-            {{ kw }}
-          </div>
-        </template>
+        <template v-if="isCategoryOpen(cat!.name)">
+          <!-- Keyword items -->
+          <template v-if="'keywords' in cat!">
+            <div
+              v-for="kw in (cat as any).keywords"
+              :key="kw"
+              class="palette-item palette-item-keyword"
+              draggable="true"
+              @dragstart="onDragStart($event, kw)"
+              @click="addKeywordNode(kw)"
+            >
+              <span class="palette-icon">&#x2699;</span>
+              {{ kw }}
+            </div>
+          </template>
 
-        <!-- Control items -->
-        <template v-if="'items' in cat!">
-          <div
-            v-for="item in (cat as any).items"
-            :key="item.label"
-            class="palette-item palette-item-control"
-            draggable="true"
-            @dragstart="onControlDragStart($event, item.type)"
-            @click="addControlNode(item.type)"
-          >
-            <span class="palette-icon">&#x25C6;</span>
-            {{ item.label }}
-          </div>
+          <!-- Control items -->
+          <template v-if="'items' in cat!">
+            <div
+              v-for="item in (cat as any).items"
+              :key="item.label"
+              class="palette-item palette-item-control"
+              draggable="true"
+              @dragstart="onControlDragStart($event, item.type)"
+              @click="addControlNode(item.type)"
+            >
+              <span class="palette-icon">&#x25C6;</span>
+              {{ item.label }}
+            </div>
+          </template>
         </template>
       </div>
       <div v-if="!filteredCategories.length" class="palette-empty">
@@ -198,13 +227,38 @@ function onControlDragStart(event: DragEvent, type: StepType) {
   overflow-y: auto;
   padding: 0 6px 12px;
 }
+.category-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 6px 4px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px;
+}
+.category-header:hover {
+  background: #e8ecf0;
+}
+.collapse-icon {
+  font-size: 8px;
+  color: var(--color-text-muted, #5A6380);
+  width: 12px;
+  text-align: center;
+}
 .category-name {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--color-text-muted, #5A6380);
-  padding: 8px 6px 4px;
+  flex: 1;
+}
+.category-count {
+  font-size: 9px;
+  color: var(--color-text-muted, #5A6380);
+  background: #e2e8f0;
+  padding: 1px 5px;
+  border-radius: 8px;
 }
 .palette-item {
   display: flex;
