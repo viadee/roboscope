@@ -113,6 +113,18 @@ def get_testcases(
     return list_all_testcases(repo.local_path)
 
 
+@router.get("/{repo_id}/keywords")
+def get_project_keywords(
+    repo_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """List all user-defined keywords from .robot/.resource files in the repo."""
+    repo = _get_repo(db, repo_id)
+    from src.explorer.service import parse_robot_keywords_in_repo
+    return parse_robot_keywords_in_repo(repo.local_path)
+
+
 @router.get("/{repo_id}/library-check", response_model=LibraryCheckResponse)
 def library_check(
     repo_id: int,
