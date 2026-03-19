@@ -1015,6 +1015,9 @@ export default {
     condition: 'Condition',
     returnVars: 'Return Variables',
     comment: 'Comment',
+    palette: 'Keywords',
+    searchKeywords: 'Search keywords...',
+    noResults: 'No matching keywords.',
   },
   robotEditor: {
     visualTab: 'Visual Editor',

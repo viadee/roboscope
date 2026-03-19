@@ -1015,6 +1015,9 @@ export default {
     condition: 'Condición',
     returnVars: 'Variables de retorno',
     comment: 'Comentario',
+    palette: 'Palabras clave',
+    searchKeywords: 'Buscar palabras clave...',
+    noResults: 'No se encontraron palabras clave.',
   },
   robotEditor: {
     visualTab: 'Editor visual',

@@ -10,10 +10,12 @@ import { useI18n } from 'vue-i18n'
 import KeywordNode from './flow/KeywordNode.vue'
 import ControlNode from './flow/ControlNode.vue'
 import StartEndNode from './flow/StartEndNode.vue'
+import KeywordPalette from './flow/KeywordPalette.vue'
 import {
   robotFormToFlow,
   updateStepFromNode,
   type RobotForm,
+  type RobotStep,
   type FlowNodeData,
 } from './flow/flowConverter'
 
@@ -83,6 +85,50 @@ const visibleNodes = computed(() =>
 const visibleEdges = computed(() =>
   edges.value.filter(e => e.id.startsWith(`tc${activeTestCase.value}-`))
 )
+
+// --- Add node from palette (click or drag & drop) ---
+
+function addNodeFromPalette(step: RobotStep) {
+  const tc = props.form.testCases[activeTestCase.value]
+  if (!tc) return
+  tc.steps.push(step)
+  // Also add END for control structures
+  if (['if', 'for', 'while', 'try'].includes(step.type)) {
+    tc.steps.push({
+      type: 'end', keyword: '', args: [], returnVars: [],
+      condition: '', loopVar: '', loopFlavor: '', loopValues: [],
+      exceptPattern: '', exceptVar: '', varScope: '', comment: '',
+    })
+  }
+  emit('update:step', { step, testCaseIndex: activeTestCase.value, stepIndex: tc.steps.length - 1 } as FlowNodeData)
+  buildGraph()
+}
+
+function onCanvasDrop(event: DragEvent) {
+  const keyword = event.dataTransfer?.getData('application/rf-keyword')
+  const control = event.dataTransfer?.getData('application/rf-control')
+  if (keyword) {
+    addNodeFromPalette({
+      type: 'keyword', keyword, args: [], returnVars: [],
+      condition: '', loopVar: '${item}', loopFlavor: 'IN', loopValues: [],
+      exceptPattern: '', exceptVar: '', varScope: '', comment: '',
+    })
+  } else if (control) {
+    addNodeFromPalette({
+      type: control as any, keyword: '', args: [], returnVars: [],
+      condition: control === 'if' || control === 'while' ? '${condition}' : '',
+      loopVar: control === 'for' ? '${item}' : '',
+      loopFlavor: control === 'for' ? 'IN' : '',
+      loopValues: control === 'for' ? ['@{list}'] : [],
+      exceptPattern: '', exceptVar: '', varScope: '', comment: '',
+    })
+  }
+}
+
+function onCanvasDragOver(event: DragEvent) {
+  event.preventDefault()
+  event.dataTransfer!.dropEffect = 'copy'
+}
 </script>
 
 <template>
@@ -104,9 +150,12 @@ const visibleEdges = computed(() =>
       <p>{{ t('flowEditor.noTestCases') }}</p>
     </div>
 
-    <!-- Vue Flow Canvas -->
+    <!-- Vue Flow Canvas + Palette -->
     <div v-else class="flow-canvas-wrapper">
+      <KeywordPalette @add-node="addNodeFromPalette" />
       <VueFlow
+        @drop="onCanvasDrop"
+        @dragover="onCanvasDragOver"
         :nodes="visibleNodes"
         :edges="visibleEdges"
         :default-viewport="{ zoom: 0.9, x: 0, y: 0 }"
@@ -221,6 +270,7 @@ const visibleEdges = computed(() =>
 .flow-canvas-wrapper {
   flex: 1;
   position: relative;
+  display: flex;
 }
 
 /* Detail panel */

@@ -1015,6 +1015,9 @@ export default {
     condition: 'Condition',
     returnVars: 'Variables de retour',
     comment: 'Commentaire',
+    palette: 'Mots-clés',
+    searchKeywords: 'Rechercher des mots-clés...',
+    noResults: 'Aucun mot-clé correspondant.',
   },
   robotEditor: {
     visualTab: 'Éditeur visuel',
