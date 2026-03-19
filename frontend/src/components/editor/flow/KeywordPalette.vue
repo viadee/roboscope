@@ -1,13 +1,46 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
 import type { StepType, RobotStep } from './flowConverter'
+
+const props = defineProps<{
+  repoId?: number
+}>()
 
 const { t } = useI18n()
 
 const emit = defineEmits<{
   (e: 'add-node', step: RobotStep): void
 }>()
+
+// Dynamic keywords from rf-mcp
+const dynamicLibraries = ref<Map<string, RfKeywordResult[]>>(new Map())
+const loadingKeywords = ref(false)
+
+async function loadDynamicKeywords() {
+  if (!props.repoId) return
+  loadingKeywords.value = true
+  try {
+    // Search with empty query returns all available keywords
+    const result = await searchKeywords('*', props.repoId)
+    // Group by library
+    const grouped = new Map<string, RfKeywordResult[]>()
+    for (const kw of result.results) {
+      const lib = kw.library || 'Unknown'
+      if (!grouped.has(lib)) grouped.set(lib, [])
+      grouped.get(lib)!.push(kw)
+    }
+    dynamicLibraries.value = grouped
+  } catch {
+    // rf-mcp might not be running — fall back to static list
+  } finally {
+    loadingKeywords.value = false
+  }
+}
+
+onMounted(() => loadDynamicKeywords())
+watch(() => props.repoId, () => loadDynamicKeywords())
 
 const searchQuery = ref('')
 const collapsedCategories = ref<Set<string>>(new Set())
@@ -80,10 +113,34 @@ const categories = [
   },
 ]
 
+// Build categories: dynamic (from rf-mcp) + static fallbacks + control
+const allCategories = computed(() => {
+  const cats: typeof categories = []
+
+  // Dynamic library keywords (from rf-mcp, if available)
+  for (const [lib, keywords] of dynamicLibraries.value) {
+    cats.push({
+      name: lib,
+      keywords: keywords.map(kw => kw.name),
+    } as any)
+  }
+
+  // If no dynamic keywords loaded, use static fallbacks
+  if (cats.length === 0) {
+    cats.push(...categories.filter(c => c.name !== 'Control'))
+  }
+
+  // Always add Control category at the end
+  const controlCat = categories.find(c => c.name === 'Control')
+  if (controlCat) cats.push(controlCat)
+
+  return cats
+})
+
 const filteredCategories = computed(() => {
   const q = searchQuery.value.toLowerCase()
-  if (!q) return categories
-  return categories
+  if (!q) return allCategories.value
+  return allCategories.value
     .map(cat => {
       if ('keywords' in cat && cat.keywords) {
         const kws = cat.keywords.filter((kw: string) => kw.toLowerCase().includes(q))

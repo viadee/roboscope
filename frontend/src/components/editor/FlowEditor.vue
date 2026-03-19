@@ -27,6 +27,7 @@ import '@vue-flow/minimap/dist/style.css'
 
 const props = defineProps<{
   form: RobotForm
+  repoId?: number
 }>()
 
 const emit = defineEmits<{
@@ -250,7 +251,7 @@ function onCanvasDragOver(event: DragEvent) {
 
     <!-- Vue Flow Canvas + Palette -->
     <div v-else class="flow-canvas-wrapper">
-      <KeywordPalette @add-node="addNodeFromPalette" />
+      <KeywordPalette :repo-id="props.repoId" @add-node="addNodeFromPalette" />
 
       <div class="flow-canvas">
         <VueFlow

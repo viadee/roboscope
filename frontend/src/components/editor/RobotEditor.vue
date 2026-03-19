@@ -2197,7 +2197,7 @@ watch(() => props.content, (newContent) => {
 
     <!-- Flow Tab -->
     <div v-if="activeTab === 'flow'" class="flow-tab-wrapper">
-      <FlowEditor :form="form" />
+      <FlowEditor :form="form" :repo-id="props.repoId" />
     </div>
 
     <!-- Code Tab -->
