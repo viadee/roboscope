@@ -29,6 +29,7 @@ from src.repos.service import (
     get_repository_by_name,
     list_branches,
     list_project_members,
+    list_remote_branches,
     list_repositories,
     remove_project_member,
     update_project_member_role,
@@ -48,6 +49,35 @@ def get_repos(
     """List repositories visible to the current user."""
     is_admin = current_user.role == Role.ADMIN
     return list_repositories(db, user_id=current_user.id, is_admin=is_admin)
+
+
+@router.post("/validate-branch")
+def validate_branch(
+    git_url: str,
+    branch: str = "main",
+    _current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Check if a branch exists on a remote git repository.
+
+    Returns the branch if valid, or suggests main/master fallbacks.
+    """
+    remote_branches = list_remote_branches(git_url)
+    if not remote_branches:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not connect to repository or no branches found",
+        )
+    if branch in remote_branches:
+        return {"valid": True, "branch": branch, "available_branches": remote_branches}
+
+    # Branch not found — suggest fallbacks
+    fallbacks = [b for b in ["main", "master"] if b in remote_branches and b != branch]
+    return {
+        "valid": False,
+        "branch": branch,
+        "fallbacks": fallbacks,
+        "available_branches": remote_branches,
+    }
 
 
 @router.post("", response_model=RepoResponse, status_code=status.HTTP_201_CREATED)

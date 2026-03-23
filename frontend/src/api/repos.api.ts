@@ -41,6 +41,20 @@ export async function checkoutBranch(id: number, branch: string): Promise<{ stat
   return response.data
 }
 
+export interface BranchValidation {
+  valid: boolean
+  branch: string
+  fallbacks?: string[]
+  available_branches: string[]
+}
+
+export async function validateBranch(gitUrl: string, branch: string): Promise<BranchValidation> {
+  const response = await apiClient.post<BranchValidation>('/repos/validate-branch', null, {
+    params: { git_url: gitUrl, branch },
+  })
+  return response.data
+}
+
 // Project Members
 export async function getProjectMembers(repoId: number): Promise<ProjectMember[]> {
   const response = await apiClient.get<ProjectMember[]>(`/repos/${repoId}/members`)

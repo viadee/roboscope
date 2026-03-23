@@ -145,6 +145,90 @@ const argAutocompleteItems = ref<string[]>([])
 const argAutocompleteIndex = ref(-1)
 const argAutocompleteKey = ref<string | null>(null) // "kwIdx-sIdx-aIdx" or "tcIdx-sIdx-aIdx"
 
+interface KeywordSuggestion { name: string; source: string; args?: string[] }
+
+// --- Setup/Teardown virtual step management ---
+// RF Setup/Teardown: "[Setup]    Keyword    arg1    arg2"
+// We use virtual RobotStep objects for autocomplete, then serialize back to string
+
+const setupSteps = reactive(new Map<string, RobotStep>()) // key: "tc-0-setup", "kw-1-teardown", etc.
+
+function parseSetupString(value: string): { keyword: string; args: string[] } {
+  if (!value.trim()) return { keyword: '', args: [] }
+  const parts = value.split(/  +|\t+/).map(p => p.trim()).filter(Boolean)
+  return { keyword: parts[0] || '', args: parts.slice(1) }
+}
+
+function serializeSetup(keyword: string, args: string[]): string {
+  const parts = [keyword, ...args].filter(Boolean)
+  return parts.join('    ')
+}
+
+function getSetupStep(prefix: string, idx: number, field: 'setup' | 'teardown', owner: { setup: string; teardown: string }): RobotStep {
+  const key = `${prefix}-${idx}-${field}`
+  if (!setupSteps.has(key)) {
+    const parsed = parseSetupString(owner[field])
+    setupSteps.set(key, {
+      type: 'keyword', keyword: parsed.keyword, args: parsed.args, returnVars: [],
+      condition: '', loopVar: '', loopFlavor: '', loopValues: [],
+      exceptPattern: '', exceptVar: '', varScope: '', comment: '',
+    })
+  }
+  return setupSteps.get(key)!
+}
+
+function syncSetupStep(prefix: string, idx: number, field: 'setup' | 'teardown', owner: { setup: string; teardown: string }) {
+  const key = `${prefix}-${idx}-${field}`
+  const step = setupSteps.get(key)
+  if (!step) return
+  owner[field] = serializeSetup(step.keyword, step.args)
+}
+
+function refreshSetupStep(prefix: string, idx: number, field: 'setup' | 'teardown', owner: { setup: string; teardown: string }) {
+  const key = `${prefix}-${idx}-${field}`
+  const parsed = parseSetupString(owner[field])
+  const step = setupSteps.get(key)
+  if (step) {
+    step.keyword = parsed.keyword
+    step.args = parsed.args
+  } else {
+    getSetupStep(prefix, idx, field, owner)
+  }
+}
+
+function onSetupKeywordInput(prefix: string, idx: number, field: 'setup' | 'teardown', owner: { setup: string; teardown: string }) {
+  syncSetupStep(prefix, idx, field, owner)
+  const step = getSetupStep(prefix, idx, field, owner)
+  onKeywordInput(step)
+}
+
+function onSetupKeywordFocus(prefix: string, idx: number, field: 'setup' | 'teardown', owner: { setup: string; teardown: string }) {
+  const step = getSetupStep(prefix, idx, field, owner)
+  onKeywordInputFocus(step)
+}
+
+function onSetupSelectSuggestion(prefix: string, idx: number, field: 'setup' | 'teardown', owner: { setup: string; teardown: string }, suggestion: KeywordSuggestion) {
+  const step = getSetupStep(prefix, idx, field, owner)
+  selectKeywordSuggestion(step, suggestion)
+  syncSetupStep(prefix, idx, field, owner)
+}
+
+function addSetupArg(prefix: string, idx: number, field: 'setup' | 'teardown', owner: { setup: string; teardown: string }) {
+  const step = getSetupStep(prefix, idx, field, owner)
+  step.args.push('')
+  syncSetupStep(prefix, idx, field, owner)
+}
+
+function removeSetupArg(prefix: string, idx: number, field: 'setup' | 'teardown', owner: { setup: string; teardown: string }, argIdx: number) {
+  const step = getSetupStep(prefix, idx, field, owner)
+  step.args.splice(argIdx, 1)
+  syncSetupStep(prefix, idx, field, owner)
+}
+
+function onSetupArgChange(prefix: string, idx: number, field: 'setup' | 'teardown', owner: { setup: string; teardown: string }) {
+  syncSetupStep(prefix, idx, field, owner)
+}
+
 // --- Form State ---
 const form = reactive<RobotForm>({
   settings: [],
@@ -341,6 +425,7 @@ const SECTION_HEADER_RE = /^\*{3}\s*(Settings?|Variables?|Test Cases?|Tasks?|Key
 
 function parseRobotToForm(content: string): boolean {
   try {
+    setupSteps.clear() // Clear cached virtual steps
     const lines = content.split('\n')
     const newForm: RobotForm = {
       settings: [], variables: [], testCases: [], keywords: [], preambleLines: [],
@@ -916,7 +1001,6 @@ function stepIndent(steps: RobotStep[], index: number): number {
 }
 
 // --- Keyword Autocomplete ---
-interface KeywordSuggestion { name: string; source: string; args?: string[] }
 
 // Build title-cased display names for RF built-in keywords
 const rfBuiltinSuggestions = computed<KeywordSuggestion[]>(() => {
@@ -1613,20 +1697,80 @@ watch(() => props.content, (newContent) => {
                 <button v-if="!isMetaVisible('tc', tcIdx, 'timeout', tc.timeout)" class="meta-toggle-btn mt-config" @click="toggleMeta('tc', tcIdx, 'timeout')">+ Timeout</button>
                 <button v-if="!isMetaVisible('tc', tcIdx, 'template', tc.template)" class="meta-toggle-btn mt-config" @click="toggleMeta('tc', tcIdx, 'template')">+ Template</button>
               </div>
-              <div v-if="isMetaVisible('tc', tcIdx, 'setup', tc.setup) || isMetaVisible('tc', tcIdx, 'teardown', tc.teardown)" class="form-row">
-                <div v-if="isMetaVisible('tc', tcIdx, 'setup', tc.setup)" class="form-group flex-1">
-                  <label class="form-label">{{ t('robotEditor.setup') }} <button class="meta-close-btn" v-if="!tc.setup" @click="toggleMeta('tc', tcIdx, 'setup')">&times;</button></label>
-                  <span class="form-hl-wrap">
-                    <span class="form-hl-overlay" v-html="highlightVariables(tc.setup)"></span>
-                    <input v-model="tc.setup" class="form-input" style="width: 100%" :placeholder="t('robotEditor.setupPlaceholder')" spellcheck="false" />
-                  </span>
+              <div v-if="isMetaVisible('tc', tcIdx, 'setup', tc.setup)" class="form-group">
+                <label class="form-label">{{ t('robotEditor.setup') }} <button class="meta-close-btn" v-if="!tc.setup" @click="toggleMeta('tc', tcIdx, 'setup')">&times;</button></label>
+                <div class="setup-teardown-row">
+                  <div class="keyword-autocomplete-wrapper">
+                    <input :value="getSetupStep('tc', tcIdx, 'setup', tc).keyword"
+                      @input="getSetupStep('tc', tcIdx, 'setup', tc).keyword = ($event.target as HTMLInputElement).value; onSetupKeywordInput('tc', tcIdx, 'setup', tc)"
+                      class="form-input step-keyword-input" spellcheck="false"
+                      :style="{ width: Math.max(18, Math.min((getSetupStep('tc', tcIdx, 'setup', tc).keyword || '').length + 5, 40)) + 'ch' }"
+                      :placeholder="t('robotEditor.setupPlaceholder')"
+                      @focus="onSetupKeywordFocus('tc', tcIdx, 'setup', tc)"
+                      @blur="onKeywordInputBlur"
+                      @keydown="onKeywordKeydown($event, getSetupStep('tc', tcIdx, 'setup', tc))" />
+                    <div v-if="activeAutocompleteStep === getSetupStep('tc', tcIdx, 'setup', tc) && filteredKeywordSuggestions.length > 0"
+                      ref="keywordDropdownRef" class="keyword-dropdown">
+                      <div v-for="(s, idx) in filteredKeywordSuggestions" :key="s.name"
+                        class="keyword-dropdown-item" :class="{ active: idx === keywordDropdownIndex }"
+                        @mousedown.prevent="onSetupSelectSuggestion('tc', tcIdx, 'setup', tc, s)">
+                        <span class="kw-suggestion-name">{{ s.name }}</span>
+                        <span v-if="s.args?.length" class="kw-suggestion-args">{{ s.args.map(a => a.replace(/^[$@&%]\{([^}]+)\}.*$/, '$1')).join(', ') }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="getSetupStep('tc', tcIdx, 'setup', tc).args.length" class="step-args-group">
+                    <span v-for="(arg, aIdx) in getSetupStep('tc', tcIdx, 'setup', tc).args" :key="aIdx" class="step-arg-chip">
+                      <span v-if="getKeywordArgNames(getSetupStep('tc', tcIdx, 'setup', tc))[aIdx]" class="arg-label">{{ getKeywordArgNames(getSetupStep('tc', tcIdx, 'setup', tc))[aIdx] }}</span>
+                      <span class="arg-highlight-wrap" :style="{ width: argInputWidth(arg) }">
+                        <span class="arg-highlight-overlay" v-html="highlightVariables(arg)"></span>
+                        <input :value="arg"
+                          @input="getSetupStep('tc', tcIdx, 'setup', tc).args[aIdx] = ($event.target as HTMLInputElement).value; onSetupArgChange('tc', tcIdx, 'setup', tc)"
+                          class="step-arg-input" spellcheck="false" :style="{ width: '100%' }"
+                          :placeholder="getKeywordArgNames(getSetupStep('tc', tcIdx, 'setup', tc))[aIdx] || t('robotEditor.argPlaceholder')" />
+                      </span>
+                      <button class="chip-remove" @click="removeSetupArg('tc', tcIdx, 'setup', tc, aIdx)">&times;</button>
+                    </span>
+                  </div>
+                  <button class="step-btn step-add-arg" @click="addSetupArg('tc', tcIdx, 'setup', tc)" :title="t('robotEditor.addArg')">+</button>
                 </div>
-                <div v-if="isMetaVisible('tc', tcIdx, 'teardown', tc.teardown)" class="form-group flex-1">
-                  <label class="form-label">{{ t('robotEditor.teardown') }} <button class="meta-close-btn" v-if="!tc.teardown" @click="toggleMeta('tc', tcIdx, 'teardown')">&times;</button></label>
-                  <span class="form-hl-wrap">
-                    <span class="form-hl-overlay" v-html="highlightVariables(tc.teardown)"></span>
-                    <input v-model="tc.teardown" class="form-input" style="width: 100%" :placeholder="t('robotEditor.teardownPlaceholder')" spellcheck="false" />
-                  </span>
+              </div>
+              <div v-if="isMetaVisible('tc', tcIdx, 'teardown', tc.teardown)" class="form-group">
+                <label class="form-label">{{ t('robotEditor.teardown') }} <button class="meta-close-btn" v-if="!tc.teardown" @click="toggleMeta('tc', tcIdx, 'teardown')">&times;</button></label>
+                <div class="setup-teardown-row">
+                  <div class="keyword-autocomplete-wrapper">
+                    <input :value="getSetupStep('tc', tcIdx, 'teardown', tc).keyword"
+                      @input="getSetupStep('tc', tcIdx, 'teardown', tc).keyword = ($event.target as HTMLInputElement).value; onSetupKeywordInput('tc', tcIdx, 'teardown', tc)"
+                      class="form-input step-keyword-input" spellcheck="false"
+                      :style="{ width: Math.max(18, Math.min((getSetupStep('tc', tcIdx, 'teardown', tc).keyword || '').length + 5, 40)) + 'ch' }"
+                      :placeholder="t('robotEditor.teardownPlaceholder')"
+                      @focus="onSetupKeywordFocus('tc', tcIdx, 'teardown', tc)"
+                      @blur="onKeywordInputBlur"
+                      @keydown="onKeywordKeydown($event, getSetupStep('tc', tcIdx, 'teardown', tc))" />
+                    <div v-if="activeAutocompleteStep === getSetupStep('tc', tcIdx, 'teardown', tc) && filteredKeywordSuggestions.length > 0"
+                      ref="keywordDropdownRef" class="keyword-dropdown">
+                      <div v-for="(s, idx) in filteredKeywordSuggestions" :key="s.name"
+                        class="keyword-dropdown-item" :class="{ active: idx === keywordDropdownIndex }"
+                        @mousedown.prevent="onSetupSelectSuggestion('tc', tcIdx, 'teardown', tc, s)">
+                        <span class="kw-suggestion-name">{{ s.name }}</span>
+                        <span v-if="s.args?.length" class="kw-suggestion-args">{{ s.args.map(a => a.replace(/^[$@&%]\{([^}]+)\}.*$/, '$1')).join(', ') }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="getSetupStep('tc', tcIdx, 'teardown', tc).args.length" class="step-args-group">
+                    <span v-for="(arg, aIdx) in getSetupStep('tc', tcIdx, 'teardown', tc).args" :key="aIdx" class="step-arg-chip">
+                      <span v-if="getKeywordArgNames(getSetupStep('tc', tcIdx, 'teardown', tc))[aIdx]" class="arg-label">{{ getKeywordArgNames(getSetupStep('tc', tcIdx, 'teardown', tc))[aIdx] }}</span>
+                      <span class="arg-highlight-wrap" :style="{ width: argInputWidth(arg) }">
+                        <span class="arg-highlight-overlay" v-html="highlightVariables(arg)"></span>
+                        <input :value="arg"
+                          @input="getSetupStep('tc', tcIdx, 'teardown', tc).args[aIdx] = ($event.target as HTMLInputElement).value; onSetupArgChange('tc', tcIdx, 'teardown', tc)"
+                          class="step-arg-input" spellcheck="false" :style="{ width: '100%' }"
+                          :placeholder="getKeywordArgNames(getSetupStep('tc', tcIdx, 'teardown', tc))[aIdx] || t('robotEditor.argPlaceholder')" />
+                      </span>
+                      <button class="chip-remove" @click="removeSetupArg('tc', tcIdx, 'teardown', tc, aIdx)">&times;</button>
+                    </span>
+                  </div>
+                  <button class="step-btn step-add-arg" @click="addSetupArg('tc', tcIdx, 'teardown', tc)" :title="t('robotEditor.addArg')">+</button>
                 </div>
               </div>
               <div v-if="isMetaVisible('tc', tcIdx, 'timeout', tc.timeout) || isMetaVisible('tc', tcIdx, 'template', tc.template)" class="form-row">
@@ -1962,20 +2106,80 @@ watch(() => props.content, (newContent) => {
                 <button v-if="!isMetaVisible('kw', kwIdx, 'timeout', kw.timeout)" class="meta-toggle-btn mt-config" @click="toggleMeta('kw', kwIdx, 'timeout')">+ Timeout</button>
                 <button v-if="!isMetaVisible('kw', kwIdx, 'return', kw.returnValue)" class="meta-toggle-btn mt-return" @click="toggleMeta('kw', kwIdx, 'return')">+ Return</button>
               </div>
-              <div v-if="isMetaVisible('kw', kwIdx, 'setup', kw.setup) || isMetaVisible('kw', kwIdx, 'teardown', kw.teardown)" class="form-row">
-                <div v-if="isMetaVisible('kw', kwIdx, 'setup', kw.setup)" class="form-group flex-1">
-                  <label class="form-label">{{ t('robotEditor.setup') }} <button class="meta-close-btn" v-if="!kw.setup" @click="toggleMeta('kw', kwIdx, 'setup')">&times;</button></label>
-                  <span class="form-hl-wrap">
-                    <span class="form-hl-overlay" v-html="highlightVariables(kw.setup)"></span>
-                    <input v-model="kw.setup" class="form-input" style="width: 100%" :placeholder="t('robotEditor.setupPlaceholder')" spellcheck="false" />
-                  </span>
+              <div v-if="isMetaVisible('kw', kwIdx, 'setup', kw.setup)" class="form-group">
+                <label class="form-label">{{ t('robotEditor.setup') }} <button class="meta-close-btn" v-if="!kw.setup" @click="toggleMeta('kw', kwIdx, 'setup')">&times;</button></label>
+                <div class="setup-teardown-row">
+                  <div class="keyword-autocomplete-wrapper">
+                    <input :value="getSetupStep('kw', kwIdx, 'setup', kw).keyword"
+                      @input="getSetupStep('kw', kwIdx, 'setup', kw).keyword = ($event.target as HTMLInputElement).value; onSetupKeywordInput('kw', kwIdx, 'setup', kw)"
+                      class="form-input step-keyword-input" spellcheck="false"
+                      :style="{ width: Math.max(18, Math.min((getSetupStep('kw', kwIdx, 'setup', kw).keyword || '').length + 5, 40)) + 'ch' }"
+                      :placeholder="t('robotEditor.setupPlaceholder')"
+                      @focus="onSetupKeywordFocus('kw', kwIdx, 'setup', kw)"
+                      @blur="onKeywordInputBlur"
+                      @keydown="onKeywordKeydown($event, getSetupStep('kw', kwIdx, 'setup', kw))" />
+                    <div v-if="activeAutocompleteStep === getSetupStep('kw', kwIdx, 'setup', kw) && filteredKeywordSuggestions.length > 0"
+                      ref="keywordDropdownRef" class="keyword-dropdown">
+                      <div v-for="(s, idx) in filteredKeywordSuggestions" :key="s.name"
+                        class="keyword-dropdown-item" :class="{ active: idx === keywordDropdownIndex }"
+                        @mousedown.prevent="onSetupSelectSuggestion('kw', kwIdx, 'setup', kw, s)">
+                        <span class="kw-suggestion-name">{{ s.name }}</span>
+                        <span v-if="s.args?.length" class="kw-suggestion-args">{{ s.args.map(a => a.replace(/^[$@&%]\{([^}]+)\}.*$/, '$1')).join(', ') }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="getSetupStep('kw', kwIdx, 'setup', kw).args.length" class="step-args-group">
+                    <span v-for="(arg, aIdx) in getSetupStep('kw', kwIdx, 'setup', kw).args" :key="aIdx" class="step-arg-chip">
+                      <span v-if="getKeywordArgNames(getSetupStep('kw', kwIdx, 'setup', kw))[aIdx]" class="arg-label">{{ getKeywordArgNames(getSetupStep('kw', kwIdx, 'setup', kw))[aIdx] }}</span>
+                      <span class="arg-highlight-wrap" :style="{ width: argInputWidth(arg) }">
+                        <span class="arg-highlight-overlay" v-html="highlightVariables(arg)"></span>
+                        <input :value="arg"
+                          @input="getSetupStep('kw', kwIdx, 'setup', kw).args[aIdx] = ($event.target as HTMLInputElement).value; onSetupArgChange('kw', kwIdx, 'setup', kw)"
+                          class="step-arg-input" spellcheck="false" :style="{ width: '100%' }"
+                          :placeholder="getKeywordArgNames(getSetupStep('kw', kwIdx, 'setup', kw))[aIdx] || t('robotEditor.argPlaceholder')" />
+                      </span>
+                      <button class="chip-remove" @click="removeSetupArg('kw', kwIdx, 'setup', kw, aIdx)">&times;</button>
+                    </span>
+                  </div>
+                  <button class="step-btn step-add-arg" @click="addSetupArg('kw', kwIdx, 'setup', kw)" :title="t('robotEditor.addArg')">+</button>
                 </div>
-                <div v-if="isMetaVisible('kw', kwIdx, 'teardown', kw.teardown)" class="form-group flex-1">
-                  <label class="form-label">{{ t('robotEditor.teardown') }} <button class="meta-close-btn" v-if="!kw.teardown" @click="toggleMeta('kw', kwIdx, 'teardown')">&times;</button></label>
-                  <span class="form-hl-wrap">
-                    <span class="form-hl-overlay" v-html="highlightVariables(kw.teardown)"></span>
-                    <input v-model="kw.teardown" class="form-input" style="width: 100%" :placeholder="t('robotEditor.teardownPlaceholder')" spellcheck="false" />
-                  </span>
+              </div>
+              <div v-if="isMetaVisible('kw', kwIdx, 'teardown', kw.teardown)" class="form-group">
+                <label class="form-label">{{ t('robotEditor.teardown') }} <button class="meta-close-btn" v-if="!kw.teardown" @click="toggleMeta('kw', kwIdx, 'teardown')">&times;</button></label>
+                <div class="setup-teardown-row">
+                  <div class="keyword-autocomplete-wrapper">
+                    <input :value="getSetupStep('kw', kwIdx, 'teardown', kw).keyword"
+                      @input="getSetupStep('kw', kwIdx, 'teardown', kw).keyword = ($event.target as HTMLInputElement).value; onSetupKeywordInput('kw', kwIdx, 'teardown', kw)"
+                      class="form-input step-keyword-input" spellcheck="false"
+                      :style="{ width: Math.max(18, Math.min((getSetupStep('kw', kwIdx, 'teardown', kw).keyword || '').length + 5, 40)) + 'ch' }"
+                      :placeholder="t('robotEditor.teardownPlaceholder')"
+                      @focus="onSetupKeywordFocus('kw', kwIdx, 'teardown', kw)"
+                      @blur="onKeywordInputBlur"
+                      @keydown="onKeywordKeydown($event, getSetupStep('kw', kwIdx, 'teardown', kw))" />
+                    <div v-if="activeAutocompleteStep === getSetupStep('kw', kwIdx, 'teardown', kw) && filteredKeywordSuggestions.length > 0"
+                      ref="keywordDropdownRef" class="keyword-dropdown">
+                      <div v-for="(s, idx) in filteredKeywordSuggestions" :key="s.name"
+                        class="keyword-dropdown-item" :class="{ active: idx === keywordDropdownIndex }"
+                        @mousedown.prevent="onSetupSelectSuggestion('kw', kwIdx, 'teardown', kw, s)">
+                        <span class="kw-suggestion-name">{{ s.name }}</span>
+                        <span v-if="s.args?.length" class="kw-suggestion-args">{{ s.args.map(a => a.replace(/^[$@&%]\{([^}]+)\}.*$/, '$1')).join(', ') }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="getSetupStep('kw', kwIdx, 'teardown', kw).args.length" class="step-args-group">
+                    <span v-for="(arg, aIdx) in getSetupStep('kw', kwIdx, 'teardown', kw).args" :key="aIdx" class="step-arg-chip">
+                      <span v-if="getKeywordArgNames(getSetupStep('kw', kwIdx, 'teardown', kw))[aIdx]" class="arg-label">{{ getKeywordArgNames(getSetupStep('kw', kwIdx, 'teardown', kw))[aIdx] }}</span>
+                      <span class="arg-highlight-wrap" :style="{ width: argInputWidth(arg) }">
+                        <span class="arg-highlight-overlay" v-html="highlightVariables(arg)"></span>
+                        <input :value="arg"
+                          @input="getSetupStep('kw', kwIdx, 'teardown', kw).args[aIdx] = ($event.target as HTMLInputElement).value; onSetupArgChange('kw', kwIdx, 'teardown', kw)"
+                          class="step-arg-input" spellcheck="false" :style="{ width: '100%' }"
+                          :placeholder="getKeywordArgNames(getSetupStep('kw', kwIdx, 'teardown', kw))[aIdx] || t('robotEditor.argPlaceholder')" />
+                      </span>
+                      <button class="chip-remove" @click="removeSetupArg('kw', kwIdx, 'teardown', kw, aIdx)">&times;</button>
+                    </span>
+                  </div>
+                  <button class="step-btn step-add-arg" @click="addSetupArg('kw', kwIdx, 'teardown', kw)" :title="t('robotEditor.addArg')">+</button>
                 </div>
               </div>
               <div v-if="isMetaVisible('kw', kwIdx, 'timeout', kw.timeout) || isMetaVisible('kw', kwIdx, 'return', kw.returnValue)" class="form-row">
@@ -2376,6 +2580,12 @@ watch(() => props.content, (newContent) => {
 }
 
 /* Step args group — stacks vertically when step-row overflows */
+.setup-teardown-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex-wrap: wrap;
+}
 .step-args-group {
   display: flex; align-items: flex-start; gap: 4px; flex-wrap: wrap; min-width: 0;
 }

@@ -2,7 +2,12 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  testIgnore: process.env.CI ? ['**/take-screenshots.spec.ts'] : [],
+  testIgnore: process.env.DEMO_VIDEO
+    ? []
+    : [
+        '**/take-demo-video.spec.ts',
+        ...(process.env.CI ? ['**/take-screenshots.spec.ts'] : []),
+      ],
   fullyParallel: false,
   retries: 0,
   workers: 1,

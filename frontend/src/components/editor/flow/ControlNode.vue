@@ -2,7 +2,18 @@
 import { Handle, Position } from '@vue-flow/core'
 import type { FlowNodeData } from './flowConverter'
 
-const props = defineProps<{ data: FlowNodeData }>()
+const props = defineProps<{
+  data: FlowNodeData
+  reorderEnabled?: boolean
+}>()
+
+const emit = defineEmits<{
+  (e: 'reorder-drag-start', event: DragEvent): void
+}>()
+
+function onHandleDragStart(event: DragEvent) {
+  emit('reorder-drag-start', event)
+}
 
 const colorMap: Record<string, string> = {
   if: '#E8A838',
@@ -34,13 +45,20 @@ const iconMap: Record<string, string> = {
   >
     <Handle type="target" :position="Position.Top" />
     <div class="flow-node-header">
+      <div
+        v-if="reorderEnabled"
+        class="flow-drag-handle"
+        draggable="true"
+        @mousedown.stop
+        @dragstart.stop="onHandleDragStart"
+      >&#x2630;</div>
       <span class="flow-node-icon" v-html="iconMap[data.stepType] || '&#x25C6;'"></span>
       <span class="flow-node-type">{{ data.stepType.toUpperCase().replace('_', ' ') }}</span>
     </div>
     <div v-if="data.step.condition" class="flow-node-condition">
       {{ data.step.condition }}
     </div>
-    <div v-if="data.step.loopVar" class="flow-node-condition">
+    <div v-if="data.stepType === 'for' || data.stepType === 'while'" class="flow-node-condition">
       {{ data.step.loopVar }} {{ data.step.loopFlavor }} {{ data.step.loopValues.join('  ') }}
     </div>
     <div v-if="data.step.exceptPattern" class="flow-node-condition">
@@ -82,5 +100,23 @@ const iconMap: Record<string, string> = {
   font-family: monospace;
   color: var(--color-text-muted, #5A6380);
   word-break: break-all;
+}
+.flow-drag-handle {
+  cursor: grab;
+  color: var(--color-text-muted, #5A6380);
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.4;
+  padding: 2px;
+  border-radius: 3px;
+  user-select: none;
+  flex-shrink: 0;
+}
+.flow-drag-handle:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}
+.flow-drag-handle:active {
+  cursor: grabbing;
 }
 </style>

@@ -470,6 +470,40 @@ const de: DocsContent = [
         tip: 'Der Editor erkennt .robot-Dateien und hebt Keywords, Variablen und Testf\u00E4lle farblich hervor.'
       },
       {
+        id: 'flow-editor',
+        title: 'Visueller Flow-Editor',
+        content: `
+<p>
+  F\u00FCr <code>.robot</code>-Dateien bietet der Editor einen dritten Tab namens <strong>Flow</strong>
+  (neben \u201EVisual Editor\u201C und \u201ECode\u201C). Dieser Tab stellt Ihre Testf\u00E4lle als
+  interaktiven <strong>knotenbasierten Graphen</strong> mit Vue Flow dar.
+</p>
+<h4>Knotentypen</h4>
+<ul>
+  <li><strong>Start-/End-Knoten</strong> &mdash; Runde Knoten, die den Testfallnamen anzeigen und Anfang und Ende jedes Flows markieren.</li>
+  <li><strong>Keyword-Knoten</strong> (blau) &mdash; Repr\u00E4sentieren Keyword-Aufrufe. Klicken Sie auf einen Knoten, um seine Argumente im Detail-Panel rechts zu sehen.</li>
+  <li><strong>Kontrollstruktur-Knoten</strong> (gestrichelter Rand) &mdash; Repr\u00E4sentieren Kontrollstrukturen wie <code>IF</code>, <code>FOR</code>, <code>WHILE</code> und <code>TRY/EXCEPT</code>. Farbcodiert nach Typ (Amber f\u00FCr IF, Violett f\u00FCr FOR/WHILE, Teal f\u00FCr TRY, Rot f\u00FCr EXCEPT). Edge-Labels zeigen Verzweigungsbedingungen (true/false).</li>
+</ul>
+<h4>Keyword-Palette</h4>
+<p>
+  Eine einklappbare Seitenleiste links auf der Flow-Canvas bietet eine <strong>Keyword-Palette</strong>
+  mit f\u00FCnf Kategorien: BuiltIn, Collections, String, Browser und Control. M\u00F6glichkeiten:
+</p>
+<ul>
+  <li><strong>Suche</strong> &mdash; Keywords \u00FCber das Suchfeld nach Namen filtern.</li>
+  <li><strong>Klick zum Hinzuf\u00FCgen</strong> &mdash; Klicken Sie auf ein Keyword, um es als neuen Knoten anzuf\u00FCgen.</li>
+  <li><strong>Drag &amp; Drop</strong> &mdash; Ziehen Sie ein Keyword aus der Palette auf die Canvas, um es pr\u00E4zise zu platzieren.</li>
+</ul>
+<h4>Synchronisation</h4>
+<p>
+  Alle drei Editor-Tabs (Visual Editor, Code, Flow) teilen sich dasselbe Datenmodell.
+  \u00C4nderungen in einem Tab werden sofort in den anderen reflektiert. Beispielsweise wird
+  das Hinzuf\u00FCgen eines Keyword-Knotens im Flow-Tab sowohl das Visual-Editor-Formular
+  als auch den rohen <code>.robot</code>-Code aktualisieren.
+</p>`,
+        tip: 'Nutzen Sie die MiniMap in der unteren rechten Ecke der Flow-Canvas, um in gro\u00DFen Test-Suites zu navigieren. Das Controls-Panel erm\u00F6glicht Zoom und Ansichtsanpassung.'
+      },
+      {
         id: 'explorer-search',
         title: 'Dateisuche',
         content: `
@@ -1206,6 +1240,167 @@ const de: DocsContent = [
   bleiben aktiv, aber beim n\u00E4chsten Login wird das neue Passwort ben\u00F6tigt.
 </p>`,
         tip: 'Kommunizieren Sie das neue Passwort auf einem sicheren Kanal an den Benutzer.'
+      },
+      {
+        id: 'api-tokens',
+        title: 'API-Tokens',
+        content: `
+<p>
+  Der Tab <strong>API-Tokens</strong> in den Einstellungen erm\u00F6glicht Administratoren, Tokens f\u00FCr
+  CI/CD-Pipelines und Service-Accounts zu erstellen. Tokens bieten programmatischen Zugriff auf
+  die RoboScope-API ohne interaktive Anmeldung.
+</p>
+<h4>Token erstellen</h4>
+<ol>
+  <li>Navigieren Sie zu <strong>Einstellungen &gt; API-Tokens</strong>.</li>
+  <li>Klicken Sie auf <strong>Token erstellen</strong>.</li>
+  <li>Geben Sie einen <strong>Namen</strong> ein (z.\u00A0B. \u201EJenkins Pipeline\u201C).</li>
+  <li>W\u00E4hlen Sie eine <strong>Rolle</strong> &mdash; entweder <em>Runner</em> (kann Runs ausl\u00F6sen) oder <em>Editor</em> (kann zus\u00E4tzlich Dateien und Einstellungen \u00E4ndern).</li>
+  <li>Optional: Legen Sie ein <strong>Ablaufdatum</strong> fest. Tokens ohne Ablaufdatum bleiben g\u00FCltig, bis sie widerrufen werden.</li>
+  <li>Klicken Sie auf <strong>Erstellen</strong>. Das Token wird einmalig angezeigt &mdash; kopieren Sie es sofort.</li>
+</ol>
+<h4>Token verwenden</h4>
+<p>
+  F\u00FCgen Sie das Token im <code>Authorization</code>-Header Ihrer HTTP-Anfragen ein:
+</p>
+<p><code>Authorization: Bearer rbs_...</code></p>
+<p>
+  Alle Tokens verwenden das Pr\u00E4fix <code>rbs_</code> zur einfachen Identifikation. Der Token-Wert
+  wird als SHA-256-Hash in der Datenbank gespeichert &mdash; er kann nach der Erstellung nicht wiederhergestellt werden.
+</p>
+<h4>Token widerrufen</h4>
+<p>
+  Klicken Sie auf den <strong>Widerrufen</strong>-Button neben einem Token, um es sofort
+  ung\u00FCltig zu machen. Widerrufene Tokens k\u00F6nnen nicht wiederhergestellt werden.
+</p>`,
+        tip: 'Verwenden Sie kurzlebige Tokens mit Ablaufdatum f\u00FCr CI/CD-Pipelines, um das Sicherheitsrisiko zu minimieren. Erstellen Sie separate Tokens f\u00FCr jede Pipeline oder jeden Dienst.'
+      },
+      {
+        id: 'outbound-webhooks',
+        title: 'Ausgehende Webhooks',
+        content: `
+<p>
+  Der Tab <strong>Webhooks</strong> in den Einstellungen erm\u00F6glicht die Konfiguration
+  ausgehender HTTP-Benachrichtigungen, die bei Testlauf-Ereignissen gesendet werden.
+  Dies ist n\u00FCtzlich f\u00FCr die Integration mit Chat-Tools (Slack, Teams),
+  \u00DCberwachungssystemen oder eigenen Dashboards.
+</p>
+<h4>Webhook erstellen</h4>
+<ol>
+  <li>Navigieren Sie zu <strong>Einstellungen &gt; Webhooks</strong>.</li>
+  <li>Klicken Sie auf <strong>Webhook hinzuf\u00FCgen</strong>.</li>
+  <li>Geben Sie die <strong>Ziel-URL</strong> ein (f\u00FCr Produktion sollte HTTPS verwendet werden).</li>
+  <li>Geben Sie optional ein <strong>Secret</strong> f\u00FCr die HMAC-SHA256-Signierung ein.</li>
+  <li>W\u00E4hlen Sie die <strong>Ereignisse</strong> aus, die Sie abonnieren m\u00F6chten:
+    <code>run.started</code>, <code>run.passed</code>, <code>run.failed</code>,
+    <code>run.error</code>, <code>run.cancelled</code>, <code>run.timeout</code>.
+  </li>
+  <li>Klicken Sie auf <strong>Speichern</strong>.</li>
+</ol>
+<h4>Payload-Signaturen</h4>
+<p>
+  Wenn ein Secret konfiguriert ist, enth\u00E4lt jede Zustellung einen
+  <code>X-RoboScope-Signature</code>-Header mit einer HMAC-SHA256-Signatur des Request-Bodys.
+  Verifizieren Sie diese Signatur auf der Empf\u00E4ngerseite, um sicherzustellen, dass die
+  Nachricht von RoboScope stammt und nicht manipuliert wurde.
+</p>
+<h4>Zustellungsprotokoll &amp; Wiederholungen</h4>
+<p>
+  RoboScope f\u00FChrt ein Zustellungsprotokoll f\u00FCr jeden Webhook mit Statuscodes, Zeitstempeln
+  und Antwort-Bodies. Fehlgeschlagene Zustellungen werden bis zu 3-mal mit exponentiellem
+  Backoff wiederholt. Nutzen Sie den <strong>Test-Ping</strong>-Button, um die Konnektivit\u00E4t
+  zu \u00FCberpr\u00FCfen, bevor Sie sich auf den Webhook verlassen.
+</p>`,
+        tip: 'Verwenden Sie den Test-Ping-Button nach dem Erstellen eines Webhooks, um zu \u00FCberpr\u00FCfen, ob Ihr Endpunkt Payloads korrekt empf\u00E4ngt.'
+      },
+      {
+        id: 'git-webhook-trigger',
+        title: 'Git-Webhook-Trigger',
+        content: `
+<p>
+  RoboScope kann automatisch Testl\u00E4ufe ausl\u00F6sen, wenn Code in ein Git-Repository gepusht wird.
+  Der Tab <strong>Webhooks</strong> in den Einstellungen zeigt eine <strong>Eingangs-Webhook-URL</strong>
+  an, die Sie in Ihren GitHub- oder GitLab-Repository-Einstellungen konfigurieren k\u00F6nnen.
+</p>
+<h4>Einrichtung</h4>
+<ol>
+  <li>Kopieren Sie die Eingangs-Webhook-URL aus <strong>Einstellungen &gt; Webhooks</strong>.</li>
+  <li>Gehen Sie in Ihrer Git-Hosting-Plattform (GitHub oder GitLab) zu den Webhook-Einstellungen Ihres Repositories.</li>
+  <li>F\u00FCgen Sie die RoboScope-URL als neuen Webhook hinzu.</li>
+  <li>W\u00E4hlen Sie <strong>Push-Events</strong> als Ausl\u00F6ser.</li>
+  <li>Speichern Sie die Webhook-Konfiguration.</li>
+</ol>
+<h4>Funktionsweise</h4>
+<p>
+  Wenn ein Push-Event empfangen wird, gleicht RoboScope die eingehende <code>git_url</code>
+  mit konfigurierten Projekten ab (mit oder ohne <code>.git</code>-Suffix). Der Branch-Name
+  wird aus der <code>refs/heads/...</code>-Referenz extrahiert und automatisch ein
+  <code>ExecutionRun</code> f\u00FCr das passende Projekt auf dem gepushten Branch erstellt.
+</p>`,
+        tip: 'Stellen Sie sicher, dass Ihre RoboScope-Instanz von Ihrer Git-Hosting-Plattform erreichbar ist. F\u00FCr GitHub muss die Webhook-URL \u00F6ffentlich zug\u00E4nglich sein.'
+      },
+      {
+        id: 'audit-log',
+        title: 'Audit-Log',
+        content: `
+<p>
+  Der Tab <strong>Audit-Log</strong> in den Einstellungen bietet eine umfassende Aufzeichnung
+  aller Schreiboperationen (POST, PUT, PATCH, DELETE), die in RoboScope durchgef\u00FChrt wurden.
+  Dies ist essenziell f\u00FCr Compliance, Sicherheits\u00FCberwachung und Fehlersuche.
+</p>
+<h4>Was wird protokolliert</h4>
+<p>
+  Jeder Audit-Log-Eintrag erfasst:
+</p>
+<ul>
+  <li><strong>Zeitstempel</strong> &mdash; Wann die Aktion stattfand.</li>
+  <li><strong>Benutzer</strong> &mdash; Wer die Aktion ausgef\u00FChrt hat (Benutzername).</li>
+  <li><strong>Aktion</strong> &mdash; Die HTTP-Methode und der Endpunkt (z.\u00A0B. POST /runs).</li>
+  <li><strong>Ressource</strong> &mdash; Typ und ID der betroffenen Ressource.</li>
+  <li><strong>IP-Adresse</strong> &mdash; Die Client-IP-Adresse.</li>
+  <li><strong>Details</strong> &mdash; Zus\u00E4tzlicher Kontext als JSON (z.\u00A0B. ge\u00E4nderte Felder).</li>
+</ul>
+<h4>Filtern &amp; Export</h4>
+<p>
+  Verwenden Sie die Filteroptionen, um Eintr\u00E4ge nach Aktionstyp, Ressourcentyp oder Benutzer
+  einzugrenzen. Die paginierte Tabelle unterst\u00FCtzt die Navigation durch gro\u00DFe Log-Mengen.
+  Klicken Sie auf <strong>CSV exportieren</strong>, um die gefilterten Eintr\u00E4ge f\u00FCr externe
+  Analyse oder Archivierung herunterzuladen.
+</p>
+<h4>Aufbewahrungsrichtlinien</h4>
+<p>
+  Ein Hintergrund-Scheduler l\u00E4uft alle 24 Stunden, um Aufbewahrungsrichtlinien durchzusetzen.
+  Reports und Runs, die \u00E4lter als die konfigurierte <code>report_retention_days</code>-Einstellung
+  sind, werden automatisch gel\u00F6scht. Administratoren k\u00F6nnen die Aufbewahrungsdurchsetzung
+  auch manuell \u00FCber <strong>Einstellungen &gt; Audit-Log &gt; Aufbewahrung ausf\u00FChren</strong> ausl\u00F6sen.
+</p>`,
+        tip: 'Exportieren Sie Audit-Logs regelm\u00E4\u00DFig f\u00FCr Compliance-Zwecke. Der CSV-Export enth\u00E4lt alle Felder und ber\u00FCcksichtigt aktive Filter.'
+      },
+      {
+        id: 'secrets-encryption',
+        title: 'Secrets-Verschl\u00FCsselung',
+        content: `
+<p>
+  Umgebungsvariablen k\u00F6nnen als <strong>Secret</strong> markiert werden, um sensible Werte
+  wie API-Schl\u00FCssel, Passw\u00F6rter und Tokens zu sch\u00FCtzen. Secret-Variablen werden im
+  Ruhezustand mit Fernet-symmetrischer Verschl\u00FCsselung verschl\u00FCsselt, abgeleitet vom
+  <code>SECRET_KEY</code> der Anwendung.
+</p>
+<h4>Variable als Secret markieren</h4>
+<ol>
+  <li>Navigieren Sie zu <strong>Umgebungen</strong> und w\u00E4hlen Sie eine Umgebung aus.</li>
+  <li>Im Abschnitt <strong>Variablen</strong> f\u00FCgen Sie eine Variable hinzu oder bearbeiten eine bestehende.</li>
+  <li>Aktivieren Sie den <strong>Secret</strong>-Schalter, um die Verschl\u00FCsselung zu aktivieren.</li>
+  <li>Speichern Sie die Variable. Der Wert wird sofort verschl\u00FCsselt.</li>
+</ol>
+<h4>Funktionsweise</h4>
+<ul>
+  <li>Secret-Werte werden als verschl\u00FCsselter Chiffretext in der Datenbank gespeichert.</li>
+  <li>Die Oberfl\u00E4che zeigt Secret-Werte als <code>********</code> an &mdash; sie k\u00F6nnen nicht zur\u00FCckgelesen werden.</li>
+  <li>Werte werden nur zur Testausf\u00FChrungszeit entschl\u00FCsselt, wenn sie in die Umgebung des Test-Runners injiziert werden.</li>
+  <li>Legacy-Klartext-Secrets (erstellt vor Aktivierung der Verschl\u00FCsselung) funktionieren weiterhin durch Graceful Fallback.</li>
+</ul>`,
+        tip: 'Verwenden Sie in Produktion immer einen starken, einzigartigen SECRET_KEY. Wenn der SECRET_KEY ge\u00E4ndert wird, werden zuvor verschl\u00FCsselte Secrets unlesbar.'
       }
     ]
   },

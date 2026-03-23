@@ -162,6 +162,13 @@ export default {
       branchSwitched: 'Rama cambiada',
       branchSwitchFailed: 'Error al cambiar de rama',
     },
+    branchNotFound: 'Rama no encontrada',
+    branchNotFoundDetail: 'La rama "{branch}" no existe en este repositorio y no se encontró ninguna rama alternativa (main/master).',
+    branchFallback: {
+      title: 'Rama no encontrada',
+      message: 'La rama "{branch}" no existe en este repositorio. ¿Desea utilizar una de las siguientes?',
+      useInstead: 'Usar "{branch}"',
+    },
     selectAll: 'Seleccionar todo',
     deleteSelected: 'Eliminar seleccionados ({count})',
     deleteAll: 'Eliminar todo',

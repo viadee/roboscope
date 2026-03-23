@@ -499,6 +499,40 @@ const en: DocsContent = [
         tip: 'Use Ctrl+G (Cmd+G on Mac) to jump to a specific line number in the editor.'
       },
       {
+        id: 'flow-editor',
+        title: 'Visual Flow Editor',
+        content: `
+<p>
+  For <code>.robot</code> files, the editor offers a third tab called <strong>Flow</strong>
+  (alongside &ldquo;Visual Editor&rdquo; and &ldquo;Code&rdquo;). This tab renders your test cases
+  as an interactive <strong>node-based graph</strong> using Vue Flow.
+</p>
+<h4>Node Types</h4>
+<ul>
+  <li><strong>Start / End Nodes</strong> &mdash; Round nodes displaying the test case name, marking the beginning and end of each flow.</li>
+  <li><strong>Keyword Nodes</strong> (blue) &mdash; Represent keyword calls. Click a node to see its arguments in the detail panel on the right.</li>
+  <li><strong>Control Nodes</strong> (dashed border) &mdash; Represent control structures like <code>IF</code>, <code>FOR</code>, <code>WHILE</code>, and <code>TRY/EXCEPT</code>. Color-coded by type (amber for IF, violet for FOR/WHILE, teal for TRY, red for EXCEPT). Edge labels show branch conditions (true/false).</li>
+</ul>
+<h4>Keyword Palette</h4>
+<p>
+  A collapsible sidebar on the left of the flow canvas provides a <strong>Keyword Palette</strong>
+  with five categories: BuiltIn, Collections, String, Browser, and Control. You can:
+</p>
+<ul>
+  <li><strong>Search</strong> &mdash; Filter keywords by name using the search box.</li>
+  <li><strong>Click to Add</strong> &mdash; Click a keyword to append it as a new node.</li>
+  <li><strong>Drag &amp; Drop</strong> &mdash; Drag a keyword from the palette onto the canvas to position it precisely.</li>
+</ul>
+<h4>Synchronization</h4>
+<p>
+  All three editor tabs (Visual Editor, Code, Flow) share the same underlying data model.
+  Changes made in one tab are immediately reflected in the others. For example, adding a
+  keyword node in the Flow tab will update both the Visual Editor form and the raw
+  <code>.robot</code> code.
+</p>`,
+        tip: 'Use the MiniMap in the bottom-right corner of the flow canvas to navigate large test suites. The Controls panel lets you zoom in/out and fit the view.'
+      },
+      {
         id: 'explorer-search',
         title: 'Search',
         content: `
@@ -1261,6 +1295,165 @@ const en: DocsContent = [
   remain valid, but they will need the new password for their next login.
 </p>`,
         tip: 'Communicate the new password to the user through a secure channel. Consider asking them to change it again on first login.'
+      },
+      {
+        id: 'api-tokens',
+        title: 'API Tokens',
+        content: `
+<p>
+  The <strong>API Tokens</strong> tab in Settings allows administrators to create tokens for
+  CI/CD pipelines and service accounts. Tokens provide programmatic access to the RoboScope API
+  without requiring interactive login.
+</p>
+<h4>Creating a Token</h4>
+<ol>
+  <li>Navigate to <strong>Settings &gt; API Tokens</strong>.</li>
+  <li>Click <strong>Create Token</strong>.</li>
+  <li>Enter a <strong>name</strong> (e.g., &ldquo;Jenkins Pipeline&rdquo;).</li>
+  <li>Select a <strong>role</strong> &mdash; either <em>Runner</em> (can trigger runs) or <em>Editor</em> (can also modify files and settings).</li>
+  <li>Optionally set an <strong>expiry date</strong>. Tokens without an expiry remain valid until revoked.</li>
+  <li>Click <strong>Create</strong>. The token is displayed once &mdash; copy it immediately.</li>
+</ol>
+<h4>Using a Token</h4>
+<p>
+  Include the token in the <code>Authorization</code> header of your HTTP requests:
+</p>
+<p><code>Authorization: Bearer rbs_...</code></p>
+<p>
+  All tokens use the <code>rbs_</code> prefix for easy identification. The token value is
+  stored as a SHA-256 hash in the database &mdash; it cannot be recovered after creation.
+</p>
+<h4>Revoking a Token</h4>
+<p>
+  Click the <strong>Revoke</strong> button next to any token to immediately invalidate it.
+  Revoked tokens cannot be restored.
+</p>`,
+        tip: 'Use short-lived tokens with expiry dates for CI/CD pipelines to reduce security risk. Create separate tokens for each pipeline or service.'
+      },
+      {
+        id: 'outbound-webhooks',
+        title: 'Outbound Webhooks',
+        content: `
+<p>
+  The <strong>Webhooks</strong> tab in Settings lets you configure outbound HTTP notifications
+  that are sent whenever test run events occur. This is useful for integrating RoboScope with
+  chat tools (Slack, Teams), monitoring systems, or custom dashboards.
+</p>
+<h4>Creating a Webhook</h4>
+<ol>
+  <li>Navigate to <strong>Settings &gt; Webhooks</strong>.</li>
+  <li>Click <strong>Add Webhook</strong>.</li>
+  <li>Enter the <strong>target URL</strong> (must be HTTPS for production use).</li>
+  <li>Enter an optional <strong>secret</strong> for HMAC-SHA256 payload signing.</li>
+  <li>Select the <strong>events</strong> you want to subscribe to:
+    <code>run.started</code>, <code>run.passed</code>, <code>run.failed</code>,
+    <code>run.error</code>, <code>run.cancelled</code>, <code>run.timeout</code>.
+  </li>
+  <li>Click <strong>Save</strong>.</li>
+</ol>
+<h4>Payload Signatures</h4>
+<p>
+  If a secret is configured, each delivery includes an <code>X-RoboScope-Signature</code> header
+  containing an HMAC-SHA256 signature of the request body. Verify this signature on the receiving
+  end to ensure the payload was sent by RoboScope and has not been tampered with.
+</p>
+<h4>Delivery Log &amp; Retries</h4>
+<p>
+  RoboScope keeps a delivery log for each webhook showing status codes, timestamps, and response
+  bodies. Failed deliveries are retried up to 3 times with exponential backoff. Use the
+  <strong>Test Ping</strong> button to verify connectivity before relying on the webhook.
+</p>`,
+        tip: 'Use the Test Ping button after creating a webhook to verify that your endpoint receives payloads correctly before waiting for a real run event.'
+      },
+      {
+        id: 'git-webhook-trigger',
+        title: 'Git Webhook Trigger',
+        content: `
+<p>
+  RoboScope can automatically trigger test runs when code is pushed to a Git repository.
+  The <strong>Webhooks</strong> tab in Settings displays an <strong>inbound webhook URL</strong>
+  that you can configure in your GitHub or GitLab repository settings.
+</p>
+<h4>Setup</h4>
+<ol>
+  <li>Copy the inbound webhook URL from <strong>Settings &gt; Webhooks</strong>.</li>
+  <li>In your Git hosting platform (GitHub or GitLab), go to your repository&rsquo;s webhook settings.</li>
+  <li>Add the RoboScope URL as a new webhook.</li>
+  <li>Select <strong>Push events</strong> as the trigger.</li>
+  <li>Save the webhook configuration.</li>
+</ol>
+<h4>How It Works</h4>
+<p>
+  When a push event is received, RoboScope matches the incoming <code>git_url</code> against
+  configured projects (with or without <code>.git</code> suffix). It extracts the branch name
+  from the <code>refs/heads/...</code> reference and automatically creates an
+  <code>ExecutionRun</code> for the matched project on the pushed branch.
+</p>`,
+        tip: 'Make sure your RoboScope instance is reachable from your Git hosting platform. For GitHub, the webhook URL must be publicly accessible or use a tunnel for local development.'
+      },
+      {
+        id: 'audit-log',
+        title: 'Audit Log',
+        content: `
+<p>
+  The <strong>Audit Log</strong> tab in Settings provides a comprehensive record of all
+  write operations (POST, PUT, PATCH, DELETE) performed in RoboScope. This is essential
+  for compliance, security monitoring, and debugging.
+</p>
+<h4>What Is Logged</h4>
+<p>
+  Each audit log entry captures:
+</p>
+<ul>
+  <li><strong>Timestamp</strong> &mdash; When the action occurred.</li>
+  <li><strong>User</strong> &mdash; Who performed the action (username).</li>
+  <li><strong>Action</strong> &mdash; The HTTP method and endpoint (e.g., POST /runs).</li>
+  <li><strong>Resource</strong> &mdash; The type and ID of the affected resource.</li>
+  <li><strong>IP Address</strong> &mdash; The client IP address.</li>
+  <li><strong>Details</strong> &mdash; Additional context stored as JSON (e.g., changed fields).</li>
+</ul>
+<h4>Filtering &amp; Export</h4>
+<p>
+  Use the filter controls to narrow down entries by action type, resource type, or user.
+  The paginated table supports navigating through large log volumes. Click
+  <strong>Export CSV</strong> to download the filtered log entries for external analysis or
+  archival purposes.
+</p>
+<h4>Retention Enforcement</h4>
+<p>
+  A background scheduler runs every 24 hours to enforce retention policies. Reports and runs
+  older than the configured <code>report_retention_days</code> setting are automatically deleted.
+  Administrators can also trigger retention enforcement manually via
+  <strong>Settings &gt; Audit Log &gt; Run Retention</strong>.
+</p>`,
+        tip: 'Export audit logs regularly for compliance purposes. The CSV export includes all fields and respects any active filters.'
+      },
+      {
+        id: 'secrets-encryption',
+        title: 'Secrets Encryption',
+        content: `
+<p>
+  Environment variables can be marked as <strong>secret</strong> to protect sensitive values
+  such as API keys, passwords, and tokens. Secret variables are encrypted at rest using
+  Fernet symmetric encryption, derived from the application&rsquo;s <code>SECRET_KEY</code>.
+</p>
+<h4>Marking a Variable as Secret</h4>
+<ol>
+  <li>Navigate to <strong>Environments</strong> and select an environment.</li>
+  <li>In the <strong>Variables</strong> section, add or edit a variable.</li>
+  <li>Toggle the <strong>Secret</strong> switch to enable encryption.</li>
+  <li>Save the variable. The value is encrypted immediately.</li>
+</ol>
+<h4>How It Works</h4>
+<ul>
+  <li>Secret values are stored as encrypted ciphertext in the database.</li>
+  <li>The UI displays secret values as <code>********</code> &mdash; they cannot be read back.</li>
+  <li>Values are decrypted only at test execution time, when they are injected into the
+      test runner&rsquo;s environment.</li>
+  <li>Legacy plaintext secrets (created before encryption was enabled) continue to work
+      through graceful fallback.</li>
+</ul>`,
+        tip: 'Always use a strong, unique SECRET_KEY in production. If the SECRET_KEY changes, previously encrypted secrets will become unreadable.'
       }
     ]
   },

@@ -20,6 +20,9 @@ const dynamicLibraries = ref<Map<string, RfKeywordResult[]>>(new Map())
 const projectKeywords = ref<ProjectKeyword[]>([])
 const loadingKeywords = ref(false)
 
+// Keyword args lookup: name → args[]
+const keywordArgsMap = ref<Map<string, string[]>>(new Map())
+
 async function loadDynamicKeywords() {
   if (!props.repoId) return
   loadingKeywords.value = true
@@ -30,6 +33,8 @@ async function loadDynamicKeywords() {
       getProjectKeywords(props.repoId),
     ])
 
+    const argsMap = new Map<string, string[]>()
+
     // rf-mcp library keywords (grouped by library)
     if (rfResult.status === 'fulfilled') {
       const grouped = new Map<string, RfKeywordResult[]>()
@@ -37,6 +42,9 @@ async function loadDynamicKeywords() {
         const lib = kw.library || 'Unknown'
         if (!grouped.has(lib)) grouped.set(lib, [])
         grouped.get(lib)!.push(kw)
+        if (kw.args && kw.args.length > 0) {
+          argsMap.set(kw.name, kw.args)
+        }
       }
       dynamicLibraries.value = grouped
     }
@@ -44,7 +52,14 @@ async function loadDynamicKeywords() {
     // Project keywords from .robot/.resource files
     if (projKws.status === 'fulfilled') {
       projectKeywords.value = projKws.value
+      for (const kw of projKws.value) {
+        if (kw.arguments && kw.arguments.length > 0) {
+          argsMap.set(kw.name, kw.arguments)
+        }
+      }
     }
+
+    keywordArgsMap.value = argsMap
   } finally {
     loadingKeywords.value = false
   }
@@ -75,6 +90,10 @@ function collapseAll() {
   for (const cat of allCategories.value) {
     collapsedCategories.value.add(cat.name)
   }
+}
+
+function getKeywordArgs(name: string): string[] {
+  return keywordArgsMap.value.get(name) || []
 }
 
 function selectKeyword(name: string, type?: StepType) {
@@ -254,9 +273,18 @@ function onControlDragStart(event: DragEvent, type: StepType) {
       class="palette-search"
       :placeholder="t('flowEditor.searchKeywords') || 'Search keywords...'"
     />
-    <!-- Add selected keyword button -->
+    <!-- Add selected keyword button + args preview -->
     <div v-if="selectedKeyword" class="palette-add-bar">
-      <span class="palette-add-label">{{ selectedKeyword.name }}</span>
+      <div class="palette-add-info">
+        <span class="palette-add-label">{{ selectedKeyword.name }}</span>
+        <div v-if="!selectedKeyword.type && getKeywordArgs(selectedKeyword.name).length" class="palette-args-preview">
+          <span
+            v-for="(arg, i) in getKeywordArgs(selectedKeyword.name)"
+            :key="i"
+            class="palette-arg-tag"
+          >{{ arg }}</span>
+        </div>
+      </div>
       <button class="palette-add-btn" @click="addSelectedKeyword">+</button>
     </div>
     <div class="palette-categories">
@@ -282,7 +310,10 @@ function onControlDragStart(event: DragEvent, type: StepType) {
               @dblclick="addKeywordNode(kw)"
             >
               <span class="palette-icon">&#x2699;</span>
-              <span class="palette-item-name">{{ kw }}</span>
+              <div class="palette-item-content">
+                <span class="palette-item-name">{{ kw }}</span>
+                <span v-if="getKeywordArgs(kw).length" class="palette-item-argcount">({{ getKeywordArgs(kw).length }})</span>
+              </div>
             </div>
           </template>
 
@@ -358,14 +389,37 @@ function onControlDragStart(event: DragEvent, type: StepType) {
   border: 1px solid var(--color-primary, #3B7DD8);
   border-radius: 6px;
 }
-.palette-add-label {
+.palette-add-info {
   flex: 1;
+  min-width: 0;
+}
+.palette-add-label {
   font-size: 12px;
   font-weight: 600;
   color: var(--color-primary, #3B7DD8);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: block;
+}
+.palette-args-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+}
+.palette-arg-tag {
+  background: #fff;
+  border: 1px solid var(--color-primary, #3B7DD8);
+  color: var(--color-text-muted, #5A6380);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: monospace;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .palette-add-btn {
   width: 24px;
@@ -453,10 +507,22 @@ function onControlDragStart(event: DragEvent, type: StepType) {
   border: 1px solid var(--color-primary, #3B7DD8);
   margin: -1px 0;
 }
+.palette-item-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
 .palette-item-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.palette-item-argcount {
+  font-size: 10px;
+  color: var(--color-text-muted, #5A6380);
+  flex-shrink: 0;
 }
 .palette-item:active {
   cursor: grabbing;

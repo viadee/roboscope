@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Application
     PROJECT_NAME: str = "RoboScope"
-    VERSION: str = "0.6.0"
+    VERSION: str = "0.8.0"
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
     HOST: str = "0.0.0.0"

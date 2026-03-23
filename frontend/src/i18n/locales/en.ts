@@ -162,6 +162,13 @@ export default {
       branchSwitched: 'Branch switched',
       branchSwitchFailed: 'Branch switch failed',
     },
+    branchNotFound: 'Branch not found',
+    branchNotFoundDetail: 'The branch "{branch}" does not exist in this repository and no fallback branch (main/master) was found.',
+    branchFallback: {
+      title: 'Branch Not Found',
+      message: 'The branch "{branch}" does not exist in this repository. Would you like to use one of the following instead?',
+      useInstead: 'Use "{branch}"',
+    },
     selectAll: 'Select all',
     deleteSelected: 'Delete Selected ({count})',
     deleteAll: 'Delete All',

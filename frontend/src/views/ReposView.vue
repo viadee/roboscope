@@ -12,6 +12,7 @@ import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import { formatTimeAgo } from '@/utils/formatDate'
 import { checkLibraries } from '@/api/explorer.api'
 import { buildDockerImage, installPackage } from '@/api/environments.api'
+import { validateBranch, type BranchValidation } from '@/api/repos.api'
 import type { LibraryCheckItem, LibraryCheckResponse, ProjectMember, User } from '@/types/domain.types'
 import type { RepoCreateRequest } from '@/types/api.types'
 import { getUsers } from '@/api/auth.api'
@@ -32,6 +33,9 @@ const newRepo = ref({
   environment_id: null as number | null,
 })
 const adding = ref(false)
+const branchValidating = ref(false)
+const showBranchFallbackDialog = ref(false)
+const branchFallbackOptions = ref<string[]>([])
 
 // Multi-select for bulk delete
 const selectedRepoIds = ref<Set<number>>(new Set())
@@ -167,24 +171,66 @@ function openAddDialog() {
 async function addRepo() {
   adding.value = true
   try {
-    const payload: RepoCreateRequest = {
-      name: newRepo.value.name,
-      repo_type: newRepo.value.repo_type as 'git' | 'local',
-      default_branch: newRepo.value.default_branch,
-      ...(newRepo.value.repo_type === 'git' ? { git_url: newRepo.value.git_url } : { local_path: newRepo.value.local_path }),
-      ...(newRepo.value.environment_id ? { environment_id: newRepo.value.environment_id } : {}),
+    // For git repos: validate branch exists before cloning
+    if (newRepo.value.repo_type === 'git' && newRepo.value.git_url) {
+      branchValidating.value = true
+      try {
+        const validation = await validateBranch(newRepo.value.git_url, newRepo.value.default_branch)
+        if (!validation.valid) {
+          // Branch doesn't exist — check for fallbacks
+          if (validation.fallbacks && validation.fallbacks.length > 0) {
+            branchFallbackOptions.value = validation.fallbacks
+            showBranchFallbackDialog.value = true
+            adding.value = false
+            branchValidating.value = false
+            return
+          }
+          // No fallbacks available
+          toast.error(
+            t('repos.branchNotFound'),
+            t('repos.branchNotFoundDetail', { branch: newRepo.value.default_branch }),
+          )
+          adding.value = false
+          branchValidating.value = false
+          return
+        }
+      } catch {
+        // Validation failed (network, auth) — proceed anyway, clone task will handle errors
+      } finally {
+        branchValidating.value = false
+      }
     }
-    await repos.addRepo(payload)
-    const msg = newRepo.value.repo_type === 'git'
-      ? t('repos.toasts.cloning', { name: newRepo.value.name })
-      : t('repos.toasts.addedLocal', { name: newRepo.value.name })
-    toast.success(t('repos.toasts.added'), msg)
-    showAddDialog.value = false
+    await doCreateRepo()
   } catch (e: any) {
     toast.error(t('common.error'), e.response?.data?.detail || t('repos.toasts.addError'))
   } finally {
     adding.value = false
   }
+}
+
+function selectFallbackBranch(branch: string) {
+  newRepo.value.default_branch = branch
+  showBranchFallbackDialog.value = false
+  adding.value = true
+  doCreateRepo()
+    .catch((e: any) => toast.error(t('common.error'), e.response?.data?.detail || t('repos.toasts.addError')))
+    .finally(() => { adding.value = false })
+}
+
+async function doCreateRepo() {
+  const payload: RepoCreateRequest = {
+    name: newRepo.value.name,
+    repo_type: newRepo.value.repo_type as 'git' | 'local',
+    default_branch: newRepo.value.default_branch,
+    ...(newRepo.value.repo_type === 'git' ? { git_url: newRepo.value.git_url } : { local_path: newRepo.value.local_path }),
+    ...(newRepo.value.environment_id != null ? { environment_id: newRepo.value.environment_id } : {}),
+  }
+  await repos.addRepo(payload)
+  const msg = newRepo.value.repo_type === 'git'
+    ? t('repos.toasts.cloning', { name: newRepo.value.name })
+    : t('repos.toasts.addedLocal', { name: newRepo.value.name })
+  toast.success(t('repos.toasts.added'), msg)
+  showAddDialog.value = false
 }
 
 async function syncRepo(id: number) {
@@ -336,7 +382,10 @@ async function changeRepoEnv(repoId: number, envId: number | null) {
 
 function getDefaultEnvId(): number | null {
   const defaultEnv = envStore.environments.find(e => e.is_default)
-  return defaultEnv?.id ?? null
+  if (defaultEnv) return defaultEnv.id
+  // If no default, use first available environment
+  if (envStore.environments.length > 0) return envStore.environments[0].id
+  return null
 }
 
 // Member management functions
@@ -634,6 +683,26 @@ async function removeMember(member: ProjectMember) {
       </template>
     </BaseModal>
 
+    <!-- Branch Fallback Dialog -->
+    <BaseModal v-model="showBranchFallbackDialog" :title="t('repos.branchFallback.title')">
+      <p class="branch-fallback-msg">
+        {{ t('repos.branchFallback.message', { branch: newRepo.default_branch }) }}
+      </p>
+      <div class="branch-fallback-options">
+        <button
+          v-for="fb in branchFallbackOptions"
+          :key="fb"
+          class="branch-fallback-btn"
+          @click="selectFallbackBranch(fb)"
+        >
+          {{ t('repos.branchFallback.useInstead', { branch: fb }) }}
+        </button>
+      </div>
+      <template #footer>
+        <BaseButton variant="secondary" @click="showBranchFallbackDialog = false">{{ t('common.cancel') }}</BaseButton>
+      </template>
+    </BaseModal>
+
     <!-- Library Check Dialog -->
     <BaseModal v-model="showLibCheckDialog" :title="t('repos.libraryCheck.title')" size="lg">
       <div v-if="envStore.environments.length === 0" class="lib-check-no-env">
@@ -837,6 +906,33 @@ async function removeMember(member: ProjectMember) {
 </template>
 
 <style scoped>
+.branch-fallback-msg {
+  margin: 0 0 16px;
+  color: var(--color-text, #1A1D2E);
+  font-size: 14px;
+}
+.branch-fallback-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.branch-fallback-btn {
+  padding: 10px 16px;
+  border: 2px solid var(--color-primary, #3B7DD8);
+  border-radius: 8px;
+  background: #EBF4FF;
+  color: var(--color-primary, #3B7DD8);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+.branch-fallback-btn:hover {
+  background: var(--color-primary, #3B7DD8);
+  color: #fff;
+}
+
 .repo-details {
   display: flex;
   flex-direction: column;
