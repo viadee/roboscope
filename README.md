@@ -1,8 +1,8 @@
 # RoboScope
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Build Distribution](https://github.com/viadee-internal/roboscope/actions/workflows/build.yml/badge.svg)](https://github.com/viadee-internal/roboscope/actions/workflows/build.yml)
-[![E2E Tests](https://github.com/viadee-internal/roboscope/actions/workflows/e2e.yml/badge.svg)](https://github.com/viadee-internal/roboscope/actions/workflows/e2e.yml)
+[![Build Distribution](https://github.com/viadee/roboscope/actions/workflows/build.yml/badge.svg)](https://github.com/viadee/roboscope/actions/workflows/build.yml)
+[![E2E Tests](https://github.com/viadee/roboscope/actions/workflows/e2e.yml/badge.svg)](https://github.com/viadee/roboscope/actions/workflows/e2e.yml)
 [![Website](https://img.shields.io/badge/website-roboscope.eu-blue)](https://roboscope.eu)
 
 Web-based Robot Framework Test Management Tool with Git integration, GUI execution, report analysis, environment management, and container runtime.
@@ -15,12 +15,15 @@ Built by [viadee Unternehmensberatung AG](https://www.viadee.de).
 
 - **Project Management** — Clone Git repos or link local folders, branch management, auto-sync
 - **Test Explorer** — Browse test files, parse Robot Framework keywords/tests, library dependency check
+- **Visual Flow Editor** — Node-based graphical test editor with keyword palette, drag & drop, control structures (IF/FOR/WHILE/TRY)
 - **Test Execution** — Run tests via subprocess or Docker, live WebSocket status updates, scheduling
-- **Environment Management** — Create Python virtual environments, install/manage packages, set variables
+- **Environment Management** — Create Python virtual environments, install/manage packages, set variables, secrets encryption
 - **Report Analysis** — Parse `output.xml`, compare runs, view embedded HTML reports
 - **AI-Powered Analysis** — LLM-based failure root-cause analysis with fix suggestions (OpenAI, Anthropic, OpenRouter, Ollama)
 - **Statistics & KPIs** — Pass rate trends, flaky test detection, heatmaps, deep analysis (15 KPIs in 5 categories)
 - **AI Code Generation** — Generate `.robot` files from `.roboscope` YAML specs, reverse-engineer specs from `.robot` files
+- **CI/CD Integration** — API tokens for service accounts, outbound webhooks (6 events), git webhook triggers for automatic test runs
+- **Audit & Compliance** — Full audit log with CSV export, retention enforcement, secrets encryption at rest
 - **rf-mcp Integration** — Optional Robot Framework keyword knowledge server for enhanced AI suggestions
 - **Role-Based Access** — Four roles: Viewer, Runner, Editor, Admin
 - **Multi-Language UI** — English, German, French, Spanish
@@ -34,7 +37,7 @@ Built by [viadee Unternehmensberatung AG](https://www.viadee.de).
 | Backend | FastAPI, SQLAlchemy 2.0, Pydantic v2, Python 3.12+ |
 | Frontend | Vue 3, TypeScript, Pinia, Vue Router, Chart.js, CodeMirror 6, Vite |
 | Database | SQLite (default) or PostgreSQL |
-| Tests | pytest (~486 tests), Playwright (~29 E2E specs) |
+| Tests | pytest (~865 tests), Vitest (113 tests), Playwright (~267 E2E tests) |
 | AI | OpenAI, Anthropic, OpenRouter, Ollama (configurable) |
 
 ## Quick Start
@@ -100,7 +103,9 @@ RoboScope/
 │   │   ├── reports/  # output.xml parser + comparison
 │   │   ├── stats/    # KPIs + deep analysis
 │   │   ├── ai/       # LLM integration (generate, reverse, analyze)
-│   │   └── settings/ # App settings
+│   │   ├── settings/ # App settings
+│   │   ├── webhooks/ # API tokens + webhooks
+│   │   └── audit/    # Audit log + retention
 │   ├── tests/        # pytest tests
 │   ├── migrations/   # Alembic (SQLite + PostgreSQL)
 │   └── examples/     # Example Robot Framework test files
@@ -131,6 +136,8 @@ Swagger UI available at `http://localhost:8000/api/v1/docs`
 | `/api/v1/reports` | Report parsing & comparison |
 | `/api/v1/stats` | KPIs, trends, deep analysis |
 | `/api/v1/ai` | AI providers, code generation, failure analysis |
+| `/api/v1/webhooks` | API tokens, outbound webhooks, git triggers |
+| `/api/v1/audit` | Audit log, retention enforcement |
 | `/api/v1/settings` | Application settings (admin) |
 
 ## Testing

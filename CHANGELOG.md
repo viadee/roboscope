@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.8.0] - 2026-03-23
+
+### Features
+- **Visual Flow Editor** — Node-based graphical editor as third tab "Flow" in RobotEditor. Vue Flow with custom nodes: KeywordNode (library calls + arguments), ControlNode (IF/FOR/WHILE/TRY), StartEndNode. MiniMap, Controls, Background Grid, Detail Panel on node click.
+- **Flow Editor Keyword Palette** — 5 categories (BuiltIn, Collections, String, Browser, Control), search filter, click-to-add and drag & drop, dynamic loading from rf-mcp libraries and .resource files.
+- **Flow Editor UX** — Editable node panel, accordion palette, node reorder & delete, expand/collapse all, select-then-add mode, stable viewport on move.
+- **CI/CD Integration (Phase 1)** — API Tokens with SHA256 hash, `rbs_` prefix, role scoping (RUNNER/EDITOR), expiry dates. Auth accepts JWT + API Token. CRUD under `/api/v1/webhooks/tokens`. Frontend: Settings tab "API Tokens".
+- **Outbound Webhooks** — HMAC-SHA256 signed (`X-RoboScope-Signature`), 6 events (run.started/passed/failed/error/cancelled/timeout), retry with backoff, test ping, delivery log. Frontend: Settings tab "Webhooks".
+- **Git Webhook Trigger** — `POST /api/v1/webhooks/git` accepts GitHub/GitLab push payloads, matches repo via `git_url`, auto-creates ExecutionRun.
+- **Audit Log (Phase 2)** — `AuditLog` model with automatic middleware for all POST/PUT/PATCH/DELETE. Admin UI: filterable log, CSV export, manual `audit()` helper.
+- **Retention Enforcement** — APScheduler (24h interval) deletes reports/runs older than `report_retention_days`. Dry-run mode, manual trigger via API.
+- **Secrets Encryption** — Fernet encryption (derived from SECRET_KEY) for environment variables with `is_secret=True`. Legacy plaintext graceful degradation.
+- **Demo Video Recording** — Playwright-based automated demo video generation with overlay text injection, TTS voice-over (OpenAI), EN/DE versions. `DEMO_VIDEO=1 DEMO_LANG=de` env vars.
+
+### Fixes
+- Fix Google Fonts CDN links for offline compatibility (#29)
+- Fix auth redirect loop in Safari (stale token + HMR reload)
+- Fix Flow Editor detail panel stays open on arg add/reorder, viewport stable on move (#28)
+- Fix greenlet as explicit dependency for offline package builds
+- Fix default environment name and human-readable validation errors
+- Fix audit middleware DB writes in daemon thread to avoid event loop blocking
+
+### Security
+- Secrets encryption at rest for environment variables (Fernet)
+- API Token authentication with SHA256 hashing
+- HMAC-SHA256 webhook signatures
+
+### Tests
+- 865 backend tests passing (up from 792)
+- 267 E2E tests passing
+- 113 frontend tests passing
+- 34 new tests for API tokens, webhooks, audit log, secrets encryption
+
+### Docs
+- In-app documentation updated for API Tokens, Webhooks, Audit Log, Secrets, Flow Editor (EN/DE/FR/ES)
+- Demo video scripts and TTS voice-over in EN/DE
+
 ## [0.7.0] - 2026-03-12
 
 ### Features
