@@ -529,6 +529,40 @@ const es: DocsContent = [
         tip: 'Use Ctrl+G (Cmd+G en Mac) para saltar a un n\u00FAmero de l\u00EDnea espec\u00EDfico en el editor.'
       },
       {
+        id: 'flow-editor',
+        title: 'Editor de flujo visual',
+        content: `
+<p>
+  Para archivos <code>.robot</code>, el editor ofrece una tercera pesta\u00F1a llamada
+  <strong>Flow</strong> (junto a \u00ABVisual Editor\u00BB y \u00ABCode\u00BB). Esta pesta\u00F1a muestra
+  sus casos de prueba como un <strong>grafo interactivo basado en nodos</strong> utilizando Vue Flow.
+</p>
+<h4>Tipos de nodos</h4>
+<ul>
+  <li><strong>Nodos Inicio/Fin</strong> &mdash; Nodos redondeados que muestran el nombre del caso de prueba, marcando el inicio y fin de cada flujo.</li>
+  <li><strong>Nodos de palabra clave</strong> (azul) &mdash; Representan llamadas a palabras clave. Haga clic en un nodo para ver sus argumentos en el panel de detalles a la derecha.</li>
+  <li><strong>Nodos de control</strong> (borde punteado) &mdash; Representan estructuras de control como <code>IF</code>, <code>FOR</code>, <code>WHILE</code> y <code>TRY/EXCEPT</code>. Codificados por color seg\u00FAn tipo (\u00E1mbar para IF, violeta para FOR/WHILE, turquesa para TRY, rojo para EXCEPT). Las etiquetas de las aristas muestran condiciones de ramificaci\u00F3n (true/false).</li>
+</ul>
+<h4>Paleta de palabras clave</h4>
+<p>
+  Una barra lateral plegable a la izquierda del lienzo ofrece una <strong>Paleta de palabras clave</strong>
+  con cinco categor\u00EDas: BuiltIn, Collections, String, Browser y Control. Puede:
+</p>
+<ul>
+  <li><strong>Buscar</strong> &mdash; Filtrar palabras clave por nombre usando el cuadro de b\u00FAsqueda.</li>
+  <li><strong>Clic para a\u00F1adir</strong> &mdash; Haga clic en una palabra clave para a\u00F1adirla como nuevo nodo.</li>
+  <li><strong>Arrastrar y soltar</strong> &mdash; Arrastre una palabra clave desde la paleta al lienzo para posicionarla con precisi\u00F3n.</li>
+</ul>
+<h4>Sincronizaci\u00F3n</h4>
+<p>
+  Las tres pesta\u00F1as del editor (Visual Editor, Code, Flow) comparten el mismo modelo de datos
+  subyacente. Los cambios realizados en una pesta\u00F1a se reflejan inmediatamente en las dem\u00E1s.
+  Por ejemplo, a\u00F1adir un nodo de palabra clave en la pesta\u00F1a Flow actualizar\u00E1 tanto el
+  formulario del Visual Editor como el c\u00F3digo bruto <code>.robot</code>.
+</p>`,
+        tip: 'Use el MiniMap en la esquina inferior derecha del lienzo para navegar por suites de pruebas grandes. El panel de controles permite hacer zoom y ajustar la vista.'
+      },
+      {
         id: 'explorer-search',
         title: 'B\u00FAsqueda',
         content: `
@@ -1337,6 +1371,170 @@ const es: DocsContent = [
   para su pr\u00F3ximo inicio de sesi\u00F3n.
 </p>`,
         tip: 'Comunique la nueva contrase\u00F1a al usuario a trav\u00E9s de un canal seguro. Considere pedirle que la cambie de nuevo en el primer inicio de sesi\u00F3n.'
+      },
+      {
+        id: 'api-tokens',
+        title: 'Tokens API',
+        content: `
+<p>
+  La pesta\u00F1a <strong>Tokens API</strong> en Ajustes permite a los administradores crear tokens
+  para pipelines CI/CD y cuentas de servicio. Los tokens proporcionan acceso program\u00E1tico a
+  la API de RoboScope sin necesidad de inicio de sesi\u00F3n interactivo.
+</p>
+<h4>Crear un token</h4>
+<ol>
+  <li>Navegue a <strong>Ajustes &gt; Tokens API</strong>.</li>
+  <li>Haga clic en <strong>Crear token</strong>.</li>
+  <li>Introduzca un <strong>nombre</strong> (por ej. \u00ABPipeline Jenkins\u00BB).</li>
+  <li>Seleccione un <strong>rol</strong> &mdash; ya sea <em>Runner</em> (puede iniciar ejecuciones) o <em>Editor</em> (puede adem\u00E1s modificar archivos y ajustes).</li>
+  <li>Opcionalmente, establezca una <strong>fecha de expiraci\u00F3n</strong>. Los tokens sin expiraci\u00F3n permanecen v\u00E1lidos hasta ser revocados.</li>
+  <li>Haga clic en <strong>Crear</strong>. El token se muestra una sola vez &mdash; c\u00F3pielo inmediatamente.</li>
+</ol>
+<h4>Usar un token</h4>
+<p>
+  Incluya el token en la cabecera <code>Authorization</code> de sus solicitudes HTTP:
+</p>
+<p><code>Authorization: Bearer rbs_...</code></p>
+<p>
+  Todos los tokens usan el prefijo <code>rbs_</code> para f\u00E1cil identificaci\u00F3n. El valor del
+  token se almacena como un hash SHA-256 en la base de datos &mdash; no se puede recuperar
+  despu\u00E9s de la creaci\u00F3n.
+</p>
+<h4>Revocar un token</h4>
+<p>
+  Haga clic en el bot\u00F3n <strong>Revocar</strong> junto a cualquier token para invalidarlo
+  inmediatamente. Los tokens revocados no se pueden restaurar.
+</p>`,
+        tip: 'Use tokens de corta duraci\u00F3n con fechas de expiraci\u00F3n para pipelines CI/CD para reducir el riesgo de seguridad. Cree tokens separados para cada pipeline o servicio.'
+      },
+      {
+        id: 'outbound-webhooks',
+        title: 'Webhooks salientes',
+        content: `
+<p>
+  La pesta\u00F1a <strong>Webhooks</strong> en Ajustes permite configurar notificaciones HTTP
+  salientes que se env\u00EDan cuando ocurren eventos de ejecuci\u00F3n de pruebas. Esto es \u00FAtil para
+  integrar RoboScope con herramientas de chat (Slack, Teams), sistemas de monitorizaci\u00F3n o
+  paneles personalizados.
+</p>
+<h4>Crear un webhook</h4>
+<ol>
+  <li>Navegue a <strong>Ajustes &gt; Webhooks</strong>.</li>
+  <li>Haga clic en <strong>A\u00F1adir webhook</strong>.</li>
+  <li>Introduzca la <strong>URL de destino</strong> (se recomienda HTTPS para producci\u00F3n).</li>
+  <li>Introduzca un <strong>secreto</strong> opcional para la firma HMAC-SHA256 de las cargas \u00FAtiles.</li>
+  <li>Seleccione los <strong>eventos</strong> a los que desea suscribirse:
+    <code>run.started</code>, <code>run.passed</code>, <code>run.failed</code>,
+    <code>run.error</code>, <code>run.cancelled</code>, <code>run.timeout</code>.
+  </li>
+  <li>Haga clic en <strong>Guardar</strong>.</li>
+</ol>
+<h4>Firmas de carga \u00FAtil</h4>
+<p>
+  Si se configura un secreto, cada entrega incluye una cabecera
+  <code>X-RoboScope-Signature</code> con una firma HMAC-SHA256 del cuerpo de la solicitud.
+  Verifique esta firma en el extremo receptor para asegurar que la carga \u00FAtil fue enviada
+  por RoboScope y no ha sido manipulada.
+</p>
+<h4>Registro de entregas &amp; reintentos</h4>
+<p>
+  RoboScope mantiene un registro de entregas para cada webhook mostrando c\u00F3digos de estado,
+  marcas de tiempo y cuerpos de respuesta. Las entregas fallidas se reintentan hasta 3 veces
+  con retroceso exponencial. Use el bot\u00F3n <strong>Ping de prueba</strong> para verificar la
+  conectividad antes de depender del webhook.
+</p>`,
+        tip: 'Use el bot\u00F3n Ping de prueba despu\u00E9s de crear un webhook para verificar que su punto final recibe las cargas \u00FAtiles correctamente.'
+      },
+      {
+        id: 'git-webhook-trigger',
+        title: 'Disparador de webhook Git',
+        content: `
+<p>
+  RoboScope puede iniciar autom\u00E1ticamente ejecuciones de pruebas cuando se env\u00EDa c\u00F3digo
+  a un repositorio Git. La pesta\u00F1a <strong>Webhooks</strong> en Ajustes muestra una
+  <strong>URL de webhook entrante</strong> que puede configurar en los ajustes de su
+  repositorio de GitHub o GitLab.
+</p>
+<h4>Configuraci\u00F3n</h4>
+<ol>
+  <li>Copie la URL del webhook entrante desde <strong>Ajustes &gt; Webhooks</strong>.</li>
+  <li>En su plataforma de alojamiento Git (GitHub o GitLab), vaya a los ajustes de webhook de su repositorio.</li>
+  <li>A\u00F1ada la URL de RoboScope como nuevo webhook.</li>
+  <li>Seleccione <strong>Eventos Push</strong> como disparador.</li>
+  <li>Guarde la configuraci\u00F3n del webhook.</li>
+</ol>
+<h4>C\u00F3mo funciona</h4>
+<p>
+  Cuando se recibe un evento push, RoboScope compara la <code>git_url</code> entrante
+  con los proyectos configurados (con o sin sufijo <code>.git</code>). Extrae el nombre de
+  la rama de la referencia <code>refs/heads/...</code> y crea autom\u00E1ticamente un
+  <code>ExecutionRun</code> para el proyecto coincidente en la rama enviada.
+</p>`,
+        tip: 'Aseg\u00FArese de que su instancia de RoboScope sea accesible desde su plataforma de alojamiento Git. Para GitHub, la URL del webhook debe ser p\u00FAblicamente accesible.'
+      },
+      {
+        id: 'audit-log',
+        title: 'Registro de auditor\u00EDa',
+        content: `
+<p>
+  La pesta\u00F1a <strong>Registro de auditor\u00EDa</strong> en Ajustes proporciona un registro
+  completo de todas las operaciones de escritura (POST, PUT, PATCH, DELETE) realizadas en
+  RoboScope. Esto es esencial para el cumplimiento normativo, la supervisi\u00F3n de seguridad
+  y la depuraci\u00F3n.
+</p>
+<h4>Qu\u00E9 se registra</h4>
+<p>
+  Cada entrada del registro de auditor\u00EDa captura:
+</p>
+<ul>
+  <li><strong>Marca de tiempo</strong> &mdash; Cu\u00E1ndo ocurri\u00F3 la acci\u00F3n.</li>
+  <li><strong>Usuario</strong> &mdash; Qui\u00E9n realiz\u00F3 la acci\u00F3n (nombre de usuario).</li>
+  <li><strong>Acci\u00F3n</strong> &mdash; El m\u00E9todo HTTP y el endpoint (por ej. POST /runs).</li>
+  <li><strong>Recurso</strong> &mdash; El tipo e ID del recurso afectado.</li>
+  <li><strong>Direcci\u00F3n IP</strong> &mdash; La direcci\u00F3n IP del cliente.</li>
+  <li><strong>Detalles</strong> &mdash; Contexto adicional almacenado como JSON (por ej. campos modificados).</li>
+</ul>
+<h4>Filtrado &amp; exportaci\u00F3n</h4>
+<p>
+  Use los controles de filtro para acotar las entradas por tipo de acci\u00F3n, tipo de recurso
+  o usuario. La tabla paginada permite navegar por grandes vol\u00FAmenes de registros.
+  Haga clic en <strong>Exportar CSV</strong> para descargar las entradas filtradas para
+  an\u00E1lisis externo o archivado.
+</p>
+<h4>Aplicaci\u00F3n de retenci\u00F3n</h4>
+<p>
+  Un programador en segundo plano se ejecuta cada 24 horas para aplicar las pol\u00EDticas de
+  retenci\u00F3n. Los informes y ejecuciones m\u00E1s antiguos que el ajuste
+  <code>report_retention_days</code> configurado se eliminan autom\u00E1ticamente. Los administradores
+  tambi\u00E9n pueden activar manualmente la aplicaci\u00F3n de retenci\u00F3n mediante
+  <strong>Ajustes &gt; Registro de auditor\u00EDa &gt; Ejecutar retenci\u00F3n</strong>.
+</p>`,
+        tip: 'Exporte los registros de auditor\u00EDa regularmente para fines de cumplimiento. La exportaci\u00F3n CSV incluye todos los campos y respeta los filtros activos.'
+      },
+      {
+        id: 'secrets-encryption',
+        title: 'Cifrado de secretos',
+        content: `
+<p>
+  Las variables de entorno pueden marcarse como <strong>secretas</strong> para proteger valores
+  sensibles como claves API, contrase\u00F1as y tokens. Las variables secretas se cifran en reposo
+  usando cifrado sim\u00E9trico Fernet, derivado del <code>SECRET_KEY</code> de la aplicaci\u00F3n.
+</p>
+<h4>Marcar una variable como secreta</h4>
+<ol>
+  <li>Navegue a <strong>Entornos</strong> y seleccione un entorno.</li>
+  <li>En la secci\u00F3n <strong>Variables</strong>, a\u00F1ada o edite una variable.</li>
+  <li>Active el interruptor <strong>Secreto</strong> para habilitar el cifrado.</li>
+  <li>Guarde la variable. El valor se cifra inmediatamente.</li>
+</ol>
+<h4>C\u00F3mo funciona</h4>
+<ul>
+  <li>Los valores secretos se almacenan como texto cifrado en la base de datos.</li>
+  <li>La interfaz muestra los valores secretos como <code>********</code> &mdash; no se pueden volver a leer.</li>
+  <li>Los valores solo se descifran en el momento de la ejecuci\u00F3n de pruebas, cuando se inyectan en el entorno del ejecutor de pruebas.</li>
+  <li>Los secretos en texto plano existentes (creados antes de habilitar el cifrado) siguen funcionando mediante una compatibilidad regresiva elegante.</li>
+</ul>`,
+        tip: 'Use siempre un SECRET_KEY fuerte y \u00FAnico en producci\u00F3n. Si el SECRET_KEY cambia, los secretos cifrados anteriormente se volver\u00E1n ilegibles.'
       }
     ]
   },

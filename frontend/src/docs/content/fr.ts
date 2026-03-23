@@ -511,6 +511,41 @@ const fr: DocsContent = [
         tip: 'Utilisez Ctrl+G (Cmd+G sur Mac) pour aller \u00E0 un num\u00E9ro de ligne sp\u00E9cifique dans l\u2019\u00E9diteur.'
       },
       {
+        id: 'flow-editor',
+        title: '\u00C9diteur de flux visuel',
+        content: `
+<p>
+  Pour les fichiers <code>.robot</code>, l\u2019\u00E9diteur propose un troisi\u00E8me onglet appel\u00E9
+  <strong>Flow</strong> (\u00E0 c\u00F4t\u00E9 de \u00AB\u00A0Visual Editor\u00A0\u00BB et \u00AB\u00A0Code\u00A0\u00BB).
+  Cet onglet affiche vos cas de test sous forme de <strong>graphe interactif bas\u00E9 sur des n\u0153uds</strong>
+  utilisant Vue Flow.
+</p>
+<h4>Types de n\u0153uds</h4>
+<ul>
+  <li><strong>N\u0153uds D\u00E9but/Fin</strong> &mdash; N\u0153uds arrondis affichant le nom du cas de test, marquant le d\u00E9but et la fin de chaque flux.</li>
+  <li><strong>N\u0153uds Keyword</strong> (bleu) &mdash; Repr\u00E9sentent les appels de mots-cl\u00E9s. Cliquez sur un n\u0153ud pour voir ses arguments dans le panneau de d\u00E9tails \u00E0 droite.</li>
+  <li><strong>N\u0153uds de contr\u00F4le</strong> (bordure en pointill\u00E9s) &mdash; Repr\u00E9sentent les structures de contr\u00F4le comme <code>IF</code>, <code>FOR</code>, <code>WHILE</code> et <code>TRY/EXCEPT</code>. Code couleur par type (ambre pour IF, violet pour FOR/WHILE, sarcelle pour TRY, rouge pour EXCEPT). Les \u00E9tiquettes des ar\u00EAtes montrent les conditions de branchement (true/false).</li>
+</ul>
+<h4>Palette de mots-cl\u00E9s</h4>
+<p>
+  Une barre lat\u00E9rale r\u00E9ductible \u00E0 gauche du canevas offre une <strong>Palette de mots-cl\u00E9s</strong>
+  avec cinq cat\u00E9gories\u00A0: BuiltIn, Collections, String, Browser et Control. Vous pouvez\u00A0:
+</p>
+<ul>
+  <li><strong>Rechercher</strong> &mdash; Filtrer les mots-cl\u00E9s par nom gr\u00E2ce \u00E0 la bo\u00EEte de recherche.</li>
+  <li><strong>Cliquer pour ajouter</strong> &mdash; Cliquez sur un mot-cl\u00E9 pour l\u2019ajouter comme nouveau n\u0153ud.</li>
+  <li><strong>Glisser-d\u00E9poser</strong> &mdash; Faites glisser un mot-cl\u00E9 depuis la palette sur le canevas pour le positionner pr\u00E9cis\u00E9ment.</li>
+</ul>
+<h4>Synchronisation</h4>
+<p>
+  Les trois onglets de l\u2019\u00E9diteur (Visual Editor, Code, Flow) partagent le m\u00EAme mod\u00E8le de donn\u00E9es
+  sous-jacent. Les modifications apport\u00E9es dans un onglet sont imm\u00E9diatement refl\u00E9t\u00E9es dans les
+  autres. Par exemple, l\u2019ajout d\u2019un n\u0153ud de mot-cl\u00E9 dans l\u2019onglet Flow mettra \u00E0 jour \u00E0 la fois
+  le formulaire du Visual Editor et le code brut <code>.robot</code>.
+</p>`,
+        tip: 'Utilisez la MiniMap dans le coin inf\u00E9rieur droit du canevas pour naviguer dans les grandes suites de tests. Le panneau Controls permet de zoomer et d\u2019ajuster la vue.'
+      },
+      {
         id: 'explorer-search',
         title: 'Recherche',
         content: `
@@ -1294,6 +1329,171 @@ const fr: DocsContent = [
   sa prochaine connexion.
 </p>`,
         tip: 'Communiquez le nouveau mot de passe \u00E0 l\u2019utilisateur par un canal s\u00E9curis\u00E9. Envisagez de lui demander de le changer \u00E0 la premi\u00E8re connexion.'
+      },
+      {
+        id: 'api-tokens',
+        title: 'Jetons API',
+        content: `
+<p>
+  L\u2019onglet <strong>Jetons API</strong> dans les Param\u00E8tres permet aux administrateurs de cr\u00E9er
+  des jetons pour les pipelines CI/CD et les comptes de service. Les jetons fournissent un
+  acc\u00E8s programmatique \u00E0 l\u2019API RoboScope sans n\u00E9cessiter de connexion interactive.
+</p>
+<h4>Cr\u00E9er un jeton</h4>
+<ol>
+  <li>Acc\u00E9dez \u00E0 <strong>Param\u00E8tres &gt; Jetons API</strong>.</li>
+  <li>Cliquez sur <strong>Cr\u00E9er un jeton</strong>.</li>
+  <li>Saisissez un <strong>nom</strong> (par ex. \u00AB\u00A0Pipeline Jenkins\u00A0\u00BB).</li>
+  <li>S\u00E9lectionnez un <strong>r\u00F4le</strong> &mdash; soit <em>Runner</em> (peut d\u00E9clencher des ex\u00E9cutions) soit <em>Editor</em> (peut \u00E9galement modifier des fichiers et des param\u00E8tres).</li>
+  <li>Optionnellement, d\u00E9finissez une <strong>date d\u2019expiration</strong>. Les jetons sans expiration restent valides jusqu\u2019\u00E0 r\u00E9vocation.</li>
+  <li>Cliquez sur <strong>Cr\u00E9er</strong>. Le jeton est affich\u00E9 une seule fois &mdash; copiez-le imm\u00E9diatement.</li>
+</ol>
+<h4>Utiliser un jeton</h4>
+<p>
+  Incluez le jeton dans l\u2019en-t\u00EAte <code>Authorization</code> de vos requ\u00EAtes HTTP\u00A0:
+</p>
+<p><code>Authorization: Bearer rbs_...</code></p>
+<p>
+  Tous les jetons utilisent le pr\u00E9fixe <code>rbs_</code> pour une identification facile. La valeur
+  du jeton est stock\u00E9e sous forme de hachage SHA-256 dans la base de donn\u00E9es &mdash; elle ne peut
+  pas \u00EAtre r\u00E9cup\u00E9r\u00E9e apr\u00E8s la cr\u00E9ation.
+</p>
+<h4>R\u00E9voquer un jeton</h4>
+<p>
+  Cliquez sur le bouton <strong>R\u00E9voquer</strong> \u00E0 c\u00F4t\u00E9 d\u2019un jeton pour l\u2019invalider
+  imm\u00E9diatement. Les jetons r\u00E9voqu\u00E9s ne peuvent pas \u00EAtre restaur\u00E9s.
+</p>`,
+        tip: 'Utilisez des jetons \u00E0 dur\u00E9e de vie courte avec des dates d\u2019expiration pour les pipelines CI/CD afin de r\u00E9duire les risques de s\u00E9curit\u00E9. Cr\u00E9ez des jetons s\u00E9par\u00E9s pour chaque pipeline ou service.'
+      },
+      {
+        id: 'outbound-webhooks',
+        title: 'Webhooks sortants',
+        content: `
+<p>
+  L\u2019onglet <strong>Webhooks</strong> dans les Param\u00E8tres permet de configurer des notifications
+  HTTP sortantes envoy\u00E9es lors d\u2019\u00E9v\u00E9nements d\u2019ex\u00E9cution de tests. Ceci est utile pour
+  int\u00E9grer RoboScope avec des outils de chat (Slack, Teams), des syst\u00E8mes de surveillance
+  ou des tableaux de bord personnalis\u00E9s.
+</p>
+<h4>Cr\u00E9er un webhook</h4>
+<ol>
+  <li>Acc\u00E9dez \u00E0 <strong>Param\u00E8tres &gt; Webhooks</strong>.</li>
+  <li>Cliquez sur <strong>Ajouter un webhook</strong>.</li>
+  <li>Saisissez l\u2019<strong>URL cible</strong> (HTTPS recommand\u00E9 pour la production).</li>
+  <li>Saisissez un <strong>secret</strong> optionnel pour la signature HMAC-SHA256 des charges utiles.</li>
+  <li>S\u00E9lectionnez les <strong>\u00E9v\u00E9nements</strong> auxquels vous souhaitez vous abonner\u00A0:
+    <code>run.started</code>, <code>run.passed</code>, <code>run.failed</code>,
+    <code>run.error</code>, <code>run.cancelled</code>, <code>run.timeout</code>.
+  </li>
+  <li>Cliquez sur <strong>Enregistrer</strong>.</li>
+</ol>
+<h4>Signatures de charge utile</h4>
+<p>
+  Si un secret est configur\u00E9, chaque livraison inclut un en-t\u00EAte
+  <code>X-RoboScope-Signature</code> contenant une signature HMAC-SHA256 du corps de la requ\u00EAte.
+  V\u00E9rifiez cette signature c\u00F4t\u00E9 r\u00E9cepteur pour vous assurer que la charge utile provient
+  de RoboScope et n\u2019a pas \u00E9t\u00E9 alt\u00E9r\u00E9e.
+</p>
+<h4>Journal de livraison &amp; tentatives</h4>
+<p>
+  RoboScope conserve un journal de livraison pour chaque webhook montrant les codes de statut,
+  les horodatages et les corps de r\u00E9ponse. Les livraisons \u00E9chou\u00E9es sont r\u00E9essay\u00E9es jusqu\u2019\u00E0
+  3 fois avec un backoff exponentiel. Utilisez le bouton <strong>Ping de test</strong> pour
+  v\u00E9rifier la connectivit\u00E9 avant de compter sur le webhook.
+</p>`,
+        tip: 'Utilisez le bouton Ping de test apr\u00E8s avoir cr\u00E9\u00E9 un webhook pour v\u00E9rifier que votre point de terminaison re\u00E7oit correctement les charges utiles.'
+      },
+      {
+        id: 'git-webhook-trigger',
+        title: 'D\u00E9clencheur webhook Git',
+        content: `
+<p>
+  RoboScope peut d\u00E9clencher automatiquement des ex\u00E9cutions de tests lorsque du code est
+  pouss\u00E9 vers un d\u00E9p\u00F4t Git. L\u2019onglet <strong>Webhooks</strong> dans les Param\u00E8tres affiche
+  une <strong>URL de webhook entrant</strong> que vous pouvez configurer dans les param\u00E8tres
+  de votre d\u00E9p\u00F4t GitHub ou GitLab.
+</p>
+<h4>Configuration</h4>
+<ol>
+  <li>Copiez l\u2019URL du webhook entrant depuis <strong>Param\u00E8tres &gt; Webhooks</strong>.</li>
+  <li>Dans votre plateforme d\u2019h\u00E9bergement Git (GitHub ou GitLab), acc\u00E9dez aux param\u00E8tres de webhook de votre d\u00E9p\u00F4t.</li>
+  <li>Ajoutez l\u2019URL RoboScope comme nouveau webhook.</li>
+  <li>S\u00E9lectionnez les <strong>\u00E9v\u00E9nements Push</strong> comme d\u00E9clencheur.</li>
+  <li>Enregistrez la configuration du webhook.</li>
+</ol>
+<h4>Fonctionnement</h4>
+<p>
+  Lorsqu\u2019un \u00E9v\u00E9nement push est re\u00E7u, RoboScope fait correspondre la <code>git_url</code>
+  entrante avec les projets configur\u00E9s (avec ou sans suffixe <code>.git</code>). Le nom de
+  branche est extrait de la r\u00E9f\u00E9rence <code>refs/heads/...</code> et un
+  <code>ExecutionRun</code> est automatiquement cr\u00E9\u00E9 pour le projet correspondant sur
+  la branche pouss\u00E9e.
+</p>`,
+        tip: 'Assurez-vous que votre instance RoboScope est accessible depuis votre plateforme d\u2019h\u00E9bergement Git. Pour GitHub, l\u2019URL du webhook doit \u00EAtre publiquement accessible.'
+      },
+      {
+        id: 'audit-log',
+        title: 'Journal d\u2019audit',
+        content: `
+<p>
+  L\u2019onglet <strong>Journal d\u2019audit</strong> dans les Param\u00E8tres fournit un enregistrement
+  complet de toutes les op\u00E9rations d\u2019\u00E9criture (POST, PUT, PATCH, DELETE) effectu\u00E9es dans
+  RoboScope. Ceci est essentiel pour la conformit\u00E9, la surveillance de la s\u00E9curit\u00E9 et le d\u00E9bogage.
+</p>
+<h4>Ce qui est journalis\u00E9</h4>
+<p>
+  Chaque entr\u00E9e du journal d\u2019audit capture\u00A0:
+</p>
+<ul>
+  <li><strong>Horodatage</strong> &mdash; Quand l\u2019action s\u2019est produite.</li>
+  <li><strong>Utilisateur</strong> &mdash; Qui a effectu\u00E9 l\u2019action (nom d\u2019utilisateur).</li>
+  <li><strong>Action</strong> &mdash; La m\u00E9thode HTTP et le point de terminaison (par ex. POST /runs).</li>
+  <li><strong>Ressource</strong> &mdash; Le type et l\u2019ID de la ressource affect\u00E9e.</li>
+  <li><strong>Adresse IP</strong> &mdash; L\u2019adresse IP du client.</li>
+  <li><strong>D\u00E9tails</strong> &mdash; Contexte suppl\u00E9mentaire stock\u00E9 en JSON (par ex. champs modifi\u00E9s).</li>
+</ul>
+<h4>Filtrage &amp; export</h4>
+<p>
+  Utilisez les contr\u00F4les de filtre pour affiner les entr\u00E9es par type d\u2019action, type de
+  ressource ou utilisateur. Le tableau pagin\u00E9 permet de naviguer dans de grands volumes de
+  journaux. Cliquez sur <strong>Exporter CSV</strong> pour t\u00E9l\u00E9charger les entr\u00E9es filtr\u00E9es
+  pour une analyse externe ou un archivage.
+</p>
+<h4>Application de la r\u00E9tention</h4>
+<p>
+  Un planificateur en arri\u00E8re-plan s\u2019ex\u00E9cute toutes les 24 heures pour appliquer les politiques
+  de r\u00E9tention. Les rapports et ex\u00E9cutions plus anciens que le param\u00E8tre
+  <code>report_retention_days</code> configur\u00E9 sont automatiquement supprim\u00E9s. Les administrateurs
+  peuvent \u00E9galement d\u00E9clencher manuellement l\u2019application de la r\u00E9tention via
+  <strong>Param\u00E8tres &gt; Journal d\u2019audit &gt; Ex\u00E9cuter la r\u00E9tention</strong>.
+</p>`,
+        tip: 'Exportez r\u00E9guli\u00E8rement les journaux d\u2019audit \u00E0 des fins de conformit\u00E9. L\u2019export CSV inclut tous les champs et respecte les filtres actifs.'
+      },
+      {
+        id: 'secrets-encryption',
+        title: 'Chiffrement des secrets',
+        content: `
+<p>
+  Les variables d\u2019environnement peuvent \u00EAtre marqu\u00E9es comme <strong>secret</strong> pour
+  prot\u00E9ger les valeurs sensibles telles que les cl\u00E9s API, les mots de passe et les jetons.
+  Les variables secr\u00E8tes sont chiffr\u00E9es au repos \u00E0 l\u2019aide du chiffrement sym\u00E9trique Fernet,
+  d\u00E9riv\u00E9 du <code>SECRET_KEY</code> de l\u2019application.
+</p>
+<h4>Marquer une variable comme secr\u00E8te</h4>
+<ol>
+  <li>Acc\u00E9dez \u00E0 <strong>Environnements</strong> et s\u00E9lectionnez un environnement.</li>
+  <li>Dans la section <strong>Variables</strong>, ajoutez ou modifiez une variable.</li>
+  <li>Activez le commutateur <strong>Secret</strong> pour activer le chiffrement.</li>
+  <li>Enregistrez la variable. La valeur est chiffr\u00E9e imm\u00E9diatement.</li>
+</ol>
+<h4>Fonctionnement</h4>
+<ul>
+  <li>Les valeurs secr\u00E8tes sont stock\u00E9es sous forme de texte chiffr\u00E9 dans la base de donn\u00E9es.</li>
+  <li>L\u2019interface affiche les valeurs secr\u00E8tes sous la forme <code>********</code> &mdash; elles ne peuvent pas \u00EAtre relues.</li>
+  <li>Les valeurs ne sont d\u00E9chiffr\u00E9es qu\u2019au moment de l\u2019ex\u00E9cution des tests, lorsqu\u2019elles sont inject\u00E9es dans l\u2019environnement du lanceur de tests.</li>
+  <li>Les secrets en texte clair existants (cr\u00E9\u00E9s avant l\u2019activation du chiffrement) continuent de fonctionner gr\u00E2ce \u00E0 une r\u00E9trocompatibilit\u00E9 progressive.</li>
+</ul>`,
+        tip: 'Utilisez toujours un SECRET_KEY fort et unique en production. Si le SECRET_KEY change, les secrets pr\u00E9c\u00E9demment chiffr\u00E9s deviendront illisibles.'
       }
     ]
   },
