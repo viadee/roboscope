@@ -9,12 +9,15 @@ import { useI18n } from 'vue-i18n'
 
 import KeywordNode from './flow/KeywordNode.vue'
 import ControlNode from './flow/ControlNode.vue'
+import ControlGroupNode from './flow/ControlGroupNode.vue'
 import StartEndNode from './flow/StartEndNode.vue'
 import KeywordPalette from './flow/KeywordPalette.vue'
 import {
   robotFormToFlow,
   robotKeywordsToFlow,
   updateStepFromNode,
+  NODE_START_Y,
+  NODE_X,
   type RobotForm,
   type RobotStep,
   type FlowNodeData,
@@ -39,7 +42,7 @@ const { t } = useI18n()
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
 
-const { fitView } = useVueFlow()
+const { fitView, project } = useVueFlow()
 
 // --- Section tabs: Test Cases vs Keywords ---
 const activeSection = ref<'testcases' | 'keywords'>('testcases')
@@ -78,11 +81,26 @@ function buildGraph() {
 }
 
 // Filter nodes/edges for active item only
-const visibleNodes = computed(() => {
+const baseVisibleNodes = computed(() => {
   const prefix = activeSection.value === 'testcases'
     ? `tc${activeItemIndex.value}-`
     : `kw${activeItemIndex.value}-`
   return nodes.value.filter(n => n.id.startsWith(prefix))
+})
+// Inject drop indicator node when dragging
+const visibleNodes = computed(() => {
+  const base = baseVisibleNodes.value
+  if (dropIndicatorIndex.value === null) return base
+  const y = getDropIndicatorY(dropIndicatorIndex.value)
+  const indicatorNode: Node = {
+    id: '__drop-indicator__',
+    type: 'drop-indicator',
+    position: { x: NODE_X - 50, y: y - 2 },
+    data: {},
+    draggable: false,
+    selectable: false,
+  }
+  return [...base, indicatorNode]
 })
 const visibleEdges = computed(() => {
   const prefix = activeSection.value === 'testcases'
@@ -103,12 +121,19 @@ watch([() => props.form, activeSection], () => {
   activeItemIndex.value = 0
   selectedNode.value = null
   buildGraph()
-  nextTick(() => fitView({ padding: 0.2 }))
+  nextTick(() => {
+    fitView({ padding: 0.3 })
+    setTimeout(() => fitView({ padding: 0.3 }), 100)
+  })
 }, { deep: true })
 
 watch(activeItemIndex, () => {
   selectedNode.value = null
-  nextTick(() => fitView({ padding: 0.2 }))
+  // Wait for Vue Flow to render new nodes before fitting
+  nextTick(() => {
+    fitView({ padding: 0.3 })
+    setTimeout(() => fitView({ padding: 0.3 }), 100)
+  })
 })
 
 onMounted(() => {
@@ -117,7 +142,9 @@ onMounted(() => {
     activeSection.value = 'keywords'
   }
   buildGraph()
-  setTimeout(() => fitView({ padding: 0.2 }), 200)
+  // Multiple fitView attempts to ensure centering after Vue Flow renders
+  setTimeout(() => fitView({ padding: 0.3 }), 200)
+  setTimeout(() => fitView({ padding: 0.3 }), 500)
 })
 
 function onNodeClick(event: { node: Node }) {
@@ -265,30 +292,201 @@ function insertStepBefore(step: RobotStep) {
   buildGraph()
 }
 
-function onCanvasDrop(event: DragEvent) {
+// --- Drop zone indicator for drag-to-position ---
+
+const dropIndicatorIndex = ref<number | null>(null)
+const canvasRef = ref<HTMLElement | null>(null)
+
+/** Get sorted step nodes for current view (excluding start/end) */
+function getStepNodes(): Node[] {
+  return baseVisibleNodes.value
+    .filter(n => n.type !== 'start' && n.type !== 'end')
+    .sort((a, b) => a.position.y - b.position.y)
+}
+
+/** Find insertion index from a flow-coordinate Y position */
+function findInsertIndex(flowY: number): number {
+  const stepNodes = getStepNodes()
+  if (stepNodes.length === 0) return 0
+
+  for (let i = 0; i < stepNodes.length; i++) {
+    const nodeY = stepNodes[i].position.y
+    if (flowY < nodeY) return i
+  }
+  return stepNodes.length
+}
+
+/** Convert mouse event to flow Y coordinate */
+function eventToFlowY(event: DragEvent): number {
+  const el = canvasRef.value
+  if (!el) return 0
+  const rect = el.getBoundingClientRect()
+  const pos = project({ x: event.clientX - rect.left, y: event.clientY - rect.top })
+  return pos.y
+}
+
+/** Get the Y position for the drop indicator line */
+function getDropIndicatorY(index: number): number {
+  const stepNodes = getStepNodes()
+  if (stepNodes.length === 0) return NODE_START_Y
+  if (index <= 0) return stepNodes[0].position.y - 25
+  if (index >= stepNodes.length) return stepNodes[stepNodes.length - 1].position.y + 60
+  return (stepNodes[index - 1].position.y + stepNodes[index].position.y) / 2
+}
+
+function makeStepFromDrag(event: DragEvent): RobotStep | null {
   const keyword = event.dataTransfer?.getData('application/rf-keyword')
   const control = event.dataTransfer?.getData('application/rf-control')
   if (keyword) {
-    addNodeFromPalette({
+    return {
       type: 'keyword', keyword, args: [], returnVars: [],
       condition: '', loopVar: '${item}', loopFlavor: 'IN', loopValues: [],
       exceptPattern: '', exceptVar: '', varScope: '', comment: '',
-    })
-  } else if (control) {
-    addNodeFromPalette({
+    }
+  }
+  if (control) {
+    return {
       type: control as any, keyword: '', args: [], returnVars: [],
       condition: control === 'if' || control === 'while' ? '${condition}' : '',
       loopVar: control === 'for' ? '${item}' : '',
       loopFlavor: control === 'for' ? 'IN' : '',
       loopValues: control === 'for' ? ['@{list}'] : [],
       exceptPattern: '', exceptVar: '', varScope: '', comment: '',
+    }
+  }
+  return null
+}
+
+function insertStepAt(step: RobotStep, index: number) {
+  const list = getActiveSteps()
+  if (!list) return
+  // Clamp index — skip 'end' type steps when counting
+  let realIndex = 0
+  let counted = 0
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].type === 'end') { realIndex++; continue }
+    if (counted === index) break
+    counted++
+    realIndex++
+  }
+  list.splice(realIndex, 0, step)
+  if (['if', 'for', 'while', 'try'].includes(step.type)) {
+    list.splice(realIndex + 1, 0, {
+      type: 'end', keyword: '', args: [], returnVars: [],
+      condition: '', loopVar: '', loopFlavor: '', loopValues: [],
+      exceptPattern: '', exceptVar: '', varScope: '', comment: '',
     })
   }
+  suppressFitView = true
+  buildGraph()
 }
+
+function onCanvasDrop(event: DragEvent) {
+  event.preventDefault()
+  dropIndicatorIndex.value = null
+
+  // Check for node reorder drop
+  const reorderIdx = event.dataTransfer?.getData('application/rf-reorder')
+  if (reorderIdx !== undefined && reorderIdx !== '') {
+    const fromIdx = parseInt(reorderIdx, 10)
+    const flowY = eventToFlowY(event)
+    const toIdx = findInsertIndex(flowY)
+    reorderStep(fromIdx, toIdx)
+    return
+  }
+
+  const step = makeStepFromDrag(event)
+  if (!step) return
+
+  const flowY = eventToFlowY(event)
+  const idx = findInsertIndex(flowY)
+  insertStepAt(step, idx)
+}
+
 function onCanvasDragOver(event: DragEvent) {
   event.preventDefault()
   event.dataTransfer!.dropEffect = 'copy'
+  const flowY = eventToFlowY(event)
+  dropIndicatorIndex.value = findInsertIndex(flowY)
 }
+
+function onCanvasDragLeave() {
+  dropIndicatorIndex.value = null
+}
+
+// --- Node reorder via drag handle ---
+
+function onNodeReorderDragStart(event: DragEvent, node: Node) {
+  const data = node.data as FlowNodeData
+  // Map visual step index (excluding 'end' nodes) to real index
+  const steps = getActiveSteps()
+  if (!steps) return
+  let visualIdx = 0
+  for (let i = 0; i < steps.length; i++) {
+    if (steps[i].type === 'end') continue
+    if (i === data.stepIndex) break
+    visualIdx++
+  }
+  event.dataTransfer?.setData('application/rf-reorder', String(visualIdx))
+  event.dataTransfer!.effectAllowed = 'move'
+}
+
+function reorderStep(fromVisualIdx: number, toVisualIdx: number) {
+  const steps = getActiveSteps()
+  if (!steps) return
+
+  // Map visual indices to real indices (skipping 'end' steps)
+  const realIndices: number[] = []
+  for (let i = 0; i < steps.length; i++) {
+    if (steps[i].type !== 'end') realIndices.push(i)
+  }
+
+  if (fromVisualIdx < 0 || fromVisualIdx >= realIndices.length) return
+  const fromReal = realIndices[fromVisualIdx]
+
+  // Adjust toVisualIdx if moving down (account for removed element)
+  let toReal: number
+  if (toVisualIdx >= realIndices.length) {
+    toReal = steps.length
+  } else if (toVisualIdx <= fromVisualIdx) {
+    toReal = realIndices[toVisualIdx]
+  } else {
+    // Moving down — the target shifts by 1 because we remove first
+    toReal = realIndices[toVisualIdx]
+  }
+
+  if (fromReal === toReal || fromReal + 1 === toReal) return
+
+  // Check if this step has an accompanying 'end' step
+  const step = steps[fromReal]
+  const hasEnd = ['if', 'for', 'while', 'try'].includes(step.type) && fromReal + 1 < steps.length && steps[fromReal + 1].type === 'end'
+
+  // Remove
+  const removed = hasEnd ? steps.splice(fromReal, 2) : steps.splice(fromReal, 1)
+
+  // Recalculate insertion point after removal
+  let insertAt: number
+  if (toReal > fromReal) {
+    insertAt = toReal - removed.length
+  } else {
+    insertAt = toReal
+  }
+  insertAt = Math.max(0, Math.min(insertAt, steps.length))
+
+  steps.splice(insertAt, 0, ...removed)
+  suppressFitView = true
+  buildGraph()
+}
+
+// Expose reorder drag start for node components
+function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
+  const node = baseVisibleNodes.value.find(n => n.id === nodeId)
+  if (!node) return
+  onNodeReorderDragStart(event, node)
+}
+
+// Provide drag handle start to child nodes via provide/inject would be complex,
+// so we expose it as a data attribute approach
 </script>
 
 <template>
@@ -340,29 +538,63 @@ function onCanvasDragOver(event: DragEvent) {
     <div v-else class="flow-canvas-wrapper">
       <KeywordPalette :repo-id="props.repoId" @add-node="addNodeFromPalette" />
 
-      <div class="flow-canvas">
+      <div ref="canvasRef" class="flow-canvas">
         <VueFlow
           @drop="onCanvasDrop"
           @dragover="onCanvasDragOver"
+          @dragleave="onCanvasDragLeave"
           :nodes="visibleNodes"
           :edges="visibleEdges"
           :default-viewport="{ zoom: 0.9, x: 0, y: 0 }"
           :min-zoom="0.2"
           :max-zoom="2"
+          :nodes-draggable="false"
           fit-view-on-init
           @node-click="onNodeClick"
           @pane-click="onPaneClick"
         >
-          <template #node-keyword="nodeProps"><KeywordNode v-bind="nodeProps" /></template>
-          <template #node-assignment="nodeProps"><KeywordNode v-bind="nodeProps" /></template>
-          <template #node-control="nodeProps"><ControlNode v-bind="nodeProps" /></template>
+          <template #node-keyword="nodeProps">
+            <KeywordNode v-bind="nodeProps" :reorder-enabled="true" @reorder-drag-start="onNodeDragHandleStart($event, nodeProps.id)" />
+          </template>
+          <template #node-assignment="nodeProps">
+            <KeywordNode v-bind="nodeProps" :reorder-enabled="true" @reorder-drag-start="onNodeDragHandleStart($event, nodeProps.id)" />
+          </template>
+          <template #node-control="nodeProps">
+            <ControlNode v-bind="nodeProps" :reorder-enabled="true" @reorder-drag-start="onNodeDragHandleStart($event, nodeProps.id)" />
+          </template>
+          <template #node-control-frame="nodeProps">
+            <ControlGroupNode v-bind="nodeProps" />
+          </template>
           <template #node-start="nodeProps"><StartEndNode v-bind="nodeProps" type="start" /></template>
           <template #node-end="nodeProps"><StartEndNode v-bind="nodeProps" type="end" /></template>
           <template #node-comment="nodeProps">
-            <div class="flow-node-comment"><span>{{ nodeProps.data.label }}</span></div>
+            <div class="flow-node-comment">
+              <div
+                class="flow-drag-handle"
+                draggable="true"
+                @mousedown.stop
+                @dragstart.stop="onNodeDragHandleStart($event, nodeProps.id)"
+              >&#x2630;</div>
+              <span>{{ nodeProps.data.label }}</span>
+            </div>
           </template>
           <template #node-flow-control="nodeProps">
-            <div class="flow-node-flowctrl"><span>{{ nodeProps.data.label }}</span></div>
+            <div class="flow-node-flowctrl">
+              <div
+                class="flow-drag-handle"
+                draggable="true"
+                @mousedown.stop
+                @dragstart.stop="onNodeDragHandleStart($event, nodeProps.id)"
+              >&#x2630;</div>
+              <span>{{ nodeProps.data.label }}</span>
+            </div>
+          </template>
+          <template #node-drop-indicator>
+            <div class="flow-drop-indicator">
+              <div class="flow-drop-dot" />
+              <div class="flow-drop-line" />
+              <div class="flow-drop-dot" />
+            </div>
           </template>
 
           <Background />
@@ -682,6 +914,9 @@ function onCanvasDragOver(event: DragEvent) {
   color: #888;
   font-style: italic;
   max-width: 280px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .flow-node-flowctrl {
   padding: 6px 12px;
@@ -691,5 +926,50 @@ function onCanvasDragOver(event: DragEvent) {
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Drag handle on nodes */
+.flow-drag-handle {
+  cursor: grab;
+  color: var(--color-text-muted, #5A6380);
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.4;
+  padding: 2px;
+  border-radius: 3px;
+  user-select: none;
+  flex-shrink: 0;
+}
+.flow-drag-handle:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}
+.flow-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Drop indicator */
+.flow-drop-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 280px;
+  pointer-events: none;
+}
+.flow-drop-line {
+  flex: 1;
+  height: 3px;
+  background: var(--color-primary, #3B7DD8);
+  border-radius: 2px;
+}
+.flow-drop-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--color-primary, #3B7DD8);
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 </style>
