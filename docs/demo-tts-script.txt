@@ -1,0 +1,70 @@
+### SCENE 1 — INTRO (0:00–0:25)
+### OVERLAY: "RoboScope — Test Management for Robot Framework"
+
+Robot Framework ist grossartig fuer Testautomatisierung. Aber das Drumherum ist es oft nicht.
+Git-Repos klonen, Environments aufsetzen, Tests starten, Reports suchen, Ergebnisse vergleichen — alles manuelle Schritte, die Zeit kosten und fehleranfaellig sind.
+RoboScope bringt das alles unter ein Dach. Open Source, Self-Hosted, und in unter einer Minute startbar.
+
+### SCENE 2 — LOGIN & DASHBOARD (0:25–0:45)
+### OVERLAY: "Dashboard — Alles auf einen Blick"
+
+Wir starten mit einer frischen Instanz. Nach dem Login begruesst uns das Dashboard — noch leer, aber bereit.
+RoboScope hat ein Rollensystem — vom Viewer, der nur liest, bis zum Admin, der alles konfiguriert. Jeder sieht genau das, was er braucht.
+
+### SCENE 3 — PROJEKTE & GIT (0:45–1:15)
+### OVERLAY: "Git-Integration — Projekte direkt aus Repositories"
+
+Projekte werden direkt aus Git-Repositories angelegt. URL eingeben, Branch waehlen — fertig.
+RoboScope klont das Repo und haelt es synchron. Beim ersten Start ist bereits ein Beispiel-Projekt mit typischen Robot-Dateien dabei.
+Jedes Projekt kann einer Umgebung zugeordnet werden. Branches lassen sich direkt in der UI wechseln.
+
+### SCENE 4 — EXPLORER & EDITOREN (1:15–2:00)
+### OVERLAY: "3 Editoren — Code, Visual, Flow"
+
+Im Explorer sehen wir die komplette Projektstruktur. Robot-Dateien lassen sich direkt bearbeiten — entweder als Code, oder im Visual Editor, der Settings, Variablen und Testfaelle strukturiert darstellt.
+Und dann gibt es den Flow-Editor: Testfaelle werden als grafischer Ablauf dargestellt. Keyword-Nodes, Kontrollstrukturen wie IF und FOR — alles visuell.
+Neue Keywords lassen sich per Drag and Drop aus der Palette hinzufuegen. Alle drei Ansichten sind synchron.
+
+### SCENE 5 — ENVIRONMENT ERSTELLEN (2:00–2:30)
+### OVERLAY: "Package Manager — Environments im Griff"
+
+Bevor wir Tests ausfuehren, brauchen wir eine Umgebung. Wir erstellen eine neue — Name, Python-Version, fertig.
+RoboScope legt automatisch ein virtuelles Environment an. Pakete lassen sich direkt ueber die UI installieren.
+Der Library-Check scannt die Robot-Dateien und zeigt sofort, welche Pakete fehlen.
+
+### SCENE 6 — TESTAUSFUEHRUNG (2:30–3:20)
+### OVERLAY: "Live-Ausfuehrung mit WebSocket-Streaming"
+
+Jetzt starten wir zwei Testlaeufe. Der erste — ein Mathe-Test — laeuft sauber durch und wird gruen.
+Der zweite enthaelt absichtlich fehlerhafte Keywords und schlaegt fehl. So sehen wir beide Faelle direkt nebeneinander.
+RoboScope unterstuetzt sowohl lokale Ausfuehrung als auch Docker-Container.
+
+### SCENE 6b — REPORT-DETAIL (3:20–3:50)
+### OVERLAY: "Run Detail — Output & Report"
+
+In der Detail-Ansicht sehen wir den kompletten Output des Testlaufs. Und wenn ein Report erzeugt wurde, ist der originale HTML-Report direkt eingebettet — mit allen Ergebnissen, Dauer und Fehlermeldungen.
+
+### SCENE 7 — STATISTIKEN & TIEFENANALYSE (3:50–4:15)
+### OVERLAY: "Statistiken & Deep Analysis — 15 KPIs"
+
+Die Statistik-Seite zeigt Erfolgsquoten und Trends. Fuer tiefere Einblicke gibt es die Tiefenanalyse: 15 KPIs in fuenf Kategorien — von Keyword-Haeufigkeit ueber Flaky-Detection bis zur Test-Komplexitaet.
+
+### SCENE 8 — KI-FEATURES (3:40–4:05)
+### OVERLAY: "KI-gestuetzte Fehleranalyse"
+
+RoboScope kann optional mit einem LLM verbunden werden — OpenAI, Anthropic, Ollama oder OpenRouter.
+Damit lassen sich fehlgeschlagene Tests automatisch analysieren: Root-Cause, Muster-Erkennung und konkrete Fix-Vorschlaege.
+Und fuer Teams, die Tests aus Spezifikationen generieren wollen, gibt es das roboscope-Format: Eine YAML-Beschreibung, aus der per KI vollstaendige Robot-Framework-Tests entstehen.
+
+### SCENE 9 — ENTERPRISE-FEATURES (4:05–4:25)
+### OVERLAY: "Enterprise-Ready — API, Webhooks, Audit"
+
+Fuer den Unternehmenseinsatz bietet RoboScope API-Tokens fuer CI/CD-Integration, Webhooks fuer Benachrichtigungen bei Testlauf-Ereignissen, ein vollstaendiges Audit-Log, und Scheduling fuer wiederkehrende Testlaeufe.
+Git-Webhooks ermoeglichen automatische Testausfuehrung bei jedem Push — direkt aus GitHub oder GitLab.
+
+### SCENE 10 — OUTRO (4:25–4:45)
+### OVERLAY: "Open Source — github.com/viadee/roboscope"
+
+RoboScope ist Open Source und laeuft ueberall — lokal, im Docker, oder auf dem eigenen Server. Kein Cloud-Zwang, keine versteckten Kosten.
+Alle Details, die Installationsanleitung und den Quellcode findet ihr auf GitHub unter viadee slash roboscope.
+Probiert es aus — wir freuen uns auf euer Feedback.

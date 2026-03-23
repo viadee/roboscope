@@ -1,0 +1,32 @@
+### SCENE 1 — INTRO
+Robot Framework is great for test automation. But everything around it often isn't. Cloning git repos, setting up environments, running tests, finding reports, comparing results — all manual steps that take time and are error-prone. RoboScope brings it all under one roof. Open source, self-hosted, and ready in under a minute.
+
+### SCENE 2 — DASHBOARD
+We start with a fresh instance. After login, the dashboard greets us — still empty, but ready to go. RoboScope has a role system — from viewer, who can only read, to admin, who configures everything. Everyone sees exactly what they need.
+
+### SCENE 3 — PROJECTS & GIT
+Projects are created directly from git repositories. Enter a URL, choose a branch — done. RoboScope clones the repo and keeps it in sync. On first start, there's already an example project with typical Robot files. Each project can be assigned to an environment. Branches can be switched directly in the UI.
+
+### SCENE 4 — EXPLORER & EDITORS
+In the explorer, we see the complete project structure. Robot files can be edited directly — either as code, or in the visual editor, which displays settings, variables, and test cases in a structured form. And then there's the flow editor: test cases are displayed as a visual graph. Keyword nodes, control structures like IF and FOR — all visual. New keywords can be added via drag and drop from the palette. All three views stay in sync.
+
+### SCENE 5 — ENVIRONMENT SETUP
+Before we can run tests, we need an environment. We create a new one — name, Python version, done. RoboScope automatically sets up a virtual environment. Packages can be installed directly through the UI. The library check scans the Robot files and immediately shows which packages are missing.
+
+### SCENE 6 — TEST EXECUTION
+Now we start two test runs. The first — a math test — runs cleanly and turns green. The second contains intentionally broken keywords and fails. This way we see both outcomes side by side. RoboScope supports both local execution and Docker containers.
+
+### SCENE 6b — REPORT DETAIL
+In the detail view, we see the complete output of the test run. And when a report was generated, the original HTML report is embedded directly — with all results, duration, and error messages.
+
+### SCENE 7 — STATISTICS & DEEP ANALYSIS
+The statistics page shows success rates and trends. For deeper insights, there's the deep analysis: 15 KPIs in five categories — from keyword frequency to flaky detection to test complexity.
+
+### SCENE 8 — AI FEATURES
+RoboScope can optionally connect to an LLM — OpenAI, Anthropic, Ollama, or OpenRouter. This enables automatic analysis of failed tests: root cause identification, pattern recognition, and concrete fix suggestions. And for teams that want to generate tests from specifications, there's the roboscope format: a YAML description that produces complete Robot Framework tests via AI.
+
+### SCENE 9 — ENTERPRISE FEATURES
+For enterprise use, RoboScope offers API tokens for CI/CD integration, webhooks for notifications on test run events, a complete audit log, and scheduling for recurring test runs. Git webhooks enable automatic test execution on every push — directly from GitHub or GitLab.
+
+### SCENE 10 — OUTRO
+RoboScope is open source and runs everywhere — locally, in Docker, or on your own server. No cloud lock-in, no hidden costs. All details, the installation guide, and the source code can be found on GitHub at viadee slash roboscope. Try it out — we look forward to your feedback.
