@@ -95,6 +95,29 @@ def delete_repository(db: Session, repo: Repository) -> None:
     db.flush()
 
 
+def list_remote_branches(git_url: str) -> list[str]:
+    """List remote branches without cloning (via git ls-remote)."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["git", "ls-remote", "--heads", git_url],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            return []
+        branches = []
+        for line in result.stdout.strip().splitlines():
+            parts = line.split("\t")
+            if len(parts) == 2:
+                ref = parts[1]
+                if ref.startswith("refs/heads/"):
+                    branches.append(ref[len("refs/heads/"):])
+        return branches
+    except Exception:
+        return []
+
+
 def clone_repository(git_url: str, local_path: str, branch: str = "main"):
     """Clone a git repository (synchronous, for background tasks)."""
     from git import Repo

@@ -13,6 +13,7 @@ export interface RepoCreateRequest {
   default_branch?: string
   auto_sync?: boolean
   sync_interval_minutes?: number
+  environment_id?: number | null
 }
 
 export interface RunCreateRequest {

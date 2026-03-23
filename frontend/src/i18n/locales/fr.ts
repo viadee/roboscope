@@ -162,6 +162,13 @@ export default {
       branchSwitched: 'Branche changée',
       branchSwitchFailed: 'Échec du changement de branche',
     },
+    branchNotFound: 'Branche introuvable',
+    branchNotFoundDetail: 'La branche "{branch}" n\'existe pas dans ce dépôt et aucune branche de repli (main/master) n\'a été trouvée.',
+    branchFallback: {
+      title: 'Branche introuvable',
+      message: 'La branche "{branch}" n\'existe pas dans ce dépôt. Souhaitez-vous utiliser l\'une des suivantes ?',
+      useInstead: 'Utiliser "{branch}"',
+    },
     selectAll: 'Tout sélectionner',
     deleteSelected: 'Supprimer la sélection ({count})',
     deleteAll: 'Tout supprimer',

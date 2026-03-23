@@ -159,7 +159,7 @@ watch(selectedRepoId, async (newId, oldId) => {
     if (oldId) saveCursorState()
     saveLastRepo()
     router.replace(`/explorer/${newId}`)
-    explorer.clearSelection()
+    explorer.clearAll()
     isDirty.value = false
     await explorer.fetchTree(newId)
     autoExpandRoot()
@@ -806,9 +806,7 @@ const flatNodes = computed(() => {
       </form>
     </div>
 
-    <BaseSpinner v-if="explorer.loading && !explorer.tree" />
-
-    <div v-else class="explorer-layout">
+    <div v-if="selectedRepoId" class="explorer-layout">
       <!-- File Tree -->
       <div class="card tree-panel">
         <div class="tree-header">
@@ -823,7 +821,10 @@ const flatNodes = computed(() => {
             <button class="icon-btn" @click="openCreateDialog()" :title="t('explorer.newFile')">+</button>
           </div>
         </div>
-        <div class="tree-content" v-if="explorer.tree?.children">
+        <div v-if="explorer.loading && !explorer.tree" class="tree-loading">
+          <BaseSpinner />
+        </div>
+        <div class="tree-content" v-else-if="explorer.tree?.children">
           <div
             v-for="{ node, depth } in flatNodes"
             :key="node.path"
@@ -1207,6 +1208,12 @@ const flatNodes = computed(() => {
   border-color: var(--color-primary);
 }
 
+.tree-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+}
 .tree-content {
   padding: 4px 0;
 }

@@ -91,9 +91,16 @@ export const useExplorerStore = defineStore('explorer', () => {
     searchResults.value = []
   }
 
+  function clearAll() {
+    tree.value = null
+    selectedFile.value = null
+    searchResults.value = []
+    testCases.value = []
+  }
+
   return {
     tree, selectedFile, searchResults, testCases, loading, currentRepoId,
-    fetchTree, openFile, searchInRepo, fetchTestCases, clearSelection,
+    fetchTree, openFile, searchInRepo, fetchTestCases, clearSelection, clearAll,
     saveFile, createFile, deleteFileAction, renameFileAction, openInEditorAction, openInFileBrowserAction,
   }
 })
