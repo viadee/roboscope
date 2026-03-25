@@ -703,6 +703,32 @@ def _enrich_docker_error(error: str) -> str:
     return error
 
 
+def rfbrowser_init_task(env_id: int) -> dict:
+    """Run 'rfbrowser init' for an environment (standalone task)."""
+    with get_sync_session() as session:
+        env = session.execute(
+            select(Environment).where(Environment.id == env_id)
+        ).scalar_one_or_none()
+        if env is None or env.venv_path is None:
+            return {"status": "error", "message": "Environment not found"}
+
+        browser_pkg = session.execute(
+            select(EnvironmentPackage).where(
+                EnvironmentPackage.environment_id == env_id,
+                EnvironmentPackage.install_status == "installed",
+            )
+        ).scalars().all()
+        browser_pkg = next((p for p in browser_pkg if _is_browser_package(p.package_name)), None)
+
+        try:
+            _run_rfbrowser_init(env.venv_path, env_id, browser_pkg.package_name if browser_pkg else "robotframework-browser", browser_pkg, session)
+            if browser_pkg:
+                session.commit()
+            return {"status": "success"}
+        except Exception as exc:
+            return {"status": "error", "message": str(exc)}
+
+
 def uninstall_package(env_id: int, package_name: str) -> dict:
     """Uninstall a pip package from an environment's virtualenv."""
     with get_sync_session() as session:

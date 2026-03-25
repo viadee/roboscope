@@ -320,6 +320,8 @@ export default {
     installing: 'instalando...',
     initializingBrowser: 'Inicializando navegador (descargando navegadores Playwright)...',
     installError: 'Error de instalación',
+    rfbrowserInitNeeded: 'rfbrowser init necesario — navegadores aún no descargados',
+    rfbrowserInit: 'Ejecutar rfbrowser init',
     recommended: 'Recomendado',
     requiresNodeJs: 'Requiere Node.js',
     conflictInstalled: 'Otra variante instalada',
@@ -406,6 +408,7 @@ export default {
       pkgRemovedMsg: '{name} se está desinstalando...',
       uninstallFailed: 'Error en la desinstalación',
       pythonVersionWarning: 'Advertencia de versión de Python',
+      rfbrowserInitStarted: 'rfbrowser init iniciado — descargando navegadores...',
     },
   },
   reports: {

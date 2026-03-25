@@ -83,11 +83,11 @@ def add_environment(
     return response
 
 
-# Default RF packages for quick setup
+# Default RF packages for quick setup (batteries = self-contained, no Node.js needed)
 DEFAULT_RF_PACKAGES = [
     "robotframework",
     "robotframework-seleniumlibrary",
-    "robotframework-browser",
+    "robotframework-browser-batteries",
     "robotframework-requests",
 ]
 
@@ -368,7 +368,31 @@ def get_packages(
     env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
-    return list_packages(db, env_id)
+
+    packages = list_packages(db, env_id)
+
+    # Check rfbrowser init status for standard browser package
+    from src.environments.venv_utils import check_rfbrowser_initialized
+    from src.environments.tasks import _is_browser_package
+
+    has_browser_installed = any(
+        _is_browser_package(p.package_name) and p.install_status == "installed"
+        for p in packages
+    )
+    rfbrowser_ok = (
+        check_rfbrowser_initialized(env.venv_path)
+        if has_browser_installed and env.venv_path
+        else True
+    )
+
+    results = []
+    for p in packages:
+        resp = PackageResponse.model_validate(p)
+        if _is_browser_package(p.package_name) and p.install_status == "installed" and not rfbrowser_ok:
+            resp.needs_rfbrowser_init = True
+        results.append(resp)
+
+    return results
 
 
 @router.get("/{env_id}/packages/installed")
@@ -523,6 +547,46 @@ def retry_package_install(
         )
 
     return pkg
+
+
+@router.post("/{env_id}/rfbrowser-init")
+def run_rfbrowser_init(
+    env_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Manually trigger 'rfbrowser init' for an environment."""
+    env = get_environment(db, env_id)
+    if env is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
+    if not env.venv_path:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No venv configured")
+
+    from src.environments.tasks import _is_browser_package
+    # Find the browser package record
+    browser_pkg = db.execute(
+        select(EnvironmentPackage).where(
+            EnvironmentPackage.environment_id == env_id,
+            EnvironmentPackage.install_status == "installed",
+        )
+    ).scalars().all()
+    browser_pkg = next((p for p in browser_pkg if _is_browser_package(p.package_name)), None)
+    if not browser_pkg:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="robotframework-browser is not installed in this environment",
+        )
+
+    try:
+        from src.environments.tasks import rfbrowser_init_task
+        dispatch_task(rfbrowser_init_task, env_id)
+    except TaskDispatchError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Task dispatch failed: {e}",
+        )
+
+    return {"status": "pending", "message": "rfbrowser init started"}
 
 
 @router.delete("/{env_id}/packages/{package_name}", status_code=status.HTTP_204_NO_CONTENT)

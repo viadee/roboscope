@@ -320,6 +320,8 @@ export default {
     installing: 'installing...',
     initializingBrowser: 'Initializing Browser (downloading Playwright browsers)...',
     installError: 'Install failed',
+    rfbrowserInitNeeded: 'rfbrowser init required — browsers not yet downloaded',
+    rfbrowserInit: 'Run rfbrowser init',
     recommended: 'Recommended',
     requiresNodeJs: 'Requires Node.js',
     conflictInstalled: 'Other variant installed',
@@ -406,6 +408,7 @@ export default {
       pkgRemovedMsg: '{name} is being uninstalled...',
       uninstallFailed: 'Uninstall failed',
       pythonVersionWarning: 'Python Version Warning',
+      rfbrowserInitStarted: 'rfbrowser init started — downloading browsers...',
     },
   },
   reports: {

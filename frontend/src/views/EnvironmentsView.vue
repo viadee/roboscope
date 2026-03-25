@@ -203,6 +203,17 @@ async function upgradePkg(envId: number, packageName: string) {
   }
 }
 
+async function triggerRfbrowserInit(envId: number) {
+  try {
+    await envsApi.runRfbrowserInit(envId)
+    toast.success(t('environments.toasts.rfbrowserInitStarted'))
+    // Refresh packages after a delay to pick up status changes
+    setTimeout(() => envs.fetchPackages(envId), 5000)
+  } catch (e: any) {
+    toast.error(t('common.error'), e.response?.data?.detail || 'rfbrowser init failed')
+  }
+}
+
 async function removePkg(envId: number, packageName: string) {
   if (!confirm(t('environments.toasts.confirmRemovePkg', { name: packageName }))) return
   try {
@@ -345,12 +356,18 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
                     <span class="pkg-spinner"></span> {{ t('environments.installing') }}
                   </span>
                   <span v-else class="text-muted text-sm">{{ pkg.installed_version || pkg.version }}</span>
+                  <span v-if="pkg.needs_rfbrowser_init" class="rfbrowser-warn">
+                    ⚠️ {{ t('environments.rfbrowserInitNeeded') }}
+                  </span>
                 </div>
                 <div class="pkg-actions">
+                  <BaseButton v-if="pkg.needs_rfbrowser_init" variant="secondary" size="sm" @click="triggerRfbrowserInit(env.id)">
+                    {{ t('environments.rfbrowserInit') }}
+                  </BaseButton>
                   <BaseButton v-if="pkg.install_status === 'failed'" variant="ghost" size="sm" @click="retryInstall(env.id, pkg)">
                     {{ t('common.retry') }}
                   </BaseButton>
-                  <BaseButton v-else variant="ghost" size="sm" @click="upgradePkg(env.id, pkg.package_name)">{{ t('common.upgrade') }}</BaseButton>
+                  <BaseButton v-else-if="!pkg.needs_rfbrowser_init" variant="ghost" size="sm" @click="upgradePkg(env.id, pkg.package_name)">{{ t('common.upgrade') }}</BaseButton>
                   <BaseButton variant="ghost" size="sm" @click="removePkg(env.id, pkg.package_name)">{{ t('common.remove') }}</BaseButton>
                 </div>
               </div>
@@ -729,6 +746,12 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.rfbrowser-warn {
+  display: block;
+  font-size: 12px;
+  color: var(--color-accent, #D4883E);
 }
 
 .pip-details {

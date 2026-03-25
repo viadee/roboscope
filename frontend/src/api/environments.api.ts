@@ -102,6 +102,11 @@ export async function dismissDockerBuildError(envId: number): Promise<void> {
   await apiClient.post(`/environments/${envId}/docker-build-dismiss`)
 }
 
+export async function runRfbrowserInit(envId: number): Promise<{ status: string; message: string }> {
+  const response = await apiClient.post(`/environments/${envId}/rfbrowser-init`)
+  return response.data
+}
+
 // Variables
 
 export async function getVariables(envId: number): Promise<EnvironmentVariable[]> {
