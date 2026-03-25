@@ -495,13 +495,14 @@ async def search_keywords(query: str, repo_id: int | None = None) -> list[dict]:
     results: list[dict] = []
     seen: set[str] = set()
     query_lower = query.lower().strip()
+    match_all = query_lower in ("*", "")
 
     if repo_id is not None:
         # 1. Custom keywords from repo files
         custom_keywords, library_imports = _scan_repo_files(repo_id)
         for kw in custom_keywords:
             name_lower = kw["name"].lower()
-            if query_lower in name_lower or name_lower in query_lower:
+            if match_all or query_lower in name_lower or name_lower in query_lower:
                 seen.add(name_lower)
                 results.append(kw)
 
@@ -514,7 +515,7 @@ async def search_keywords(query: str, repo_id: int | None = None) -> list[dict]:
                 lib_keywords = _resolve_library_keywords(all_libraries, venv_path)
                 for kw in lib_keywords:
                     name_lower = kw["name"].lower()
-                    if query_lower in name_lower or name_lower in query_lower:
+                    if match_all or query_lower in name_lower or name_lower in query_lower:
                         if name_lower not in seen:
                             seen.add(name_lower)
                             results.append(kw)
