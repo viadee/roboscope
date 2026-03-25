@@ -35,7 +35,7 @@ const installEnvId = ref<number>(0)
 const installMode = ref<'search' | 'popular'>('popular')
 const searchQuery = ref('')
 const searchResults = ref<{ name: string; version: string; summary: string; author: string }[]>([])
-const popularPackages = ref<{ name: string; description: string }[]>([])
+const popularPackages = ref<{ name: string; description: string; group?: string; variant?: string }[]>([])
 const searching = ref(false)
 const installing = ref<string | null>(null)
 const installVersion = ref('')
@@ -281,7 +281,21 @@ async function updateEnvField(envId: number, field: string, value: string | numb
 }
 
 function isInstalled(envId: number, packageName: string): boolean {
-  return envs.packages[envId]?.some(p => p.package_name === packageName) || false
+  return envs.packages[envId]?.some(p => p.package_name === packageName && p.install_status === 'installed') || false
+}
+
+function isInstalling(envId: number, packageName: string): boolean {
+  return envs.packages[envId]?.some(p => p.package_name === packageName && (p.install_status === 'pending' || p.install_status === 'installing')) || false
+}
+
+const BROWSER_VARIANTS = ['robotframework-browser', 'robotframework-browser-batteries']
+
+function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
+  if (pkg.group !== 'browser') return false
+  // If the OTHER browser variant is installed, this one is conflicting
+  const otherVariant = BROWSER_VARIANTS.find(v => v !== pkg.name)
+  if (!otherVariant) return false
+  return isInstalled(installEnvId.value, otherVariant) || isInstalling(installEnvId.value, otherVariant)
 }
 </script>
 
@@ -536,19 +550,27 @@ function isInstalled(envId: number, packageName: string): boolean {
 
       <!-- Popular packages -->
       <div v-if="installMode === 'popular'" class="install-list">
-        <div v-for="pkg in popularPackages" :key="pkg.name" class="install-item">
+        <div v-for="pkg in popularPackages" :key="pkg.name" class="install-item" :class="{ 'browser-variant': pkg.group === 'browser' }">
           <div class="install-info">
             <strong>{{ pkg.name }}</strong>
+            <span v-if="pkg.variant === 'batteries'" class="variant-badge recommended">{{ t('environments.recommended') }}</span>
+            <span v-if="pkg.variant === 'standard'" class="variant-badge standard">{{ t('environments.requiresNodeJs') }}</span>
             <span class="text-muted text-sm">{{ pkg.description }}</span>
           </div>
           <BaseButton
-            v-if="!isInstalled(installEnvId, pkg.name)"
+            v-if="!isInstalled(installEnvId, pkg.name) && !isInstalling(installEnvId, pkg.name) && !isBrowserConflict(pkg)"
             size="sm"
             :loading="installing === pkg.name"
             @click="installPkg(pkg.name)"
           >
             {{ t('common.install') }}
           </BaseButton>
+          <BaseBadge v-else-if="isInstalling(installEnvId, pkg.name)" variant="warning">
+            <span class="pkg-spinner"></span> {{ t('environments.installing') }}
+          </BaseBadge>
+          <BaseBadge v-else-if="isBrowserConflict(pkg)" variant="default">
+            {{ t('environments.conflictInstalled') }}
+          </BaseBadge>
           <BaseBadge v-else variant="success">{{ t('common.installed') }}</BaseBadge>
         </div>
       </div>
@@ -988,6 +1010,31 @@ function isInstalled(envId: number, packageName: string): boolean {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.install-item.browser-variant {
+  background: var(--color-bg, #f4f7fa);
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin: 2px 0;
+}
+
+.variant-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 4px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.variant-badge.recommended {
+  background: #d1fae5;
+  color: #065f46;
+}
+.variant-badge.standard {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 /* Setup default card */

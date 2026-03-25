@@ -422,12 +422,72 @@ def _get_repo_env_venv_path(repo_id: int) -> str | None:
         return env.venv_path if env else None
 
 
+def invalidate_repo_cache(repo_id: int) -> None:
+    """Clear keyword cache for a repo so next search re-scans files and libraries."""
+    global _imported_repos
+    _imported_repos.discard(repo_id)
+    _repo_keywords_cache.pop(repo_id, None)
+    # Also clear library keyword caches that may include this repo's venv
+    venv_path = _get_repo_env_venv_path(repo_id)
+    if venv_path:
+        stale = [k for k in _library_keywords_cache if k[1] == venv_path]
+        for k in stale:
+            del _library_keywords_cache[k]
+    logger.info("Invalidated keyword cache for repo %d", repo_id)
+
+
+def _get_env_installed_libraries(venv_path: str) -> set[str]:
+    """Discover all RF-related libraries installed in the venv.
+
+    Uses `pip list` output and heuristics to find Robot Framework library packages.
+    """
+    from src.environments.venv_utils import get_python_path
+
+    python_path = get_python_path(venv_path)
+    if not Path(python_path).exists():
+        return set()
+
+    # Use robot's own discovery to find all available libraries
+    script = (
+        "import json, sys, pkgutil, importlib\n"
+        "libs = set()\n"
+        "# Check common RF library naming patterns from pip\n"
+        "try:\n"
+        "    import subprocess\n"
+        "    result = subprocess.run([sys.executable, '-m', 'pip', 'list', '--format=json'],\n"
+        "                            capture_output=True, text=True, timeout=15)\n"
+        "    if result.returncode == 0:\n"
+        "        for pkg in __import__('json').loads(result.stdout):\n"
+        "            name = pkg['name'].lower()\n"
+        "            if name.startswith('robotframework-'):\n"
+        "                # e.g. robotframework-browser -> Browser\n"
+        "                lib = name.replace('robotframework-', '')\n"
+        "                # Title-case the library name for RF import\n"
+        "                libs.add(lib.title().replace('-', ''))\n"
+        "except Exception:\n"
+        "    pass\n"
+        "print(json.dumps(sorted(libs)))\n"
+    )
+    try:
+        result = subprocess.run(
+            [python_path, "-c", script],
+            capture_output=True, text=True, timeout=20,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            names = json.loads(result.stdout.strip())
+            logger.info("Discovered %d RF libraries in venv %s", len(names), venv_path)
+            return set(names)
+    except Exception as e:
+        logger.warning("Failed to discover installed libraries: %s", e)
+    return set()
+
+
 async def search_keywords(query: str, repo_id: int | None = None) -> list[dict]:
     """Search for Robot Framework keywords matching a query.
 
     Combines three sources (no rf-mcp needed):
     1. User-defined keywords from repo .robot/.resource files
-    2. Library keywords from the repo's environment (via robot.libdocpkg)
+    2. Library keywords from ALL installed RF packages in the environment
     3. rf-mcp built-in keywords (optional fallback)
 
     Returns a list of dicts with keys: name, library, doc.
@@ -445,16 +505,19 @@ async def search_keywords(query: str, repo_id: int | None = None) -> list[dict]:
                 seen.add(name_lower)
                 results.append(kw)
 
-        # 2. Library keywords from environment
+        # 2. Library keywords — scan ALL installed RF packages, not just imported ones
         venv_path = _get_repo_env_venv_path(repo_id)
-        if venv_path and library_imports:
-            lib_keywords = _resolve_library_keywords(library_imports, venv_path)
-            for kw in lib_keywords:
-                name_lower = kw["name"].lower()
-                if query_lower in name_lower or name_lower in query_lower:
-                    if name_lower not in seen:
-                        seen.add(name_lower)
-                        results.append(kw)
+        if venv_path:
+            # Merge explicitly imported libraries with all installed RF packages
+            all_libraries = library_imports | _get_env_installed_libraries(venv_path)
+            if all_libraries:
+                lib_keywords = _resolve_library_keywords(all_libraries, venv_path)
+                for kw in lib_keywords:
+                    name_lower = kw["name"].lower()
+                    if query_lower in name_lower or name_lower in query_lower:
+                        if name_lower not in seen:
+                            seen.add(name_lower)
+                            results.append(kw)
 
     # 3. Optional: rf-mcp for built-in keyword semantic search
     if is_available():

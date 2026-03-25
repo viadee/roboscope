@@ -49,3 +49,23 @@ If the project's functionality or usage has changed, update `README.md` to refle
 ## 8. Update the Frontend Documentation
 
 If the project's functionality or usage has changed, update the in-app documentation under `frontend/src/docs/` to reflect those changes. The documentation is available in four languages (EN, DE, FR, ES) — update all affected languages.
+
+## 9. Build and Test Distribution ZIPs
+
+Build the standalone offline distribution archives for all platforms and verify they work:
+
+```bash
+# Build for each platform
+bash scripts/build-mac-and-linux.sh linux
+bash scripts/build-mac-and-linux.sh macos-arm64
+bash scripts/build-mac-and-linux.sh macos-x86_64
+bash scripts/build-mac-and-linux.sh windows
+
+# Also build the online (lightweight) variant
+bash scripts/build-online-mac-and-linux.sh
+```
+
+Verify:
+- All ZIPs are created under `dist/`
+- Spot-check at least one ZIP: extract it, confirm it contains `frontend_dist/`, `backend/`, install/start scripts, and wheels
+- Ensure the version in the built artifacts matches the release version

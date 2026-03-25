@@ -25,3 +25,17 @@ Create a Git tag for the new version, push it to the remote, and create a GitHub
 git tag v<version>
 git push origin v<version>
 ```
+
+## 3. Upload Distribution ZIPs
+
+Attach the distribution ZIP archives (built during release-tasks step 9) to the GitHub release:
+
+```bash
+gh release upload v<version> dist/roboscope-offline-linux.zip
+gh release upload v<version> dist/roboscope-offline-macos-arm64.zip
+gh release upload v<version> dist/roboscope-offline-macos-x86_64.zip
+gh release upload v<version> dist/roboscope-offline-windows.zip
+gh release upload v<version> dist/roboscope-online.zip
+```
+
+Only upload ZIPs that were successfully built. If a platform build failed, note it in the release description.

@@ -124,6 +124,12 @@ export async function searchKeywords(query: string, repoId?: number): Promise<Rf
   return response.data
 }
 
+export async function invalidateKeywordCache(repoId: number): Promise<void> {
+  await apiClient.post('/ai/rf-knowledge/keywords/invalidate', null, {
+    params: { repo_id: repoId },
+  })
+}
+
 export async function recommendLibraries(description: string): Promise<RfRecommendResponse> {
   const response = await apiClient.post<RfRecommendResponse>('/ai/rf-knowledge/recommend', {
     description,

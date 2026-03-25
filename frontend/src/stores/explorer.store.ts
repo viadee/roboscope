@@ -1,7 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as explorerApi from '@/api/explorer.api'
+import { searchKeywords, invalidateKeywordCache } from '@/api/ai.api'
 import type { FileContent, SearchResult, TestCaseInfo, TreeNode } from '@/types/domain.types'
+
+export interface CachedKeyword {
+  name: string
+  library: string
+  doc: string
+  args?: string[]
+}
 
 export const useExplorerStore = defineStore('explorer', () => {
   const tree = ref<TreeNode | null>(null)
@@ -10,6 +18,11 @@ export const useExplorerStore = defineStore('explorer', () => {
   const testCases = ref<TestCaseInfo[]>([])
   const loading = ref(false)
   const currentRepoId = ref<number | null>(null)
+
+  // Keyword cache for the current repo
+  const keywords = ref<CachedKeyword[]>([])
+  const keywordsLoading = ref(false)
+  const keywordsLoaded = ref(false)
 
   async function fetchTree(repoId: number, path: string = '') {
     loading.value = true
@@ -91,16 +104,51 @@ export const useExplorerStore = defineStore('explorer', () => {
     searchResults.value = []
   }
 
+  /** Preload all available keywords for the current repo's environment. */
+  async function preloadKeywords(repoId: number) {
+    if (keywordsLoading.value) return
+    keywordsLoading.value = true
+    keywordsLoaded.value = false
+    try {
+      const result = await searchKeywords('*', repoId)
+      keywords.value = (result.results || []).map(r => ({
+        name: r.name,
+        library: r.library,
+        doc: r.doc || '',
+        args: r.args || [],
+      }))
+      keywordsLoaded.value = true
+    } catch {
+      // Non-critical — palette will just be empty
+      keywords.value = []
+    } finally {
+      keywordsLoading.value = false
+    }
+  }
+
+  /** Invalidate keyword cache on backend and reload. */
+  async function refreshKeywords(repoId: number) {
+    try {
+      await invalidateKeywordCache(repoId)
+    } catch { /* ignore */ }
+    keywordsLoaded.value = false
+    await preloadKeywords(repoId)
+  }
+
   function clearAll() {
     tree.value = null
     selectedFile.value = null
     searchResults.value = []
     testCases.value = []
+    keywords.value = []
+    keywordsLoaded.value = false
   }
 
   return {
     tree, selectedFile, searchResults, testCases, loading, currentRepoId,
+    keywords, keywordsLoading, keywordsLoaded,
     fetchTree, openFile, searchInRepo, fetchTestCases, clearSelection, clearAll,
     saveFile, createFile, deleteFileAction, renameFileAction, openInEditorAction, openInFileBrowserAction,
+    preloadKeywords, refreshKeywords,
   }
 })

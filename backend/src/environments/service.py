@@ -283,14 +283,19 @@ def search_pypi(query: str) -> list[dict]:
     return results[:20]
 
 
+def _strip_version(pkg_spec: str) -> str:
+    """Strip version specifier from a package spec."""
+    return pkg_spec.split("==")[0].split(">=")[0].split("<=")[0].split("~=")[0].split("!=")[0].strip().lower().replace("_", "-")
+
+
 def _has_browser_package(packages: list[str]) -> bool:
-    """Check if any package spec refers to robotframework-browser."""
-    for pkg in packages:
-        # Strip version specifier (e.g. "robotframework-browser==18.0.0" → "robotframework-browser")
-        name = pkg.split("==")[0].split(">=")[0].split("<=")[0].split("~=")[0].split("!=")[0]
-        if name.strip().lower().replace("_", "-") == "robotframework-browser":
-            return True
-    return False
+    """Check if any package spec refers to robotframework-browser (standard, needs rfbrowser init)."""
+    return any(_strip_version(p) == "robotframework-browser" for p in packages)
+
+
+def _has_batteries_package(packages: list[str]) -> bool:
+    """Check if any package spec refers to robotframework-browser-batteries (self-contained)."""
+    return any(_strip_version(p) == "robotframework-browser-batteries" for p in packages)
 
 
 def generate_dockerfile(
@@ -306,11 +311,14 @@ def generate_dockerfile(
     and all browser system dependencies). Node.js is installed separately
     because rfbrowser init requires npm. Otherwise, python-slim.
     """
-    needs_browser = _has_browser_package(packages)
+    needs_browser_standard = _has_browser_package(packages)
+    needs_batteries = _has_batteries_package(packages)
+    needs_browser_any = needs_browser_standard or needs_batteries
+
     if base_image:
         base = base_image
-    elif needs_browser:
-        # Playwright image: Python + browser system deps (no Node.js)
+    elif needs_browser_any:
+        # Playwright image: Python + browser system deps
         base = "mcr.microsoft.com/playwright/python:v1.52.0-noble"
     else:
         base = f"python:{python_version}-slim"
@@ -322,9 +330,11 @@ def generate_dockerfile(
         "",
     ]
 
-    # Node.js 20 LTS — rfbrowser init requires npm
-    if needs_browser:
+    # Node.js 20 LTS — only needed for standard robotframework-browser (rfbrowser init requires npm)
+    # NOT needed for robotframework-browser-batteries (self-contained)
+    if needs_browser_standard:
         lines += [
+            "# Node.js required for rfbrowser init (standard browser package)",
             "RUN apt-get update && apt-get install -y --no-install-recommends \\",
             "    curl gnupg \\",
             "    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \\",
@@ -339,8 +349,8 @@ def generate_dockerfile(
         lines.append(f"    {pkg}{suffix}")
     lines.append("")
 
-    # rfbrowser init — installs Node wrapper + links Playwright browsers
-    if needs_browser:
+    # rfbrowser init — only for standard browser, NOT for batteries
+    if needs_browser_standard:
         lines.append("RUN rfbrowser init")
         lines.append("")
 

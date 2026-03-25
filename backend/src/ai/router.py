@@ -397,6 +397,18 @@ async def rf_knowledge_keywords(
     )
 
 
+@router.post("/rf-knowledge/keywords/invalidate")
+async def rf_knowledge_invalidate_cache(
+    repo_id: int,
+    _current_user: User = Depends(get_current_user),
+):
+    """Invalidate the keyword cache for a repo so next search re-scans."""
+    from src.ai import rf_knowledge
+
+    rf_knowledge.invalidate_repo_cache(repo_id)
+    return {"ok": True}
+
+
 @router.post("/rf-knowledge/recommend", response_model=RfRecommendResponse)
 async def rf_knowledge_recommend(
     data: RfRecommendRequest,

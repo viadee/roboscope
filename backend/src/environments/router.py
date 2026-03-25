@@ -314,7 +314,18 @@ def dismiss_docker_build_error(
 POPULAR_RF_LIBRARIES = [
     {"name": "robotframework", "description": "Robot Framework core"},
     {"name": "robotframework-seleniumlibrary", "description": "Web testing with Selenium"},
-    {"name": "robotframework-browser", "description": "Web testing with Playwright"},
+    {
+        "name": "robotframework-browser",
+        "description": "Web testing with Playwright (requires Node.js + rfbrowser init)",
+        "group": "browser",
+        "variant": "standard",
+    },
+    {
+        "name": "robotframework-browser-batteries",
+        "description": "Web testing with Playwright — self-contained, no Node.js needed",
+        "group": "browser",
+        "variant": "batteries",
+    },
     {"name": "robotframework-requests", "description": "HTTP API testing"},
     {"name": "robotframework-databaselibrary", "description": "Database testing"},
     {"name": "robotframework-sshlibrary", "description": "SSH connections"},
@@ -405,6 +416,16 @@ def install_package(
     env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
+
+    # Check for conflicting Browser library variants
+    from src.environments.tasks import _get_conflicting_browser_package
+    conflict = _get_conflicting_browser_package(env_id, data.package_name, db)
+    if conflict:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot install {data.package_name}: conflicting package '{conflict}' is already installed. "
+                   f"Uninstall '{conflict}' first.",
+        )
 
     pkg = add_package(db, env_id, data)
 

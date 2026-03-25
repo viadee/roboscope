@@ -336,3 +336,56 @@ test.describe('Browser Library — Dockerfile generation', () => {
     }
   });
 });
+
+
+test.describe('Browser vs Batteries Variants', () => {
+  test('popular packages API returns both variants with group/variant fields', async ({ page }) => {
+    await loginAndGoToDashboard(page);
+    const token = await page.evaluate(() => localStorage.getItem('access_token'));
+    const response = await page.request.get('http://localhost:8000/api/v1/environments/packages/popular', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(response.ok()).toBeTruthy();
+
+    const packages = await response.json();
+    const browserStd = packages.find((p: any) => p.name === 'robotframework-browser');
+    const browserBat = packages.find((p: any) => p.name === 'robotframework-browser-batteries');
+
+    expect(browserStd).toBeTruthy();
+    expect(browserStd.group).toBe('browser');
+    expect(browserStd.variant).toBe('standard');
+
+    expect(browserBat).toBeTruthy();
+    expect(browserBat.group).toBe('browser');
+    expect(browserBat.variant).toBe('batteries');
+  });
+
+  test('API returns 409 when installing conflicting browser variant', async ({ page }) => {
+    await loginAndGoToDashboard(page);
+    const token = await page.evaluate(() => localStorage.getItem('access_token'));
+
+    // Create a fresh environment
+    const envResp = await page.request.post('http://localhost:8000/api/v1/environments', {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { name: 'conflict-test-' + Date.now(), python_version: '3.12' },
+    });
+    expect(envResp.ok()).toBeTruthy();
+    const env = await envResp.json();
+
+    // Install browser-batteries first
+    const install1 = await page.request.post(`http://localhost:8000/api/v1/environments/${env.id}/packages`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { package_name: 'robotframework-browser-batteries' },
+    });
+    expect(install1.ok()).toBeTruthy();
+
+    // Try installing standard browser — expect 409
+    const install2 = await page.request.post(`http://localhost:8000/api/v1/environments/${env.id}/packages`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { package_name: 'robotframework-browser' },
+    });
+    expect(install2.status()).toBe(409);
+    const body = await install2.json();
+    expect(body.detail).toContain('conflicting');
+  });
+});

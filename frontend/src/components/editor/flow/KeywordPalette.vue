@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useExplorerStore } from '@/stores/explorer.store'
 import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
 import { getProjectKeywords, type ProjectKeyword } from '@/api/explorer.api'
 import type { StepType, RobotStep } from './flowConverter'
@@ -10,12 +11,13 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const explorer = useExplorerStore()
 
 const emit = defineEmits<{
   (e: 'add-node', step: RobotStep): void
 }>()
 
-// Dynamic keywords from rf-mcp + project .resource files
+// Dynamic keywords from environment + project .resource files
 const dynamicLibraries = ref<Map<string, RfKeywordResult[]>>(new Map())
 const projectKeywords = ref<ProjectKeyword[]>([])
 const loadingKeywords = ref(false)
@@ -23,22 +25,34 @@ const loadingKeywords = ref(false)
 // Keyword args lookup: name → args[]
 const keywordArgsMap = ref<Map<string, string[]>>(new Map())
 
+function buildFromCache() {
+  const argsMap = new Map<string, string[]>()
+  const grouped = new Map<string, RfKeywordResult[]>()
+  for (const kw of explorer.keywords) {
+    const lib = kw.library || 'Unknown'
+    if (!grouped.has(lib)) grouped.set(lib, [])
+    grouped.get(lib)!.push({ name: kw.name, library: kw.library, doc: kw.doc, args: kw.args || [] })
+    if (kw.args && kw.args.length > 0) {
+      argsMap.set(kw.name, kw.args)
+    }
+  }
+  dynamicLibraries.value = grouped
+  keywordArgsMap.value = argsMap
+}
+
 async function loadDynamicKeywords() {
   if (!props.repoId) return
   loadingKeywords.value = true
   try {
-    // Load both in parallel: rf-mcp library keywords + project user keywords
-    const [rfResult, projKws] = await Promise.allSettled([
-      searchKeywords('*', props.repoId),
-      getProjectKeywords(props.repoId),
-    ])
-
-    const argsMap = new Map<string, string[]>()
-
-    // rf-mcp library keywords (grouped by library)
-    if (rfResult.status === 'fulfilled') {
+    // Use preloaded keywords from explorer store if available
+    if (explorer.keywordsLoaded && explorer.keywords.length > 0) {
+      buildFromCache()
+    } else {
+      // Fallback: load directly
+      const rfResult = await searchKeywords('*', props.repoId)
+      const argsMap = new Map<string, string[]>()
       const grouped = new Map<string, RfKeywordResult[]>()
-      for (const kw of rfResult.value.results) {
+      for (const kw of rfResult.results) {
         const lib = kw.library || 'Unknown'
         if (!grouped.has(lib)) grouped.set(lib, [])
         grouped.get(lib)!.push(kw)
@@ -47,19 +61,17 @@ async function loadDynamicKeywords() {
         }
       }
       dynamicLibraries.value = grouped
+      keywordArgsMap.value = argsMap
     }
 
-    // Project keywords from .robot/.resource files
-    if (projKws.status === 'fulfilled') {
-      projectKeywords.value = projKws.value
-      for (const kw of projKws.value) {
-        if (kw.arguments && kw.arguments.length > 0) {
-          argsMap.set(kw.name, kw.arguments)
-        }
+    // Also load project-specific keywords from .robot/.resource files
+    const projKws = await getProjectKeywords(props.repoId).catch(() => [])
+    projectKeywords.value = projKws
+    for (const kw of projKws) {
+      if (kw.arguments && kw.arguments.length > 0) {
+        keywordArgsMap.value.set(kw.name, kw.arguments)
       }
     }
-
-    keywordArgsMap.value = argsMap
   } finally {
     loadingKeywords.value = false
   }
@@ -67,6 +79,10 @@ async function loadDynamicKeywords() {
 
 onMounted(() => loadDynamicKeywords())
 watch(() => props.repoId, () => loadDynamicKeywords())
+// Rebuild when explorer store keywords are refreshed
+watch(() => explorer.keywordsLoaded, (loaded) => {
+  if (loaded && explorer.keywords.length > 0) buildFromCache()
+})
 
 const searchQuery = ref('')
 const collapsedCategories = ref<Set<string>>(new Set())

@@ -9,6 +9,7 @@ import { useToast } from '@/composables/useToast'
 import { createRun } from '@/api/execution.api'
 import { checkLibraries } from '@/api/explorer.api'
 import { installPackage, buildDockerImage } from '@/api/environments.api'
+import { updateRepo } from '@/api/repos.api'
 import type { LibraryCheckItem } from '@/types/domain.types'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
@@ -142,8 +143,30 @@ onMounted(async () => {
     await explorer.fetchTree(targetRepoId)
     autoExpandRoot()
     await restoreLastFile()
+    // Auto-assign environment + preload keywords in background
+    autoAssignEnvironmentAndPreload(targetRepoId)
   }
 })
+
+/** Auto-assign first available environment if repo has none, then preload keywords. */
+async function autoAssignEnvironmentAndPreload(repoId: number) {
+  const repo = repos.repos.find(r => r.id === repoId)
+  if (!repo) return
+
+  // Auto-assign environment if none set and environments exist
+  if (!repo.environment_id && envs.environments.length > 0) {
+    const env = envs.environments[0]
+    try {
+      const updated = await updateRepo(repoId, { environment_id: env.id } as any)
+      // Update local repo object
+      const idx = repos.repos.findIndex(r => r.id === repoId)
+      if (idx >= 0) repos.repos[idx] = { ...repos.repos[idx], ...updated }
+    } catch { /* non-critical */ }
+  }
+
+  // Preload keywords (runs in background, non-blocking)
+  explorer.preloadKeywords(repoId)
+}
 
 onUnmounted(() => {
   saveCursorState()
@@ -164,6 +187,8 @@ watch(selectedRepoId, async (newId, oldId) => {
     await explorer.fetchTree(newId)
     autoExpandRoot()
     await restoreLastFile()
+    // Preload keywords for new repo
+    autoAssignEnvironmentAndPreload(newId)
   }
 })
 
@@ -804,6 +829,12 @@ const flatNodes = computed(() => {
         <input v-model="searchQuery" class="form-input" :placeholder="t('explorer.searchPlaceholder')" />
         <BaseButton type="submit" :disabled="!searchQuery">{{ t('common.search') }}</BaseButton>
       </form>
+    </div>
+
+    <!-- Keyword preloading progress bar -->
+    <div v-if="explorer.keywordsLoading" class="keyword-loading-bar">
+      <div class="keyword-loading-bar-inner"></div>
+      <span class="keyword-loading-text">{{ t('explorer.loadingKeywords') }}</span>
     </div>
 
     <div v-if="selectedRepoId" class="explorer-layout">
@@ -1545,5 +1576,36 @@ const flatNodes = computed(() => {
   align-items: center;
   justify-content: center;
   height: 200px;
+}
+
+.keyword-loading-bar {
+  height: 28px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+.keyword-loading-bar-inner {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 30%;
+  background: var(--color-primary, #3B7DD8);
+  opacity: 0.15;
+  animation: keyword-loading-slide 1.5s ease-in-out infinite;
+}
+@keyframes keyword-loading-slide {
+  0% { left: -30%; }
+  100% { left: 100%; }
+}
+.keyword-loading-text {
+  position: relative;
+  z-index: 1;
+  padding: 0 12px;
+  font-size: 13px;
+  color: var(--color-text-muted);
 }
 </style>

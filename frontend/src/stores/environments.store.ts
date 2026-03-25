@@ -44,13 +44,23 @@ export const useEnvironmentsStore = defineStore('environments', () => {
   }
 
   async function fetchPackages(envId: number) {
-    packages.value[envId] = await envsApi.getPackages(envId)
+    const loaded = await envsApi.getPackages(envId)
+    // Deduplicate by package_name (race condition between API + WebSocket)
+    const seen = new Set<string>()
+    packages.value[envId] = loaded.filter(p => {
+      if (seen.has(p.package_name)) return false
+      seen.add(p.package_name)
+      return true
+    })
   }
 
   async function installPackage(envId: number, data: PackageCreateRequest) {
     const pkg = await envsApi.installPackage(envId, data)
     if (!packages.value[envId]) packages.value[envId] = []
-    packages.value[envId].push(pkg)
+    // Only push if not already in list (prevents duplicates from race with fetchPackages)
+    if (!packages.value[envId].some(p => p.package_name === pkg.package_name)) {
+      packages.value[envId].push(pkg)
+    }
   }
 
   async function uninstallPackage(envId: number, packageName: string) {

@@ -48,11 +48,41 @@ def _mark_packages_changed(session, env_id: int) -> None:
 
 
 BROWSER_PACKAGE_NAMES = {"robotframework-browser", "robotframework_browser"}
+BATTERIES_PACKAGE_NAMES = {"robotframework-browser-batteries", "robotframework_browser_batteries"}
+ALL_BROWSER_VARIANTS = BROWSER_PACKAGE_NAMES | BATTERIES_PACKAGE_NAMES
 
 
 def _is_browser_package(package_name: str) -> bool:
-    """Check if a package name refers to robotframework-browser."""
+    """Check if a package name refers to robotframework-browser (standard)."""
     return package_name.lower().replace("_", "-") in BROWSER_PACKAGE_NAMES
+
+
+def _is_batteries_package(package_name: str) -> bool:
+    """Check if a package name refers to robotframework-browser-batteries."""
+    return package_name.lower().replace("_", "-") in BATTERIES_PACKAGE_NAMES
+
+
+def _is_any_browser_variant(package_name: str) -> bool:
+    """Check if a package is any Browser library variant."""
+    normalized = package_name.lower().replace("_", "-")
+    return normalized in BROWSER_PACKAGE_NAMES or normalized in BATTERIES_PACKAGE_NAMES
+
+
+def _get_conflicting_browser_package(env_id: int, package_name: str, session) -> str | None:
+    """Return the name of a conflicting browser variant already installed, or None."""
+    if not _is_any_browser_variant(package_name):
+        return None
+    pkgs = session.execute(
+        select(EnvironmentPackage).where(
+            EnvironmentPackage.environment_id == env_id,
+            EnvironmentPackage.install_status.in_(["installed", "installing", "pending"]),
+        )
+    ).scalars().all()
+    for p in pkgs:
+        if p.package_name.lower().replace("_", "-") != package_name.lower().replace("_", "-"):
+            if _is_any_browser_variant(p.package_name):
+                return p.package_name
+    return None
 
 
 def _run_rfbrowser_init(
@@ -265,8 +295,8 @@ def install_package(env_id: int, package_name: str, version: str | None = None) 
             _mark_packages_changed(session, env_id)
             session.commit()
 
-            # Auto-init rfbrowser after robotframework-browser install
-            if _is_browser_package(package_name):
+            # Auto-init rfbrowser after robotframework-browser install (NOT for batteries)
+            if _is_browser_package(package_name) and not _is_batteries_package(package_name):
                 _run_rfbrowser_init(env.venv_path, env_id, package_name, pkg, session)
                 # Warn if Docker image needs rebuild
                 if env.docker_image:
