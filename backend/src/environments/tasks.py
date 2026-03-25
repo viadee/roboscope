@@ -257,6 +257,19 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
         if env is None or env.venv_path is None:
             return {"status": "error", "message": "Environment not found or no venv"}
 
+        # Auto-create venv if it doesn't exist
+        venv_path = Path(env.venv_path)
+        if not venv_path.exists():
+            logger.info("venv missing for env %d, creating %s", env_id, venv_path)
+            result = subprocess.run(
+                create_venv_cmd(str(venv_path), env.python_version),
+                capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                error_msg = f"Failed to create venv: {result.stderr or result.stdout}"
+                logger.error(error_msg)
+                return {"status": "error", "message": error_msg}
+
         # Mark as installing
         pkg = session.execute(
             select(EnvironmentPackage).where(
