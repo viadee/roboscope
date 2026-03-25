@@ -320,6 +320,7 @@ export default {
     installing: 'installation en cours...',
     initializingBrowser: 'Initialisation du navigateur (téléchargement des navigateurs Playwright)...',
     installError: 'Échec de l\'installation',
+    rfbrowserInitOk: 'Navigateurs initialisés',
     rfbrowserInitNeeded: 'rfbrowser init requis — navigateurs pas encore téléchargés',
     rfbrowserInit: 'Exécuter rfbrowser init',
     recommended: 'Recommandé',

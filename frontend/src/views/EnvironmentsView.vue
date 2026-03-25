@@ -356,12 +356,15 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
                     <span class="pkg-spinner"></span> {{ t('environments.installing') }}
                   </span>
                   <span v-else class="text-muted text-sm">{{ pkg.installed_version || pkg.version }}</span>
-                  <span v-if="pkg.needs_rfbrowser_init" class="rfbrowser-warn">
+                  <span v-if="pkg.rfbrowser_status === 'ok'" class="rfbrowser-ok">
+                    ✅ {{ t('environments.rfbrowserInitOk') }}
+                  </span>
+                  <span v-else-if="pkg.rfbrowser_status === 'needed'" class="rfbrowser-warn">
                     ⚠️ {{ t('environments.rfbrowserInitNeeded') }}
                   </span>
                 </div>
                 <div class="pkg-actions">
-                  <BaseButton v-if="pkg.needs_rfbrowser_init" variant="secondary" size="sm" @click="triggerRfbrowserInit(env.id)">
+                  <BaseButton v-if="pkg.rfbrowser_status === 'needed'" variant="secondary" size="sm" @click="triggerRfbrowserInit(env.id)">
                     {{ t('environments.rfbrowserInit') }}
                   </BaseButton>
                   <BaseButton v-if="pkg.install_status === 'failed'" variant="ghost" size="sm" @click="retryInstall(env.id, pkg)">
@@ -752,6 +755,12 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
   display: block;
   font-size: 12px;
   color: var(--color-accent, #D4883E);
+}
+
+.rfbrowser-ok {
+  display: block;
+  font-size: 12px;
+  color: var(--color-success, #38a169);
 }
 
 .pip-details {

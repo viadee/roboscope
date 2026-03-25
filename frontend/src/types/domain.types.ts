@@ -172,6 +172,7 @@ export interface EnvironmentPackage {
   install_status: 'pending' | 'installing' | 'initializing' | 'installed' | 'failed'
   install_error: string | null
   needs_rfbrowser_init?: boolean
+  rfbrowser_status?: 'ok' | 'needed' | null
 }
 
 export interface EnvironmentVariable {

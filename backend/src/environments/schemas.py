@@ -82,6 +82,7 @@ class PackageResponse(BaseModel):
     install_status: str = "pending"
     install_error: str | None = None
     needs_rfbrowser_init: bool = False
+    rfbrowser_status: str | None = None  # null, "ok", "needed"
 
     model_config = {"from_attributes": True}
 

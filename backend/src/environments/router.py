@@ -373,23 +373,29 @@ def get_packages(
 
     # Check rfbrowser init status for standard browser package
     from src.environments.venv_utils import check_rfbrowser_initialized
-    from src.environments.tasks import _is_browser_package
+    from src.environments.tasks import _is_browser_package, _is_batteries_package
 
-    has_browser_installed = any(
+    has_standard_browser = any(
         _is_browser_package(p.package_name) and p.install_status == "installed"
         for p in packages
     )
     rfbrowser_ok = (
         check_rfbrowser_initialized(env.venv_path)
-        if has_browser_installed and env.venv_path
-        else True
+        if has_standard_browser and env.venv_path
+        else False
     )
 
     results = []
     for p in packages:
         resp = PackageResponse.model_validate(p)
-        if _is_browser_package(p.package_name) and p.install_status == "installed" and not rfbrowser_ok:
-            resp.needs_rfbrowser_init = True
+        if p.install_status == "installed":
+            if _is_browser_package(p.package_name):
+                # Standard browser needs rfbrowser init
+                resp.rfbrowser_status = "ok" if rfbrowser_ok else "needed"
+                resp.needs_rfbrowser_init = not rfbrowser_ok
+            elif _is_batteries_package(p.package_name):
+                # Batteries variant is self-contained — always ok
+                resp.rfbrowser_status = "ok"
         results.append(resp)
 
     return results
