@@ -23,6 +23,15 @@ from src.environments.venv_utils import (
 
 logger = logging.getLogger("roboscope.environments.tasks")
 
+# Track active package install/upgrade tasks so we can detect stuck packages.
+# Key: (env_id, package_name), value: True while task is running.
+_active_package_tasks: dict[tuple[int, str], bool] = {}
+
+
+def is_package_task_active(env_id: int, package_name: str) -> bool:
+    """Check whether an install/upgrade task is currently running for this package."""
+    return _active_package_tasks.get((env_id, package_name), False)
+
 
 def _broadcast_package_status(env_id: int, package_name: str, status: str, **extra) -> None:
     """Broadcast a package status change from a sync background thread."""
@@ -231,6 +240,15 @@ def create_venv(env_id: int) -> dict:
 
 def install_package(env_id: int, package_name: str, version: str | None = None) -> dict:
     """Install a pip package in an environment's virtualenv."""
+    _active_package_tasks[(env_id, package_name)] = True
+    try:
+        return _install_package_inner(env_id, package_name, version)
+    finally:
+        _active_package_tasks.pop((env_id, package_name), None)
+
+
+def _install_package_inner(env_id: int, package_name: str, version: str | None = None) -> dict:
+    """Inner install logic."""
     with get_sync_session() as session:
         env = session.execute(
             select(Environment).where(Environment.id == env_id)
@@ -336,6 +354,15 @@ def install_package(env_id: int, package_name: str, version: str | None = None) 
 
 def upgrade_package(env_id: int, package_name: str) -> dict:
     """Upgrade a pip package to its latest version."""
+    _active_package_tasks[(env_id, package_name)] = True
+    try:
+        return _upgrade_package_inner(env_id, package_name)
+    finally:
+        _active_package_tasks.pop((env_id, package_name), None)
+
+
+def _upgrade_package_inner(env_id: int, package_name: str) -> dict:
+    """Inner upgrade logic."""
     with get_sync_session() as session:
         env = session.execute(
             select(Environment).where(Environment.id == env_id)

@@ -142,13 +142,35 @@ def clone_environment(db: Session, env: Environment, new_name: str, user_id: int
 
 
 def list_packages(db: Session, env_id: int) -> list[EnvironmentPackage]:
-    """List packages in an environment."""
+    """List packages in an environment.
+
+    Automatically resets stuck packages (pending/installing with no active task)
+    to 'failed' so the UI doesn't show a perpetual spinner.
+    """
+    from src.environments.tasks import is_package_task_active
+
     result = db.execute(
         select(EnvironmentPackage)
         .where(EnvironmentPackage.environment_id == env_id)
         .order_by(EnvironmentPackage.package_name)
     )
-    return list(result.scalars().all())
+    packages = list(result.scalars().all())
+
+    dirty = False
+    for pkg in packages:
+        if pkg.install_status in ("pending", "installing"):
+            if not is_package_task_active(env_id, pkg.package_name):
+                pkg.install_status = "failed"
+                pkg.install_error = "Installation interrupted or never started."
+                dirty = True
+                logger.warning(
+                    "Reset stuck package '%s' in env %d (was '%s')",
+                    pkg.package_name, env_id, pkg.install_status,
+                )
+    if dirty:
+        db.commit()
+
+    return packages
 
 
 def add_package(db: Session, env_id: int, data: PackageCreate) -> EnvironmentPackage:
