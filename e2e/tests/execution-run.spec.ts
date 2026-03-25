@@ -60,6 +60,38 @@ async function pollRunToCompletion(
   return detail;
 }
 
+/**
+ * Dismiss a single intermediate dialog that may appear before the run overlay.
+ * Returns true if a dialog was found and dismissed, false otherwise.
+ */
+async function dismissRunDialog(page: Page): Promise<boolean> {
+  // Wait briefly for any dialog to appear
+  await page.waitForTimeout(1500);
+
+  // Environment setup dialog
+  const envBtn = page.getByRole('button', { name: 'Nein, ohne starten' });
+  if (await envBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+    await envBtn.click();
+    return true;
+  }
+
+  // Missing libraries dialog — "Trotzdem ausführen" (run anyway)
+  const libBtn = page.getByRole('button', { name: 'Trotzdem ausführen' });
+  if (await libBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+    await libBtn.click();
+    return true;
+  }
+
+  // Docker image stale dialog — "Trotzdem starten" (run anyway)
+  const dockerBtn = page.getByRole('button', { name: 'Trotzdem starten' });
+  if (await dockerBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+    await dockerBtn.click();
+    return true;
+  }
+
+  return false;
+}
+
 // ─── API Tests (serial — share a single run to avoid executor queue buildup) ──
 
 test.describe.serial('Execution Run — API Tests', () => {
@@ -177,32 +209,34 @@ test.describe('Execution Run — UI Tests', () => {
     // Navigate to explorer with the Examples repo
     await page.goto(`/explorer/${repoId}`);
     await expect(page.locator('h1', { hasText: 'Explorer' })).toBeVisible({ timeout: 10_000 });
-    await page.waitForTimeout(1000);
+
+    // Wait for tree to load
+    await expect(page.locator('.tree-content')).toBeVisible({ timeout: 10_000 });
 
     // Expand calculator directory
     const calcDir = page.locator('.tree-node .node-name', { hasText: /^calculator$/ });
     await calcDir.click();
-    await page.waitForTimeout(500);
 
-    // Hover over basic_math.robot to see action buttons
+    // Wait for children to appear
     const robotFile = page.locator('.tree-node', { hasText: 'basic_math.robot' });
+    await expect(robotFile).toBeVisible({ timeout: 5000 });
+
+    // Hover over basic_math.robot to see action buttons, then click ▶
     await robotFile.hover();
-    await page.waitForTimeout(300);
-
-    // Click the run button (▶)
     const runBtn = robotFile.locator('.node-action-btn.run');
+    await expect(runBtn).toBeVisible({ timeout: 3000 });
     await runBtn.click();
-    await page.waitForTimeout(1000);
 
-    // Handle environment setup dialog if it appears
-    const envDialog = page.getByText('Umgebung einrichten?');
-    if (await envDialog.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await page.getByRole('button', { name: 'Nein, ohne starten' }).click();
-      await page.waitForTimeout(1000);
+    // Dismiss any intermediate dialogs that may appear before the run overlay.
+    // Possible dialogs: env setup, missing libraries, Docker image stale.
+    // We loop because they can appear in sequence.
+    for (let i = 0; i < 3; i++) {
+      const dismissed = await dismissRunDialog(page);
+      if (!dismissed) break;
     }
 
     // Overlay should appear
-    await expect(page.getByText('Testlauf gestartet')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Testlauf gestartet')).toBeVisible({ timeout: 10_000 });
     // File name appears in the run overlay text
     await expect(page.locator('.run-overlay-success')).toContainText('basic_math.robot');
 
