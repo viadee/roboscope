@@ -245,6 +245,9 @@ export default {
     },
     noEnvironment: 'Keine Umgebung zugewiesen — Bibliotheksprüfung und Keyword-Autocomplete nicht verfügbar.',
     createEnvironment: 'Umgebung erstellen',
+    environmentLink: 'Zur Umgebungskonfiguration',
+    noEnvironmentShort: 'Keine Umgebung zugewiesen — klicken zum Einrichten',
+    noEnv: 'Keine Umgebung',
     libInstalled: '{name} erfolgreich installiert',
   },
   execution: {

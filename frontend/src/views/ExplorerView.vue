@@ -113,6 +113,12 @@ const currentRepo = computed(() =>
   repos.repos.find(r => r.id === selectedRepoId.value)
 )
 
+const assignedEnv = computed(() => {
+  const envId = currentRepo.value?.environment_id
+  if (!envId) return null
+  return envs.environments.find(e => e.id === envId) || null
+})
+
 const absolutePath = computed(() => {
   if (!isLocalhost.value || !currentRepo.value || !explorer.selectedFile) return null
   return currentRepo.value.local_path + '/' + explorer.selectedFile.path
@@ -153,9 +159,9 @@ async function autoAssignEnvironmentAndPreload(repoId: number) {
   const repo = repos.repos.find(r => r.id === repoId)
   if (!repo) return
 
-  // Auto-assign environment if none set and environments exist
+  // Auto-assign environment if none set and environments exist (prefer "default")
   if (!repo.environment_id && envs.environments.length > 0) {
-    const env = envs.environments[0]
+    const env = envs.environments.find(e => e.name.toLowerCase() === 'default') || envs.environments[0]
     try {
       const updated = await updateRepo(repoId, { environment_id: env.id } as any)
       // Update local repo object
@@ -820,6 +826,22 @@ const flatNodes = computed(() => {
             {{ repo.name }}
           </option>
         </select>
+        <router-link
+          v-if="assignedEnv"
+          to="/environments"
+          class="env-badge"
+          :title="t('explorer.environmentLink')"
+        >
+          🧪 {{ assignedEnv.name }}
+        </router-link>
+        <router-link
+          v-else-if="selectedRepoId"
+          to="/environments"
+          class="env-badge env-badge-none"
+          :title="t('explorer.noEnvironmentShort')"
+        >
+          🧪 {{ t('explorer.noEnv') }}
+        </router-link>
       </div>
     </div>
 
@@ -1186,6 +1208,33 @@ const flatNodes = computed(() => {
 </template>
 
 <style scoped>
+.env-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  background: var(--color-primary-light, #e8f0fe);
+  color: var(--color-primary);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.env-badge:hover {
+  background: var(--color-primary);
+  color: #fff;
+}
+.env-badge-none {
+  background: var(--color-warning-light, #fff3cd);
+  color: var(--color-text-muted);
+}
+.env-badge-none:hover {
+  background: var(--color-accent);
+  color: #fff;
+}
+
 .explorer-layout {
   display: grid;
   grid-template-columns: 300px 1fr;

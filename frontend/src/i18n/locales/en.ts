@@ -245,6 +245,9 @@ export default {
     },
     noEnvironment: 'No environment assigned — library check and keyword autocomplete unavailable.',
     createEnvironment: 'Create Environment',
+    environmentLink: 'Go to environment configuration',
+    noEnvironmentShort: 'No environment assigned — click to set up',
+    noEnv: 'No Environment',
     libInstalled: '{name} installed successfully',
   },
   execution: {

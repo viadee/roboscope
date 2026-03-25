@@ -245,6 +245,9 @@ export default {
     },
     noEnvironment: 'Sin entorno asignado — verificación de bibliotecas y autocompletado no disponibles.',
     createEnvironment: 'Crear entorno',
+    environmentLink: 'Ir a la configuración del entorno',
+    noEnvironmentShort: 'Sin entorno asignado — haz clic para configurar',
+    noEnv: 'Sin entorno',
     libInstalled: '{name} instalado con éxito',
   },
   execution: {
