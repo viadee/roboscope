@@ -37,7 +37,7 @@ Built by [viadee Unternehmensberatung AG](https://www.viadee.de).
 | Backend | FastAPI, SQLAlchemy 2.0, Pydantic v2, Python 3.12+ |
 | Frontend | Vue 3, TypeScript, Pinia, Vue Router, Chart.js, CodeMirror 6, Vite |
 | Database | SQLite (default) or PostgreSQL |
-| Tests | pytest (~865 tests), Vitest (113 tests), Playwright (~267 E2E tests) |
+| Tests | pytest (~885 tests), Vitest (113 tests), Playwright (~249 E2E tests) |
 | AI | OpenAI, Anthropic, OpenRouter, Ollama (configurable) |
 
 ## Quick Start

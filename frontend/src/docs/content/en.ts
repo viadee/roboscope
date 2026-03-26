@@ -1080,12 +1080,31 @@ const en: DocsContent = [
 <ul>
   <li><code>robotframework</code> &mdash; The core Robot Framework.</li>
   <li><code>robotframework-seleniumlibrary</code> &mdash; Selenium-based browser testing.</li>
-  <li><code>robotframework-browser</code> &mdash; Playwright-based browser testing.</li>
+  <li><code>robotframework-browser</code> &mdash; Playwright-based browser testing (requires Node.js + <code>rfbrowser init</code>).</li>
+  <li><code>robotframework-browser-batteries</code> &mdash; Playwright-based browser testing, self-contained (no Node.js needed, recommended).</li>
   <li><code>robotframework-requests</code> &mdash; HTTP API testing.</li>
   <li><code>robotframework-databaselibrary</code> &mdash; Database testing.</li>
   <li><code>robotframework-sshlibrary</code> &mdash; SSH connections.</li>
   <li><code>robotframework-excellibrary</code> &mdash; Excel file handling.</li>
 </ul>
+<p>
+  <strong>Note:</strong> Only one Browser library variant can be installed at a time.
+  If you try to install <code>robotframework-browser</code> while <code>robotframework-browser-batteries</code>
+  is already installed (or vice versa), you will be asked to uninstall the other variant first.
+</p>
+<h4>Browser Library Init Status</h4>
+<p>
+  When <code>robotframework-browser</code> (standard) is installed, it requires an additional
+  initialization step (<code>rfbrowser init</code>) to download Playwright browsers. RoboScope
+  shows the init status next to the package:
+</p>
+<ul>
+  <li>&#x2705; <strong>Browser initialized</strong> &mdash; <code>rfbrowser init</code> was run successfully.</li>
+  <li>&#x26A0;&#xFE0F; <strong>rfbrowser init required</strong> &mdash; Browsers not yet downloaded. Click the <strong>Run rfbrowser init</strong> button to trigger initialization.</li>
+</ul>
+<p>
+  The <code>robotframework-browser-batteries</code> variant always shows &#x2705; since it is self-contained.
+</p>
 <h4>PyPI Search</h4>
 <p>
   For any other package, use the <strong>search field</strong> to find packages on PyPI.
@@ -1096,7 +1115,7 @@ const en: DocsContent = [
   Installed packages are shown in a table with their name, version, and a
   <strong>Uninstall</strong> button.
 </p>`,
-        tip: 'Always install robotframework first before adding library packages to avoid dependency issues.'
+        tip: 'For browser testing, use robotframework-browser-batteries to avoid Node.js setup. Only choose robotframework-browser if you need a specific Playwright version.'
       },
       {
         id: 'env-variables',

@@ -1027,12 +1027,23 @@ const de: DocsContent = [
 </p>
 <ul>
   <li><code>robotframework</code> \u2014 Kern-Framework</li>
-  <li><code>robotframework-browser</code> \u2014 Browser-Automatisierung (Playwright)</li>
+  <li><code>robotframework-browser</code> \u2014 Browser-Automatisierung (Playwright, erfordert Node.js + <code>rfbrowser init</code>)</li>
+  <li><code>robotframework-browser-batteries</code> \u2014 Browser-Automatisierung (Playwright, eigenst\u00E4ndig, kein Node.js n\u00F6tig, empfohlen)</li>
   <li><code>robotframework-seleniumlibrary</code> \u2014 Selenium-basierte Webtests</li>
   <li><code>robotframework-requests</code> \u2014 HTTP/REST-API-Tests</li>
   <li><code>robotframework-datadriver</code> \u2014 Datengetriebene Tests</li>
   <li><code>robotframework-databaselibrary</code> \u2014 Datenbank-Tests</li>
 </ul>
+<p>
+  <strong>Hinweis:</strong> Es kann jeweils nur eine Browser-Library-Variante installiert sein.
+  Ein Konflikt wird automatisch erkannt und Sie werden gebeten, die andere Variante zuerst zu deinstallieren.
+</p>
+<h4>Browser-Library Init-Status</h4>
+<p>
+  Bei <code>robotframework-browser</code> (Standard) wird der Initialisierungsstatus angezeigt:
+  &#x2705; \u201EBrowser initialisiert\u201C oder &#x26A0;&#xFE0F; \u201Erfbrowser init erforderlich\u201C mit einem Button zum manuellen Ausl\u00F6sen.
+  Die <code>batteries</code>-Variante zeigt immer &#x2705;, da sie eigenst\u00E4ndig ist.
+</p>
 <h4>PyPI-Suche</h4>
 <p>
   \u00DCber das Suchfeld k\u00F6nnen Sie beliebige Pakete aus dem Python Package

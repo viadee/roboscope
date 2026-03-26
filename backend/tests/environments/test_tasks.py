@@ -14,8 +14,11 @@ from src.environments.tasks import (
 )
 
 
-def _make_env(db_session, name="test-env", venv_path="/tmp/test-venv") -> Environment:
+def _make_env(db_session, name="test-env", venv_path="/tmp/test-venv", create_dir=False) -> Environment:
     """Helper to create an Environment row."""
+    if create_dir:
+        import os
+        os.makedirs(venv_path, exist_ok=True)
     env = Environment(
         name=name,
         venv_path=venv_path,
@@ -43,8 +46,8 @@ def _make_package(db_session, env_id: int, name: str = "requests") -> Environmen
 class TestCreateVenv:
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")
-    def test_creates_venv_with_uv(self, mock_run, _mock_broadcast, db_session):
-        env = _make_env(db_session)
+    def test_creates_venv_with_uv(self, mock_run, _mock_broadcast, db_session, tmp_path):
+        env = _make_env(db_session, venv_path=str(tmp_path / "new-venv"))
         db_session.commit()
 
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
@@ -80,7 +83,7 @@ class TestInstallPackage:
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")
     def test_install_success(self, mock_run, mock_broadcast, db_session):
-        env = _make_env(db_session)
+        env = _make_env(db_session, create_dir=True)
         pkg = _make_package(db_session, env.id, "robotframework")
         db_session.commit()
 
@@ -104,7 +107,7 @@ class TestInstallPackage:
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")
     def test_install_with_version(self, mock_run, mock_broadcast, db_session):
-        env = _make_env(db_session)
+        env = _make_env(db_session, create_dir=True)
         _make_package(db_session, env.id, "requests")
         db_session.commit()
 
@@ -125,7 +128,7 @@ class TestInstallPackage:
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")
     def test_install_failure(self, mock_run, mock_broadcast, db_session):
-        env = _make_env(db_session)
+        env = _make_env(db_session, create_dir=True)
         pkg = _make_package(db_session, env.id, "nonexistent-pkg")
         db_session.commit()
 
