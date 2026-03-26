@@ -1,5 +1,6 @@
 """Tests for robotframework-browser (rfbrowser) auto-init support."""
 
+import os
 import subprocess
 from unittest.mock import MagicMock, patch
 
@@ -13,6 +14,14 @@ from src.environments.tasks import (
     _run_rfbrowser_init,
     install_package,
 )
+
+TEST_VENV_PATH = "/tmp/test-venv"
+
+
+@pytest.fixture(autouse=True)
+def _ensure_test_venv_dir():
+    """Ensure the test venv directory exists (install_package auto-creates if missing)."""
+    os.makedirs(TEST_VENV_PATH, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
