@@ -7,7 +7,7 @@ packages = ["src"]
 
 [project]
 name = "roboscope-backend"
-version = "0.8.1"
+version = "0.8.2"
 description = "RoboScope - Web-based Robot Framework Test Management Tool"
 requires-python = ">=3.11"
 dependencies = [
