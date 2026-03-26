@@ -624,18 +624,25 @@
     .cta-banner p { color: var(--color-text-muted); font-size: 1.05rem; margin-bottom: 28px; line-height: 1.6; }
     .cta-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
 
-    /* ── Video placeholder ── */
-    .video-placeholder {
-      background: var(--color-navy);
-      border: 2px dashed rgba(255,255,255,0.12);
-      border-radius: var(--radius-md);
-      padding: 60px 24px;
-      text-align: center;
-      max-width: 720px;
+    /* ── Demo Video ── */
+    .video-wrapper {
+      max-width: 960px;
       margin: 0 auto;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
     }
-    .video-placeholder .icon { font-size: 2.5rem; margin-bottom: 12px; }
-    .video-placeholder p { color: rgba(255,255,255,0.5); font-size: 1.1rem; font-weight: 600; }
+    .video-wrapper .video-aspect {
+      position: relative;
+      padding-bottom: 56.25%; /* 16:9 */
+      height: 0;
+    }
+    .video-wrapper .video-aspect iframe {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      border: 0;
+    }
 
     /* ── Tech stack ── */
     .tech-pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
@@ -1018,12 +1025,13 @@ make install</code></div>
   </div>
 </section>
 
-<!-- Demo Video Placeholder -->
+<!-- Demo Video -->
 <section class="section section-dark" id="demo">
   <div class="container">
-    <div class="video-placeholder fade-up">
-      <div class="icon">&#x1F3AC;</div>
-      <p>Demo Video coming soon</p>
+    <div class="video-wrapper fade-up">
+      <div class="video-aspect">
+        <iframe id="demo-video" src="https://www.youtube-nocookie.com/embed/A2BM-G3I0q8" title="RoboScope Demo" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+      </div>
     </div>
   </div>
 </section>
@@ -1476,6 +1484,14 @@ function setLang(lang) {
   document.querySelectorAll('.copy-btn').forEach(btn => {
     if (!btn._copying) btn.textContent = T[lang]['copy'];
   });
+
+  // Switch demo video language (German for 'de', English for all others)
+  var videoId = lang === 'de' ? '2W7batwzN2k' : 'A2BM-G3I0q8';
+  var iframe = document.getElementById('demo-video');
+  if (iframe) {
+    var newSrc = 'https://www.youtube-nocookie.com/embed/' + videoId;
+    if (iframe.src.indexOf(videoId) === -1) iframe.src = newSrc;
+  }
 }
 
 function toggleLangDropdown() {
