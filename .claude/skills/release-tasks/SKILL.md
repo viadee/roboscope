@@ -69,3 +69,39 @@ Verify:
 - All ZIPs are created under `dist/`
 - Spot-check at least one ZIP: extract it, confirm it contains `frontend_dist/`, `backend/`, install/start scripts, and wheels
 - Ensure the version in the built artifacts matches the release version
+
+## 10. Smoke-Test the Distribution ZIP
+
+Before releasing, do a real smoke-test of the built archive for the current platform:
+
+```bash
+# 1. Extract the ZIP into a temporary directory
+SMOKE_DIR=$(mktemp -d)
+unzip dist/roboscope-offline-*.zip -d "$SMOKE_DIR"
+cd "$SMOKE_DIR/roboscope-offline-"*
+
+# 2. Run the install script (macOS/Linux)
+bash install.sh
+# On Windows: install-windows.bat
+
+# 3. Start the server
+bash start.sh &
+# On Windows: start-windows.bat
+
+# 4. Wait for startup and verify
+sleep 5
+curl -sf http://localhost:8145/api/v1/health && echo "Health OK"
+curl -sf http://localhost:8145/ | head -5 && echo "Frontend OK"
+
+# 5. Clean up
+kill %1 2>/dev/null
+rm -rf "$SMOKE_DIR"
+```
+
+Verify:
+- Install script completes without dependency resolution errors
+- Server starts and responds on the configured port
+- Frontend is served correctly
+- Health endpoint returns OK
+
+If the smoke-test fails (e.g., missing wheels, dependency conflicts), fix the build script and rebuild before proceeding.
