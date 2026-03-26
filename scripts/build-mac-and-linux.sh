@@ -189,34 +189,31 @@ for pyver in 3.10 3.11 3.12 3.13 3.14; do
     2>&1 | grep -i "error\|saved" || true
 done
 
-# For Unix platforms, also download for host platform (catches deps missed by cross-platform pass)
-if [ "$IS_WINDOWS" = false ]; then
-  echo "    Downloading wheels for host platform..."
-  python3 -m pip download \
-    -r "$REQ_FILE" \
-    -d "$DIST/wheels" \
-    2>/dev/null || true
-fi
+# Resolve full transitive dependency tree on the host platform.
+# This catches ALL pure-python packages (tagged py3-none-any) including
+# conditional deps behind environment markers (e.g. tzdata, pydocket on
+# sys_platform=='win32'). Pure-python wheels are platform-independent,
+# so this works for cross-platform builds (e.g. building Windows from Mac).
+# Host-specific binary wheels downloaded here are harmless — uv/pip will
+# simply ignore wheels that don't match the target platform at install time.
+echo "    Resolving full dependency tree (host platform)..."
+python3 -m pip download \
+  -r "$REQ_FILE" \
+  -d "$DIST/wheels" \
+  2>/dev/null || true
 
-# Ensure conditional transitive deps are included
-# (e.g., tomli is needed by alembic on Python <3.11 but not on 3.12+,
-#  greenlet is required by SQLAlchemy on x86_64/aarch64/AMD64/WIN32)
-echo "    Downloading conditional dependencies..."
-for pkg in "tomli>=2.0.0" "exceptiongroup>=1.0.0" "typing_extensions>=4.0.0" "greenlet>=3.1.0" "tzdata>=2025.2"; do
-  python3 -m pip download "$pkg" -d "$DIST/wheels" --no-deps 2>/dev/null || true
-done
-
-# Windows-only conditional deps (sys_platform == 'win32')
-# pywin32 is required by mcp (via fastmcp via rf-mcp) on Windows — binary wheel
+# For Windows cross-builds: also resolve with Windows markers so that
+# conditional deps like pywin32 (sys_platform=='win32') are included.
 if [ "$IS_WINDOWS" = true ]; then
-  echo "    Downloading Windows-specific dependencies..."
-  for pyver in 3.10 3.11 3.12 3.13 3.14; do
+  echo "    Resolving Windows-specific transitive dependencies..."
+  for pyver in 3.12 3.13 3.14; do
     abi="cp${pyver//./}"
-    for pkg in "pywin32>=310"; do
-      python3 -m pip download "$pkg" -d "$DIST/wheels" \
-        --platform win_amd64 --python-version "$pyver" --implementation cp --abi "$abi" \
-        --only-binary :all: --no-deps 2>/dev/null || true
-    done
+    python3 -m pip download \
+      -r "$REQ_FILE" \
+      -d "$DIST/wheels" \
+      --platform win_amd64 --python-version "$pyver" --implementation cp --abi "$abi" \
+      --only-binary :all: \
+      2>/dev/null || true
   done
 fi
 
