@@ -55,11 +55,15 @@ If the project's functionality or usage has changed, update the in-app documenta
 Build the standalone offline distribution archives for all platforms and verify they work:
 
 ```bash
-# Build for each platform
+# Build for Linux/macOS (can run on any Unix host)
 bash scripts/build-mac-and-linux.sh linux
 bash scripts/build-mac-and-linux.sh macos-arm64
 bash scripts/build-mac-and-linux.sh macos-x86_64
-bash scripts/build-mac-and-linux.sh windows
+
+# Build for Windows (must run on a Windows host or via CI)
+# Option A: On a Windows machine:
+#   powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1
+# Option B: CI builds it automatically on windows-latest (build.yml workflow)
 
 # Also build the online (lightweight) variant
 bash scripts/build-online-mac-and-linux.sh
