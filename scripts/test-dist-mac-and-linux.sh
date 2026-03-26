@@ -27,7 +27,7 @@ for arg in "$@"; do
   case "$arg" in
     online) MODE="online" ;;
     --skip-build) SKIP_BUILD=true ;;
-    linux|macos-arm64|macos-x86_64|windows) PLATFORM="$arg" ;;
+    linux|macos-arm64|macos-x86_64) PLATFORM="$arg" ;;
   esac
 done
 
@@ -159,13 +159,11 @@ echo "==> Step 2: Checking dist contents..."
 [ -d "$DIST/frontend_dist/assets" ] && pass "frontend_dist/assets/" || fail "assets/ missing"
 [ -f "$DIST/requirements.txt" ] && pass "requirements.txt" || fail "requirements.txt missing"
 
-if [ "$MODE" = "online" ] || [ "$PLATFORM" != "windows" ]; then
-  [ -f "$DIST/install-mac-and-linux.sh" ] && pass "install-mac-and-linux.sh" || fail "install-mac-and-linux.sh missing"
-  [ -f "$DIST/start-mac-and-linux.sh" ] && pass "start-mac-and-linux.sh" || fail "start-mac-and-linux.sh missing"
-  [ -f "$DIST/stop-mac-and-linux.sh" ] && pass "stop-mac-and-linux.sh" || fail "stop-mac-and-linux.sh missing"
-fi
+[ -f "$DIST/install-mac-and-linux.sh" ] && pass "install-mac-and-linux.sh" || fail "install-mac-and-linux.sh missing"
+[ -f "$DIST/start-mac-and-linux.sh" ] && pass "start-mac-and-linux.sh" || fail "start-mac-and-linux.sh missing"
+[ -f "$DIST/stop-mac-and-linux.sh" ] && pass "stop-mac-and-linux.sh" || fail "stop-mac-and-linux.sh missing"
 
-if [ "$MODE" = "online" ] || [ "$PLATFORM" = "windows" ]; then
+if [ "$MODE" = "online" ]; then
   [ -f "$DIST/install-windows.bat" ] && pass "install-windows.bat" || fail "install-windows.bat missing"
   [ -f "$DIST/start-windows.bat" ] && pass "start-windows.bat" || fail "start-windows.bat missing"
   [ -f "$DIST/stop-windows.bat" ] && pass "stop-windows.bat" || fail "stop-windows.bat missing"
