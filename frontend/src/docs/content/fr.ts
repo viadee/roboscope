@@ -1107,7 +1107,8 @@ const fr: DocsContent = [
 <ul>
   <li><code>robotframework</code> &mdash; Le c\u0153ur de Robot Framework.</li>
   <li><code>robotframework-seleniumlibrary</code> &mdash; Tests navigateur bas\u00E9s sur Selenium.</li>
-  <li><code>robotframework-browser</code> &mdash; Tests navigateur bas\u00E9s sur Playwright.</li>
+  <li><code>robotframework-browser</code> &mdash; Tests navigateur Playwright (n\u00E9cessite Node.js + <code>rfbrowser init</code>).</li>
+  <li><code>robotframework-browser-batteries</code> &mdash; Tests navigateur Playwright, autonome (pas de Node.js, recommand\u00E9).</li>
   <li><code>robotframework-requests</code> &mdash; Tests d\u2019API HTTP.</li>
   <li><code>robotframework-databaselibrary</code> &mdash; Tests de base de donn\u00E9es.</li>
   <li><code>robotframework-sshlibrary</code> &mdash; Connexions SSH.</li>

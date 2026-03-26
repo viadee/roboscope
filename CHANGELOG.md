@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.8.1] - 2026-03-26
+
+### Features
+- **Browser Library Variant Support** — Support for `robotframework-browser-batteries` (self-contained, no Node.js needed) as alternative to standard `robotframework-browser`. Conflict detection prevents installing both variants simultaneously. Dockerfile generation skips Node.js/rfbrowser init for batteries variant.
+- **rfbrowser init Status in Environments** — Browser packages now show initialization status: ✅ "Browser initialized" or ⚠️ "rfbrowser init required" with a manual trigger button. `POST /environments/{id}/rfbrowser-init` endpoint for manual init.
+- **Default Environment Auto-Assignment** — Explorer auto-assigns the "default" environment to projects that have none. Environment badge displayed next to the project selector with link to configuration.
+- **Keyword Autocomplete from All Installed Libraries** — rf_knowledge now discovers all RF-related packages in the venv (not just explicitly imported ones), providing broader keyword autocomplete coverage.
+- **Keyword Cache Invalidation** — `POST /ai/rf-knowledge/keywords/invalidate` endpoint to force re-scan of keywords when environment packages change.
+- **Browser-Batteries as Default** — `setup-default` environment now installs `robotframework-browser-batteries` instead of `robotframework-browser`.
+
+### Fixes
+- Fix keyword search wildcard `*` not returning any results (preloadKeywords was broken)
+- Fix stuck package installations showing perpetual spinner — packages in `pending`/`installing` without an active task are auto-reset to `failed`
+- Fix package install retry failing when venv doesn't exist — auto-creates venv before pip install
+- Fix E2E test flakiness for explorer run overlay (handle all intermediate dialogs)
+
+### Tests
+- 885 backend tests passing (up from 865)
+- New tests for browser variant conflict detection, auto-create venv on retry
+- E2E test robustness improvements for execution run overlay
+
 ## [0.8.0] - 2026-03-23
 
 ### Features
