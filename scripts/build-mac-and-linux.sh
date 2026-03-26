@@ -206,6 +206,20 @@ for pkg in "tomli>=2.0.0" "exceptiongroup>=1.0.0" "typing_extensions>=4.0.0" "gr
   python3 -m pip download "$pkg" -d "$DIST/wheels" --no-deps 2>/dev/null || true
 done
 
+# Windows-only conditional deps (sys_platform == 'win32')
+# pywin32 is required by mcp (via fastmcp via rf-mcp) on Windows — binary wheel
+if [ "$IS_WINDOWS" = true ]; then
+  echo "    Downloading Windows-specific dependencies..."
+  for pyver in 3.10 3.11 3.12 3.13 3.14; do
+    abi="cp${pyver//./}"
+    for pkg in "pywin32>=310"; do
+      python3 -m pip download "$pkg" -d "$DIST/wheels" \
+        --platform win_amd64 --python-version "$pyver" --implementation cp --abi "$abi" \
+        --only-binary :all: --no-deps 2>/dev/null || true
+    done
+  done
+fi
+
 # Save requirements for install scripts
 cp "$REQ_FILE" "$DIST/requirements.txt"
 rm -f "$DEPS_FILE" "$WIN_DEPS_FILE"
