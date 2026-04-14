@@ -590,7 +590,149 @@ const fr: DocsContent = [
     ]
   },
 
-  // ─── 5. Ex\u00E9cution ─────────────────────────────────────────────────
+  // ─── 5. Recorder ──────────────────────────────────────────────────
+  {
+    id: 'recorder',
+    title: 'Enregistreur',
+    icon: '\uD83D\uDD34',
+    subsections: [
+      {
+        id: 'recorder-overview',
+        title: 'Qu\u2019est-ce que l\u2019Enregistreur\u00A0?',
+        content: `
+<p>
+  L\u2019<strong>Enregistreur RoboScope</strong> permet de capturer des interactions navigateur et
+  de g\u00E9n\u00E9rer automatiquement des fichiers de test <code>.robot</code>. Deux m\u00E9thodes sont disponibles\u00A0:
+</p>
+<ul>
+  <li><strong>Enregistrement int\u00E9gr\u00E9</strong> &mdash; Cliquez sur le bouton <em>Enregistrer</em> dans la vue Explorer.
+  RoboScope ouvre une session Playwright, capture vos actions et les diffuse
+  en temps r\u00E9el via WebSocket.</li>
+  <li><strong>Extension Chrome</strong> &mdash; Installez l\u2019extension RoboScope Recorder pour enregistrer
+  directement dans votre propre navigateur. Les actions sont transmises \u00E0 RoboScope via l\u2019API lorsque connect\u00E9.</li>
+</ul>
+<h4>Flux d\u2019enregistrement</h4>
+<ol>
+  <li>D\u00E9marrer un enregistrement (int\u00E9gr\u00E9 ou via l\u2019extension)</li>
+  <li>Interagir avec l\u2019application web \u00E0 tester</li>
+  <li>Arr\u00EAter l\u2019enregistrement &mdash; RoboScope g\u00E9n\u00E8re un fichier <code>.robot</code></li>
+  <li>V\u00E9rifier, modifier et sauvegarder le test g\u00E9n\u00E9r\u00E9 dans votre projet</li>
+</ol>`,
+        tip: 'L\u2019enregistreur int\u00E9gr\u00E9 fonctionne sans extension. L\u2019extension Chrome est utile pour enregistrer dans un navigateur o\u00F9 vous \u00EAtes d\u00E9j\u00E0 connect\u00E9.'
+      },
+      {
+        id: 'recorder-in-app',
+        title: 'Enregistrement int\u00E9gr\u00E9 (Pr\u00E9vu)',
+        content: `
+<p>
+  <em>Cette fonctionnalit\u00E9 est en cours de d\u00E9veloppement.</em> Une fois termin\u00E9e, RoboScope
+  pourra ouvrir un <strong>navigateur Playwright visible</strong> directement depuis la vue Explorer.
+  Le backend lance le navigateur via rf-mcp, capture vos interactions c\u00F4t\u00E9 serveur
+  et diffuse les \u00E9v\u00E9nements vers le panneau d\u2019enregistrement via WebSocket &mdash; aucune
+  extension de navigateur requise.
+</p>
+<h4>Comment \u00E7a fonctionnera</h4>
+<ol>
+  <li>Cliquer sur <strong>Enregistrer</strong> dans l\u2019Explorer &rarr; le backend ouvre une fen\u00EAtre Playwright</li>
+  <li>Interagir avec l\u2019application cible dans cette fen\u00EAtre</li>
+  <li>Chaque action est captur\u00E9e par Playwright et diffus\u00E9e en temps r\u00E9el vers le panneau</li>
+  <li>Cliquer sur <strong>Arr\u00EAter</strong> &rarr; RoboScope g\u00E9n\u00E8re un fichier <code>.robot</code></li>
+  <li>V\u00E9rifier, modifier et sauvegarder le test dans votre projet</li>
+</ol>
+<h4>Panneau d\u2019enregistrement</h4>
+<p>
+  Le panneau en bas de l\u2019Explorer prend d\u00E9j\u00E0 en charge l\u2019affichage des \u00E9v\u00E9nements en direct.
+  Pendant l\u2019enregistrement, il affiche\u00A0:
+</p>
+<ul>
+  <li><strong>Navigate</strong> &mdash; Navigations de page avec URL</li>
+  <li><strong>Click</strong> &mdash; Clics sur les \u00E9l\u00E9ments avec s\u00E9lecteur</li>
+  <li><strong>Fill Text</strong> &mdash; Saisie de texte avec s\u00E9lecteur et valeur</li>
+  <li><strong>Fill Secret</strong> &mdash; Champs de mot de passe (valeur masqu\u00E9e)</li>
+  <li><strong>Select</strong> &mdash; S\u00E9lections dans les menus d\u00E9roulants</li>
+  <li><strong>Check</strong> &mdash; Basculements de cases \u00E0 cocher</li>
+</ul>
+<p>
+  Apr\u00E8s l\u2019arr\u00EAt, le code <code>.robot</code> g\u00E9n\u00E9r\u00E9 appara\u00EEt dans un bloc de pr\u00E9visualisation sombre
+  utilisant les keywords <strong>Browser</strong> (Playwright) ou <strong>SeleniumLibrary</strong>.
+</p>`
+      },
+      {
+        id: 'recorder-extension',
+        title: 'Extension Chrome',
+        content: `
+<p>
+  L\u2019extension Chrome <strong>RoboScope Recorder</strong> enregistre les interactions directement
+  dans votre navigateur &mdash; pas besoin de fen\u00EAtre s\u00E9par\u00E9e. Particuli\u00E8rement utile
+  pour les pages n\u00E9cessitant une authentification, puisque vous \u00EAtes d\u00E9j\u00E0 connect\u00E9.
+</p>
+<h4>Installation</h4>
+<ol>
+  <li>Dans le d\u00E9p\u00F4t RoboScope, trouvez le r\u00E9pertoire <code>extension/</code></li>
+  <li>Ouvrez <code>chrome://extensions</code> dans Chrome ou un navigateur bas\u00E9 sur Chromium</li>
+  <li>Activez le <strong>Mode d\u00E9veloppeur</strong> (interrupteur en haut \u00E0 droite)</li>
+  <li>Cliquez sur <strong>Charger l\u2019extension non empaquetée</strong> et s\u00E9lectionnez le dossier <code>extension/</code></li>
+  <li>L\u2019ic\u00F4ne RoboScope Recorder appara\u00EEt dans la barre d\u2019outils du navigateur</li>
+</ol>
+<h4>Connexion \u00E0 RoboScope</h4>
+<ol>
+  <li>Clic droit sur l\u2019ic\u00F4ne de l\u2019extension et s\u00E9lectionnez <strong>Options</strong></li>
+  <li>Entrez l\u2019<strong>URL du serveur</strong> (ex. <code>http://localhost:8000</code>)</li>
+  <li>Entrez un <strong>Token API</strong> (cr\u00E9ez-en un dans RoboScope sous Param\u00E8tres &rarr; Tokens API)</li>
+  <li>Cliquez sur <strong>Tester la connexion</strong> pour v\u00E9rifier</li>
+  <li>S\u00E9lectionnez le <strong>Projet</strong> cible dans le menu d\u00E9roulant</li>
+  <li>Cliquez sur <strong>Sauvegarder</strong></li>
+</ol>
+<p>
+  Une fois connect\u00E9, un indicateur vert appara\u00EEt dans le popup de l\u2019extension.
+  Toutes les actions enregistr\u00E9es sont automatiquement transmises \u00E0 votre instance RoboScope.
+</p>`,
+        tip: 'L\u2019extension fonctionne aussi en mode autonome sans connexion RoboScope &mdash; elle g\u00E9n\u00E8re des fichiers .robot localement \u00E0 t\u00E9l\u00E9charger.'
+      },
+      {
+        id: 'recorder-extension-usage',
+        title: 'Utilisation de l\u2019extension',
+        content: `
+<p>
+  Cliquez sur l\u2019ic\u00F4ne de l\u2019extension pour ouvrir le popup\u00A0:
+</p>
+<ol>
+  <li>Cliquez sur <strong>Enregistrer</strong> pour capturer les actions sur la page actuelle</li>
+  <li>Interagissez avec la page &mdash; clics, saisies de texte et s\u00E9lections sont captur\u00E9s</li>
+  <li>Cliquez sur <strong>Arr\u00EAter</strong> pour terminer et g\u00E9n\u00E9rer le script</li>
+  <li>Utilisez <strong>Copier</strong> ou <strong>T\u00E9l\u00E9charger</strong> pour sauvegarder le fichier <code>.robot</code> g\u00E9n\u00E9r\u00E9</li>
+</ol>
+<h4>Fonctionnalit\u00E9s suppl\u00E9mentaires</h4>
+<ul>
+  <li><strong>Pause / Reprendre</strong> &mdash; Interrompre temporairement sans perdre les actions captur\u00E9es</li>
+  <li><strong>Scanner la page</strong> &mdash; Analyser la page pour tous les \u00E9l\u00E9ments interactifs et g\u00E9n\u00E9rer des locators</li>
+  <li><strong>Console XPath</strong> &mdash; Valider des expressions XPath avec mise en \u00E9vidence visuelle</li>
+  <li><strong>Mod\u00E8les</strong> &mdash; Ins\u00E9rer des mod\u00E8les de scripts pr\u00E9d\u00E9finis (Login, Formulaire, Navigation)</li>
+  <li><strong>Param\u00E8tres</strong> &mdash; Choisir la biblioth\u00E8que cible, la syntaxe et la langue</li>
+</ul>
+<h4>Biblioth\u00E8que cible</h4>
+<table>
+  <thead>
+    <tr><th>Biblioth\u00E8que</th><th>Keywords</th><th>Cas d\u2019utilisation</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Browser</strong></td>
+      <td><code>Click</code>, <code>Fill Text</code>, <code>Select Options By</code></td>
+      <td>Tests modernes bas\u00E9s sur Playwright</td>
+    </tr>
+    <tr>
+      <td><strong>SeleniumLibrary</strong></td>
+      <td><code>Click Element</code>, <code>Input Text</code>, <code>Select From List By Value</code></td>
+      <td>Tests legacy bas\u00E9s sur Selenium</td>
+    </tr>
+  </tbody>
+</table>`
+      }
+    ]
+  },
+
+  // ─── 6. Ex\u00E9cution ─────────────────────────────────────────────────
   {
     id: 'execution',
     title: 'Ex\u00E9cution',

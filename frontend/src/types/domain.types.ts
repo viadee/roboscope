@@ -512,3 +512,44 @@ export interface WebhookTestResult {
   status_code: number | null
   error: string | null
 }
+
+// Recording
+
+export type RecordingStatus = 'pending' | 'recording' | 'processing' | 'completed' | 'failed' | 'cancelled'
+export type RecordingSource = 'playwright' | 'extension'
+
+export interface RecordingSession {
+  id: number
+  repository_id: number
+  environment_id: number | null
+  status: RecordingStatus
+  source: RecordingSource
+  target_url: string | null
+  target_file_path: string | null
+  target_library: string
+  event_count: number
+  generated_robot: string | null
+  rf_mcp_session_id: string | null
+  started_at: string | null
+  finished_at: string | null
+  duration_seconds: number | null
+  triggered_by: number
+  error_message: string | null
+  created_at: string
+}
+
+export interface RecordingListResponse {
+  items: RecordingSession[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface RecordingEvent {
+  event_type: string
+  selector?: string
+  value?: string
+  url?: string
+  tag?: string
+  timestamp?: number
+}

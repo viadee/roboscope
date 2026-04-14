@@ -1,0 +1,10 @@
+services:
+  e2e-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      - DOCKER=1
+      - DISPLAY=:99
+    shm_size: '2gb'
+    working_dir: /app

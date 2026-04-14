@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "RoboScope Recorder",
+  "version": "0.8.0",
+  "homepage_url": "https://github.com/viadee/roboscope",
+  "description": "Record browser interactions and generate Robot Framework test scripts — with optional RoboScope integration",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "background": {
+    "service_worker": "./src/service-worker.js",
+    "type": "module"
+  },
+  "options_page": "./src/options.html",
+  "content_scripts": [{
+    "matches": [
+      "<all_urls>"
+    ],
+    "js": [
+      "./src/locator/xpath-locator.js",
+      "./src/locator/tree-builder.js",
+      "./src/locator/classifier.js",
+      "./src/locator/scanner.js",
+      "./src/content.js"
+    ],
+    "run_at": "document_end",
+    "all_frames": true
+  }],
+  "action": {
+    "default_icon": "assets/mark-128.png"
+  },
+  "side_panel": {
+    "default_path": "src/popup.html"
+  },
+  "icons": {
+    "16": "assets/mark-16.png",
+    "32": "assets/mark-32.png",
+    "48": "assets/mark-48.png",
+    "128": "assets/mark-128.png",
+    "256": "assets/mark-256.png"
+  },
+  "permissions": ["downloads", "storage", "scripting", "tabs", "sidePanel", "contextMenus"],
+  "host_permissions": ["<all_urls>"]
+}

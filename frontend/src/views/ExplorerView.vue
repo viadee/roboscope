@@ -17,6 +17,8 @@ import BaseModal from '@/components/ui/BaseModal.vue'
 import GenerateModal from '@/components/ai/GenerateModal.vue'
 import SpecEditor from '@/components/ai/SpecEditor.vue'
 import RobotEditor from '@/components/editor/RobotEditor.vue'
+import RecorderPanel from '@/components/recorder/RecorderPanel.vue'
+import { useRecorderStore } from '@/stores/recorder.store'
 import type { TreeNode } from '@/types/domain.types'
 
 // CodeMirror imports
@@ -33,6 +35,7 @@ const router = useRouter()
 const explorer = useExplorerStore()
 const repos = useReposStore()
 const envs = useEnvironmentsStore()
+const recorder = useRecorderStore()
 const toast = useToast()
 const { t } = useI18n()
 
@@ -583,6 +586,19 @@ async function checkAndRunRobot(node: TreeNode) {
   doRunRobot(node)
 }
 
+async function handleRecord() {
+  if (!selectedRepoId.value) return
+  const currentEnv = currentRepo.value?.environment_id || undefined
+  const filePath = explorer.selectedFile?.path || undefined
+  await recorder.startBrowserSession({
+    repository_id: selectedRepoId.value,
+    environment_id: currentEnv,
+    source: 'playwright',
+    target_file_path: filePath,
+    target_library: 'Browser',
+  })
+}
+
 async function rebuildAndRun() {
   const defaultEnv = envs.environments.find(e => e.is_default)
   const envForRebuild = currentRepo.value?.environment_id
@@ -1004,6 +1020,12 @@ const flatNodes = computed(() => {
                 :disabled="!!runningFile"
                 :title="t('explorer.runRobot')"
               >▶ {{ t('explorer.run') }}</button>
+              <button
+                class="action-btn record-btn"
+                @click="handleRecord"
+                :disabled="recorder.isRecording || recorder.loading"
+                :title="t('recorder.startRecording')"
+              >{{ recorder.isRecording ? '⏹' : '⏺' }} {{ t('recorder.record') }}</button>
             </div>
           </div>
           <!-- Binary file placeholder -->
@@ -1059,6 +1081,9 @@ const flatNodes = computed(() => {
         <div v-else class="empty-state">
           <p class="text-muted">{{ t('explorer.selectFile') }}</p>
         </div>
+
+        <!-- Recording Panel -->
+        <RecorderPanel />
       </div>
     </div>
 
@@ -1464,6 +1489,13 @@ const flatNodes = computed(() => {
 
 .run-btn:hover { filter: brightness(0.9); }
 .run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.record-btn {
+  background: #dc2626;
+  color: white;
+}
+.record-btn:hover { filter: brightness(0.9); }
+.record-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .ai-btn {
   background: #7c3aed;

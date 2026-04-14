@@ -139,6 +139,27 @@ class ConnectionManager:
             "level": level,
         })
 
+    async def broadcast_recording_status(
+        self, recording_id: int, status: str, **extra
+    ) -> None:
+        """Broadcast a recording session status change to all listeners."""
+        await self.broadcast({
+            "type": "recording_status_changed",
+            "recording_id": recording_id,
+            "status": status,
+            **extra,
+        })
+
+    async def broadcast_recording_event(
+        self, recording_id: int, event_data: dict
+    ) -> None:
+        """Broadcast a captured recording event to all listeners."""
+        await self.broadcast({
+            "type": "recording_event",
+            "recording_id": recording_id,
+            "event": event_data,
+        })
+
     @property
     def connection_count(self) -> int:
         return len(self._connections)

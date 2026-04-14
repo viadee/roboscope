@@ -1,0 +1,204 @@
+/* ============================================================
+   options.css — Options page styles
+   ============================================================ */
+
+.panel-options {
+  padding: var(--sp-6);
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+.options-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-6);
+}
+
+.options-title {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.options-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-5);
+  margin-bottom: var(--sp-4);
+}
+
+.heading {
+  margin-bottom: var(--sp-3);
+}
+
+.heading h2 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 var(--sp-2);
+}
+
+#hint,
+#language-hint {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+#language-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+
+#language-hint label {
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--border-default);
+  margin: var(--sp-4) 0;
+}
+
+input#custom-locators {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  height: 38px;
+  margin-bottom: var(--sp-3);
+}
+
+input#custom-locators:focus {
+  outline: none;
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px var(--brand-glow);
+}
+
+.options-actions {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+button#reset,
+button#update {
+  flex: 1;
+  justify-content: center;
+}
+
+.btn-primary-action {
+  background: var(--brand-500) !important;
+  color: white !important;
+  border-color: var(--brand-500) !important;
+  font-weight: 600;
+}
+
+.btn-primary-action:hover {
+  background: var(--brand-600) !important;
+  border-color: var(--brand-600) !important;
+  box-shadow: 0 2px 8px var(--brand-glow) !important;
+}
+
+/* ---- RoboScope connection ---- */
+
+.roboscope-field {
+  margin-bottom: var(--sp-3);
+}
+
+.roboscope-field label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--sp-1);
+}
+
+.roboscope-field input {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  height: 38px;
+}
+
+.roboscope-field input:focus {
+  outline: none;
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px var(--brand-glow);
+}
+
+.roboscope-status {
+  font-size: var(--text-sm);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--sp-3);
+}
+
+.roboscope-status-success {
+  color: var(--success);
+  background: var(--success-bg);
+}
+
+.roboscope-status-error {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.roboscope-status-info {
+  color: var(--brand-500);
+  background: var(--brand-50);
+}
+
+#roboscope-project-section {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-default);
+}
+
+#roboscope-project-section label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--sp-1);
+}
+
+#roboscope-project {
+  width: 100%;
+  font-size: var(--text-sm);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  height: 38px;
+}
+
+#roboscope-project:focus {
+  outline: none;
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px var(--brand-glow);
+}
+
+/* Legacy grid compat — no longer used but kept for safety */
+.grid-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-row-gap: var(--sp-5);
+}

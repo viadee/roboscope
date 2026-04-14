@@ -608,7 +608,149 @@ const es: DocsContent = [
     ]
   },
 
-  // ─── 5. Ejecuci\u00F3n ─────────────────────────────────────────────────
+  // ─── 5. Recorder ──────────────────────────────────────────────────
+  {
+    id: 'recorder',
+    title: 'Grabador',
+    icon: '\uD83D\uDD34',
+    subsections: [
+      {
+        id: 'recorder-overview',
+        title: '\u00BFQu\u00E9 es el Grabador?',
+        content: `
+<p>
+  El <strong>Grabador de RoboScope</strong> permite capturar interacciones del navegador y
+  generar autom\u00E1ticamente archivos de prueba <code>.robot</code>. Hay dos m\u00E9todos de grabaci\u00F3n:
+</p>
+<ul>
+  <li><strong>Grabaci\u00F3n integrada</strong> &mdash; Haga clic en el bot\u00F3n <em>Grabar</em> en la vista Explorer.
+  RoboScope abre una sesi\u00F3n de Playwright, captura sus acciones y las transmite
+  en tiempo real a trav\u00E9s de WebSocket.</li>
+  <li><strong>Extensi\u00F3n de Chrome</strong> &mdash; Instale la extensi\u00F3n RoboScope Recorder para grabar
+  directamente en su propio navegador. Las acciones se env\u00EDan a RoboScope a trav\u00E9s de la API cuando est\u00E1 conectado.</li>
+</ul>
+<h4>Flujo de grabaci\u00F3n</h4>
+<ol>
+  <li>Iniciar una grabaci\u00F3n (integrada o mediante la extensi\u00F3n)</li>
+  <li>Interactuar con la aplicaci\u00F3n web a probar</li>
+  <li>Detener la grabaci\u00F3n &mdash; RoboScope genera un archivo <code>.robot</code></li>
+  <li>Revisar, editar y guardar la prueba generada en su proyecto</li>
+</ol>`,
+        tip: 'El grabador integrado funciona sin extensi\u00F3n del navegador. La extensi\u00F3n de Chrome es \u00FAtil para grabar en un navegador donde ya ha iniciado sesi\u00F3n.'
+      },
+      {
+        id: 'recorder-in-app',
+        title: 'Grabaci\u00F3n integrada (Planificado)',
+        content: `
+<p>
+  <em>Esta funcionalidad est\u00E1 en desarrollo.</em> Cuando est\u00E9 completa, RoboScope podr\u00E1
+  abrir un <strong>navegador Playwright visible</strong> directamente desde la vista Explorer.
+  El backend lanza el navegador a trav\u00E9s de rf-mcp, captura sus interacciones en el servidor
+  y transmite los eventos al panel de grabaci\u00F3n a trav\u00E9s de WebSocket &mdash; sin necesidad
+  de extensi\u00F3n del navegador.
+</p>
+<h4>C\u00F3mo funcionar\u00E1</h4>
+<ol>
+  <li>Hacer clic en <strong>Grabar</strong> en el Explorer &rarr; el backend abre una ventana de Playwright</li>
+  <li>Interactuar con la aplicaci\u00F3n objetivo en esa ventana</li>
+  <li>Cada acci\u00F3n es capturada por Playwright y transmitida en tiempo real al panel</li>
+  <li>Hacer clic en <strong>Detener</strong> &rarr; RoboScope genera un archivo <code>.robot</code></li>
+  <li>Revisar, editar y guardar la prueba en su proyecto</li>
+</ol>
+<h4>Panel de grabaci\u00F3n</h4>
+<p>
+  El panel en la parte inferior del Explorer ya soporta la visualizaci\u00F3n de eventos en vivo.
+  Durante la grabaci\u00F3n muestra:
+</p>
+<ul>
+  <li><strong>Navigate</strong> &mdash; Navegaciones de p\u00E1gina con URL</li>
+  <li><strong>Click</strong> &mdash; Clics en elementos con selector</li>
+  <li><strong>Fill Text</strong> &mdash; Entrada de texto con selector y valor</li>
+  <li><strong>Fill Secret</strong> &mdash; Campos de contrase\u00F1a (valor oculto)</li>
+  <li><strong>Select</strong> &mdash; Selecciones en men\u00FAs desplegables</li>
+  <li><strong>Check</strong> &mdash; Alternar casillas de verificaci\u00F3n</li>
+</ul>
+<p>
+  Despu\u00E9s de detener, el c\u00F3digo <code>.robot</code> generado aparece en un bloque de vista previa oscuro
+  usando keywords de <strong>Browser</strong> (Playwright) o <strong>SeleniumLibrary</strong>.
+</p>`
+      },
+      {
+        id: 'recorder-extension',
+        title: 'Extensi\u00F3n de Chrome',
+        content: `
+<p>
+  La extensi\u00F3n de Chrome <strong>RoboScope Recorder</strong> graba interacciones directamente
+  en su navegador &mdash; sin necesidad de una ventana separada. Especialmente \u00FAtil
+  para p\u00E1ginas que requieren autenticaci\u00F3n, ya que ya ha iniciado sesi\u00F3n.
+</p>
+<h4>Instalaci\u00F3n</h4>
+<ol>
+  <li>En el repositorio de RoboScope, encuentre el directorio <code>extension/</code></li>
+  <li>Abra <code>chrome://extensions</code> en Chrome o cualquier navegador basado en Chromium</li>
+  <li>Active el <strong>Modo de desarrollador</strong> (interruptor en la esquina superior derecha)</li>
+  <li>Haga clic en <strong>Cargar extensi\u00F3n sin empaquetar</strong> y seleccione la carpeta <code>extension/</code></li>
+  <li>El icono de RoboScope Recorder aparece en la barra de herramientas del navegador</li>
+</ol>
+<h4>Conexi\u00F3n con RoboScope</h4>
+<ol>
+  <li>Haga clic derecho en el icono de la extensi\u00F3n y seleccione <strong>Opciones</strong></li>
+  <li>Introduzca la <strong>URL del servidor</strong> (ej. <code>http://localhost:8000</code>)</li>
+  <li>Introduzca un <strong>Token API</strong> (cr\u00E9elo en RoboScope en Configuraci\u00F3n &rarr; Tokens API)</li>
+  <li>Haga clic en <strong>Probar conexi\u00F3n</strong> para verificar</li>
+  <li>Seleccione el <strong>Proyecto</strong> objetivo del men\u00FA desplegable</li>
+  <li>Haga clic en <strong>Guardar</strong></li>
+</ol>
+<p>
+  Una vez conectado, un indicador verde aparece en el popup de la extensi\u00F3n.
+  Todas las acciones grabadas se env\u00EDan autom\u00E1ticamente a su instancia de RoboScope.
+</p>`,
+        tip: 'La extensi\u00F3n tambi\u00E9n funciona en modo aut\u00F3nomo sin conexi\u00F3n a RoboScope &mdash; genera archivos .robot localmente para descargar.'
+      },
+      {
+        id: 'recorder-extension-usage',
+        title: 'Uso de la extensi\u00F3n',
+        content: `
+<p>
+  Haga clic en el icono de la extensi\u00F3n para abrir el popup:
+</p>
+<ol>
+  <li>Haga clic en <strong>Grabar</strong> para capturar acciones en la p\u00E1gina actual</li>
+  <li>Interact\u00FAe con la p\u00E1gina &mdash; clics, entradas de texto y selecciones se capturan</li>
+  <li>Haga clic en <strong>Detener</strong> para finalizar y generar el script</li>
+  <li>Use <strong>Copiar</strong> o <strong>Descargar</strong> para guardar el archivo <code>.robot</code> generado</li>
+</ol>
+<h4>Funciones adicionales</h4>
+<ul>
+  <li><strong>Pausa / Reanudar</strong> &mdash; Interrumpir temporalmente sin perder las acciones capturadas</li>
+  <li><strong>Escanear p\u00E1gina</strong> &mdash; Analizar la p\u00E1gina en busca de elementos interactivos y generar locators</li>
+  <li><strong>Consola XPath</strong> &mdash; Validar expresiones XPath con resaltado visual en la p\u00E1gina</li>
+  <li><strong>Plantillas</strong> &mdash; Insertar plantillas de scripts predefinidas (Login, Formulario, Navegaci\u00F3n)</li>
+  <li><strong>Configuraci\u00F3n</strong> &mdash; Elegir biblioteca objetivo, sintaxis e idioma</li>
+</ul>
+<h4>Biblioteca objetivo</h4>
+<table>
+  <thead>
+    <tr><th>Biblioteca</th><th>Keywords</th><th>Caso de uso</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Browser</strong></td>
+      <td><code>Click</code>, <code>Fill Text</code>, <code>Select Options By</code></td>
+      <td>Pruebas modernas basadas en Playwright</td>
+    </tr>
+    <tr>
+      <td><strong>SeleniumLibrary</strong></td>
+      <td><code>Click Element</code>, <code>Input Text</code>, <code>Select From List By Value</code></td>
+      <td>Pruebas legacy basadas en Selenium</td>
+    </tr>
+  </tbody>
+</table>`
+      }
+    ]
+  },
+
+  // ─── 6. Ejecuci\u00F3n ─────────────────────────────────────────────────
   {
     id: 'execution',
     title: 'Ejecuci\u00F3n',

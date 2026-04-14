@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Test Form Page</title></head>
+<body>
+  <h1>Test Form</h1>
+  <form id="test-form" action="#">
+    <label for="username">Username</label>
+    <input type="text" id="username" name="username" placeholder="Enter username">
+
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" placeholder="Enter email">
+
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password">
+
+    <label for="age">Age</label>
+    <input type="number" id="age" name="age">
+
+    <label for="bio">Bio</label>
+    <textarea id="bio" name="bio" rows="3"></textarea>
+
+    <label for="country">Country</label>
+    <select id="country" name="country">
+      <option value="">-- Select --</option>
+      <option value="us">United States</option>
+      <option value="de">Germany</option>
+      <option value="uk">United Kingdom</option>
+    </select>
+
+    <label><input type="checkbox" id="terms" name="terms"> Accept Terms</label>
+    <label><input type="radio" name="gender" value="male"> Male</label>
+    <label><input type="radio" name="gender" value="female"> Female</label>
+
+    <button type="submit" id="submit-btn">Submit</button>
+    <button type="reset" id="reset-btn">Reset</button>
+  </form>
+</body>
+</html>

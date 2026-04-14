@@ -1,0 +1,28 @@
+RoboScope Browser Recorder Extension
+=====================================
+
+This Chrome extension is based on robotframework-recorder v0.7.0
+(https://github.com/viadee/robotframework-recorder), a Chrome browser
+extension that records user actions and scans web pages to generate
+Robot Framework test script templates.
+
+robotframework-recorder is itself a fork of Robotcorder
+(https://github.com/sohwendy/Robotcorder) by @sohwendy.
+
+Original Authors:
+  - @sohwendy (Robotcorder)
+  - @xylix (robotframework-recorder / Robocorp Recorder)
+  - viadee Unternehmensberatung AG
+
+License: GNU General Public License v3.0 (GPL-3.0)
+See the LICENSE file in this directory for the full license text.
+
+This modified version adds RoboScope integration capabilities,
+allowing the extension to communicate with a RoboScope server
+instance for enhanced recording, AI-powered keyword optimization,
+and direct test file management within RoboScope projects.
+
+The RoboScope core application (backend/ and frontend/ directories)
+is licensed under Apache License 2.0 and does not contain any code
+from this extension. Communication between the extension and
+RoboScope occurs exclusively via HTTP/WebSocket APIs.

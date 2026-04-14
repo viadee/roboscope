@@ -111,3 +111,12 @@ export interface AiAnalyzeRequest {
 export interface AiValidateSpecRequest {
   content: string
 }
+
+export interface RecordingCreateRequest {
+  repository_id: number
+  environment_id?: number | null
+  source?: 'playwright' | 'extension'
+  target_url?: string | null
+  target_file_path?: string | null
+  target_library?: 'Browser' | 'SeleniumLibrary'
+}

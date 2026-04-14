@@ -1,0 +1,6 @@
+#!/bin/sh
+. "$(dirname $0)/_/husky.sh"
+
+# Use npx to prefer the local devDependency `yarn` if present. This avoids
+# requiring a global yarn installation on contributor machines.
+npx yarn test

@@ -1,0 +1,7 @@
+archive/
+*.zip
+node_modules/
+.nyc_output
+test-user-data-dir
+test-results/
+test/e2e/.tmp-profile-*/

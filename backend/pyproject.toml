@@ -35,6 +35,7 @@ dependencies = [
     "python-json-logger>=3.0.0",
     "rf-mcp>=0.30.0",
     "fastmcp<3",
+    "playwright>=1.49.0",
 ]
 
 [project.optional-dependencies]

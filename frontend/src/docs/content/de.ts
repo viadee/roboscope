@@ -540,6 +540,148 @@ const de: DocsContent = [
       }
     ]
   },
+  // ─── 5. Recorder ──────────────────────────────────────────────────
+  {
+    id: 'recorder',
+    title: 'Recorder',
+    icon: '\uD83D\uDD34',
+    subsections: [
+      {
+        id: 'recorder-overview',
+        title: 'Was ist der Recorder?',
+        content: `
+<p>
+  Der <strong>RoboScope Recorder</strong> erm\u00F6glicht es, Browser-Interaktionen aufzuzeichnen und
+  automatisch <code>.robot</code>-Testdateien zu generieren. Es gibt zwei Aufnahmemethoden:
+</p>
+<ul>
+  <li><strong>In-App-Aufnahme</strong> &mdash; Klicken Sie auf den <em>Aufnehmen</em>-Button in der Explorer-Ansicht.
+  RoboScope \u00F6ffnet eine Playwright-Browser-Sitzung, erfasst Ihre Aktionen und streamt sie
+  in Echtzeit \u00FCber WebSocket zur\u00FCck.</li>
+  <li><strong>Chrome-Erweiterung</strong> &mdash; Installieren Sie die RoboScope Recorder-Erweiterung, um
+  direkt in Ihrem eigenen Browser aufzunehmen. Aktionen werden bei bestehender Verbindung \u00FCber die API an RoboScope weitergeleitet.</li>
+</ul>
+<h4>Aufnahme-Ablauf</h4>
+<ol>
+  <li>Starten Sie eine Aufnahme (In-App oder \u00FCber die Erweiterung)</li>
+  <li>Interagieren Sie mit der zu testenden Webanwendung</li>
+  <li>Stoppen Sie die Aufnahme &mdash; RoboScope generiert eine <code>.robot</code>-Datei</li>
+  <li>\u00DCberpr\u00FCfen, bearbeiten und speichern Sie den generierten Test in Ihrem Projekt</li>
+</ol>`,
+        tip: 'Der In-App-Recorder funktioniert ohne Browser-Erweiterung. Die Chrome-Erweiterung ist n\u00FCtzlich, wenn Sie in einem Browser aufnehmen m\u00F6chten, in dem Sie bereits angemeldet sind.'
+      },
+      {
+        id: 'recorder-in-app',
+        title: 'In-App-Aufnahme (Geplant)',
+        content: `
+<p>
+  <em>Dieses Feature ist in Entwicklung.</em> Wenn es fertig ist, kann RoboScope einen
+  <strong>sichtbaren Playwright-Browser</strong> direkt aus der Explorer-Ansicht \u00F6ffnen.
+  Das Backend startet den Browser \u00FCber rf-mcp, erfasst Ihre Interaktionen serverseitig
+  und streamt die Ereignisse \u00FCber WebSocket zur\u00FCck zum Recorder-Panel &mdash; keine
+  Browser-Erweiterung erforderlich.
+</p>
+<h4>So wird es funktionieren</h4>
+<ol>
+  <li><strong>Aufnehmen</strong> im Explorer klicken &rarr; Backend \u00F6ffnet ein Playwright-Browserfenster</li>
+  <li>Mit der Zielanwendung in diesem Fenster interagieren</li>
+  <li>Jede Aktion wird von Playwright erfasst und in Echtzeit zum Recorder-Panel gestreamt</li>
+  <li><strong>Stopp</strong> klicken &rarr; RoboScope generiert eine <code>.robot</code>-Datei</li>
+  <li>Test \u00FCberpr\u00FCfen, bearbeiten und im Projekt speichern</li>
+</ol>
+<h4>Recorder-Panel</h4>
+<p>
+  Das Panel am unteren Rand des Explorers unterst\u00FCtzt bereits die Anzeige von Live-Events.
+  W\u00E4hrend der Aufnahme zeigt es:
+</p>
+<ul>
+  <li><strong>Navigate</strong> &mdash; Seitennavigationen mit URL</li>
+  <li><strong>Click</strong> &mdash; Element-Klicks mit Selektor</li>
+  <li><strong>Fill Text</strong> &mdash; Texteingaben mit Selektor und Wert</li>
+  <li><strong>Fill Secret</strong> &mdash; Passwortfelder (Wert maskiert)</li>
+  <li><strong>Select</strong> &mdash; Dropdown-Auswahlen</li>
+  <li><strong>Check</strong> &mdash; Checkbox-Umschaltungen</li>
+</ul>
+<p>
+  Nach dem Stoppen erscheint der generierte <code>.robot</code>-Code in einem dunklen Vorschaublock
+  mit entweder <strong>Browser</strong>- (Playwright) oder <strong>SeleniumLibrary</strong>-Keywords.
+</p>`
+      },
+      {
+        id: 'recorder-extension',
+        title: 'Chrome-Erweiterung',
+        content: `
+<p>
+  Die <strong>RoboScope Recorder</strong> Chrome-Erweiterung zeichnet Interaktionen direkt
+  in Ihrem Browser auf &mdash; kein separates Browser-Fenster n\u00F6tig. Besonders n\u00FCtzlich
+  f\u00FCr Seiten, die eine Authentifizierung erfordern, da Sie bereits angemeldet sind.
+</p>
+<h4>Installation</h4>
+<ol>
+  <li>Im RoboScope-Repository das Verzeichnis <code>extension/</code> finden</li>
+  <li><code>chrome://extensions</code> in Chrome oder einem Chromium-basierten Browser \u00F6ffnen</li>
+  <li><strong>Entwicklermodus</strong> aktivieren (Schalter oben rechts)</li>
+  <li><strong>Entpackte Erweiterung laden</strong> klicken und den Ordner <code>extension/</code> ausw\u00E4hlen</li>
+  <li>Das RoboScope-Recorder-Symbol erscheint in der Browser-Toolbar</li>
+</ol>
+<h4>Verbindung mit RoboScope</h4>
+<ol>
+  <li>Rechtsklick auf das Erweiterungs-Symbol und <strong>Optionen</strong> w\u00E4hlen</li>
+  <li><strong>Server-URL</strong> eingeben (z.B. <code>http://localhost:8000</code>)</li>
+  <li>Einen <strong>API-Token</strong> eingeben (erstellen unter Einstellungen &rarr; API-Tokens)</li>
+  <li><strong>Verbindung testen</strong> klicken zur \u00DCberpr\u00FCfung</li>
+  <li>Das Ziel-<strong>Projekt</strong> aus dem Dropdown ausw\u00E4hlen</li>
+  <li><strong>Speichern</strong> klicken</li>
+</ol>
+<p>
+  Nach erfolgreicher Verbindung erscheint ein gr\u00FCner Indikator im Erweiterungs-Popup.
+  Alle aufgezeichneten Aktionen werden automatisch an Ihre RoboScope-Instanz weitergeleitet.
+</p>`,
+        tip: 'Die Erweiterung funktioniert auch im Standalone-Modus ohne RoboScope-Verbindung &mdash; sie generiert .robot-Dateien lokal zum Herunterladen.'
+      },
+      {
+        id: 'recorder-extension-usage',
+        title: 'Erweiterung verwenden',
+        content: `
+<p>
+  Klicken Sie auf das Erweiterungs-Symbol, um das Popup zu \u00F6ffnen:
+</p>
+<ol>
+  <li><strong>Aufnehmen</strong> klicken, um Aktionen auf der aktuellen Seite zu erfassen</li>
+  <li>Mit der Seite interagieren &mdash; Klicks, Texteingaben und Auswahlen werden erfasst</li>
+  <li><strong>Stopp</strong> klicken, um die Aufnahme zu beenden und das Skript zu generieren</li>
+  <li><strong>Kopieren</strong> oder <strong>Herunterladen</strong> verwenden, um die generierte <code>.robot</code>-Datei zu speichern</li>
+</ol>
+<h4>Weitere Funktionen</h4>
+<ul>
+  <li><strong>Pause / Fortsetzen</strong> &mdash; Aufnahme vor\u00FCbergehend unterbrechen ohne erfasste Aktionen zu verlieren</li>
+  <li><strong>Seite scannen</strong> &mdash; Aktuelle Seite nach allen interaktiven Elementen durchsuchen und Locator generieren</li>
+  <li><strong>XPath-Konsole</strong> &mdash; XPath-Ausdr\u00FCcke mit visueller Hervorhebung auf der Seite validieren</li>
+  <li><strong>Vorlagen</strong> &mdash; Vorgefertigte Skript-Vorlagen einf\u00FCgen (Login-Flow, Formular, Navigation)</li>
+  <li><strong>Einstellungen</strong> &mdash; Ziel-Bibliothek (Browser / SeleniumLibrary), Syntax (RPA / Testing) und Sprache w\u00E4hlen</li>
+</ul>
+<h4>Ziel-Bibliothek</h4>
+<table>
+  <thead>
+    <tr><th>Bibliothek</th><th>Keywords</th><th>Anwendungsfall</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Browser</strong></td>
+      <td><code>Click</code>, <code>Fill Text</code>, <code>Select Options By</code></td>
+      <td>Modernes Playwright-basiertes Testen</td>
+    </tr>
+    <tr>
+      <td><strong>SeleniumLibrary</strong></td>
+      <td><code>Click Element</code>, <code>Input Text</code>, <code>Select From List By Value</code></td>
+      <td>Legacy Selenium-basiertes Testen</td>
+    </tr>
+  </tbody>
+</table>`
+      }
+    ]
+  },
+
   {
     id: 'execution',
     title: 'Ausf\u00FChrung',

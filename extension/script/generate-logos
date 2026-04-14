@@ -1,0 +1,126 @@
+#!/bin/bash
+
+# Quick Logo Generator
+# Converts robot-logo.png to multiple sizes:
+# mark-16.png, mark-32.png, mark-48.png, mark-64.png, mark-96.png, mark-128-padded.png, mark-256.png
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+SOURCE="$PROJECT_ROOT/robotframework-recorder-assets/robot-logo.png"
+ASSETS="$PROJECT_ROOT/assets"
+
+echo "🤖 Generating logo variants from robot-logo.png"
+echo "=================================================="
+echo ""
+echo "Sizes: 16, 32, 48, 64, 96, 128 (padded), 256"
+echo ""
+
+# Check source file
+if [ ! -f "$SOURCE" ]; then
+    echo "❌ Error: $SOURCE not found"
+    exit 1
+fi
+
+# Try Python/Pillow
+if command -v python &> /dev/null; then
+    echo "Using Python/Pillow..."
+    python - "$SOURCE" "$ASSETS" << 'EOF'
+import sys
+from PIL import Image
+import os
+
+source = sys.argv[1]
+assets_dir = sys.argv[2]
+
+# Open and convert to RGBA
+img = Image.open(source).convert('RGBA')
+
+# Define sizes: (size, filename)
+sizes = [
+    (16, 'mark-16.png'),
+    (32, 'mark-32.png'),
+    (48, 'mark-48.png'),
+    (64, 'mark-64.png'),
+    (96, 'mark-96.png'),
+    (128, 'mark-128.png'),
+    (256, 'mark-256.png'),
+]
+
+# Generate each size
+for size, filename in sizes:
+    logo = Image.new('RGBA', (size, size), (255, 255, 255, 0))
+    resized = img.copy()
+    resized.thumbnail((size, size), Image.Resampling.LANCZOS)
+    offset = ((size - resized.width) // 2, (size - resized.height) // 2)
+    logo.paste(resized, offset, resized)
+    dest = os.path.join(assets_dir, filename)
+    logo.save(dest, 'PNG')
+    print(f"✅ Created {filename} ({size}x{size})")
+
+# Also generate 128x128 with padding
+logo_128_padded = Image.new('RGBA', (128, 128), (255, 255, 255, 0))
+resized = img.copy()
+resized.thumbnail((96, 96), Image.Resampling.LANCZOS)
+offset = ((128 - resized.width) // 2, (128 - resized.height) // 2)
+logo_128_padded.paste(resized, offset, resized)
+dest = os.path.join(assets_dir, 'mark-128-padded.png')
+logo_128_padded.save(dest, 'PNG')
+print(f"✅ Created mark-128-padded.png (128x128 with padding)")
+
+print("")
+print("🎉 Done! All logo variants created successfully")
+EOF
+    exit $?
+fi
+
+# Fallback: Try ImageMagick
+if command -v convert &> /dev/null; then
+    echo "Using ImageMagick/convert..."
+    
+    # Generate all standard sizes
+    for size in 16 32 48 96 128 256; do
+        convert "$SOURCE" -background none -gravity center -resize ${size}x${size} -extent ${size}x${size} "$ASSETS/mark-${size}.png"
+        echo "✅ Created mark-${size}.png"
+    done
+    
+    # Generate 128x128 with padding (96x96 content + 16px padding)
+    convert "$SOURCE" -background none -gravity center -resize 96x96 -extent 128x128 "$ASSETS/mark-128-padded.png"
+    echo "✅ Created mark-128-padded.png (128x128 with padding)"
+    
+    echo ""
+    echo "🎉 Done! All logo variants created successfully"
+    exit 0
+fi
+
+# Fallback: Try Bash/ImageMagick in different way
+if command -v magick &> /dev/null; then
+    echo "Using ImageMagick/magick..."
+    
+    # Generate all standard sizes
+    for size in 16 32 48 96 128 256; do
+        magick "$SOURCE" -background none -gravity center -resize ${size}x${size} -extent ${size}x${size} "$ASSETS/mark-${size}.png"
+        echo "✅ Created mark-${size}.png"
+    done
+    
+    # Generate 128x128 with padding
+    magick "$SOURCE" -background none -gravity center -resize 96x96 -extent 128x128 "$ASSETS/mark-128-padded.png"
+    echo "✅ Created mark-128-padded.png (128x128 with padding)"
+    
+    echo ""
+    echo "🎉 Done! All logo variants created successfully"
+    exit 0
+fi
+
+# No tools found
+echo ""
+echo "❌ Error: No image processing tools found!"
+echo ""
+echo "Please install one of the following:"
+echo ""
+echo "1. Python + Pillow (recommended):"
+echo "   pip install Pillow"
+echo ""
+echo "2. ImageMagick:"
+echo "   brew install imagemagick"
+echo ""
+exit 1

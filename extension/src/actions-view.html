@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Recorder - Actions Viewer</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/mark-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="../assets/mark-16.png">
+  <!-- Fonts: system stack for instant loading, no external dependency -->
+  <link rel="stylesheet" type="text/css" href="../assets/theme.css">
+  <link rel="stylesheet" type="text/css" href="../assets/style.css">
+</head>
+
+<body class="container actions-view" style="width: auto; max-width: 900px; padding: var(--sp-4);">
+  <div class="padding">
+    <h2 id="actions-heading" style="font-size: var(--text-xl); font-weight: 700; letter-spacing: -0.02em; margin: 0;">Aufgenommene Aktionen</h2>
+    <div class="pad">
+      <div id="status-field"></div>
+    </div>
+
+    <div id="actions-controls" class="pad" style="display: flex; gap: var(--sp-2); flex-wrap: wrap;">
+      <button class="btn btn-wide" id="refresh">Refresh</button>
+      <button class="btn btn-wide" id="export-robot">Export .robot</button>
+      <button class="btn btn-wide" id="export-resource">Export .resource</button>
+      <button class="btn btn-wide" id="export-json">Export JSON</button>
+      <button class="btn btn-wide" id="copy-script">Copy Script</button>
+      <button class="btn btn-wide" id="extract-keyword">Extract Keyword</button>
+      <button class="btn btn-wide btn-danger" id="clear-script">Clear</button>
+    </div>
+
+    <div id="actions-list" class="pad" style="max-height:60vh; overflow:auto; padding:var(--sp-4); border-radius:var(--radius-lg);">
+      <!-- actions will be rendered here -->
+    </div>
+  </div>
+
+  <script type="module" src="actions-view.js"></script>
+</body>
+</html>
