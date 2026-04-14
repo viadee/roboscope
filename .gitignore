@@ -60,5 +60,6 @@ docker-compose.override.yml
 # Extension (Chrome)
 extension/node_modules/
 extension/dist/
+
+# BMAD Method install sources (output artifacts under _bmad-output/ are tracked)
 _bmad/
-_bmad-output/
