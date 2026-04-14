@@ -56,3 +56,9 @@ docker-compose.override.yml
 
 # Logs
 *.log
+
+# Extension (Chrome)
+extension/node_modules/
+extension/dist/
+_bmad/
+_bmad-output/
