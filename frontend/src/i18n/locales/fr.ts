@@ -46,6 +46,7 @@ export default {
     environments: 'Gestionnaire de paquets',
     settings: 'Paramètres',
     docs: 'Docs',
+    identityProviders: 'Fournisseurs d\'identité',
   },
   auth: {
     tagline: 'Robot Framework Test Management',
@@ -1230,6 +1231,65 @@ export default {
     finish: {
       title: 'Vous êtes prêt !',
       description: 'Vous connaissez maintenant les fonctionnalités clés de RoboScope. Bons tests !',
+    },
+  },
+  idpProviders: {
+    title: 'Fournisseurs d\'identité',
+    subtitle: 'Configuration de l\'authentification unique pour votre organisation.',
+    addProvider: '+ Nouveau fournisseur',
+    emptyState: {
+      title: 'Aucun fournisseur d\'identité configuré',
+      description: 'Ajoutez votre premier fournisseur d\'identité pour activer le SSO.',
+      cta: '+ Nouveau fournisseur',
+    },
+    columns: {
+      name: 'Nom',
+      type: 'Type',
+      status: 'Statut',
+      lastDryRun: 'Dernier test',
+      actions: 'Actions',
+    },
+    actions: {
+      edit: 'Afficher / Modifier',
+      dryRun: 'Lancer un test',
+      delete: 'Supprimer',
+    },
+    status: {
+      enabled: 'Activé',
+      draft: 'Brouillon',
+      disabled: 'Désactivé',
+    },
+    confirmDelete: {
+      title: 'Supprimer le fournisseur d\'identité',
+      message: 'Supprimer \u00ab {name} \u00bb ? Les sessions SSO actives utilisant ce fournisseur seront invalidées.',
+      cancel: 'Annuler',
+      confirm: 'Supprimer',
+    },
+    types: {
+      azureAd: 'Azure AD',
+      google: 'Google',
+      github: 'GitHub',
+      generic: 'OIDC (générique)',
+    },
+    toasts: {
+      dryRunPassed: 'Test réussi',
+      dryRunFailed: 'Test échoué : {detail}',
+      deleted: 'Fournisseur supprimé',
+      deleteFailed: 'Échec de la suppression',
+      loadFailed: 'Impossible de charger les fournisseurs',
+    },
+    relative: {
+      justNow: 'à l\'instant',
+      minutesAgo: 'il y a {n} min',
+      hoursAgo: 'il y a {n} h',
+      daysAgo: 'il y a {n} j',
+      never: '\u2014',
+    },
+    brokenWarning: 'Activ\u00E9 mais le dernier test a \u00E9chou\u00E9 — le SSO est peut-\u00EAtre cass\u00E9.',
+    placeholder: {
+      title: 'Fournisseur d\'identit\u00E9',
+      comingSoon: 'Bient\u00F4t disponible — Story 1.7',
+      backToList: '\u2190 Retour \u00E0 la liste',
     },
   },
 }

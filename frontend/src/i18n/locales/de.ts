@@ -46,6 +46,7 @@ export default {
     environments: 'Paket-Manager',
     settings: 'Einstellungen',
     docs: 'Doku',
+    identityProviders: 'Identity Provider',
   },
   auth: {
     tagline: 'Robot Framework Test Management',
@@ -1230,6 +1231,65 @@ export default {
     finish: {
       title: 'Alles bereit!',
       description: 'Sie kennen nun die wichtigsten Funktionen von RoboScope. Viel Erfolg beim Testen!',
+    },
+  },
+  idpProviders: {
+    title: 'Identity Provider',
+    subtitle: 'Single-Sign-On-Konfiguration für Ihre Organisation.',
+    addProvider: '+ Neuer Provider',
+    emptyState: {
+      title: 'Keine Identity Provider konfiguriert',
+      description: 'Fügen Sie Ihren ersten Identity Provider hinzu, um SSO zu aktivieren.',
+      cta: '+ Neuer Provider',
+    },
+    columns: {
+      name: 'Name',
+      type: 'Typ',
+      status: 'Status',
+      lastDryRun: 'Letzter Dry-Run',
+      actions: 'Aktionen',
+    },
+    actions: {
+      edit: 'Anzeigen / Bearbeiten',
+      dryRun: 'Dry-Run ausführen',
+      delete: 'Löschen',
+    },
+    status: {
+      enabled: 'Aktiv',
+      draft: 'Entwurf',
+      disabled: 'Deaktiviert',
+    },
+    confirmDelete: {
+      title: 'Identity Provider löschen',
+      message: '\u201e{name}\u201c löschen? Aktive SSO-Sitzungen mit diesem Provider werden ungültig.',
+      cancel: 'Abbrechen',
+      confirm: 'Löschen',
+    },
+    types: {
+      azureAd: 'Azure AD',
+      google: 'Google',
+      github: 'GitHub',
+      generic: 'OIDC (Generisch)',
+    },
+    toasts: {
+      dryRunPassed: 'Dry-Run erfolgreich',
+      dryRunFailed: 'Dry-Run fehlgeschlagen: {detail}',
+      deleted: 'Provider gelöscht',
+      deleteFailed: 'Löschen fehlgeschlagen',
+      loadFailed: 'Provider konnten nicht geladen werden',
+    },
+    relative: {
+      justNow: 'gerade eben',
+      minutesAgo: 'vor {n} Min.',
+      hoursAgo: 'vor {n} Std.',
+      daysAgo: 'vor {n} Tagen',
+      never: '\u2014',
+    },
+    brokenWarning: 'Aktiv, aber letzter Dry-Run fehlgeschlagen — SSO m\u00F6glicherweise defekt.',
+    placeholder: {
+      title: 'Identity Provider',
+      comingSoon: 'Demn\u00E4chst verf\u00FCgbar — Story 1.7',
+      backToList: '\u2190 Zur\u00FCck zur Liste',
     },
   },
 }

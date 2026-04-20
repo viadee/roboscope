@@ -31,6 +31,7 @@ const navItems = computed(() => {
   }
 
   if (auth.hasMinRole('admin')) {
+    items.push({ path: '/admin/identity-providers', labelKey: 'nav.identityProviders', icon: '\uD83D\uDD10' })
     items.push({ path: '/settings', labelKey: 'nav.settings', icon: '\uD83D\uDD27' })
   }
 

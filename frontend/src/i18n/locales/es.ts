@@ -46,6 +46,7 @@ export default {
     environments: 'Gestor de paquetes',
     settings: 'Configuración',
     docs: 'Docs',
+    identityProviders: 'Proveedores de identidad',
   },
   auth: {
     tagline: 'Robot Framework Test Management',
@@ -1230,6 +1231,65 @@ export default {
     finish: {
       title: '¡Todo listo!',
       description: 'Ya conoce las funciones clave de RoboScope. ¡Comience a explorar y felices pruebas!',
+    },
+  },
+  idpProviders: {
+    title: 'Proveedores de identidad',
+    subtitle: 'Configuración del inicio de sesión único para su organización.',
+    addProvider: '+ Nuevo proveedor',
+    emptyState: {
+      title: 'Sin proveedores de identidad configurados',
+      description: 'Añada su primer proveedor de identidad para habilitar el SSO.',
+      cta: '+ Nuevo proveedor',
+    },
+    columns: {
+      name: 'Nombre',
+      type: 'Tipo',
+      status: 'Estado',
+      lastDryRun: 'Última prueba',
+      actions: 'Acciones',
+    },
+    actions: {
+      edit: 'Ver / Editar',
+      dryRun: 'Ejecutar prueba',
+      delete: 'Eliminar',
+    },
+    status: {
+      enabled: 'Activo',
+      draft: 'Borrador',
+      disabled: 'Deshabilitado',
+    },
+    confirmDelete: {
+      title: 'Eliminar proveedor de identidad',
+      message: '¿Eliminar \u00ab{name}\u00bb? Se invalidarán las sesiones SSO activas que usen este proveedor.',
+      cancel: 'Cancelar',
+      confirm: 'Eliminar',
+    },
+    types: {
+      azureAd: 'Azure AD',
+      google: 'Google',
+      github: 'GitHub',
+      generic: 'OIDC (genérico)',
+    },
+    toasts: {
+      dryRunPassed: 'Prueba exitosa',
+      dryRunFailed: 'Prueba fallida: {detail}',
+      deleted: 'Proveedor eliminado',
+      deleteFailed: 'Error al eliminar el proveedor',
+      loadFailed: 'Error al cargar los proveedores',
+    },
+    relative: {
+      justNow: 'ahora mismo',
+      minutesAgo: 'hace {n} min',
+      hoursAgo: 'hace {n} h',
+      daysAgo: 'hace {n} d',
+      never: '\u2014',
+    },
+    brokenWarning: 'Activo pero la \u00FAltima prueba fall\u00F3 — el SSO puede estar roto.',
+    placeholder: {
+      title: 'Proveedor de identidad',
+      comingSoon: 'Pr\u00F3ximamente — Story 1.7',
+      backToList: '\u2190 Volver a la lista',
     },
   },
 }

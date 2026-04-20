@@ -69,6 +69,24 @@ const router = createRouter({
       meta: { requiresAuth: true, minRole: 'admin' },
     },
     {
+      path: '/admin/identity-providers',
+      name: 'idp-providers',
+      component: () => import('@/views/IdpProviderListView.vue'),
+      meta: { requiresAuth: true, minRole: 'admin' },
+    },
+    {
+      path: '/admin/identity-providers/new',
+      name: 'idp-provider-new',
+      component: () => import('@/views/IdpProviderEditView.vue'),
+      meta: { requiresAuth: true, minRole: 'admin' },
+    },
+    {
+      path: '/admin/identity-providers/:id',
+      name: 'idp-provider-edit',
+      component: () => import('@/views/IdpProviderEditView.vue'),
+      meta: { requiresAuth: true, minRole: 'admin' },
+    },
+    {
       path: '/docs',
       name: 'docs',
       component: () => import('@/views/DocsView.vue'),

@@ -553,3 +553,61 @@ export interface RecordingEvent {
   tag?: string
   timestamp?: number
 }
+
+// --- Identity Provider (Phase 4) ---
+
+export type IdpProviderType =
+  | 'oidc_azure_ad'
+  | 'oidc_google'
+  | 'oidc_github'
+  | 'oidc_generic'
+
+export type DryRunStatus = 'passed' | 'warning' | 'failed'
+
+export interface IdpProvider {
+  id: number
+  name: string
+  provider_type: IdpProviderType
+  issuer_url: string
+  client_id: string
+  scopes: string
+  group_claim_name: string
+  is_enabled: boolean
+  last_dry_run_at: string | null
+  last_dry_run_status: 'passed' | 'failed' | null
+  created_at: string
+  updated_at: string
+}
+
+export interface IdpProviderCreate {
+  name: string
+  provider_type: IdpProviderType
+  issuer_url: string
+  client_id: string
+  client_secret: string
+  scopes?: string
+  group_claim_name?: string
+}
+
+export interface IdpProviderUpdate {
+  name?: string
+  provider_type?: IdpProviderType
+  issuer_url?: string
+  client_id?: string
+  client_secret?: string
+  scopes?: string
+  group_claim_name?: string
+  is_enabled?: boolean
+}
+
+export interface DryRunCheckRow {
+  check_name: string
+  status: DryRunStatus
+  detail: string
+}
+
+export interface DryRunProbeResponse {
+  overall_status: 'passed' | 'failed'
+  checks: DryRunCheckRow[]
+  elapsed_ms: number
+}

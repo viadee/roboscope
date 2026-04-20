@@ -46,6 +46,7 @@ export default {
     environments: 'Package Manager',
     settings: 'Settings',
     docs: 'Docs',
+    identityProviders: 'Identity Providers',
   },
   auth: {
     tagline: 'Robot Framework Test Management',
@@ -1230,6 +1231,65 @@ export default {
     finish: {
       title: "You're all set!",
       description: 'You now know the key features of RoboScope. Start exploring and happy testing!',
+    },
+  },
+  idpProviders: {
+    title: 'Identity Providers',
+    subtitle: 'Single Sign-On configuration for your organization.',
+    addProvider: '+ New Provider',
+    emptyState: {
+      title: 'No identity providers configured',
+      description: 'Add your first identity provider to enable SSO.',
+      cta: '+ New Provider',
+    },
+    columns: {
+      name: 'Name',
+      type: 'Type',
+      status: 'Status',
+      lastDryRun: 'Last dry-run',
+      actions: 'Actions',
+    },
+    actions: {
+      edit: 'View / Edit',
+      dryRun: 'Run dry-run',
+      delete: 'Delete',
+    },
+    status: {
+      enabled: 'Enabled',
+      draft: 'Draft',
+      disabled: 'Disabled',
+    },
+    confirmDelete: {
+      title: 'Delete identity provider',
+      message: 'Delete \u201c{name}\u201d? This will invalidate any active SSO sessions using this provider.',
+      cancel: 'Cancel',
+      confirm: 'Delete',
+    },
+    types: {
+      azureAd: 'Azure AD',
+      google: 'Google',
+      github: 'GitHub',
+      generic: 'OIDC (Generic)',
+    },
+    toasts: {
+      dryRunPassed: 'Dry-run passed',
+      dryRunFailed: 'Dry-run failed: {detail}',
+      deleted: 'Provider deleted',
+      deleteFailed: 'Failed to delete provider',
+      loadFailed: 'Failed to load providers',
+    },
+    relative: {
+      justNow: 'just now',
+      minutesAgo: '{n}m ago',
+      hoursAgo: '{n}h ago',
+      daysAgo: '{n}d ago',
+      never: '\u2014',
+    },
+    brokenWarning: 'Enabled but last dry-run failed — SSO may be broken.',
+    placeholder: {
+      title: 'Identity Provider',
+      comingSoon: 'Coming soon — Story 1.7',
+      backToList: '\u2190 Back to list',
     },
   },
 }
