@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstra
 from sqlalchemy.orm import Mapped, mapped_column
 
 import src.environments.models  # noqa: F401 — FK resolution
+import src.teams.models  # noqa: F401 — FK resolution for repositories.team_id -> teams.id
 from src.database import Base, TimestampMixin
 
 
@@ -28,6 +29,9 @@ class Repository(Base, TimestampMixin):
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     environment_id: Mapped[int | None] = mapped_column(
         ForeignKey("environments.id", ondelete="SET NULL"), nullable=True, default=None
+    )
+    team_id: Mapped[int | None] = mapped_column(
+        ForeignKey("teams.id", ondelete="SET NULL"), nullable=True, default=None, index=True
     )
 
 

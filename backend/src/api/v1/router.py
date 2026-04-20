@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from src.ai.router import router as ai_router
 from src.audit.router import router as audit_router
+from src.auth.idp_router import router as idp_router
 from src.auth.router import router as auth_router
 from src.environments.router import router as environments_router
 from src.execution.router import router as execution_router
@@ -18,6 +19,7 @@ from src.webhooks.router import router as webhooks_router
 api_router = APIRouter()
 
 api_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+api_router.include_router(idp_router, prefix="/auth/idp-providers", tags=["Identity Providers"])
 api_router.include_router(repos_router, prefix="/repos", tags=["Repositories"])
 api_router.include_router(explorer_router, prefix="/explorer", tags=["Explorer"])
 api_router.include_router(execution_router, tags=["Execution"])

@@ -209,6 +209,22 @@ def _migrate_sqlite(conn) -> None:
         ))
         logger.info("Migration: added max_docker_containers column to environments")
 
+    # Phase-4: users.first_login_complete
+    result = conn.execute(text("PRAGMA table_info(users)"))
+    user_columns = {row[1] for row in result.fetchall()}
+    if "first_login_complete" not in user_columns:
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN first_login_complete BOOLEAN NOT NULL DEFAULT 0"
+        ))
+        logger.info("Migration: added first_login_complete column to users")
+
+    # Phase-4: repositories.team_id (nullable; FK enforced by Alembic migration, not here)
+    result = conn.execute(text("PRAGMA table_info(repositories)"))
+    repo_columns = {row[1] for row in result.fetchall()}
+    if "team_id" not in repo_columns:
+        conn.execute(text("ALTER TABLE repositories ADD COLUMN team_id INTEGER"))
+        logger.info("Migration: added team_id column to repositories")
+
 
 def _migrate_postgres(conn) -> None:
     """PostgreSQL migrations."""
@@ -292,6 +308,26 @@ def _migrate_postgres(conn) -> None:
             "ALTER TABLE environments ADD COLUMN max_docker_containers INTEGER DEFAULT 1"
         ))
         logger.info("Migration: added max_docker_containers column to environments")
+
+    # Phase-4: users.first_login_complete
+    result = conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'users' AND column_name = 'first_login_complete'"
+    ))
+    if not result.fetchone():
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN first_login_complete BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        logger.info("Migration: added first_login_complete column to users")
+
+    # Phase-4: repositories.team_id (nullable; FK enforced by Alembic migration, not here)
+    result = conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'repositories' AND column_name = 'team_id'"
+    ))
+    if not result.fetchone():
+        conn.execute(text("ALTER TABLE repositories ADD COLUMN team_id INTEGER"))
+        logger.info("Migration: added team_id column to repositories")
 
 
 def drop_tables() -> None:
