@@ -105,6 +105,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/admin/emergency-bypass',
+      name: 'emergency-bypass',
+      component: () => import('@/views/EmergencyBypassView.vue'),
+      meta: { requiresAuth: true, minRole: 'admin' },
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       redirect: '/dashboard',

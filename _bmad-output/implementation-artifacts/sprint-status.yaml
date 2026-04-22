@@ -99,7 +99,12 @@ development_status:
   4-4-teamswitcher-component-and-header-integration: done
   4-5-zero-teams-and-zero-repos-empty-states: done
   4-6-read-only-affordances-in-floweditor: done
-  4-7-existing-local-account-link-consent-dialog: backlog
+  # Story 4-7 deliberately stays in-progress: the callback-flow
+  # interception + consent dialog is a multi-endpoint change that
+  # touches the SSO critical path. Needs a focused design pass
+  # (dedicated attempt-state table vs OidcLoginAttempt reuse) before
+  # implementation. See deferred-work.md.
+  4-7-existing-local-account-link-consent-dialog: in-progress
   4-8-axe-core-playwright-integration-and-accessibility-passes: done
   # Story 4-9 shipped ahead of the Phase 4 cut — driver.js + useTour
   # composable + tour launch button in AppHeader were already in place.
@@ -114,7 +119,10 @@ development_status:
   # Epic 5: Operational Resilience, Offboarding, Compliance & Release Readiness
   epic-5: backlog
   5-1-emergency-bypass-toggle-api-and-auto-expire: done
-  5-2-emergency-bypass-admin-ui-and-header-indicator: backlog
+  # Admin page + i18n shipped; persistent header banner when bypass is
+  # active is a minor follow-up (useBypassStatus polling composable +
+  # slot in AppHeader).
+  5-2-emergency-bypass-admin-ui-and-header-indicator: in-progress
   5-3-user-deactivation-propagation: done
   # NOTE: backend endpoint shipped (POST /webhooks/tokens/{id}/reassign);
   # the admin UI component is deferred until Epic 4 planning.
