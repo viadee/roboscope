@@ -542,6 +542,10 @@ def v2_save_flow(
 
 class V2StartBrowserRequest(BaseModel):
     target_url: str | None = None
+    # Optional per-call transport override. When omitted we dispatch the
+    # web recorder (backward-compatible with all existing callers). The
+    # desktop transport spawns a different background task; see D.1.
+    transport: RecordingTransport | None = None
 
 
 class V2StartBrowserResponse(BaseModel):
@@ -588,6 +592,41 @@ def v2_start_browser(
         return V2StartBrowserResponse(session_id=session_id, task_id=None)
 
     target_url = (data.target_url if data else None) or None
+    transport: RecordingTransport = (data.transport if data else None) or "web_playwright"
+
+    # Transport dispatch (D.1 AC): the Windows desktop recorder lives on
+    # its own thread-entry; macOS was NO-GO per the DM.1 feasibility
+    # spike; the chrome_extension transport is not a v2 Playwright-based
+    # session. Non-Windows hosts asking for desktop_windows get a 501 so
+    # the UI can surface a "this host cannot record desktop flows"
+    # message instead of silently FAILing the session row.
+    import sys as _sys
+    if transport == "desktop_windows":
+        if not _sys.platform.startswith("win"):
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Desktop (Windows) recording requires a Windows host.",
+            )
+        try:
+            from src.recording.desktop_recorder_task import run_desktop_recorder_session
+            result = dispatch_task(run_desktop_recorder_session, session_id)
+            task_id = result.id
+        except TaskDispatchError as exc:
+            logger.error(
+                "desktop recorder dispatch failed for session %d: %s", session_id, exc
+            )
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        return V2StartBrowserResponse(session_id=session_id, task_id=task_id)
+    if transport == "desktop_macos":
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Desktop (macOS) recording is not implemented in v2 (DM.1 NO-GO).",
+        )
+    if transport == "chrome_extension":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="chrome_extension sessions do not use /start-browser.",
+        )
 
     try:
         from src.recording.v2_recorder_task import run_v2_recorder_session
@@ -624,10 +663,15 @@ def v2_abort_session(
     session.status = RecordingStatus.CANCELLED
     session.finished_at = datetime.now(timezone.utc)
     # Story W.2 — tell any live SSE subscriber to close cleanly.
+    from src.recording.desktop_recorder_task import signal_stop_desktop
     from src.recording.v2_command_queue import finalize_session, tear_down_session
     from src.recording.v2_recorder_task import signal_stop_v2
-    # Story W.1 full — signal the Playwright task to tear down its browser.
+    # Story W.1 full / D.1 — signal whichever task owns this session to
+    # tear down its backend (Chromium or UIA). The other registry is a
+    # no-op when the session isn't registered, so calling both is safe
+    # regardless of transport.
     signal_stop_v2(session.id)
+    signal_stop_desktop(session.id)
     finalize_session(session.id)
     tear_down_session(session.id)
     log_event(

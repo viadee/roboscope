@@ -303,3 +303,4 @@ Each story ends with a commit; each sprint ends with a tag + a release-gate CI r
 ## Change log
 
 - **2026-04-22** — First cut, derived from recorder-v2-prd.md. 19 stories across 3 main epics + 1 tentative. Architecture pass pending.
+- **2026-04-22 (PM)** — Epic D closed at v1 scope: D.1 + D.2 narrowed to "Python skeleton + translator + dispatch + selector synthesis + .robot emit"; the native pywinauto `InputEventHandler` subscription inside `_desktop_loop` is deferred to story D-5 (see `deferred-work.md` → _Follow-up: Recorder v2 — D-5 Windows native event-hook wiring_). Reason: the remaining ~30-50 LOC can only be validated on a Windows host; keeping the epic open indefinitely on a macOS dev box blocks closure of the v2 milestone.

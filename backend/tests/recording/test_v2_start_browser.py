@@ -160,3 +160,76 @@ class TestTargetUrl:
         assert resp.json()["task_id"] == "fake-task-id"
         assert called["fn"] == "run_v2_recorder_session"
         assert called["args"] == (session.id, "https://example.com")
+
+
+class TestTransportDispatch:
+    """Story D.1 AC — transport-aware dispatch + Windows-only guard."""
+
+    def test_desktop_windows_on_non_windows_returns_501(
+        self, client: TestClient, db_session: Session, admin_user: User, monkeypatch
+    ) -> None:
+        monkeypatch.delenv("ROBOSCOPE_RECORDER_DISABLED", raising=False)
+        monkeypatch.setattr("sys.platform", "darwin")
+        session = _mk_session(db_session, admin_user)
+        resp = client.post(
+            ENDPOINT.format(session.id),
+            json={"transport": "desktop_windows"},
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 501
+        assert "Windows host" in resp.json()["detail"]
+
+    def test_desktop_macos_returns_501_nogo(
+        self, client: TestClient, db_session: Session, admin_user: User, monkeypatch
+    ) -> None:
+        monkeypatch.delenv("ROBOSCOPE_RECORDER_DISABLED", raising=False)
+        session = _mk_session(db_session, admin_user)
+        resp = client.post(
+            ENDPOINT.format(session.id),
+            json={"transport": "desktop_macos"},
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 501
+        assert "DM.1" in resp.json()["detail"]
+
+    def test_desktop_windows_on_windows_dispatches_desktop_task(
+        self, client: TestClient, db_session: Session, admin_user: User, monkeypatch
+    ) -> None:
+        monkeypatch.delenv("ROBOSCOPE_RECORDER_DISABLED", raising=False)
+        monkeypatch.setattr("sys.platform", "win32")
+
+        called: dict = {}
+
+        class _FakeResult:
+            id = "fake-desktop-task"
+
+        def _fake_dispatch(fn, *args, **kwargs):
+            called["fn"] = fn.__name__
+            called["args"] = args
+            return _FakeResult()
+
+        import src.recording.router as rr
+        monkeypatch.setattr(rr, "dispatch_task", _fake_dispatch)
+
+        session = _mk_session(db_session, admin_user)
+        resp = client.post(
+            ENDPOINT.format(session.id),
+            json={"transport": "desktop_windows"},
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 202
+        assert resp.json()["task_id"] == "fake-desktop-task"
+        assert called["fn"] == "run_desktop_recorder_session"
+        assert called["args"] == (session.id,)
+
+    def test_chrome_extension_rejected_as_400(
+        self, client: TestClient, db_session: Session, admin_user: User, monkeypatch
+    ) -> None:
+        monkeypatch.delenv("ROBOSCOPE_RECORDER_DISABLED", raising=False)
+        session = _mk_session(db_session, admin_user)
+        resp = client.post(
+            ENDPOINT.format(session.id),
+            json={"transport": "chrome_extension"},
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 400

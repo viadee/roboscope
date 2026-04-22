@@ -139,6 +139,43 @@
 - State consumption is atomic before any network I/O (`P14` — closes the replay window cleanly); concurrent callback with same state gets `state.unknown`.
 - `_extract_claims` rejects `email_verified != True`; group sync only prunes rows with `source="idp_group_sync"` so a manual grant survives a login event.
 
+## Follow-up: Recorder v2 — D-5 Windows native event-hook wiring (2026-04-22)
+
+**Trigger.** Epic `recorder-v2-desktop-windows` closed at v1 scope. Remaining work = attaching a real `pywinauto` `InputEventHandler` inside `_desktop_loop` so live clicks / keystrokes / combobox selections land in the translator and get enqueued onto the session FIFO.
+
+**What's already done (no follow-up needed):**
+
+- `translate_uia_event` — pure-Python, 100% covered (`tests/recording/test_desktop_recorder_task.py`).
+- Desktop selector synthesis (AutomationId / Name / ClassName / XPath / ancestor-chain) — shipped + tested (`test_desktop_selector_synthesis.py`, 35 tests).
+- RPA.Windows `.robot` emit for desktop flows — shipped + tested (`test_robot_emit_desktop.py`).
+- Transport-aware `/recordings/sessions/{id}/start-browser` dispatch — branches to `run_desktop_recorder_session` when `transport=desktop_windows`, 501s on non-Windows, 501s on `desktop_macos` (DM.1 NO-GO), 400s on `chrome_extension` (`test_v2_start_browser.py::TestTransportDispatch`).
+- Abort endpoint signals both web + desktop stop events — safe regardless of transport.
+- Per-session stop signal registry + `run_desktop_recorder_session` thread entry — shipped.
+
+**What the D-5 story must ship:**
+
+1. Inside `_desktop_loop`, register `pywinauto.application.Application` + `pywinauto.mouse` / `pywinauto.keyboard` hooks that build the translator payload shape:
+   ```python
+   {"kind": "click", "element": {...}, "text": ...}
+   ```
+   The snapshot dict is already documented in the `translate_uia_event` docstring — the story is "wire hooks → dict" not "design the dict".
+2. Capture the active window's control tree (`from_handle + backend='uia'`) at hook-fire time to populate the `element.ancestors` list.
+3. Handle the pywinauto threading rule: hooks fire on the Win32 message pump; enqueue across the boundary by calling the existing `enqueue_command(...)` helper (already thread-safe via `queue.SimpleQueue`).
+4. Add a smoke e2e that spawns Notepad, clicks somewhere, verifies a `Click` command lands in the FIFO. Must be marked `@pytest.mark.integration` + gated on `sys.platform == "win32"` so macOS / Linux CI skips it.
+5. Install `pywinauto` via a Windows-only optional-dependencies group in `pyproject.toml` (`[project.optional-dependencies] windows = ["pywinauto>=0.6.9"]`).
+
+**Why deferred, not implemented inline:**
+
+- Requires a Windows dev host with a real Win32 message pump. Neither the primary author's macOS machine nor the current CI (GitHub macOS + Linux runners) can validate the hook path.
+- The platform-agnostic 80% (schema, translator, synthesis, emitter, dispatch, abort, selector quality-scoring) is fully tested and ships today.
+- Keeping the pywinauto subscription as a TODO inside `_desktop_loop` means the thread lifecycle is already correct — the loop creates + tears down cleanly, just emits nothing. A future Windows-resident engineer drops in the hook subscription without touching any other file.
+
+**Estimated story size:** S (one sprint, ~30-50 LOC + one integration test + deps group).
+
+**Gating signal for promoting D-5 out of deferred-work:** a Windows CI runner lands on the project (Phase 5 distributed-exec work item) OR a contributor with a Windows dev host volunteers.
+
+---
+
 ## Post-mortem: Phase 4 login-page flicker / redirect loop (2026-04-22)
 
 **Symptom.** User reported "kann gar nicht auf die neue login seite, es flackert nur" after checking out `feat/recorder-and-bmad`. Playwright probe measured 717 navigations to `/login` in ~3 seconds, all ending with 401 on `/api/v1/settings/sso-emergency-bypass`.

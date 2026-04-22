@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-15
-last_updated: 2026-04-22T-story-2-3-review
+last_updated: 2026-04-22T-desktop-windows-epic-close
 project: roboscope
 project_key: NOKEY
 tracking_system: file-system
@@ -148,14 +148,18 @@ development_status:
   recorder-S-5-i18n-strategy-labels: done
 
   # Recorder v2 — Desktop Recorder (Windows)
-  epic-recorder-v2-desktop-windows: in-progress
-  # D.1 + D.2 ship the pure-Python translator + thread skeleton;
-  # the actual pywinauto event-hook wiring needs a Windows dev host
-  # and lives as a TODO inside `_desktop_loop`.
-  recorder-D-1-uia-session-adapter: in-progress
-  recorder-D-2-primitive-capture: in-progress
+  # Scope for v1 closed 2026-04-22: pure-Python translator, thread
+  # lifecycle, transport-aware dispatch + Windows-host 501 guard, plus
+  # the RPA.Windows .robot emitter. The pywinauto InputEventHandler
+  # native-hook wiring is tracked as follow-up story D-5 in
+  # deferred-work.md because it can only be exercised on a Windows CI
+  # runner.
+  epic-recorder-v2-desktop-windows: done
+  recorder-D-1-uia-session-adapter: done
+  recorder-D-2-primitive-capture: done
   recorder-D-3-desktop-selector-strategies: done
   recorder-D-4-robot-library-mapping: done
+  epic-recorder-v2-desktop-windows-retrospective: optional
 
   # Recorder v2 — Desktop Recorder (macOS, tentative)
   # DM.1 decision: NO-GO for v2. See recorder-v2-macos-feasibility-spike.md
