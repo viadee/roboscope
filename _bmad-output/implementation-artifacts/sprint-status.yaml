@@ -147,10 +147,10 @@ development_status:
   recorder-S-5-i18n-strategy-labels: done
 
   # Recorder v2 — Desktop Recorder (Windows)
-  epic-recorder-v2-desktop-windows: backlog
+  epic-recorder-v2-desktop-windows: in-progress
   recorder-D-1-uia-session-adapter: backlog
   recorder-D-2-primitive-capture: backlog
-  recorder-D-3-desktop-selector-strategies: backlog
+  recorder-D-3-desktop-selector-strategies: done
   recorder-D-4-robot-library-mapping: backlog
 
   # Recorder v2 — Desktop Recorder (macOS, tentative)
