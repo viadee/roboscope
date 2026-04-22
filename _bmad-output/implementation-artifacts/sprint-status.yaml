@@ -121,5 +121,5 @@ development_status:
   5-8-procurement-checklist-response-document: backlog
   5-9-release-gate-ci-additions: backlog
   5-10-chrome-recorder-phase-4-impact-documentation: backlog
-  5-11-non-goals-documentation-lock: backlog
+  5-11-non-goals-documentation-lock: done
   epic-5-retrospective: optional
