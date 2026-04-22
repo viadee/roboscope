@@ -57,30 +57,37 @@ development_status:
   epic-1-retrospective: optional
 
   # Epic 2: SSO User Access
-  epic-2: done
+  # NOTE: Story 2-5 ships the PATCH endpoint but the startup seed for
+  # `hide_local_login_form=false` was never wired into main.py — 3 of 4
+  # seed tests fail. Reverted to in-progress after code review 2026-04-22.
+  epic-2: in-progress
   2-1-oidc-authorization-code-flow-initiation: done
   2-2-sso-callback-handler-with-inline-group-sync: done
   2-3-frontend-loginview-sso-buttons-password-toggle: done
   2-4-deep-link-preservation-through-sso-redirect: done
-  2-5-admin-setting-hide-password-form: done
+  2-5-admin-setting-hide-password-form: in-progress
   2-6-session-invariance-during-idp-outage: done
   2-7-frontend-ssoerrorview-with-localized-outage-copy: done
   2-8-rate-limiting-failed-sso-attempts: done
   epic-2-retrospective: optional
 
   # Epic 3: Teams & Role Resolution
-  epic-3: done
+  # NOTE: Epic 3 remains in-progress because stories 3-2 and 3-7..3-11 ship
+  # helpers + tests but never perform their corresponding endpoint migration
+  # (code review 2026-04-22 confirmed zero call sites for require_effective_role
+  # and no `team_id` wiring on PATCH /repos/{id}). See deferred-work.md.
+  epic-3: in-progress
   3-1-team-and-teammember-models-crud-api: done
-  3-2-repository-to-team-assignment: done
+  3-2-repository-to-team-assignment: in-progress
   3-3-idp-group-to-team-mapping: done
   3-4-bulk-create-teams-via-import-from-idp-groups: done
   3-5-login-time-group-sync: done
   3-6-effective-role-function-and-dependency: done
-  3-7-migrate-repos-endpoints-to-require-effective-role: done
-  3-8-migrate-runs-endpoints-to-require-effective-role: done
-  3-9-migrate-reports-endpoints-to-require-effective-role: done
-  3-10-migrate-explorer-endpoints-to-require-effective-role: done
-  3-11-migrate-stats-endpoints-to-require-effective-role: done
+  3-7-migrate-repos-endpoints-to-require-effective-role: in-progress
+  3-8-migrate-runs-endpoints-to-require-effective-role: in-progress
+  3-9-migrate-reports-endpoints-to-require-effective-role: in-progress
+  3-10-migrate-explorer-endpoints-to-require-effective-role: in-progress
+  3-11-migrate-stats-endpoints-to-require-effective-role: in-progress
   3-12-frontend-teamlistview: done
   3-13-frontend-teamdetailview-with-tabs: done
   3-14-groupmappingrow-component-with-display-edit-role-modes: done

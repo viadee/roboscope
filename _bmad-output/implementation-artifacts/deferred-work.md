@@ -109,3 +109,32 @@
 - `TeamMember.source` / `IdPGroupMapping.role` — replace magic strings with enums validated at write time.
 - Empty `team.member.synced_from_idp` audit event emitted when no changes — log-noise cleanup.
 - AC6 commit-order numbered-sequence contradicts the spec's own reference snippet — spec author to clarify; impl follows the reference.
+
+## Deferred from: code review of Phase 4 Epic 2 + 3 commits (2026-04-22, c8c171b)
+
+### Incomplete stories incorrectly marked done (sprint-status corrected)
+
+- **Story 2-5 — hide_local_login_form seed** ships the admin PATCH endpoint but never wires the default-value seed into `main.py` startup. 3 of 4 seed tests fail (`test_default_is_seeded_as_false`, `test_seed_is_idempotent`, `test_patch_persists_new_value`). Fix: add `ensure_setting("hide_local_login_form", "false")` to the lifespan startup alongside the existing settings seeds.
+- **Story 3-2 — repository→team assignment** ships the `TeamRepository` model and service helpers but never exposes `team_id` on the `PATCH /repos/{id}` endpoint. 4 of 4 assignment tests fail (all 404 because the endpoint still rejects `team_id` in the request body). Fix: add `team_id: int | None` to `RepositoryUpdate` schema + the update service.
+- **Stories 3-7 → 3-11 — migrate endpoints to require_effective_role** are marked done but `require_effective_role` has **zero call sites** in `backend/src/`. The helper and its 6-test suite shipped, but none of the repos / runs / reports / explorer / stats endpoints have been migrated. 3 of 5 elevation tests fail; team membership therefore grants zero additional API access today. Fix: swap `Depends(require_role(Role.X))` for `Depends(require_effective_role(Role.X))` on the 6 endpoints listed in `3-7-through-3-11-effective-role-migration.md`.
+
+### Security findings (Story 2-1 / 2-2)
+
+- **`request.client.host` for rate-limit bucket + audit IP** (`sso_router.py:98,150`, `teams/router.py:44`, `audit/middleware.py:155,175`) trusts the peer-socket IP with no `X-Forwarded-For` support. Behind nginx / ALB every SSO user shares one proxy IP → one attacker locks out the entire tenant in a 5-min window. Add a single `get_client_ip(request)` helper honoring a configurable trusted-proxy allowlist and route all callsites through it.
+- **`_rate_limit_response_if_blocked` writes one AuditLog row per 429** (`sso_router.py:50-56`) — held-down attacker generates unbounded rows with no dedup inside the window. Rate-limit the audit emission to once per (ip, window) pair.
+- **`_rate_limit_response_if_blocked` returns `None` when `client_ip is None`** (`sso_router.py:45-46`) — any request without `request.client` bypasses rate limiting entirely.
+- **IdP-existence probing via ordering in `/sso/{idp_id}/login`**: `is_valid_return_to` check runs before the IdP lookup, so an anonymous caller can distinguish "valid idp_id" (redirect) from "invalid" (404) via response code alone. Low-value today (`/providers` is public), but flip the order before enabling idp-filter.
+- **`log_event` emits `detail={"ip": client_ip, ...}` alongside `ip_address=client_ip`** (`sso_router.py:50`) — IP duplicated in two columns. Harmless, but dedupe.
+- **`email` PII in `SSO_LOGIN_SUCCESS.detail`** re-raised from Story 2-2 review; still unresolved in this commit.
+- **Teams `_client_ip` helper duplicates** the audit middleware and sso_router logic — consolidate with the `get_client_ip` helper above.
+
+### Test-design deferreds
+
+- **`tests/auth/test_sso_callback.py` has 6 tests failing when run in the full suite** (`expired_attempt`, `token_exchange_timeout`, `failure_emits_structured_audit_event`, `rejects_deactivated_user`, `sync_failure_surfaces_sync_failed_code`, `token_exchange_http_error_captures_status`) — all pass in isolation. Root cause is the known `oidc_discovery.py:300` inner `db.commit()` (first raised in Story 2-1 review) leaking transactional ownership and poisoning the SAVEPOINT isolation in `tests/conftest.py`. Treat as test-isolation follow-up, not functional bugs.
+- **`tests/auth/test_sso_rate_limit_router.py::TestFailureCounter::test_return_to_invalid_increments_counter` + `test_idp_not_found_increments_counter`** fail with `count == 18` vs `count == 1` — same SAVEPOINT pollution bleeding counter rows in from earlier tests.
+
+### Signals of good work (from review, kept for context)
+
+- `_verify_id_token` at `oidc_callback_service.py:231-294` pins alg to RS/ES (no HS/none), requires matching `azp` on multi-value `aud` per OIDC Core §3.1.3.7, validates issuer + nonce after signature.
+- State consumption is atomic before any network I/O (`P14` — closes the replay window cleanly); concurrent callback with same state gets `state.unknown`.
+- `_extract_claims` rejects `email_verified != True`; group sync only prunes rows with `source="idp_group_sync"` so a manual grant survives a login event.
