@@ -134,7 +134,7 @@ development_status:
   recorder-W-3-primitive-capture-injection: backlog
   recorder-W-4-hover-overlay: backlog
   recorder-W-5-context-menu: backlog
-  recorder-W-6-result-view: backlog
+  recorder-W-6-result-view: in-progress  # save endpoint + Robot emitter shipped, live editor mount follows W.2
   recorder-W-7-launcher-view-route: done
   recorder-W-8-audit-and-retention: in-progress  # retention shipped, emission sites pending W.1 full
 
