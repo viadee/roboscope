@@ -297,3 +297,159 @@ def get_recording_events(
         raise HTTPException(status_code=404, detail="Recording not found")
     events = json.loads(recording.events_json) if recording.events_json else []
     return {"recording_id": recording_id, "events": events, "count": len(events)}
+
+
+# ---------------------------------------------------------------------------
+# Recorder v2 — Session endpoint family (Story W.1 stub + W.8 audit)
+# ---------------------------------------------------------------------------
+
+from pydantic import BaseModel
+
+from src.audit.event_types import AuditEventType
+from src.audit.service import log_event
+from src.auth.constants import ERR_INSUFFICIENT_PERMISSIONS, ROLE_HIERARCHY
+from src.auth.permissions import effective_role
+from src.recording.models import RecordingSession, RecordingSource
+from src.recording.selector_schema import RecordingTransport
+from src.repos.models import Repository
+
+
+class V2SessionCreateRequest(BaseModel):
+    transport: RecordingTransport
+    repo_id: int
+
+
+class V2SessionResponse(BaseModel):
+    session_id: int
+    transport: RecordingTransport
+    status: str
+
+
+def _transport_to_source(t: RecordingTransport) -> str:
+    """Map the v2 transport enum to the existing RecordingSource column.
+    chrome_extension → extension; everything else uses the playwright
+    storage path. Desktop transports temporarily co-locate; a dedicated
+    `desktop_*` source value is a follow-up schema-migration story."""
+    if t == "chrome_extension":
+        return RecordingSource.EXTENSION
+    return RecordingSource.PLAYWRIGHT
+
+
+@router.post(
+    "/recordings/sessions",
+    response_model=V2SessionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+@limiter.limit("20/minute")
+def v2_create_session(
+    request: Request,
+    data: V2SessionCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Story W.1 (stub): create a v2 RecordingSession row + emit audit.
+
+    Does NOT yet launch a Chromium instance — that's a follow-up commit
+    that wires Playwright on a dedicated event-loop thread per AR-2.
+    The session row is marked RECORDING immediately so the retention
+    cleanup (W.8) can auto-abort if nothing ever starts streaming.
+
+    Effective-role check is done inline because the repo id arrives in
+    the JSON body, not the URL path (so `require_effective_role` isn't
+    usable here — it reads `path_params["repo_id"]`).
+    """
+    repo = db.get(Repository, data.repo_id)
+    if repo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found"
+        )
+    if getattr(current_user, "_auth_via_api_token", False):
+        # Story 3-15: API tokens stay capped at scoped role; no team/project grant.
+        role_level = ROLE_HIERARCHY.get(Role(current_user.role), -1)
+    else:
+        er = effective_role(db, current_user, repo)
+        role_level = ROLE_HIERARCHY.get(er, -1)
+    if role_level < ROLE_HIERARCHY.get(Role.EDITOR, 999):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERR_INSUFFICIENT_PERMISSIONS,
+        )
+
+    # Per-user session cap (AR-10): abort any other active session owned
+    # by the caller before creating the new one.
+    existing = (
+        db.query(RecordingSession)
+        .filter(
+            RecordingSession.triggered_by == current_user.id,
+            RecordingSession.status == RecordingStatus.RECORDING,
+        )
+        .all()
+    )
+    for row in existing:
+        row.status = RecordingStatus.CANCELLED
+        row.finished_at = datetime.now(timezone.utc)
+        log_event(
+            db,
+            AuditEventType.RECORDING_SESSION_ABORTED,
+            user_id=current_user.id,
+            resource_id=row.repository_id,
+            detail={"session_id": row.id, "reason": "superseded"},
+        )
+
+    session = RecordingSession(
+        repository_id=data.repo_id,
+        status=RecordingStatus.RECORDING,
+        source=_transport_to_source(data.transport),
+        triggered_by=current_user.id,
+        started_at=datetime.now(timezone.utc),
+    )
+    db.add(session)
+    db.flush()
+    db.refresh(session)
+
+    log_event(
+        db,
+        AuditEventType.RECORDING_SESSION_STARTED,
+        user_id=current_user.id,
+        resource_id=data.repo_id,
+        detail={"session_id": session.id, "transport": data.transport},
+    )
+    db.commit()
+    return V2SessionResponse(
+        session_id=session.id,
+        transport=data.transport,
+        status=session.status,
+    )
+
+
+@router.delete(
+    "/recordings/sessions/{session_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def v2_abort_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Abort an active v2 recording session."""
+    session = db.get(RecordingSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.triggered_by != current_user.id and current_user.role != Role.ADMIN:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the session owner or an admin can abort",
+        )
+    if session.status != RecordingStatus.RECORDING:
+        # Already terminal — idempotent.
+        return
+    session.status = RecordingStatus.CANCELLED
+    session.finished_at = datetime.now(timezone.utc)
+    log_event(
+        db,
+        AuditEventType.RECORDING_SESSION_ABORTED,
+        user_id=current_user.id,
+        resource_id=session.repository_id,
+        detail={"session_id": session.id, "reason": "user_abort"},
+    )
+    db.commit()
