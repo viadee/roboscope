@@ -113,7 +113,7 @@ development_status:
   epic-5: backlog
   5-1-emergency-bypass-toggle-api-and-auto-expire: backlog
   5-2-emergency-bypass-admin-ui-and-header-indicator: backlog
-  5-3-user-deactivation-propagation: backlog
+  5-3-user-deactivation-propagation: done
   5-4-apitoken-reassign-endpoint-and-admin-ui: backlog
   5-5-retention-cleanup-apscheduler-jobs: backlog
   5-6-auditeventtype-enum-and-structured-emission: done

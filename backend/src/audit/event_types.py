@@ -28,6 +28,8 @@ class AuditEventType(StrEnum):
     GROUP_MAPPING_CREATED = "group_mapping.created"
     GROUP_MAPPING_UPDATED = "group_mapping.updated"
     GROUP_MAPPING_DELETED = "group_mapping.deleted"
+    USER_DEACTIVATED = "user.deactivated"
+    USER_REACTIVATED = "user.reactivated"
 
 
 def resource_type_for(event_type: AuditEventType) -> str:

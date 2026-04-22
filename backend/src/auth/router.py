@@ -156,31 +156,90 @@ def get_user(
     return user
 
 
+def _cascade_revoke_on_deactivate(
+    db: Session, target: User, actor_id: int, ip: str | None
+) -> int:
+    """Story 5-3: revoke every active ApiToken owned by `target` and emit
+    `user.deactivated` audit event with the cascade count. Returns the
+    number of tokens revoked.
+    """
+    from src.audit.event_types import AuditEventType
+    from src.audit.service import log_event
+    from src.webhooks.models import ApiToken
+
+    tokens = (
+        db.query(ApiToken)
+        .filter(ApiToken.user_id == target.id, ApiToken.is_active.is_(True))
+        .all()
+    )
+    for t in tokens:
+        t.is_active = False
+    db.flush()
+
+    log_event(
+        db,
+        AuditEventType.USER_DEACTIVATED,
+        user_id=actor_id,
+        resource_id=target.id,
+        detail={
+            "email": target.email,
+            "revoked_api_tokens": len(tokens),
+            "revoked_token_ids": [t.id for t in tokens],
+        },
+        ip_address=ip,
+    )
+    return len(tokens)
+
+
 @router.patch("/users/{user_id}", response_model=UserResponse)
 def patch_user(
     user_id: int,
     data: UserUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.ADMIN)),
+    current_user: User = Depends(require_role(Role.ADMIN)),
 ):
-    """Update user fields (admin only)."""
+    """Update user fields (admin only).
+
+    Story 5-3: flipping is_active from True to False cascade-revokes all
+    of the user's ApiTokens and emits `user.deactivated` with the
+    revocation count.
+    """
     user = get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
     update_data = data.model_dump(exclude_unset=True)
     if "password" in update_data:
         update_data["hashed_password"] = hash_password(update_data.pop("password"))
+
+    will_deactivate = (
+        "is_active" in update_data
+        and update_data["is_active"] is False
+        and user.is_active is True
+    )
+
     updated = update_user(db, user, **update_data)
+
+    if will_deactivate:
+        ip = request.client.host if request.client else None
+        _cascade_revoke_on_deactivate(db, updated, current_user.id, ip)
+        db.commit()
+
     return updated
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(
     user_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.ADMIN)),
 ):
-    """Deactivate a user (admin only)."""
+    """Deactivate a user (admin only).
+
+    Soft-delete that also cascade-revokes the user's ApiTokens (Story 5-3).
+    """
     if user_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -189,4 +248,11 @@ def delete_user(
     user = get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    was_active = user.is_active
     update_user(db, user, is_active=False)
+
+    if was_active:
+        ip = request.client.host if request.client else None
+        _cascade_revoke_on_deactivate(db, user, current_user.id, ip)
+        db.commit()
