@@ -120,6 +120,6 @@ development_status:
   5-7-i18n-complete-pass-for-all-phase-4-strings: done
   5-8-procurement-checklist-response-document: backlog
   5-9-release-gate-ci-additions: backlog
-  5-10-chrome-recorder-phase-4-impact-documentation: backlog
+  5-10-chrome-recorder-phase-4-impact-documentation: done
   5-11-non-goals-documentation-lock: done
   epic-5-retrospective: optional
