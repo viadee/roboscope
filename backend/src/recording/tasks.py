@@ -179,13 +179,39 @@ def run_playwright_recorder(recording_id: int, target_url: str | None = None) ->
                     "url": frame.url,
                     "timestamp": datetime.now(timezone.utc).timestamp(),
                 })
-                # Re-inject capture script after navigation
+                # Re-inject capture script after navigation. Expected to
+                # fail mid-flight when the frame is detached between the
+                # event and the evaluate call — debug-log it so we can
+                # tell navigation transients from real injection bugs.
                 try:
                     frame.evaluate(_CAPTURE_JS)
                 except Exception:
-                    pass
+                    logger.debug(
+                        "Recording %d: capture re-injection after navigation failed",
+                        recording_id,
+                        exc_info=True,
+                    )
 
         page.on("framenavigated", _on_navigate)
+
+        # Event-based shutdown detection. Listeners fire on the Playwright
+        # event thread, so only thread-safe primitives may be touched here
+        # (setting a threading.Event is safe; calling any Playwright sync
+        # API from the listener would deadlock).
+        def _on_browser_disconnected() -> None:
+            logger.info(
+                "Recording %d: browser disconnected", recording_id
+            )
+            stop_event.set()
+
+        def _on_page_close(_page) -> None:
+            logger.info(
+                "Recording %d: page closed by user", recording_id
+            )
+            stop_event.set()
+
+        browser.on("disconnected", _on_browser_disconnected)
+        page.on("close", _on_page_close)
 
         # Navigate to target URL if provided
         if target_url:
@@ -198,15 +224,14 @@ def run_playwright_recorder(recording_id: int, target_url: str | None = None) ->
 
         logger.info("Recording %d: Playwright browser opened", recording_id)
 
-        # Block until stop signal or browser closed
-        while not stop_event.is_set():
-            try:
-                # Check if browser is still open (page.url throws if closed)
-                page.evaluate("1")
-            except Exception:
-                logger.info("Recording %d: browser window closed by user", recording_id)
-                break
-            stop_event.wait(timeout=0.5)
+        # Wait for an explicit stop signal or a browser/page close event.
+        # The 5 s timeout is a heartbeat for future periodic hooks; it has
+        # no effect on shutdown latency since the listeners set the event
+        # immediately. We intentionally do NOT probe `page.evaluate("1")`
+        # as a liveness check — it raises transiently during every
+        # navigation and would false-positive as "browser closed".
+        while not stop_event.wait(timeout=5.0):
+            pass
 
     except Exception as e:
         logger.exception("Recording %d: Playwright recorder failed", recording_id)
