@@ -98,7 +98,7 @@ development_status:
   4-3-why-you-have-access-microcopy-locked-in-4-locales: done
   4-4-teamswitcher-component-and-header-integration: backlog
   4-5-zero-teams-and-zero-repos-empty-states: done
-  4-6-read-only-affordances-in-floweditor: backlog
+  4-6-read-only-affordances-in-floweditor: done
   4-7-existing-local-account-link-consent-dialog: backlog
   4-8-axe-core-playwright-integration-and-accessibility-passes: backlog
   4-9-driver-js-tour-for-first-login: backlog

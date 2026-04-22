@@ -1476,6 +1476,13 @@ export default {
       jwks_fetched: 'JWKS récupéré',
     },
   },
+  editor: {
+    readOnly: {
+      viewer: 'Lecture seule — demandez à un EDITOR de modifier ceci.',
+      runner: 'Vous pouvez exécuter des tests mais pas modifier ce fichier.',
+      contactAdmin: 'Contacter le QA lead',
+    },
+  },
   welcome: {
     heading: 'Bienvenue sur RoboScope, {name}.',
     subheading: 'Voici ce que vous pouvez faire.',
