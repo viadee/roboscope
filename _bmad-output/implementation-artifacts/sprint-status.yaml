@@ -95,7 +95,7 @@ development_status:
   epic-4: backlog
   4-1-auth-me-extension-with-effective-roles-and-first-login: done
   4-2-frontend-firstloginview-and-welcomecard: backlog
-  4-3-why-you-have-access-microcopy-locked-in-4-locales: backlog
+  4-3-why-you-have-access-microcopy-locked-in-4-locales: done
   4-4-teamswitcher-component-and-header-integration: backlog
   4-5-zero-teams-and-zero-repos-empty-states: backlog
   4-6-read-only-affordances-in-floweditor: backlog

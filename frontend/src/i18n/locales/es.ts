@@ -1476,4 +1476,29 @@ export default {
       jwks_fetched: 'JWKS obtenido',
     },
   },
+  welcome: {
+    heading: 'Bienvenido a RoboScope, {name}.',
+    subheading: 'Esto es lo que puedes hacer.',
+    whyAccess: {
+      viaTeam: 'Eres miembro de {team}. Rol en tu equipo: {role}.',
+      viaProject: 'Se te añadió directamente a {repo} como {role}.',
+      viaGlobal: 'Tu cuenta tiene el rol global {role}.',
+      noAccess: 'Actualmente no tienes repositorios asignados. Pídele a un administrador que te añada a un equipo.',
+    },
+    cta: {
+      openRepo: 'Abrir {repo}',
+      browseTeams: 'Ver mis equipos',
+      dismissTour: 'Omitir el recorrido',
+    },
+    toast: {
+      signInCancelled: 'Inicio de sesión cancelado.',
+    },
+    repoLabel: 'repositorio más activo',
+    accountLink: {
+      heading: 'Ya existe una cuenta para {email}.',
+      question: '¿Vincular tu identidad SSO a esta cuenta?',
+      confirm: 'Sí, vincular',
+      cancel: 'No, cancelar',
+    },
+  },
 }
