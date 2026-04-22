@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from typing import Literal
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
+from pydantic import BaseModel
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from src.audit.event_types import AuditEventType
@@ -159,6 +163,19 @@ def sso_callback(
         # P11 — discard any partial user/membership writes before auditing so
         # the failure event isn't committed alongside half-upserted state.
         db.rollback()
+        # Story 4-7 — link-consent gate: not a failure, just a deferred flow.
+        # Emit NO audit event and NO rate-limit penalty; redirect to the
+        # frontend consent page with the short-lived signed consent token.
+        if err.code == "user.link_consent_required":
+            consent_token = err.detail.get("consent_token")
+            if isinstance(consent_token, str):
+                resp = RedirectResponse(
+                    url=f"/sso-link-consent?token={quote(consent_token, safe='')}",
+                    status_code=status.HTTP_302_FOUND,
+                )
+                resp.headers["Cache-Control"] = "no-store"
+                return resp
+            # Fall through to generic error if token missing — defensive.
         # Story 2-8 — increment the per-IP counter on any callback failure.
         if client_ip:
             record_failure(db, client_ip)
@@ -247,3 +264,109 @@ def sso_callback(
         path="/",
     )
     return resp
+
+
+# --- Story 4-7: link-consent endpoints ---
+
+
+class SsoLinkConsentRequest(BaseModel):
+    consent_token: str
+    approve: bool
+
+
+class SsoLinkConsentResponse(BaseModel):
+    status: Literal["linked", "cancelled"]
+    return_to: str
+    access_token: str | None = None
+    refresh_token: str | None = None
+
+
+@router.post("/link-consent", response_model=SsoLinkConsentResponse)
+def sso_link_consent(
+    data: SsoLinkConsentRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Story 4-7: complete or cancel a pending SSO link.
+
+    - approve=True: detach the user's local password (hashed_password=''),
+      sync team memberships from the consent-token groups, emit
+      `user.account_linked`, return session tokens (frontend persists +
+      navigates to return_to).
+    - approve=False: emit `user.account_link_cancelled`, return
+      status=cancelled — the browser navigates to /login with a toast.
+    """
+    from src.audit.event_types import AuditEventType
+    from src.audit.service import log_event
+    from src.auth.models import User
+    from src.auth.oidc_callback_service import _sync_team_memberships
+    from src.auth.service import create_token_response
+    from src.auth.sso_link_consent import decode_consent_token
+
+    try:
+        payload = decode_consent_token(data.consent_token)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "consent.invalid", "message": str(exc)},
+        ) from exc
+
+    user = db.get(User, payload["user_id"])
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive"
+        )
+    if user.email != payload["email"]:
+        # Defense in depth — token's email must still match. If email was
+        # changed admin-side between mint and redeem, refuse.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Email no longer matches"
+        )
+
+    ip = request.client.host if request.client else None
+
+    if not data.approve:
+        log_event(
+            db,
+            AuditEventType.USER_ACCOUNT_LINK_CANCELLED,
+            user_id=user.id,
+            resource_id=user.id,
+            detail={"email": user.email, "idp_id": payload["idp_id"]},
+            ip_address=ip,
+        )
+        db.commit()
+        return SsoLinkConsentResponse(status="cancelled", return_to="/login")
+
+    # Approve: detach local password, sync teams, mint session.
+    user.hashed_password = ""
+    user.last_login_at = datetime.now(timezone.utc)
+    db.flush()
+
+    try:
+        _sync_team_memberships(db, user, payload["idp_id"], payload.get("groups", []))
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "sync.failed", "message": str(exc)[:200]},
+        ) from exc
+
+    log_event(
+        db,
+        AuditEventType.USER_ACCOUNT_LINKED,
+        user_id=user.id,
+        resource_id=user.id,
+        detail={"email": user.email, "idp_id": payload["idp_id"]},
+        ip_address=ip,
+    )
+    db.commit()
+
+    tokens = create_token_response(user)
+    return SsoLinkConsentResponse(
+        status="linked",
+        return_to=payload.get("return_to", "/"),
+        access_token=tokens.access_token,
+        refresh_token=tokens.refresh_token,
+    )

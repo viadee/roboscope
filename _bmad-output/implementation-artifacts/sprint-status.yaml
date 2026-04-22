@@ -91,20 +91,14 @@ development_status:
   3-15-apitoken-role-cap-verification: done
   epic-3-retrospective: optional
 
-  # Epic 4 stays in-progress until Story 4-7 (link-consent dialog) ships.
-  epic-4: in-progress
+  epic-4: done
   4-1-auth-me-extension-with-effective-roles-and-first-login: done
   4-2-frontend-firstloginview-and-welcomecard: done
   4-3-why-you-have-access-microcopy-locked-in-4-locales: done
   4-4-teamswitcher-component-and-header-integration: done
   4-5-zero-teams-and-zero-repos-empty-states: done
   4-6-read-only-affordances-in-floweditor: done
-  # Story 4-7 deliberately stays in-progress: the callback-flow
-  # interception + consent dialog is a multi-endpoint change that
-  # touches the SSO critical path. Needs a focused design pass
-  # (dedicated attempt-state table vs OidcLoginAttempt reuse) before
-  # implementation. See deferred-work.md.
-  4-7-existing-local-account-link-consent-dialog: in-progress
+  4-7-existing-local-account-link-consent-dialog: done
   4-8-axe-core-playwright-integration-and-accessibility-passes: done
   # Story 4-9 shipped ahead of the Phase 4 cut — driver.js + useTour
   # composable + tour launch button in AppHeader were already in place.

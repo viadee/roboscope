@@ -111,6 +111,12 @@ const router = createRouter({
       meta: { requiresAuth: true, minRole: 'admin' },
     },
     {
+      path: '/sso-link-consent',
+      name: 'sso-link-consent',
+      component: () => import('@/views/SsoLinkConsentView.vue'),
+      meta: { layout: 'auth', requiresAuth: false },
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       redirect: '/dashboard',

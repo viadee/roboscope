@@ -128,7 +128,31 @@ def handle_sso_callback(
     del id_token_str  # NFR9 — id_token discarded after extraction
 
     claims = _extract_claims(id_token_claims, idp)
-    user = _upsert_user(db, email=claims["email"], sub=claims["sub"])
+    try:
+        user = _upsert_user(db, email=claims["email"], sub=claims["sub"])
+    except SsoCallbackError as err:
+        # Story 4-7 — intercept the link-consent-required signal and re-raise
+        # with a consent token so the router can redirect to the consent page
+        # with all the claim state encoded client-side.
+        if err.code != "user.link_consent_required":
+            raise
+        from src.auth.sso_link_consent import encode_consent_token
+
+        user_id = err.detail.get("user_id")
+        if not isinstance(user_id, int):
+            raise
+        consent_token = encode_consent_token(
+            user_id=user_id,
+            idp_id=idp.id,
+            sub=claims["sub"],
+            email=claims["email"],
+            groups=claims["groups"],
+            return_to=return_to,
+        )
+        raise SsoCallbackError(
+            "user.link_consent_required",
+            {"consent_token": consent_token, "user_id": user_id},
+        ) from None
     try:
         sync_report = _sync_team_memberships(db, user, idp.id, claims["groups"])
     except SQLAlchemyError as exc:
@@ -321,6 +345,15 @@ def _upsert_user(db: Session, *, email: str, sub: str) -> User:
         # P6 — block SSO for deactivated accounts; do not silently reactivate.
         if not user.is_active:
             raise SsoCallbackError("user.disabled", {"user_id": user.id})
+        # Story 4-7 — existing local account (non-empty hashed_password) signing
+        # in via SSO for the first time needs explicit consent before we link.
+        # Callers check the "user.link_consent_required" code and redirect to
+        # the consent page instead of auto-linking.
+        if user.hashed_password:
+            raise SsoCallbackError(
+                "user.link_consent_required",
+                {"user_id": user.id, "email": email, "sub": sub},
+            )
         user.last_login_at = datetime.now(timezone.utc)
         db.flush()
         return user
