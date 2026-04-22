@@ -53,6 +53,36 @@ class UserResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TeamSummary(BaseModel):
+    """Slim Team shape for /auth/me — avoids circular imports."""
+
+    id: int
+    name: str
+
+    model_config = {"from_attributes": True}
+
+
+class MeResponse(UserResponse):
+    """Story 4-1: extended /auth/me response.
+
+    Additive-only — inherits every existing UserResponse field and adds:
+      - teams: every Team the user belongs to (empty list for solo users)
+      - default_team_id: the first team by id, or None
+      - effective_roles_by_repo: {repo_id: role} over every repo with
+        a team_id the user is a member of OR a ProjectMember grant
+      - first_login_complete: whether FirstLoginView has been dismissed
+    """
+
+    teams: list[TeamSummary] = []
+    default_team_id: int | None = None
+    effective_roles_by_repo: dict[int, Role] = {}
+    first_login_complete: bool = False
+
+
+class FirstLoginCompleteRequest(BaseModel):
+    value: bool = True
+
+
 class UserUpdate(BaseModel):
     email: str | None = None
     username: str | None = None

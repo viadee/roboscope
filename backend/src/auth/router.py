@@ -35,13 +35,17 @@ def _record_failed_attempt(request: Request) -> None:
 from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
 from src.auth.schemas import (
+    FirstLoginCompleteRequest,
     LoginRequest,
+    MeResponse,
     RefreshRequest,
     RegisterRequest,
+    TeamSummary,
     TokenResponse,
     UserResponse,
     UserUpdate,
 )
+from sqlalchemy import select
 from src.auth.service import (
     authenticate_user,
     create_token_response,
@@ -106,10 +110,80 @@ def refresh_token(
     return create_token_response(user)
 
 
-@router.get("/me", response_model=UserResponse)
-def get_me(current_user: User = Depends(get_current_user)):
-    """Get current authenticated user."""
-    return current_user
+@router.get("/me", response_model=MeResponse)
+def get_me(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get current authenticated user with Phase 4 session extensions.
+
+    Story 4-1: returns the user's Teams, default team, effective role per
+    repo (repos where user has team or project grant), and the
+    first_login_complete flag — additive to pre-Phase-4 UserResponse.
+    """
+    from src.auth.permissions import effective_role
+    from src.repos.models import ProjectMember, Repository
+    from src.teams.models import Team, TeamMember
+
+    team_ids: list[int] = [
+        row[0]
+        for row in db.execute(
+            select(TeamMember.team_id).where(TeamMember.user_id == current_user.id)
+        ).all()
+    ]
+    teams: list[Team] = (
+        list(db.execute(select(Team).where(Team.id.in_(team_ids))).scalars().all())
+        if team_ids
+        else []
+    )
+    teams.sort(key=lambda t: t.id)
+
+    repo_candidates: set[int] = set()
+    if team_ids:
+        for rid in db.execute(
+            select(Repository.id).where(Repository.team_id.in_(team_ids))
+        ).scalars().all():
+            repo_candidates.add(rid)
+    for rid in db.execute(
+        select(ProjectMember.repository_id).where(
+            ProjectMember.user_id == current_user.id
+        )
+    ).scalars().all():
+        repo_candidates.add(rid)
+
+    roles_by_repo: dict[int, Role] = {}
+    for rid in repo_candidates:
+        repo = db.get(Repository, rid)
+        if repo is None:
+            continue
+        roles_by_repo[rid] = effective_role(db, current_user, repo)
+
+    return MeResponse(
+        id=current_user.id,
+        email=current_user.email,
+        username=current_user.username,
+        role=Role(current_user.role),
+        is_active=current_user.is_active,
+        created_at=current_user.created_at,
+        last_login_at=current_user.last_login_at,
+        teams=[TeamSummary(id=t.id, name=t.name) for t in teams],
+        default_team_id=teams[0].id if teams else None,
+        effective_roles_by_repo=roles_by_repo,
+        first_login_complete=bool(current_user.first_login_complete),
+    )
+
+
+@router.patch("/me/first-login-complete", response_model=MeResponse)
+def patch_first_login_complete(
+    data: FirstLoginCompleteRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Mark the first-login tutorial as dismissed (Story 4-1)."""
+    current_user.first_login_complete = data.value
+    db.commit()
+    db.refresh(current_user)
+    return get_me(current_user=current_user, db=db)
 
 
 # --- User Management (Admin only) ---
