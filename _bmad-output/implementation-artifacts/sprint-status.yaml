@@ -130,7 +130,7 @@ development_status:
   # + recorder-v2-epics.md + recorder-v2-architecture.md
   epic-recorder-v2-web: in-progress
   recorder-W-1-controlled-browser-session: in-progress  # stub shipped, Chromium launch pending
-  recorder-W-2-command-stream-sse: backlog
+  recorder-W-2-command-stream-sse: done
   recorder-W-3-primitive-capture-injection: backlog
   recorder-W-4-hover-overlay: backlog
   recorder-W-5-context-menu: backlog

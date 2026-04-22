@@ -407,6 +407,11 @@ def v2_create_session(
     db.flush()
     db.refresh(session)
 
+    # Story W.2 — register the in-memory FIFO so the SSE endpoint and
+    # the capture producer (future W.1 full) share it.
+    from src.recording.v2_command_queue import register_session
+    register_session(session.id)
+
     log_event(
         db,
         AuditEventType.RECORDING_SESSION_STARTED,
@@ -558,6 +563,10 @@ def v2_abort_session(
         return
     session.status = RecordingStatus.CANCELLED
     session.finished_at = datetime.now(timezone.utc)
+    # Story W.2 — tell any live SSE subscriber to close cleanly.
+    from src.recording.v2_command_queue import finalize_session, tear_down_session
+    finalize_session(session.id)
+    tear_down_session(session.id)
     log_event(
         db,
         AuditEventType.RECORDING_SESSION_ABORTED,
@@ -566,3 +575,59 @@ def v2_abort_session(
         detail={"session_id": session.id, "reason": "user_abort"},
     )
     db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Recorder v2 — Story W.2: SSE command stream
+# ---------------------------------------------------------------------------
+
+import json as _json
+
+
+@router.get("/recordings/sessions/{session_id}/commands")
+def v2_command_stream(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Story W.2 — single-subscriber SSE stream of RecordedCommand events.
+
+    Returns text/event-stream. Events are `event: command` with the
+    RecordedCommand JSON as `data`. Stream terminates when the session
+    finalizes (end sentinel) OR the session row transitions to a
+    terminal status out-of-band.
+
+    Single-subscriber per AR-3 — a second concurrent GET returns 409.
+    """
+    from fastapi.responses import StreamingResponse
+    from src.recording.v2_command_queue import iterate_commands
+
+    session = db.get(RecordingSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if (
+        session.triggered_by != current_user.id
+        and current_user.role != Role.ADMIN
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Only the session owner or an admin can subscribe",
+        )
+
+    def event_gen():
+        for cmd in iterate_commands(session_id, poll_timeout_s=0.5):
+            payload = _json.dumps(cmd.model_dump(mode="json"), default=str)
+            yield f"event: command\ndata: {payload}\n\n"
+        # End of stream — SSE clients close on connection end; emit a
+        # final explicit `event: end` so the browser-side EventSource
+        # handler can distinguish "done" from "network blip".
+        yield "event: end\ndata: {}\n\n"
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",  # nginx: disable response buffering
+        },
+    )
