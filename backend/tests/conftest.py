@@ -2,7 +2,7 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.auth.constants import Role
@@ -34,13 +34,29 @@ def engine():
 
 @pytest.fixture(scope="function")
 def db_session(engine):
-    """Provide a transactional database session that rolls back after each test."""
+    """Provide a transactional database session that rolls back after each test.
+
+    Uses the SQLAlchemy SAVEPOINT pattern: the outer connection-level
+    transaction wraps the whole test, and a nested SAVEPOINT is re-issued
+    after every session.commit() so commit-heavy handlers (SSO callback,
+    rate-limit counters) don't leak partial state between tests.
+    """
     connection = engine.connect()
     transaction = connection.begin()
     session = Session(bind=connection, expire_on_commit=False)
+    nested = connection.begin_nested()
+
+    @event.listens_for(session, "after_transaction_end")
+    def end_savepoint(session, trans):
+        nonlocal nested
+        if not nested.is_active:
+            nested = connection.begin_nested()
+
     yield session
+
     session.close()
-    transaction.rollback()
+    if transaction.is_active:
+        transaction.rollback()
     connection.close()
 
 

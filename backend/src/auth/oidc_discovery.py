@@ -297,7 +297,13 @@ def get_or_fetch_discovery(
 
     try:
         result = probe_idp_discovery(db, idp)
-        db.commit()
+        # Flush (not commit) so callers own transaction boundaries. Committing
+        # here used to destroy the outer SAVEPOINT in test fixtures and leak
+        # partial state if the surrounding handler later rolled back. The
+        # SSO initiation + callback handlers both db.commit() on success,
+        # and failure paths rollback() — either way the cache row lands
+        # durably without an inner commit.
+        db.flush()
         if result.overall_status == "passed" and idp.discovery_cache_json:
             return json.loads(idp.discovery_cache_json)
         return None
