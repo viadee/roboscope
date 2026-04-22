@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
@@ -17,6 +17,7 @@ from src.repos.schemas import (
     ProjectMemberUpdate,
     RepoCreate,
     RepoResponse,
+    RepoTeamAssignRequest,
     RepoUpdate,
     SyncResponse,
 )
@@ -150,6 +151,59 @@ def remove_repo(
     if repo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
     delete_repository(db, repo)
+
+
+@router.put("/{repo_id}/team", response_model=RepoResponse)
+def assign_team(
+    repo_id: int,
+    data: RepoTeamAssignRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.ADMIN)),
+):
+    """Assign (or clear with team_id=null) the owning team of a repository.
+
+    Story 3-2: repository → team assignment. ADMIN-only; emits
+    `repository.team_assigned` / `repository.team_unassigned` audit events.
+    """
+    from src.audit.event_types import AuditEventType
+    from src.audit.service import log_event
+    from src.teams.models import Team
+
+    repo = get_repository(db, repo_id)
+    if repo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found"
+        )
+
+    if data.team_id is not None:
+        team = db.get(Team, data.team_id)
+        if team is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Team not found"
+            )
+
+    previous_team_id = repo.team_id
+    repo.team_id = data.team_id
+    db.flush()
+
+    ip = request.client.host if request.client else None
+    event_type = (
+        AuditEventType.REPOSITORY_TEAM_ASSIGNED
+        if data.team_id is not None
+        else AuditEventType.REPOSITORY_TEAM_UNASSIGNED
+    )
+    log_event(
+        db,
+        event_type,
+        user_id=current_user.id,
+        resource_id=repo.id,
+        detail={"team_id": data.team_id, "previous_team_id": previous_team_id},
+        ip_address=ip,
+    )
+    db.commit()
+    db.refresh(repo)
+    return repo
 
 
 @router.post("/{repo_id}/sync", response_model=SyncResponse)

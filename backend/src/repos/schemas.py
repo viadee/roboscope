@@ -47,10 +47,17 @@ class RepoResponse(BaseModel):
     sync_error: str | None = None
     created_by: int
     environment_id: int | None = None
+    team_id: int | None = None
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class RepoTeamAssignRequest(BaseModel):
+    """Body of PUT /repos/{id}/team — assign or clear the owning team."""
+
+    team_id: int | None = None
 
 
 class BranchResponse(BaseModel):
