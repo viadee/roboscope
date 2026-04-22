@@ -114,10 +114,17 @@ def test_disabled_idp_returns_404(client: TestClient, disabled_idp: IdentityProv
     assert res.status_code == 404
 
 
-def test_return_to_validation_precedes_idp_lookup(client: TestClient):
-    """Invalid return_to is rejected BEFORE unknown-IdP 404 is raised."""
+def test_idp_lookup_precedes_return_to_validation(client: TestClient):
+    """Unknown-IdP 404 is raised BEFORE return_to validation.
+
+    Anti-probing guard from the Phase 4 security review: the previous
+    order exposed an IdP-existence oracle via 400 (valid return_to,
+    invalid idp) vs 302 (valid return_to, valid idp). With the check
+    order flipped, an anon caller cannot distinguish valid from
+    invalid idp_id — every request with an unknown idp returns 404
+    regardless of return_to shape.
+    """
     res = client.get(
         f"{BASE_URL}/99999/login", params={"return_to": "https://evil.com"}
     )
-    assert res.status_code == 400
-    assert res.json()["detail"]["code"] == "return_to.invalid"
+    assert res.status_code == 404
