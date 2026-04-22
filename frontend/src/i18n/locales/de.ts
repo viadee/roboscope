@@ -1492,6 +1492,22 @@ export default {
       contactAdmin: 'Team-Lead kontaktieren',
     },
   },
+  recorder: {
+    selector: {
+      swapAriaLabel: 'Selektor-Strategie wechseln',
+      strategy: {
+        testid: 'Test-ID',
+        aria: 'ARIA',
+        text: 'Text',
+        css: 'CSS',
+        xpath: 'XPath',
+        pw_locator: 'Playwright',
+        automation_id: 'AutomationId',
+        uia_name: 'UIA Name',
+        uia_class_name: 'UIA Class',
+      },
+    },
+  },
   bypass: {
     heading: 'SSO Notfall-Bypass',
     hint: 'Aktiviert das lokale Login-Formular temporär während eines IdP-Ausfalls. Läuft automatisch ab.',

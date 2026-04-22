@@ -1492,6 +1492,22 @@ export default {
       contactAdmin: 'Contactar al QA lead',
     },
   },
+  recorder: {
+    selector: {
+      swapAriaLabel: 'Cambiar estrategia de selector',
+      strategy: {
+        testid: 'Test ID',
+        aria: 'ARIA',
+        text: 'Texto',
+        css: 'CSS',
+        xpath: 'XPath',
+        pw_locator: 'Playwright',
+        automation_id: 'AutomationId',
+        uia_name: 'UIA Name',
+        uia_class_name: 'UIA Class',
+      },
+    },
+  },
   bypass: {
     heading: 'Bypass de emergencia SSO',
     hint: 'Reactiva temporalmente el formulario de inicio de sesión local durante una interrupción del IdP. Expira automáticamente.',
