@@ -124,3 +124,36 @@ development_status:
   5-10-chrome-recorder-phase-4-impact-documentation: done
   5-11-non-goals-documentation-lock: done
   epic-5-retrospective: optional
+
+  # Recorder v2 — Web Recorder MVP
+  # Planning artifacts: _bmad-output/planning-artifacts/recorder-v2-prd.md
+  # + recorder-v2-epics.md + recorder-v2-architecture.md
+  epic-recorder-v2-web: in-progress
+  recorder-W-1-controlled-browser-session: in-progress  # stub shipped, Chromium launch pending
+  recorder-W-2-command-stream-sse: backlog
+  recorder-W-3-primitive-capture-injection: backlog
+  recorder-W-4-hover-overlay: backlog
+  recorder-W-5-context-menu: backlog
+  recorder-W-6-result-view: backlog
+  recorder-W-7-launcher-view-route: done
+  recorder-W-8-audit-and-retention: in-progress  # retention shipped, emission sites pending W.1 full
+
+  # Recorder v2 — Shared Selector datamodel + editor UI
+  epic-recorder-v2-selectors: in-progress
+  recorder-S-1-shared-datamodel: done
+  recorder-S-2-strategy-library: done
+  recorder-S-3-uniqueness-verification: backlog  # requires live browser from W.1
+  recorder-S-4-inline-picker-component: done
+  recorder-S-5-i18n-strategy-labels: done
+
+  # Recorder v2 — Desktop Recorder (Windows)
+  epic-recorder-v2-desktop-windows: backlog
+  recorder-D-1-uia-session-adapter: backlog
+  recorder-D-2-primitive-capture: backlog
+  recorder-D-3-desktop-selector-strategies: backlog
+  recorder-D-4-robot-library-mapping: backlog
+
+  # Recorder v2 — Desktop Recorder (macOS, tentative)
+  epic-recorder-v2-desktop-macos: backlog
+  recorder-DM-1-ax-feasibility-spike: backlog
+  recorder-DM-2-macos-session-adapter: backlog
