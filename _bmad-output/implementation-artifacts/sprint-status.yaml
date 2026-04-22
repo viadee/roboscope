@@ -139,10 +139,10 @@ development_status:
   recorder-W-8-audit-and-retention: done
 
   # Recorder v2 — Shared Selector datamodel + editor UI
-  epic-recorder-v2-selectors: in-progress
+  epic-recorder-v2-selectors: done
   recorder-S-1-shared-datamodel: done
   recorder-S-2-strategy-library: done
-  recorder-S-3-uniqueness-verification: backlog  # requires live browser from W.1
+  recorder-S-3-uniqueness-verification: done
   recorder-S-4-inline-picker-component: done
   recorder-S-5-i18n-strategy-labels: done
 
