@@ -32,6 +32,7 @@ class AuditEventType(StrEnum):
     USER_REACTIVATED = "user.reactivated"
     SSO_EMERGENCY_BYPASS_ACTIVATED = "sso.emergency_bypass.activated"
     SSO_EMERGENCY_BYPASS_DEACTIVATED = "sso.emergency_bypass.deactivated"
+    API_TOKEN_REASSIGNED = "api_token.reassigned"
 
 
 def resource_type_for(event_type: AuditEventType) -> str:

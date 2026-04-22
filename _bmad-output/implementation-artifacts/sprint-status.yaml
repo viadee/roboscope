@@ -114,7 +114,9 @@ development_status:
   5-1-emergency-bypass-toggle-api-and-auto-expire: done
   5-2-emergency-bypass-admin-ui-and-header-indicator: backlog
   5-3-user-deactivation-propagation: done
-  5-4-apitoken-reassign-endpoint-and-admin-ui: backlog
+  # NOTE: backend endpoint shipped (POST /webhooks/tokens/{id}/reassign);
+  # the admin UI component is deferred until Epic 4 planning.
+  5-4-apitoken-reassign-endpoint-and-admin-ui: in-progress
   5-5-retention-cleanup-apscheduler-jobs: done
   5-6-auditeventtype-enum-and-structured-emission: done
   5-7-i18n-complete-pass-for-all-phase-4-strings: done
