@@ -16,6 +16,16 @@ let pollHandle: number | undefined
 const POLL_INTERVAL_MS = 60_000  // 60s — bypass state changes are infrequent
 
 async function refresh() {
+  // Gate on auth: when no access_token is present, skip the fetch
+  // entirely. An unauthenticated request to /settings/sso-emergency-bypass
+  // returns 401, and the axios interceptor reacts to 401 with a full
+  // page reload — which would re-mount DefaultLayout + AppHeader and
+  // re-invoke this composable, creating a redirect loop. Lesson
+  // documented in CLAUDE.md under "Singleton composables and auth".
+  if (!localStorage.getItem('access_token')) {
+    status.value = null
+    return
+  }
   try {
     status.value = await getBypassStatus()
   } catch {

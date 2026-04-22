@@ -57,6 +57,8 @@ Swagger: `http://localhost:8000/api/v1/docs`
 - **Secrets encryption**: `src/encryption.py` (Fernet from `SECRET_KEY`). Env variables with `is_secret=True` are encrypted at rest; legacy plaintext still decrypts (graceful).
 - **Audit middleware**: all POST/PUT/PATCH/DELETE are auto-logged to `AuditLog` with user/IP/detail.
 - **Retention scheduler**: APScheduler (24h) runs `enforce_retention()`. Reports/runs older than `report_retention_days` deleted; manual trigger `POST /audit/retention/run` (ADMIN).
+- **Singleton composables + authenticated endpoints = redirect loop risk**: any global-layout composable (e.g. `useBypassStatus`, `useUserSettings`) that polls an authenticated endpoint MUST early-return when `localStorage.getItem('access_token')` is null. Otherwise: Vue momentarily renders DefaultLayout + AppHeader during initial route resolution even on `/login`, the composable fires its fetch, gets 401, the axios interceptor does `window.location.href = '/login'`, and you loop. The interceptor also checks `window.location.pathname === '/login'` and skips the reload when already there — both guards are required; dropping either one brings the flicker back. Regression seen during Phase 4 Story 5-2 dev; fix committed 2026-04-22.
+- **Axios 401 interceptor** (`frontend/src/api/client.ts`): never call `window.location.href = '/login'` unconditionally — always gate on `window.location.pathname !== '/login'` to avoid the loop above.
 
 ## Key API prefixes (`/api/v1/…`)
 

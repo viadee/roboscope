@@ -138,3 +138,25 @@
 - `_verify_id_token` at `oidc_callback_service.py:231-294` pins alg to RS/ES (no HS/none), requires matching `azp` on multi-value `aud` per OIDC Core §3.1.3.7, validates issuer + nonce after signature.
 - State consumption is atomic before any network I/O (`P14` — closes the replay window cleanly); concurrent callback with same state gets `state.unknown`.
 - `_extract_claims` rejects `email_verified != True`; group sync only prunes rows with `source="idp_group_sync"` so a manual grant survives a login event.
+
+## Post-mortem: Phase 4 login-page flicker / redirect loop (2026-04-22)
+
+**Symptom.** User reported "kann gar nicht auf die neue login seite, es flackert nur" after checking out `feat/recorder-and-bmad`. Playwright probe measured 717 navigations to `/login` in ~3 seconds, all ending with 401 on `/api/v1/settings/sso-emergency-bypass`.
+
+**Root cause — two independent bugs layered:**
+
+1. **`useBypassStatus` composable (Story 5-2 commit `500e904`)** polls the authenticated `/settings/sso-emergency-bypass` endpoint without gating on `access_token` presence. The composable is declared inside `AppHeader.vue` which only belongs to `DefaultLayout`, so *in theory* `/login` (which uses `AuthLayout`) should never mount it. In practice, during initial SPA bootstrap Vue briefly renders the default layout *before* the router resolves the first route to `AuthLayout` — enough time for the composable to fire its fetch.
+2. **Axios 401 interceptor (`client.ts`)** on an unauthenticated request unconditionally calls `window.location.href = '/login'` — even when the caller is already on `/login`. That forces a full page reload, which re-runs step 1. Loop.
+
+Either fix alone closes the loop; both are in place because each is a legitimate invariant on its own.
+
+**Fixes (commit pending):**
+
+- `useBypassStatus.refresh()` early-returns when `localStorage.getItem('access_token')` is null. Any future singleton composable that polls an authenticated endpoint MUST do the same.
+- `client.ts` 401 interceptor adds a `window.location.pathname === '/login'` guard before the `window.location.href = '/login'` line. Callers already on the login page get their stale token cleared but no reload.
+
+**Process lessons (now captured in CLAUDE.md "Critical patterns"):**
+
+- Any Vue composable created as a global singleton + polled from a layout-level component must treat "unauthenticated" as a first-class branch, not assume the layout itself is gated. Layout-boundary "this only mounts for authed users" reasoning is false because of the brief flash during initial route resolution.
+- Axios 401 interceptors must be idempotent under repeated firing from the same page. Check `window.location.pathname` before any side-effect that causes a reload.
+- Test suite gap: the frontend unit tests mock out axios, so neither of these bugs could have been caught by `npm run test:unit`. **Follow-up**: add a Playwright e2e test that loads `/` without a token and asserts `< 5` navigations before settling on `/login`. File this as a sprint story next cycle.
