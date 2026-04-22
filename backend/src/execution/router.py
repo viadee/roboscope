@@ -10,7 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
-from src.auth.dependencies import get_current_user, require_role
+from src.auth.dependencies import (
+    get_current_user,
+    require_effective_role_for_run,
+    require_role,
+)
 from src.auth.models import User
 from src.database import get_db
 from src.rate_limit import limiter
@@ -123,7 +127,7 @@ def get_run_detail(
 def cancel_run_endpoint(
     run_id: int,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.RUNNER)),
+    _current_user: User = Depends(require_effective_role_for_run(Role.RUNNER)),
 ):
     """Cancel a pending or running execution."""
     run = get_run(db, run_id)
@@ -168,7 +172,7 @@ def cancel_all_runs(
 def retry_run_endpoint(
     run_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.RUNNER)),
+    current_user: User = Depends(require_effective_role_for_run(Role.RUNNER)),
 ):
     """Retry a failed or errored run."""
     run = get_run(db, run_id)

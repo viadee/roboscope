@@ -177,3 +177,120 @@ def require_effective_role(min_role: Role):
         return current_user
 
     return check
+
+
+def require_effective_role_for_run(min_role: Role):
+    """Dependency factory gating on the user's effective role on the repo
+    that a given run belongs to.
+
+    Reads `run_id` from the path, resolves `ExecutionRun.repository_id`,
+    then reuses the same effective-role computation as
+    `require_effective_role`. Story 3-8 migration entry point.
+    """
+
+    def check(
+        request: Request,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        from src.auth.permissions import effective_role
+        from src.execution.models import ExecutionRun
+        from src.repos.models import Repository
+
+        raw_run_id = request.path_params.get("run_id")
+        try:
+            run_id = int(raw_run_id)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Run not found",
+            )
+
+        run = db.get(ExecutionRun, run_id)
+        if run is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Run not found",
+            )
+
+        repo = db.get(Repository, run.repository_id)
+        if repo is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Repository not found",
+            )
+
+        er = effective_role(db, current_user, repo)
+        if ROLE_HIERARCHY.get(er, -1) < ROLE_HIERARCHY.get(min_role, 999):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=ERR_INSUFFICIENT_PERMISSIONS,
+            )
+        return current_user
+
+    return check
+
+
+def require_effective_role_for_report(min_role: Role):
+    """Dependency factory gating on the user's effective role on the repo
+    that a given report's run belongs to.
+
+    Reads `report_id` from the path, joins report → run → repo, then
+    reuses the effective-role computation. Story 3-9 migration entry.
+    """
+
+    def check(
+        request: Request,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        from src.auth.permissions import effective_role
+        from src.execution.models import ExecutionRun
+        from src.reports.models import Report
+        from src.repos.models import Repository
+
+        raw_report_id = request.path_params.get("report_id")
+        try:
+            report_id = int(raw_report_id)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found",
+            )
+
+        report = db.get(Report, report_id)
+        if report is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found",
+            )
+
+        if report.execution_run_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report is not linked to a run",
+            )
+
+        run = db.get(ExecutionRun, report.execution_run_id)
+        if run is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Run not found",
+            )
+
+        repo = db.get(Repository, run.repository_id)
+        if repo is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Repository not found",
+            )
+
+        er = effective_role(db, current_user, repo)
+        if ROLE_HIERARCHY.get(er, -1) < ROLE_HIERARCHY.get(min_role, 999):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=ERR_INSUFFICIENT_PERMISSIONS,
+            )
+        return current_user
+
+    return check
