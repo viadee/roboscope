@@ -148,8 +148,11 @@ development_status:
 
   # Recorder v2 — Desktop Recorder (Windows)
   epic-recorder-v2-desktop-windows: in-progress
-  recorder-D-1-uia-session-adapter: backlog
-  recorder-D-2-primitive-capture: backlog
+  # D.1 + D.2 ship the pure-Python translator + thread skeleton;
+  # the actual pywinauto event-hook wiring needs a Windows dev host
+  # and lives as a TODO inside `_desktop_loop`.
+  recorder-D-1-uia-session-adapter: in-progress
+  recorder-D-2-primitive-capture: in-progress
   recorder-D-3-desktop-selector-strategies: done
   recorder-D-4-robot-library-mapping: done
 
