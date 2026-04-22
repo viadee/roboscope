@@ -47,6 +47,9 @@ export default {
     settings: 'Einstellungen',
     docs: 'Doku',
     identityProviders: 'Identity Provider',
+    recorder: 'Recorder',
+    teams: 'Teams',
+    emergencyBypass: 'Notfall-Bypass',
   },
   auth: {
     tagline: 'Robot Framework Test Management',

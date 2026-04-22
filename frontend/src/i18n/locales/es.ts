@@ -47,6 +47,9 @@ export default {
     settings: 'Configuración',
     docs: 'Docs',
     identityProviders: 'Proveedores de identidad',
+    recorder: 'Recorder',
+    teams: 'Equipos',
+    emergencyBypass: 'Bypass de emergencia',
   },
   auth: {
     tagline: 'Robot Framework Test Management',

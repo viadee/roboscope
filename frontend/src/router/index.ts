@@ -111,6 +111,18 @@ const router = createRouter({
       meta: { requiresAuth: true, minRole: 'admin' },
     },
     {
+      path: '/admin/teams',
+      name: 'teams',
+      component: () => import('@/views/TeamListView.vue'),
+      meta: { requiresAuth: true, minRole: 'admin' },
+    },
+    {
+      path: '/admin/teams/:id',
+      name: 'team-detail',
+      component: () => import('@/views/TeamDetailView.vue'),
+      meta: { requiresAuth: true, minRole: 'admin' },
+    },
+    {
       path: '/sso-link-consent',
       name: 'sso-link-consent',
       component: () => import('@/views/SsoLinkConsentView.vue'),

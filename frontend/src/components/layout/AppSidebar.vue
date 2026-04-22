@@ -27,11 +27,14 @@ const navItems = computed(() => {
   ]
 
   if (auth.hasMinRole('editor')) {
+    items.push({ path: '/recordings/new', labelKey: 'nav.recorder', icon: '\u23FA' })
     items.push({ path: '/environments', labelKey: 'nav.environments', icon: '\u2699' })
   }
 
   if (auth.hasMinRole('admin')) {
     items.push({ path: '/admin/identity-providers', labelKey: 'nav.identityProviders', icon: '\uD83D\uDD10' })
+    items.push({ path: '/admin/teams', labelKey: 'nav.teams', icon: '\uD83D\uDC65' })
+    items.push({ path: '/admin/emergency-bypass', labelKey: 'nav.emergencyBypass', icon: '\u26A0' })
     items.push({ path: '/settings', labelKey: 'nav.settings', icon: '\uD83D\uDD27' })
   }
 
