@@ -73,6 +73,9 @@ asyncio_mode = "auto"
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+markers = [
+    "integration: requires an installed playwright chromium browser; opt-in via -m integration",
+]
 
 [tool.ruff]
 target-version = "py312"

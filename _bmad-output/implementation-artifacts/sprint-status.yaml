@@ -137,6 +137,7 @@ development_status:
   recorder-W-6-result-view: done
   recorder-W-7-launcher-view-route: done
   recorder-W-8-audit-and-retention: done
+  recorder-W-e2e-capture-fixture: done  # real Chromium, fixture page, asserts RecordedCommand shape
 
   # Recorder v2 — Shared Selector datamodel + editor UI
   epic-recorder-v2-selectors: done

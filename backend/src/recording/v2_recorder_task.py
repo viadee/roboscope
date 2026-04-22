@@ -59,18 +59,39 @@ def is_v2_session_active(session_id: int) -> bool:
     return session_id in _stop_signals
 
 
-def run_v2_recorder_session(session_id: int, target_url: str | None = None) -> None:
+def run_v2_recorder_session(
+    session_id: int,
+    target_url: str | None = None,
+    *,
+    headless: bool = False,
+    test_actions: Any = None,
+) -> None:
     """Blocking entry point — dispatched via task_executor.dispatch_task.
 
     Marks the RecordingSession row RECORDING on start and CANCELLED /
     COMPLETED on stop. Any exception inside the Playwright loop flips
     the status to FAILED with the exception message captured.
+
+    Test hooks (only used from the e2e integration test — production
+    dispatch never passes them):
+      headless     — launch Chromium headless (no window). Default False
+                     so interactive recording keeps the visible window.
+      test_actions — optional `async (page) -> None`. When given, runs
+                     once right after the initial goto, then sets
+                     stop_event so the task exits cleanly. Lets a pytest
+                     drive scripted interactions through the real
+                     capture pipeline.
     """
     stop_event = threading.Event()
     _stop_signals[session_id] = stop_event
 
     try:
-        asyncio.run(_recorder_loop(session_id, target_url, stop_event))
+        asyncio.run(
+            _recorder_loop(
+                session_id, target_url, stop_event,
+                headless=headless, test_actions=test_actions,
+            )
+        )
     except Exception:
         logger.exception("v2 recorder session %d crashed", session_id)
         _mark_status(session_id, RecordingStatus.FAILED, message="recorder crashed")
@@ -85,6 +106,9 @@ async def _recorder_loop(
     session_id: int,
     target_url: str | None,
     stop_event: threading.Event,
+    *,
+    headless: bool = False,
+    test_actions: Any = None,
 ) -> None:
     # Deferred import — Playwright is a heavy optional dep.
     from playwright.async_api import async_playwright
@@ -108,7 +132,7 @@ async def _recorder_loop(
             logger.exception("v2 recorder capture handler failed")
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=False)
+        browser = await pw.chromium.launch(headless=headless)
         context = await browser.new_context()
 
         # Inject the three IIFE scripts. `add_init_script` runs on every
@@ -133,6 +157,18 @@ async def _recorder_loop(
             stop_event.set()
 
         browser.on("disconnected", _on_disconnect)
+
+        # Test hook — run scripted user actions through the real
+        # capture pipeline, then signal stop so the loop exits cleanly.
+        if test_actions is not None:
+            try:
+                await test_actions(page)
+            except Exception:
+                logger.exception("v2 recorder: test_actions raised")
+            # Give the final batch of events a moment to flush through
+            # the binding before we tear down.
+            await asyncio.sleep(0.4)
+            stop_event.set()
 
         # Loop: wait for stop_event to be set, polling at 1 Hz.
         while not stop_event.is_set():

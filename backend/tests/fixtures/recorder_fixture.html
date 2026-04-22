@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>RoboScope Recorder v2 — e2e fixture</title>
+    <style>
+      body { font-family: -apple-system, Segoe UI, sans-serif; padding: 2rem; max-width: 640px; }
+      button, input { font: inherit; padding: .45rem .7rem; margin: .25rem 0; }
+      a.primary-link { display: inline-block; margin-top: 1rem; }
+      #next { margin-top: 3rem; padding: 1rem; border-top: 1px solid #ccc; }
+      #next:target { background: #fff7e6; }
+    </style>
+  </head>
+  <body>
+    <h1 data-testid="fixture-heading">RoboScope Recorder Fixture</h1>
+
+    <p>
+      <label for="email-input">Email</label><br />
+      <input type="email" data-testid="email-input" id="email-input" placeholder="you@example.com" />
+    </p>
+
+    <p>
+      <button data-testid="submit-button" type="button">Submit</button>
+    </p>
+
+    <p>
+      <a href="#next" data-testid="next-link" class="primary-link">Go to next section</a>
+    </p>
+
+    <section id="next">
+      <h2 data-testid="next-heading">Next section</h2>
+      <p>You navigated here via the recorded link.</p>
+    </section>
+  </body>
+</html>
