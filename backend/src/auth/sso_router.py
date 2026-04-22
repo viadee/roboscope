@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from src.audit.event_types import AuditEventType
 from src.audit.service import log_event
+from src.auth.client_ip import get_client_ip
 from src.auth.idp_service import get_identity_provider
 from src.auth.models import IdentityProvider
 from src.auth.oidc_callback_service import SsoCallbackError, handle_sso_callback
@@ -99,7 +100,7 @@ def sso_login_initiate(
 ):
     """Validate return_to, build PKCE authorization URL, persist attempt, redirect."""
     base_url = str(request.base_url).rstrip("/")
-    client_ip = request.client.host if request.client else None
+    client_ip = get_client_ip(request)
 
     # Reject early if the source IP has exceeded the failure threshold.
     blocked = _rate_limit_response_if_blocked(db, client_ip)
@@ -151,7 +152,7 @@ def sso_callback(
 ):
     """Single shared OIDC callback (AR9). IdP identified via state lookup."""
     base_url = str(request.base_url).rstrip("/")
-    client_ip = request.client.host if request.client else None
+    client_ip = get_client_ip(request)
 
     blocked = _rate_limit_response_if_blocked(db, client_ip)
     if blocked is not None:
@@ -325,7 +326,7 @@ def sso_link_consent(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Email no longer matches"
         )
 
-    ip = request.client.host if request.client else None
+    ip = get_client_ip(request)
 
     if not data.approve:
         log_event(
