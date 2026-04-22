@@ -540,6 +540,66 @@ def v2_save_flow(
     )
 
 
+class V2StartBrowserRequest(BaseModel):
+    target_url: str | None = None
+
+
+class V2StartBrowserResponse(BaseModel):
+    session_id: int
+    task_id: str | None  # None if the browser wasn't actually launched (disabled)
+
+
+@router.post(
+    "/recordings/sessions/{session_id}/start-browser",
+    response_model=V2StartBrowserResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def v2_start_browser(
+    session_id: int,
+    data: V2StartBrowserRequest | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Story W.1 full — launch the controlled Chromium for this session.
+
+    Explicit opt-in endpoint (not part of session create) so unit tests
+    and air-gapped environments never open a browser. The frontend
+    launcher calls this straight after receiving the session id.
+    """
+    import os
+
+    session = db.get(RecordingSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.triggered_by != current_user.id and current_user.role != Role.ADMIN:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the session owner or an admin can start the browser",
+        )
+    if session.status != RecordingStatus.RECORDING:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot start browser in '{session.status}' status",
+        )
+
+    # Env-var kill switch for deployments that don't ship Chromium
+    # (the Windows offline ZIP currently does not).
+    if os.environ.get("ROBOSCOPE_RECORDER_DISABLED", "").lower() in ("1", "true"):
+        return V2StartBrowserResponse(session_id=session_id, task_id=None)
+
+    target_url = (data.target_url if data else None) or None
+
+    try:
+        from src.recording.v2_recorder_task import run_v2_recorder_session
+        result = dispatch_task(run_v2_recorder_session, session_id, target_url)
+        task_id = result.id
+    except TaskDispatchError as exc:
+        logger.error("v2 recorder dispatch failed for session %d: %s", session_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return V2StartBrowserResponse(session_id=session_id, task_id=task_id)
+
+
 @router.delete(
     "/recordings/sessions/{session_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -565,6 +625,9 @@ def v2_abort_session(
     session.finished_at = datetime.now(timezone.utc)
     # Story W.2 — tell any live SSE subscriber to close cleanly.
     from src.recording.v2_command_queue import finalize_session, tear_down_session
+    from src.recording.v2_recorder_task import signal_stop_v2
+    # Story W.1 full — signal the Playwright task to tear down its browser.
+    signal_stop_v2(session.id)
     finalize_session(session.id)
     tear_down_session(session.id)
     log_event(
