@@ -32,6 +32,19 @@ export async function deleteIdp(id: number): Promise<void> {
   await apiClient.delete(`${BASE}/${id}`)
 }
 
+export async function downloadHandoff(
+  id: number,
+  format: 'pdf' | 'md',
+  lang: string,
+): Promise<Blob> {
+  const response = await apiClient.get(`${BASE}/${id}/handoff`, {
+    params: { format, lang },
+    responseType: 'blob',
+    timeout: 30000,
+  })
+  return response.data as Blob
+}
+
 export async function dryRunIdp(id: number): Promise<DryRunProbeResponse> {
   // AC2 of Story 1.4: probe has a ~10s budget; allow some client-side headroom.
   const response = await apiClient.post<DryRunProbeResponse>(`${BASE}/${id}/dry-run`, undefined, {

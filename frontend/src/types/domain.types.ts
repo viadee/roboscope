@@ -575,6 +575,7 @@ export interface IdpProvider {
   is_enabled: boolean
   last_dry_run_at: string | null
   last_dry_run_status: 'passed' | 'failed' | null
+  discovery_cached_at: string | null
   created_at: string
   updated_at: string
 }

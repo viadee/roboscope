@@ -37,6 +37,7 @@ dependencies = [
     "fastmcp<3",
     "playwright>=1.49.0",
     "authlib>=1.6.10",
+    "reportlab>=4.4.10",
 ]
 
 [project.optional-dependencies]

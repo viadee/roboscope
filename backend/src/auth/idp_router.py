@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
 from src.auth.dependencies import require_role
+from src.auth.handoff_generator import generate_markdown, generate_pdf
 from src.auth.oidc_discovery import probe_idp_discovery
 from src.auth.idp_service import (
     create_identity_provider,
@@ -19,6 +23,7 @@ from src.auth.idp_service import (
 )
 from src.auth.models import User
 from src.auth.schemas import (
+    DiscoveryCacheRefreshResponse,
     DryRunProbeResponse,
     IdentityProviderCreate,
     IdentityProviderResponse,
@@ -60,6 +65,16 @@ def create_idp(
             detail=f"Identity provider with name '{data.name}' already exists",
         )
     return idp
+
+
+@router.post("/discovery-cache/refresh", response_model=DiscoveryCacheRefreshResponse)
+def trigger_discovery_cache_refresh(
+    _: User = Depends(require_role(Role.ADMIN)),
+) -> DiscoveryCacheRefreshResponse:
+    from src.auth.discovery_refresh import refresh_discovery_cache
+
+    result = refresh_discovery_cache(force_all=True)
+    return DiscoveryCacheRefreshResponse(**result)
 
 
 @router.get("/{idp_id}", response_model=IdentityProviderResponse)
@@ -116,6 +131,38 @@ def delete_idp(
         )
     delete_identity_provider(db, idp)
     db.commit()
+
+
+@router.get("/{idp_id}/handoff")
+def handoff_artifact(
+    idp_id: int,
+    request: Request,
+    format: Literal["pdf", "md"] = Query("pdf"),
+    lang: Literal["en", "de", "fr", "es"] = Query("en"),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role(Role.ADMIN)),
+) -> StreamingResponse:
+    idp = get_identity_provider(db, idp_id)
+    if not idp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Identity provider not found",
+        )
+    base_url = str(request.base_url)
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in idp.name)
+    if format == "pdf":
+        content = generate_pdf(idp, base_url, lang)
+        media_type = "application/pdf"
+        filename = f"idp-handoff-{safe_name}-{lang}.pdf"
+    else:
+        content = generate_markdown(idp, base_url, lang).encode("utf-8")
+        media_type = "text/markdown; charset=utf-8"
+        filename = f"idp-handoff-{safe_name}-{lang}.md"
+    return StreamingResponse(
+        iter([content]),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/{idp_id}/dry-run", response_model=DryRunProbeResponse)

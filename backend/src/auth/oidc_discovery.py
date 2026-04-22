@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 import time
 from datetime import datetime, timezone
 
@@ -12,6 +13,8 @@ from sqlalchemy.orm import Session
 
 from src.auth.models import IdentityProvider
 from src.auth.schemas import DryRunCheckRow, DryRunProbeResponse
+
+DISCOVERY_CACHE_TTL_HOURS = 24
 
 _REQUIRED_DISCOVERY_KEYS = {
     "authorization_endpoint",
@@ -28,9 +31,17 @@ _PHASE_TIMEOUT = httpx.Timeout(_TIMEOUT_SECONDS, connect=_TIMEOUT_SECONDS)
 _MAX_RESPONSE_SIZE = 1_000_000
 
 # HTTPS-only unless operator opts in via env flag (for internal/test IdPs).
+# When True: http:// issuer URLs are accepted and _TLS_CONTEXT is not applied.
+# Certificate verification is NOT disabled — an HTTPS IdP with a self-signed cert
+# will still fail. Operators needing self-signed HTTPS should add the CA to the
+# system trust store rather than relying on this flag.
 _ALLOW_INSECURE_IDP = (
     os.getenv("ALLOW_INSECURE_IDP", "false").lower() == "true"
 )
+
+# NFR13: outbound IdP calls negotiate TLS 1.2 or newer; older versions fail at the client.
+_TLS_CONTEXT = ssl.create_default_context()
+_TLS_CONTEXT.minimum_version = ssl.TLSVersion.TLSv1_2
 
 
 def _validate_https(url: str, target: str) -> str | None:
@@ -56,7 +67,11 @@ def _fetch_json_object(
 
     Raises httpx.TimeoutException or httpx.HTTPError on network failure.
     """
-    with httpx.Client(timeout=_PHASE_TIMEOUT) as client:
+    if _ALLOW_INSECURE_IDP:
+        client_ctx = httpx.Client(timeout=_PHASE_TIMEOUT)
+    else:
+        client_ctx = httpx.Client(timeout=_PHASE_TIMEOUT, verify=_TLS_CONTEXT)
+    with client_ctx as client:
         resp = client.get(url)
     if len(resp.content) > _MAX_RESPONSE_SIZE:
         return resp.status_code, None, (
@@ -259,3 +274,39 @@ def probe_idp_discovery(
         checks=checks,
         elapsed_ms=elapsed_ms,
     )
+
+
+def get_or_fetch_discovery(
+    db: Session, idp: IdentityProvider
+) -> dict | None:
+    """Return cached OIDC discovery doc if fresh; otherwise fetch and cache it.
+
+    Returns the parsed discovery document dict, or None if fetch fails.
+    This is the single call-point for login-flow code (Story 2-1) — no
+    inline fetching in the OIDC initiation route.
+    """
+    cached_at = idp.discovery_cached_at
+    if cached_at is not None and idp.discovery_cache_json:
+        now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+        cached_naive = cached_at.replace(tzinfo=None) if cached_at.tzinfo else cached_at
+        if (now_naive - cached_naive).total_seconds() < DISCOVERY_CACHE_TTL_HOURS * 3600:
+            try:
+                return json.loads(idp.discovery_cache_json)
+            except (json.JSONDecodeError, ValueError):
+                pass  # fall through to re-fetch
+
+    try:
+        result = probe_idp_discovery(db, idp)
+        db.commit()
+        if result.overall_status == "passed" and idp.discovery_cache_json:
+            return json.loads(idp.discovery_cache_json)
+        return None
+    except Exception:
+        import logging as _logging
+        _logging.getLogger("roboscope.auth.oidc_discovery").warning(
+            "get_or_fetch_discovery failed for IdP '%s' (id=%d)",
+            idp.name,
+            idp.id,
+            exc_info=True,
+        )
+        return None

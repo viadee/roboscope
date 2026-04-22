@@ -128,6 +128,11 @@ function cancelDelete() {
   showDeleteModal.value = false
   pendingDelete.value = null
 }
+
+function isDiscoveryCacheStale(cachedAt: string | null | undefined): boolean {
+  if (!cachedAt) return true
+  return Date.now() - new Date(cachedAt).getTime() > 24 * 3600 * 1000
+}
 </script>
 
 <template>
@@ -168,6 +173,14 @@ function cancelDelete() {
           <tr v-for="idp in store.providers" :key="idp.id" :data-testid="`provider-row-${idp.id}`">
             <td>
               <button class="link-button" @click="onEdit(idp)">{{ idp.name }}</button>
+              <span
+                v-if="isDiscoveryCacheStale(idp.discovery_cached_at)"
+                class="stale-cache-badge"
+                :title="idp.discovery_cached_at ? t('idpProviders.staleCacheBadge') : t('idpProviders.neverCached')"
+                :data-testid="`stale-cache-${idp.id}`"
+              >
+                {{ idp.discovery_cached_at ? t('idpProviders.staleCacheBadge') : t('idpProviders.neverCached') }}
+              </span>
             </td>
             <td>{{ typeLabel(idp) }}</td>
             <td>
@@ -300,5 +313,18 @@ th.col-actions {
   color: var(--color-accent, #D4883E);
   font-size: 14px;
   cursor: help;
+}
+
+.stale-cache-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background-color: var(--color-accent, #D4883E);
+  color: #fff;
+  vertical-align: middle;
+  cursor: default;
 }
 </style>

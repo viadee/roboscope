@@ -141,9 +141,11 @@ async def lifespan(app: FastAPI):
             logger.warning("Failed to auto-start rf-mcp", exc_info=True)
 
     # Start retention enforcement scheduler (daily cleanup)
+    from datetime import datetime, timedelta, timezone as _timezone
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.interval import IntervalTrigger
     from src.audit.retention import enforce_retention
+    from src.auth.discovery_refresh import refresh_discovery_cache
 
     _scheduler = BackgroundScheduler()
     _scheduler.add_job(
@@ -153,8 +155,21 @@ async def lifespan(app: FastAPI):
         name="Retention Enforcement (daily)",
         replace_existing=True,
     )
+    # Defer first discovery refresh 24h after boot — preserves the zero-outbound-call
+    # boot invariant (AR16 / AC1). Without next_run_time, APScheduler fires immediately.
+    _scheduler.add_job(
+        refresh_discovery_cache,
+        trigger=IntervalTrigger(hours=24),
+        id="oidc_discovery_refresh",
+        name="OIDC Discovery Cache Refresh (24h)",
+        next_run_time=datetime.now(_timezone.utc) + timedelta(hours=24),
+        replace_existing=True,
+    )
     _scheduler.start()
-    logger.info("Retention enforcement scheduler started (every 24h)")
+    logger.info(
+        "Scheduler started: retention (every 24h), OIDC discovery refresh "
+        "(every 24h, first run deferred)"
+    )
 
     logger.info("RoboScope started successfully")
     yield

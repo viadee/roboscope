@@ -119,10 +119,18 @@ class IdentityProviderResponse(BaseModel):
     is_enabled: bool
     last_dry_run_at: datetime | None = None
     last_dry_run_status: str | None = None
+    discovery_cached_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class DiscoveryCacheRefreshResponse(BaseModel):
+    status: Literal["completed"]
+    refreshed: int
+    failed: int
+    skipped: int
 
 
 # --- Dry-Run Probe Schemas ---
