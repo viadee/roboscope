@@ -100,6 +100,7 @@ class MockOidcProvider:
             "aud": _CLIENT_ID,
             "sub": "test-user-001",
             "email": "test@example.com",
+            "email_verified": True,
             "groups": [],
             "iat": now,
             "exp": now + 600,

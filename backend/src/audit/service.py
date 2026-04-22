@@ -9,9 +9,38 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from src.audit.event_types import AuditEventType, resource_type_for
 from src.audit.models import AuditLog
 
 logger = logging.getLogger("roboscope.audit")
+
+
+def log_event(
+    db: Session,
+    event_type: AuditEventType,
+    *,
+    user_id: int | None = None,
+    username: str | None = None,
+    resource_id: int | None = None,
+    detail: dict | None = None,
+    ip_address: str | None = None,
+) -> AuditLog:
+    """Emit a structured audit event using the `AuditEventType` registry.
+
+    Thin wrapper over `log_audit` that derives `action` and `resource_type`
+    from the enum member so callers cannot drift from the canonical SIEM
+    literals.
+    """
+    return log_audit(
+        db,
+        user_id=user_id,
+        username=username,
+        action=event_type.value,
+        resource_type=resource_type_for(event_type),
+        resource_id=resource_id,
+        detail=detail,
+        ip_address=ip_address,
+    )
 
 
 def log_audit(

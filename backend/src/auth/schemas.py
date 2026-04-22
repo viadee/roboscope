@@ -146,3 +146,19 @@ class DryRunProbeResponse(BaseModel):
     overall_status: Literal["passed", "failed"]
     checks: list[DryRunCheckRow]
     elapsed_ms: int
+
+
+# --- SSO Public Schemas (Story 2-1) ---
+
+
+class SsoProviderPublic(BaseModel):
+    """Public-safe identity provider row — exposed on the unauthenticated
+    `GET /auth/sso/providers` endpoint. Intentionally narrow: only fields
+    the login view needs to render a provider button.
+    """
+
+    id: int
+    name: str
+    provider_type: str
+
+    model_config = {"from_attributes": True}

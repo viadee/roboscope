@@ -180,3 +180,23 @@ def dry_run_idp(
     result = probe_idp_discovery(db, idp)
     db.commit()
     return result
+
+
+@router.get("/{idp_id}/available-groups", response_model=list[str])
+def available_groups_for_idp(
+    idp_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role(Role.ADMIN)),
+) -> list[str]:
+    """Return the distinct sorted union of mapped + login-observed group names
+    for the given IdP (Story 3-4).
+    """
+    from src.teams.service import list_available_groups_for_idp
+
+    idp = get_identity_provider(db, idp_id)
+    if not idp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Identity provider not found",
+        )
+    return list_available_groups_for_idp(db, idp_id)

@@ -65,7 +65,7 @@ def get_current_user(
 
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail=ERR_INACTIVE_USER,
         )
 
@@ -130,3 +130,50 @@ def require_role(min_role: Role):
         return current_user
 
     return role_checker
+
+
+def require_effective_role(min_role: Role):
+    """Dependency factory that gates on `effective_role(user, repo) >= min_role`.
+
+    Reads the `repo_id` path parameter from the route (int or int-coercible),
+    resolves the repository, computes the additive effective role (global +
+    team + project), and returns the user if it meets or exceeds the threshold.
+
+    - 401 is handled upstream by `get_current_user` (no token / bad token).
+    - 404 if `repo_id` is missing, non-int, or no such repository.
+    - 403 if the effective role is below `min_role`.
+    """
+
+    def check(
+        request: Request,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        from src.auth.permissions import effective_role
+        from src.repos.models import Repository
+
+        raw_repo_id = request.path_params.get("repo_id")
+        try:
+            repo_id = int(raw_repo_id)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Repository not found",
+            )
+
+        repo = db.get(Repository, repo_id)
+        if repo is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Repository not found",
+            )
+
+        er = effective_role(db, current_user, repo)
+        if ROLE_HIERARCHY.get(er, -1) < ROLE_HIERARCHY.get(min_role, 999):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=ERR_INSUFFICIENT_PERMISSIONS,
+            )
+        return current_user
+
+    return check

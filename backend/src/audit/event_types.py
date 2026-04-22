@@ -1,0 +1,35 @@
+"""Central registry of structured audit event types (NFR29).
+
+Each value is a dotted `<domain>.<entity>.<action>` string that goes into
+`AuditLog.action`. `resource_type` is derived from the first segment.
+
+Phase 4 extends this enum incrementally — only events that have a concrete
+emission site belong here. Add a member **before** its first call site.
+"""
+
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class AuditEventType(StrEnum):
+    SSO_LOGIN_SUCCESS = "sso.login.success"
+    SSO_LOGIN_FAILURE = "sso.login.failure"
+    SSO_LOGIN_RATE_LIMITED = "sso.login.rate_limited"
+    TEAM_MEMBER_SYNCED_FROM_IDP = "team.member.synced_from_idp"
+    TEAM_CREATED = "team.created"
+    TEAM_UPDATED = "team.updated"
+    TEAM_DELETED = "team.deleted"
+    TEAM_MEMBER_ADDED = "team_member.added"
+    TEAM_MEMBER_UPDATED = "team_member.updated"
+    TEAM_MEMBER_REMOVED = "team_member.removed"
+    REPOSITORY_TEAM_ASSIGNED = "repository.team_assigned"
+    REPOSITORY_TEAM_UNASSIGNED = "repository.team_unassigned"
+    GROUP_MAPPING_CREATED = "group_mapping.created"
+    GROUP_MAPPING_UPDATED = "group_mapping.updated"
+    GROUP_MAPPING_DELETED = "group_mapping.deleted"
+
+
+def resource_type_for(event_type: AuditEventType) -> str:
+    """Return the canonical resource_type (`sso`, `team`, `idp`, ...) for an event."""
+    return event_type.value.split(".", 1)[0]
