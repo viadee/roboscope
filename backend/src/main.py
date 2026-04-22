@@ -146,6 +146,7 @@ async def lifespan(app: FastAPI):
     from apscheduler.triggers.interval import IntervalTrigger
     from src.audit.retention import enforce_retention
     from src.auth.discovery_refresh import refresh_discovery_cache
+    from src.auth.retention_cleanup import run_hourly_cleanup
 
     _scheduler = BackgroundScheduler()
     _scheduler.add_job(
@@ -165,10 +166,19 @@ async def lifespan(app: FastAPI):
         next_run_time=datetime.now(_timezone.utc) + timedelta(hours=24),
         replace_existing=True,
     )
+    # Story 5-5: hourly cleanup of expired OidcLoginAttempt and stale
+    # RateLimitCounter rows so Phase 4 tables don't grow unbounded.
+    _scheduler.add_job(
+        run_hourly_cleanup,
+        trigger=IntervalTrigger(hours=1),
+        id="phase4_hourly_cleanup",
+        name="Phase 4 retention cleanup (hourly)",
+        replace_existing=True,
+    )
     _scheduler.start()
     logger.info(
         "Scheduler started: retention (every 24h), OIDC discovery refresh "
-        "(every 24h, first run deferred)"
+        "(every 24h, first run deferred), Phase 4 cleanup (every 1h)"
     )
 
     logger.info("RoboScope started successfully")
