@@ -6,7 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
-from src.auth.dependencies import get_current_user, require_role
+from src.auth.dependencies import (
+    get_current_user,
+    require_effective_role,
+    require_role,
+)
 from src.auth.models import User
 from src.task_executor import TaskDispatchError, dispatch_task
 from src.database import get_db
@@ -131,7 +135,7 @@ def patch_repo(
     repo_id: int,
     data: RepoUpdate,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.EDITOR)),
+    _current_user: User = Depends(require_effective_role(Role.EDITOR)),
 ):
     """Update repository settings."""
     repo = get_repository(db, repo_id)
@@ -144,7 +148,7 @@ def patch_repo(
 def remove_repo(
     repo_id: int,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.ADMIN)),
+    _current_user: User = Depends(require_effective_role(Role.ADMIN)),
 ):
     """Delete a repository."""
     repo = get_repository(db, repo_id)
@@ -159,7 +163,7 @@ def assign_team(
     data: RepoTeamAssignRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.ADMIN)),
+    current_user: User = Depends(require_effective_role(Role.ADMIN)),
 ):
     """Assign (or clear with team_id=null) the owning team of a repository.
 
@@ -210,7 +214,7 @@ def assign_team(
 def sync_repo(
     repo_id: int,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.EDITOR)),
+    _current_user: User = Depends(require_effective_role(Role.EDITOR)),
 ):
     """Trigger git sync for a repository."""
     repo = get_repository(db, repo_id)
@@ -252,7 +256,7 @@ def checkout_branch_endpoint(
     repo_id: int,
     branch: str,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.EDITOR)),
+    _current_user: User = Depends(require_effective_role(Role.EDITOR)),
 ):
     """Checkout a branch and update default_branch."""
     repo = get_repository(db, repo_id)
@@ -302,7 +306,7 @@ def add_member(
     repo_id: int,
     data: ProjectMemberCreate,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.EDITOR)),
+    _current_user: User = Depends(require_effective_role(Role.EDITOR)),
 ):
     """Add a user to a project."""
     repo = get_repository(db, repo_id)
@@ -327,7 +331,7 @@ def patch_member(
     member_id: int,
     data: ProjectMemberUpdate,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.EDITOR)),
+    _current_user: User = Depends(require_effective_role(Role.EDITOR)),
 ):
     """Update a project member's role."""
     member = update_project_member_role(db, member_id, data.role)
@@ -348,7 +352,7 @@ def delete_member(
     repo_id: int,
     member_id: int,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.EDITOR)),
+    _current_user: User = Depends(require_effective_role(Role.EDITOR)),
 ):
     """Remove a user from a project."""
     if not remove_project_member(db, member_id):
