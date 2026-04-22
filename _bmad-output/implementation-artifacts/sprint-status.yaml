@@ -1,5 +1,5 @@
 # generated: 2026-04-15
-# last_updated: 2026-04-20T-done-1-2
+# last_updated: 2026-04-22T-story-2-3-review
 # project: roboscope
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-15
-last_updated: 2026-04-20
+last_updated: 2026-04-22T-story-2-3-review
 project: roboscope
 project_key: NOKEY
 tracking_system: file-system
@@ -43,47 +43,47 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # Epic 1: Enterprise Identity Foundation
-  epic-1: in-progress
+  epic-1: done
   1-1-database-migration-for-phase-4-models: done
   1-2-mock-oidc-test-fixture: done
   1-3-identity-provider-crud-api: done
   1-4-dry-run-probe-endpoint: done
   1-5-encrypted-client-secret-storage: done
   1-6-admin-ui-idp-provider-list-view: done
-  1-7-admin-ui-idp-provider-edit-view-with-inline-dryrunpanel: backlog
-  1-8-handoff-artifact-generator-reportlab: backlog
-  1-9-discovery-cache-refresh-apscheduler-job: backlog
-  1-10-tls-nginx-csp-return-to-validation: backlog
+  1-7-admin-ui-idp-provider-edit-view-with-inline-dryrunpanel: done
+  1-8-handoff-artifact-generator-reportlab: done
+  1-9-discovery-cache-refresh-apscheduler-job: done
+  1-10-tls-nginx-csp-return-to-validation: done
   epic-1-retrospective: optional
 
   # Epic 2: SSO User Access
-  epic-2: backlog
-  2-1-oidc-authorization-code-flow-initiation: backlog
-  2-2-sso-callback-handler-with-inline-group-sync: backlog
-  2-3-frontend-loginview-sso-buttons-password-toggle: backlog
-  2-4-deep-link-preservation-through-sso-redirect: backlog
-  2-5-admin-setting-hide-password-form: backlog
-  2-6-session-invariance-during-idp-outage: backlog
-  2-7-frontend-ssoerrorview-with-localized-outage-copy: backlog
-  2-8-rate-limiting-failed-sso-attempts: backlog
+  epic-2: done
+  2-1-oidc-authorization-code-flow-initiation: done
+  2-2-sso-callback-handler-with-inline-group-sync: done
+  2-3-frontend-loginview-sso-buttons-password-toggle: done
+  2-4-deep-link-preservation-through-sso-redirect: done
+  2-5-admin-setting-hide-password-form: done
+  2-6-session-invariance-during-idp-outage: done
+  2-7-frontend-ssoerrorview-with-localized-outage-copy: done
+  2-8-rate-limiting-failed-sso-attempts: done
   epic-2-retrospective: optional
 
   # Epic 3: Teams & Role Resolution
-  epic-3: backlog
-  3-1-team-and-teammember-models-crud-api: backlog
-  3-2-repository-to-team-assignment: backlog
-  3-3-idp-group-to-team-mapping: backlog
-  3-4-bulk-create-teams-via-import-from-idp-groups: backlog
-  3-5-login-time-group-sync: backlog
-  3-6-effective-role-function-and-dependency: backlog
-  3-7-migrate-repos-endpoints-to-require-effective-role: backlog
-  3-8-migrate-runs-endpoints-to-require-effective-role: backlog
-  3-9-migrate-reports-endpoints-to-require-effective-role: backlog
-  3-10-migrate-explorer-endpoints-to-require-effective-role: backlog
-  3-11-migrate-stats-endpoints-to-require-effective-role: backlog
-  3-12-frontend-teamlistview: backlog
-  3-13-frontend-teamdetailview-with-tabs: backlog
-  3-14-groupmappingrow-component-with-display-edit-role-modes: backlog
+  epic-3: done
+  3-1-team-and-teammember-models-crud-api: done
+  3-2-repository-to-team-assignment: done
+  3-3-idp-group-to-team-mapping: done
+  3-4-bulk-create-teams-via-import-from-idp-groups: done
+  3-5-login-time-group-sync: done
+  3-6-effective-role-function-and-dependency: done
+  3-7-migrate-repos-endpoints-to-require-effective-role: done
+  3-8-migrate-runs-endpoints-to-require-effective-role: done
+  3-9-migrate-reports-endpoints-to-require-effective-role: done
+  3-10-migrate-explorer-endpoints-to-require-effective-role: done
+  3-11-migrate-stats-endpoints-to-require-effective-role: done
+  3-12-frontend-teamlistview: done
+  3-13-frontend-teamdetailview-with-tabs: done
+  3-14-groupmappingrow-component-with-display-edit-role-modes: done
   3-15-apitoken-role-cap-verification: backlog
   epic-3-retrospective: optional
 
@@ -99,6 +99,11 @@ development_status:
   4-8-axe-core-playwright-integration-and-accessibility-passes: backlog
   4-9-driver-js-tour-for-first-login: backlog
   epic-4-retrospective: optional
+
+  # Epic R: Recorder Stability (out-of-band bugfix track)
+  epic-R: done
+  R-1-recorder-browser-lifecycle-event-based-shutdown: done
+  epic-R-retrospective: optional
 
   # Epic 5: Operational Resilience, Offboarding, Compliance & Release Readiness
   epic-5: backlog
