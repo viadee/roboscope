@@ -117,6 +117,12 @@ const router = createRouter({
       meta: { layout: 'auth', requiresAuth: false },
     },
     {
+      path: '/recordings/new',
+      name: 'recording-launcher',
+      component: () => import('@/views/RecordingLauncherView.vue'),
+      meta: { requiresAuth: true, minRole: 'editor' },
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       redirect: '/dashboard',

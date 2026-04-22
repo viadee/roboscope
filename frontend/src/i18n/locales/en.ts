@@ -1507,6 +1507,21 @@ export default {
         uia_class_name: 'UIA Class',
       },
     },
+    launcher: {
+      heading: 'Start a recording',
+      hint: 'Record a user flow and turn it into a Robot Framework test. The browser opens in a controlled window — no extension install required.',
+      repoLabel: 'Save to repository',
+      transportLabel: 'What do you want to record?',
+      transport: {
+        web: 'Web — browser-based flow',
+        windows: 'Desktop (Windows)',
+        macos: 'Desktop (macOS)',
+      },
+      comingSoon: 'coming soon',
+      record: 'Start recording',
+      starting: 'Starting…',
+      startFailed: 'Could not start the recording. Please try again.',
+    },
   },
   bypass: {
     heading: 'SSO Emergency Bypass',

@@ -1507,6 +1507,21 @@ export default {
         uia_class_name: 'UIA Class',
       },
     },
+    launcher: {
+      heading: 'Iniciar una grabación',
+      hint: 'Graba un flujo de usuario y conviértelo en una prueba Robot Framework. El navegador se abre en una ventana controlada — sin necesidad de extensión.',
+      repoLabel: 'Guardar en el repositorio',
+      transportLabel: '¿Qué quieres grabar?',
+      transport: {
+        web: 'Web — flujo en el navegador',
+        windows: 'Desktop (Windows)',
+        macos: 'Desktop (macOS)',
+      },
+      comingSoon: 'próximamente',
+      record: 'Iniciar grabación',
+      starting: 'Iniciando…',
+      startFailed: 'No se pudo iniciar la grabación. Inténtalo de nuevo.',
+    },
   },
   bypass: {
     heading: 'Bypass de emergencia SSO',

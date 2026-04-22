@@ -1507,6 +1507,21 @@ export default {
         uia_class_name: 'UIA Class',
       },
     },
+    launcher: {
+      heading: 'Neue Aufzeichnung starten',
+      hint: 'Zeichne einen Ablauf auf und verwandle ihn in einen Robot-Framework-Test. Der Browser öffnet sich in einem kontrollierten Fenster — keine Extension nötig.',
+      repoLabel: 'Speichern in Repository',
+      transportLabel: 'Was möchtest du aufzeichnen?',
+      transport: {
+        web: 'Web — browser-basierter Ablauf',
+        windows: 'Desktop (Windows)',
+        macos: 'Desktop (macOS)',
+      },
+      comingSoon: 'bald verfügbar',
+      record: 'Aufnahme starten',
+      starting: 'Wird gestartet…',
+      startFailed: 'Aufzeichnung konnte nicht gestartet werden. Bitte erneut versuchen.',
+    },
   },
   bypass: {
     heading: 'SSO Notfall-Bypass',

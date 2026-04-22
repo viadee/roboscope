@@ -1507,6 +1507,21 @@ export default {
         uia_class_name: 'UIA Class',
       },
     },
+    launcher: {
+      heading: 'Démarrer un enregistrement',
+      hint: "Enregistre un flux et convertis-le en test Robot Framework. Le navigateur s'ouvre dans une fenêtre contrôlée — aucune extension à installer.",
+      repoLabel: 'Enregistrer dans le référentiel',
+      transportLabel: 'Que voulez-vous enregistrer ?',
+      transport: {
+        web: 'Web — flux dans le navigateur',
+        windows: 'Desktop (Windows)',
+        macos: 'Desktop (macOS)',
+      },
+      comingSoon: 'bientôt disponible',
+      record: "Démarrer l'enregistrement",
+      starting: 'Démarrage…',
+      startFailed: "Impossible de démarrer l'enregistrement. Réessayez.",
+    },
   },
   bypass: {
     heading: 'Bypass SSO d\'urgence',
