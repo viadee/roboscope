@@ -91,8 +91,8 @@ development_status:
   3-15-apitoken-role-cap-verification: done
   epic-3-retrospective: optional
 
-  # Epic 4: First-Login & Inclusion Experience
-  epic-4: backlog
+  # Epic 4 stays in-progress until Story 4-7 (link-consent dialog) ships.
+  epic-4: in-progress
   4-1-auth-me-extension-with-effective-roles-and-first-login: done
   4-2-frontend-firstloginview-and-welcomecard: done
   4-3-why-you-have-access-microcopy-locked-in-4-locales: done
@@ -117,21 +117,23 @@ development_status:
   epic-R-retrospective: optional
 
   # Epic 5: Operational Resilience, Offboarding, Compliance & Release Readiness
-  epic-5: backlog
+  # In-progress: 5-2 header-banner + 5-4 admin UI are small follow-ups.
+  epic-5: in-progress
   5-1-emergency-bypass-toggle-api-and-auto-expire: done
   # Admin page + i18n shipped; persistent header banner when bypass is
   # active is a minor follow-up (useBypassStatus polling composable +
   # slot in AppHeader).
   5-2-emergency-bypass-admin-ui-and-header-indicator: in-progress
   5-3-user-deactivation-propagation: done
-  # NOTE: backend endpoint shipped (POST /webhooks/tokens/{id}/reassign);
-  # the admin UI component is deferred until Epic 4 planning.
+  # Backend endpoint shipped (POST /webhooks/tokens/{id}/reassign) with
+  # role re-cap and audit. Admin-UI component deferred — follow-up can
+  # mount a simple modal on the existing /admin tokens page.
   5-4-apitoken-reassign-endpoint-and-admin-ui: in-progress
   5-5-retention-cleanup-apscheduler-jobs: done
   5-6-auditeventtype-enum-and-structured-emission: done
   5-7-i18n-complete-pass-for-all-phase-4-strings: done
   5-8-procurement-checklist-response-document: done
-  5-9-release-gate-ci-additions: backlog
+  5-9-release-gate-ci-additions: done
   5-10-chrome-recorder-phase-4-impact-documentation: done
   5-11-non-goals-documentation-lock: done
   epic-5-retrospective: optional
