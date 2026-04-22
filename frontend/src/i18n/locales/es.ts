@@ -744,6 +744,15 @@ export default {
         expiryNone: 'Sin expiración',
         expiryDays: '{days} días',
       },
+      reassign: 'Reasignar',
+      reassignSuccess: 'Token reasignado',
+      reassignDialog: {
+        title: 'Reasignar token API',
+        hint: 'Transferir la propiedad de «{name}» a otro usuario activo. El rol del token se limita al rol global del nuevo propietario.',
+        userIdLabel: 'ID de usuario del nuevo propietario',
+        userIdPlaceholder: 'ej. 42',
+        confirm: 'Reasignar',
+      },
     },
     webhooks: {
       title: 'Webhooks',

@@ -744,6 +744,15 @@ export default {
         expiryNone: 'Kein Ablauf',
         expiryDays: '{days} Tage',
       },
+      reassign: 'Übertragen',
+      reassignSuccess: 'Token übertragen',
+      reassignDialog: {
+        title: 'API-Token übertragen',
+        hint: 'Ownership von „{name}" auf einen anderen aktiven Benutzer übertragen. Die Token-Rolle wird auf die globale Rolle des neuen Besitzers begrenzt.',
+        userIdLabel: 'Benutzer-ID des neuen Besitzers',
+        userIdPlaceholder: 'z.B. 42',
+        confirm: 'Übertragen',
+      },
     },
     webhooks: {
       title: 'Webhooks',

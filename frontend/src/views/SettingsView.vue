@@ -95,6 +95,35 @@ async function revokeApiToken(token: ApiToken) {
   }
 }
 
+// --- Story 5-4: reassign ---
+const showReassignDialog = ref(false)
+const reassignTargetToken = ref<ApiToken | null>(null)
+const reassignUserId = ref<number | null>(null)
+
+function openReassignDialog(token: ApiToken) {
+  reassignTargetToken.value = token
+  reassignUserId.value = null
+  showReassignDialog.value = true
+}
+
+async function confirmReassign() {
+  if (!reassignTargetToken.value || !reassignUserId.value) return
+  try {
+    const updated = await webhooksApi.reassignToken(
+      reassignTargetToken.value.id,
+      reassignUserId.value,
+    )
+    tokens.value = tokens.value.map(t => (t.id === updated.id ? updated : t))
+    showReassignDialog.value = false
+    reassignTargetToken.value = null
+    reassignUserId.value = null
+    toast.success(t('settings.tokens.reassignSuccess'))
+  } catch (e: any) {
+    const msg = e?.response?.data?.detail ?? t('common.error')
+    toast.error(typeof msg === 'string' ? msg : t('common.error'))
+  }
+}
+
 // --- Webhooks state ---
 const webhooks = ref<WebhookConfig[]>([])
 const webhooksLoading = ref(false)
@@ -715,6 +744,7 @@ function formatSize(bytes: number): string {
                 <td class="text-sm text-muted">{{ token.expires_at ? formatDateTime(token.expires_at) : t('settings.tokens.noExpiry') }}</td>
                 <td class="text-sm text-muted">{{ token.last_used_at ? formatDateTime(token.last_used_at) : t('settings.tokens.never') }}</td>
                 <td>
+                  <BaseButton variant="ghost" size="sm" @click="openReassignDialog(token)">{{ t('settings.tokens.reassign') }}</BaseButton>
                   <BaseButton variant="danger" size="sm" @click="revokeApiToken(token)">{{ t('common.delete') }}</BaseButton>
                 </td>
               </tr>
@@ -1059,6 +1089,30 @@ function formatSize(bytes: number): string {
       <template #footer>
         <BaseButton variant="secondary" @click="showCreateTokenDialog = false; createdTokenValue = null">{{ t('common.close') }}</BaseButton>
         <BaseButton v-if="!createdTokenValue" :loading="creatingToken" @click="createApiToken">{{ t('common.create') }}</BaseButton>
+      </template>
+    </BaseModal>
+
+    <!-- Story 5-4: Reassign ApiToken Dialog -->
+    <BaseModal v-model="showReassignDialog" :title="t('settings.tokens.reassignDialog.title')">
+      <p class="text-muted text-sm mb-3">
+        {{ t('settings.tokens.reassignDialog.hint', { name: reassignTargetToken?.name ?? '' }) }}
+      </p>
+      <form @submit.prevent="confirmReassign">
+        <div class="form-group">
+          <label class="form-label">{{ t('settings.tokens.reassignDialog.userIdLabel') }}</label>
+          <input
+            v-model.number="reassignUserId"
+            type="number"
+            class="form-input"
+            :placeholder="t('settings.tokens.reassignDialog.userIdPlaceholder')"
+            required
+            min="1"
+          />
+        </div>
+      </form>
+      <template #footer>
+        <BaseButton variant="secondary" @click="showReassignDialog = false">{{ t('common.cancel') }}</BaseButton>
+        <BaseButton :disabled="!reassignUserId" @click="confirmReassign">{{ t('settings.tokens.reassignDialog.confirm') }}</BaseButton>
       </template>
     </BaseModal>
 

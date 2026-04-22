@@ -744,6 +744,15 @@ export default {
         expiryNone: 'Pas d\'expiration',
         expiryDays: '{days} jours',
       },
+      reassign: 'Réattribuer',
+      reassignSuccess: 'Token réattribué',
+      reassignDialog: {
+        title: 'Réattribuer le token API',
+        hint: 'Transférer la propriété de « {name} » à un autre utilisateur actif. Le rôle du token est plafonné au rôle global du nouveau propriétaire.',
+        userIdLabel: 'ID utilisateur du nouveau propriétaire',
+        userIdPlaceholder: 'ex. 42',
+        confirm: 'Réattribuer',
+      },
     },
     webhooks: {
       title: 'Webhooks',
