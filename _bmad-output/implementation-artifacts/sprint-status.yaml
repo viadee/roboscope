@@ -100,8 +100,10 @@ development_status:
   4-5-zero-teams-and-zero-repos-empty-states: done
   4-6-read-only-affordances-in-floweditor: done
   4-7-existing-local-account-link-consent-dialog: backlog
-  4-8-axe-core-playwright-integration-and-accessibility-passes: backlog
-  4-9-driver-js-tour-for-first-login: backlog
+  4-8-axe-core-playwright-integration-and-accessibility-passes: done
+  # Story 4-9 shipped ahead of the Phase 4 cut — driver.js + useTour
+  # composable + tour launch button in AppHeader were already in place.
+  4-9-driver-js-tour-for-first-login: done
   epic-4-retrospective: optional
 
   # Epic R: Recorder Stability (out-of-band bugfix track)
