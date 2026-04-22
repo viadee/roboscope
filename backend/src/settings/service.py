@@ -27,6 +27,7 @@ DEFAULT_SETTINGS = [
     {"key": "sso_emergency_bypass_expires_at", "value": "", "value_type": "string", "category": "auth", "description": "ISO-8601 auto-expiry for emergency bypass (empty = inactive)."},
     {"key": "deprovision_retention_days", "value": "90", "value_type": "int", "category": "auth", "description": "Days before deprovisioned-user cleanup."},
     {"key": "admin_contact_email", "value": "admin@roboscope.local", "value_type": "string", "category": "auth", "description": "Displayed on SSO outage screen as admin contact."},
+    {"key": "hide_local_login_form", "value": "false", "value_type": "bool", "category": "auth", "description": "Hide the email/password login form when SSO is the only permitted login path."},
 ]
 
 
