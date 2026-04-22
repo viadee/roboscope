@@ -112,6 +112,11 @@ def _authenticate_api_token(token_str: str, db: Session) -> User:
     # Store effective role on request-scoped user object
     # (We mutate in-place since Session won't commit this change — expire_on_commit=False)
     user.role = effective_role
+    # Story 3-15: mark the request as API-token-authenticated so
+    # require_effective_role skips team/project grants for CI/CD tokens.
+    # Team semantics are per-user UI concept; tokens must stay capped at
+    # the token's scoped role to avoid accidental CI elevation.
+    user._auth_via_api_token = True  # type: ignore[attr-defined]
     return user
 
 
@@ -168,6 +173,18 @@ def require_effective_role(min_role: Role):
                 detail="Repository not found",
             )
 
+        # Story 3-15: API tokens stay capped at their scoped role — no
+        # team/project elevation. This preserves the existing rbs_… token
+        # contract for CI/CD pipelines.
+        if getattr(current_user, "_auth_via_api_token", False):
+            user_level = ROLE_HIERARCHY.get(Role(current_user.role), -1)
+            if user_level < ROLE_HIERARCHY.get(min_role, 999):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=ERR_INSUFFICIENT_PERMISSIONS,
+                )
+            return current_user
+
         er = effective_role(db, current_user, repo)
         if ROLE_HIERARCHY.get(er, -1) < ROLE_HIERARCHY.get(min_role, 999):
             raise HTTPException(
@@ -219,6 +236,15 @@ def require_effective_role_for_run(min_role: Role):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Repository not found",
             )
+
+        if getattr(current_user, "_auth_via_api_token", False):
+            user_level = ROLE_HIERARCHY.get(Role(current_user.role), -1)
+            if user_level < ROLE_HIERARCHY.get(min_role, 999):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=ERR_INSUFFICIENT_PERMISSIONS,
+                )
+            return current_user
 
         er = effective_role(db, current_user, repo)
         if ROLE_HIERARCHY.get(er, -1) < ROLE_HIERARCHY.get(min_role, 999):
@@ -284,6 +310,15 @@ def require_effective_role_for_report(min_role: Role):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Repository not found",
             )
+
+        if getattr(current_user, "_auth_via_api_token", False):
+            user_level = ROLE_HIERARCHY.get(Role(current_user.role), -1)
+            if user_level < ROLE_HIERARCHY.get(min_role, 999):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=ERR_INSUFFICIENT_PERMISSIONS,
+                )
+            return current_user
 
         er = effective_role(db, current_user, repo)
         if ROLE_HIERARCHY.get(er, -1) < ROLE_HIERARCHY.get(min_role, 999):

@@ -88,7 +88,7 @@ development_status:
   3-12-frontend-teamlistview: done
   3-13-frontend-teamdetailview-with-tabs: done
   3-14-groupmappingrow-component-with-display-edit-role-modes: done
-  3-15-apitoken-role-cap-verification: backlog
+  3-15-apitoken-role-cap-verification: done
   epic-3-retrospective: optional
 
   # Epic 4: First-Login & Inclusion Experience
