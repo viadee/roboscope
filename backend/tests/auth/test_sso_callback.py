@@ -683,7 +683,10 @@ def test_callback_success_emits_audit_events(
     assert success.resource_type == "sso"
     assert synced.resource_type == "team"
     detail = json.loads(success.detail)
-    assert detail["email"] == "a@b.c"
+    from src.auth.pii_hash import hash_email, is_email_hash
+    assert "email" not in detail, "plaintext email must not leak into audit detail"
+    assert is_email_hash(detail["email_hash"])
+    assert detail["email_hash"] == hash_email("a@b.c")
     assert detail["return_to"] == "/dashboard"
 
 

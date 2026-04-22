@@ -250,13 +250,14 @@ def _cascade_revoke_on_deactivate(
         t.is_active = False
     db.flush()
 
+    from src.auth.pii_hash import hash_email
     log_event(
         db,
         AuditEventType.USER_DEACTIVATED,
         user_id=actor_id,
         resource_id=target.id,
         detail={
-            "email": target.email,
+            "email_hash": hash_email(target.email),
             "revoked_api_tokens": len(tokens),
             "revoked_token_ids": [t.id for t in tokens],
         },

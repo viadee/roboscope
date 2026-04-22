@@ -18,6 +18,7 @@ from src.auth.client_ip import get_client_ip
 from src.auth.idp_service import get_identity_provider
 from src.auth.models import IdentityProvider
 from src.auth.oidc_callback_service import SsoCallbackError, handle_sso_callback
+from src.auth.pii_hash import hash_email
 from src.auth.oidc_service import initiate_sso_login
 from src.auth.return_to import is_valid_return_to, validate_return_to
 from src.auth.schemas import SsoProviderPublic
@@ -253,7 +254,7 @@ def sso_callback(
         AuditEventType.SSO_LOGIN_SUCCESS,
         user_id=result.user.id,
         detail={
-            "email": result.user.email,
+            "email_hash": hash_email(result.user.email),
             "return_to": result.return_to,
             "teams_synced": len(result.sync.added)
             + len(result.sync.updated)
@@ -367,7 +368,7 @@ def sso_link_consent(
             AuditEventType.USER_ACCOUNT_LINK_CANCELLED,
             user_id=user.id,
             resource_id=user.id,
-            detail={"email": user.email, "idp_id": payload["idp_id"]},
+            detail={"email_hash": hash_email(user.email), "idp_id": payload["idp_id"]},
             ip_address=ip,
         )
         db.commit()

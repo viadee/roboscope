@@ -104,7 +104,10 @@ class TestDeactivationCascade:
         detail = json.loads(audits[0].detail)
         assert detail["revoked_api_tokens"] == 3
         assert len(detail["revoked_token_ids"]) == 3
-        assert detail["email"] == target.email
+        from src.auth.pii_hash import hash_email, is_email_hash
+        assert "email" not in detail, "plaintext email must not leak into audit detail"
+        assert is_email_hash(detail["email_hash"])
+        assert detail["email_hash"] == hash_email(target.email)
 
     def test_patch_already_inactive_user_does_not_reemit_audit(
         self,
