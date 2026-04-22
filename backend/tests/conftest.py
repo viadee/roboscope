@@ -127,3 +127,18 @@ def auth_header(user) -> dict:
     """Create an authorization header for a user."""
     token = create_access_token(user.id, user.role)
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(autouse=True)
+def _reset_process_level_caches():
+    """Clear in-process caches that would otherwise leak between tests.
+
+    Currently only the SSO 429-audit dedup dict (sso_router module-level
+    state) — extend this fixture if more per-process caches are added.
+    """
+    try:
+        from src.auth.sso_router import _clear_audit_dedup_state
+        _clear_audit_dedup_state()
+    except Exception:
+        pass
+    yield

@@ -36,6 +36,35 @@ _CALLBACK_PATH = "/api/v1/auth/sso/callback"
 _SSO_ERROR_PATH = "/sso-error"
 _COOKIE_MAX_AGE = 60  # seconds — frontend Story 2-3 migrates to localStorage synchronously
 
+# Story W (deferred-work) — per-IP audit dedup window. Held-down attacker
+# otherwise writes one AuditLog row per 429 request, which floods retention.
+# A 60 s cooldown keeps forensics meaningful (still one row per burst) while
+# bounding the write amplification to ~1 row/ip/minute.
+_AUDIT_DEDUP_WINDOW_S = 60
+_last_audit_emit: dict[str, float] = {}
+
+
+def _clear_audit_dedup_state() -> None:
+    """Test-only helper — conftest autouse fixture resets the per-process
+    dedup dict between tests so one test does not starve the next."""
+    _last_audit_emit.clear()
+
+
+def _should_audit_429(client_ip: str) -> bool:
+    import time
+    now = time.monotonic()
+    last = _last_audit_emit.get(client_ip)
+    if last is not None and now - last < _AUDIT_DEDUP_WINDOW_S:
+        return False
+    _last_audit_emit[client_ip] = now
+    # Bound the dict size — garbage-collect entries older than 2× window.
+    if len(_last_audit_emit) > 1000:
+        cutoff = now - 2 * _AUDIT_DEDUP_WINDOW_S
+        for ip, t in list(_last_audit_emit.items()):
+            if t < cutoff:
+                _last_audit_emit.pop(ip, None)
+    return True
+
 
 def _rate_limit_response_if_blocked(
     db: Session, client_ip: str | None
@@ -43,22 +72,23 @@ def _rate_limit_response_if_blocked(
     """Return a 429 response if `client_ip` has exceeded the SSO-failure
     threshold in the current window; otherwise None.
 
-    Also writes a single audit event per blocked request so we have a paper
-    trail of every 429 issued. Caller should short-circuit by returning
-    the response as-is when non-None.
+    Audit emission is deduplicated per IP to a 60 s window so one
+    held-down attacker cannot pump the audit log. Forensics still see
+    at least one row per burst.
     """
     if client_ip is None:
         return None
     limited, retry_after = is_rate_limited(db, client_ip)
     if not limited:
         return None
-    log_event(
-        db,
-        AuditEventType.SSO_LOGIN_RATE_LIMITED,
-        detail={"ip": client_ip, "retry_after": retry_after},
-        ip_address=client_ip,
-    )
-    db.commit()
+    if _should_audit_429(client_ip):
+        log_event(
+            db,
+            AuditEventType.SSO_LOGIN_RATE_LIMITED,
+            detail={"ip": client_ip, "retry_after": retry_after},
+            ip_address=client_ip,
+        )
+        db.commit()
     return JSONResponse(
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
         content={
@@ -107,6 +137,18 @@ def sso_login_initiate(
     if blocked is not None:
         return blocked
 
+    # IdP lookup FIRST so a malformed return_to cannot help an anon caller
+    # distinguish "valid idp_id" from "invalid idp_id" (enumeration guard,
+    # Phase-4 security review).
+    idp = get_identity_provider(db, idp_id)
+    if not idp or not idp.is_enabled:
+        if client_ip:
+            record_failure(db, client_ip)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Identity provider not found or not enabled",
+        )
+
     if return_to and not is_valid_return_to(return_to, base_url):
         if client_ip:
             record_failure(db, client_ip)
@@ -117,15 +159,6 @@ def sso_login_initiate(
                 "message": "return_to must be a same-origin URL",
                 "localization_key": "auth.error.returnToInvalid",
             },
-        )
-
-    idp = get_identity_provider(db, idp_id)
-    if not idp or not idp.is_enabled:
-        if client_ip:
-            record_failure(db, client_ip)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Identity provider not found or not enabled",
         )
 
     safe_return_to = validate_return_to(return_to, base_url)
