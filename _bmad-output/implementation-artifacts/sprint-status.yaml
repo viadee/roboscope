@@ -96,7 +96,7 @@ development_status:
   4-1-auth-me-extension-with-effective-roles-and-first-login: done
   4-2-frontend-firstloginview-and-welcomecard: done
   4-3-why-you-have-access-microcopy-locked-in-4-locales: done
-  4-4-teamswitcher-component-and-header-integration: backlog
+  4-4-teamswitcher-component-and-header-integration: done
   4-5-zero-teams-and-zero-repos-empty-states: done
   4-6-read-only-affordances-in-floweditor: done
   4-7-existing-local-account-link-consent-dialog: backlog

@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useTour } from '@/composables/useTour'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import TeamSwitcher from '@/components/layout/TeamSwitcher.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -60,6 +61,7 @@ function logout() {
       >
         &#127891;
       </button>
+      <TeamSwitcher />
       <span class="header-user">{{ auth.user?.username }}</span>
       <BaseButton variant="ghost" size="sm" @click="logout">{{ t('common.logout') }}</BaseButton>
     </div>
