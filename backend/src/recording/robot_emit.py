@@ -114,13 +114,78 @@ def _emit_command(cmd: RecordedCommand) -> str:
     return "    " + "    ".join(parts)
 
 
+def _library_for_transport(transport: str) -> str:
+    """Pick the Robot library import line for a given recording transport."""
+    if transport in ("desktop_windows", "desktop_macos"):
+        return "RPA.Windows"
+    # web_playwright, chrome_extension, default → Browser library.
+    return "Browser"
+
+
+# Desktop keywords mapped from AR-8 captured events. Shared with the
+# web set for anything that overlaps (Click, Type Text, Double Click).
+_DESKTOP_TARGETED_KEYWORDS = {
+    "Click",
+    "Double Click",
+    "Type Text",
+    "Select From Combobox",
+    "Select From Menu",
+    "Control Window",
+    "Take Screenshot",
+}
+
+
+def _render_desktop_selector(cand: SelectorCandidate) -> str:
+    """RPA.Windows locator syntax is `strategy:value` with the strategy
+    aliases `id`, `name`, `class`, `xpath`.
+    """
+    if cand.strategy == "automation_id":
+        return f"id:{cand.value}"
+    if cand.strategy == "uia_name":
+        return f"name:{cand.value}"
+    if cand.strategy == "uia_class_name":
+        return f"class:{cand.value}"
+    if cand.strategy == "xpath":
+        return f"xpath:{cand.value}"
+    # Unexpected strategy for desktop — emit verbatim.
+    return cand.value
+
+
+def _emit_desktop_command(cmd: RecordedCommand) -> str:
+    parts: list[str] = [cmd.keyword]
+
+    if cmd.keyword in _DESKTOP_TARGETED_KEYWORDS:
+        active = (
+            cmd.selector_candidates[cmd.active_candidate_index]
+            if cmd.selector_candidates
+            else None
+        )
+        if active is None:
+            parts.append("# WARNING: no selector captured")
+        else:
+            parts.append(_render_desktop_selector(active))
+
+    ordered = ("text", "value", "key")
+    for key in ordered:
+        if key in cmd.args:
+            parts.append(_render_arg(cmd.args[key]))
+    for key, val in cmd.args.items():
+        if key not in ordered:
+            parts.append(_render_arg(val))
+
+    return "    " + "    ".join(parts)
+
+
 def emit_robot(flow: RecordedFlow) -> str:
     """Serialise a RecordedFlow to `.robot` source.
+
+    Web flows use Browser library syntax; desktop flows use RPA.Windows
+    locator syntax. Selected by `flow.transport`.
 
     Output shape:
 
         *** Settings ***
-        Library           Browser
+        Library           Browser            # or RPA.Windows for desktop
 
         *** Test Cases ***
         <name or fallback>
@@ -132,9 +197,12 @@ def emit_robot(flow: RecordedFlow) -> str:
     # Robot test names cannot contain a line break; collapse.
     test_name = test_name.replace("\n", " ").strip() or f"Recording {flow.session_id}"
 
+    library = _library_for_transport(flow.transport)
+    is_desktop = library == "RPA.Windows"
+
     lines: list[str] = [
         "*** Settings ***",
-        "Library           Browser",
+        f"Library           {library}",
         "",
         "*** Test Cases ***",
         test_name,
@@ -143,7 +211,8 @@ def emit_robot(flow: RecordedFlow) -> str:
     if not flow.commands:
         lines.append("    No Operation")
     else:
+        emit = _emit_desktop_command if is_desktop else _emit_command
         for cmd in flow.commands:
-            lines.append(_emit_command(cmd))
+            lines.append(emit(cmd))
 
     return "\n".join(lines) + "\n"

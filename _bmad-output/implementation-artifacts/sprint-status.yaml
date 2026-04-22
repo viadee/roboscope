@@ -151,7 +151,7 @@ development_status:
   recorder-D-1-uia-session-adapter: backlog
   recorder-D-2-primitive-capture: backlog
   recorder-D-3-desktop-selector-strategies: done
-  recorder-D-4-robot-library-mapping: backlog
+  recorder-D-4-robot-library-mapping: done
 
   # Recorder v2 — Desktop Recorder (macOS, tentative)
   epic-recorder-v2-desktop-macos: backlog
