@@ -111,7 +111,7 @@ development_status:
 
   # Epic 5: Operational Resilience, Offboarding, Compliance & Release Readiness
   epic-5: backlog
-  5-1-emergency-bypass-toggle-api-and-auto-expire: backlog
+  5-1-emergency-bypass-toggle-api-and-auto-expire: done
   5-2-emergency-bypass-admin-ui-and-header-indicator: backlog
   5-3-user-deactivation-propagation: done
   5-4-apitoken-reassign-endpoint-and-admin-ui: backlog

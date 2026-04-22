@@ -30,6 +30,8 @@ class AuditEventType(StrEnum):
     GROUP_MAPPING_DELETED = "group_mapping.deleted"
     USER_DEACTIVATED = "user.deactivated"
     USER_REACTIVATED = "user.reactivated"
+    SSO_EMERGENCY_BYPASS_ACTIVATED = "sso.emergency_bypass.activated"
+    SSO_EMERGENCY_BYPASS_DEACTIVATED = "sso.emergency_bypass.deactivated"
 
 
 def resource_type_for(event_type: AuditEventType) -> str:
