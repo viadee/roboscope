@@ -17,6 +17,11 @@ export async function getMe(): Promise<User> {
   return response.data
 }
 
+export async function patchFirstLoginComplete(value: boolean): Promise<User> {
+  const response = await apiClient.patch<User>('/auth/me/first-login-complete', { value })
+  return response.data
+}
+
 export async function getUsers(): Promise<User[]> {
   const response = await apiClient.get<User[]>('/auth/users')
   return response.data

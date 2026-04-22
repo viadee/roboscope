@@ -94,10 +94,10 @@ development_status:
   # Epic 4: First-Login & Inclusion Experience
   epic-4: backlog
   4-1-auth-me-extension-with-effective-roles-and-first-login: done
-  4-2-frontend-firstloginview-and-welcomecard: backlog
+  4-2-frontend-firstloginview-and-welcomecard: done
   4-3-why-you-have-access-microcopy-locked-in-4-locales: done
   4-4-teamswitcher-component-and-header-integration: backlog
-  4-5-zero-teams-and-zero-repos-empty-states: backlog
+  4-5-zero-teams-and-zero-repos-empty-states: done
   4-6-read-only-affordances-in-floweditor: backlog
   4-7-existing-local-account-link-consent-dialog: backlog
   4-8-axe-core-playwright-integration-and-accessibility-passes: backlog

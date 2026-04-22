@@ -13,6 +13,11 @@ export interface User {
   is_active: boolean
   created_at: string
   last_login_at: string | null
+  /** Phase 4 — optional because older endpoints (login, register) still return UserResponse without them. */
+  teams?: { id: number; name: string }[]
+  default_team_id?: number | null
+  effective_roles_by_repo?: Record<string, Role>
+  first_login_complete?: boolean
 }
 
 export interface TokenResponse {

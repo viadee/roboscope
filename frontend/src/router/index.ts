@@ -99,6 +99,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/welcome',
+      name: 'welcome',
+      component: () => import('@/views/FirstLoginView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       redirect: '/dashboard',
@@ -147,6 +153,16 @@ router.beforeEach(async (to, from) => {
     if (userLevel < requiredLevel) {
       return { path: '/dashboard' }
     }
+  }
+
+  // Story 4-2: redirect first-time users to /welcome until they dismiss it.
+  if (
+    auth.user &&
+    auth.user.first_login_complete === false &&
+    to.name !== 'welcome' &&
+    to.path !== '/login'
+  ) {
+    return { path: '/welcome' }
   }
 
   if (to.path === '/login' && auth.isAuthenticated) {
