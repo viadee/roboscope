@@ -4,8 +4,10 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useTour } from '@/composables/useTour'
+import { computed, onBeforeUnmount } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import TeamSwitcher from '@/components/layout/TeamSwitcher.vue'
+import { useBypassStatus } from '@/composables/useBypassStatus'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -24,9 +26,38 @@ function logout() {
   auth.logout()
   router.push('/login')
 }
+
+const bypass = useBypassStatus()
+onBeforeUnmount(() => bypass.release())
+
+const bypassRemainingLabel = computed(() => {
+  const m = bypass.remainingMinutes.value
+  if (m === null) return ''
+  if (m < 60) return `${m} min`
+  const h = Math.floor(m / 60)
+  const r = m % 60
+  return r === 0 ? `${h} h` : `${h} h ${r} min`
+})
+
+const isAdmin = computed(() => auth.user?.role === 'admin')
 </script>
 
 <template>
+  <div
+    v-if="bypass.active.value"
+    class="bypass-banner"
+    role="status"
+    aria-live="polite"
+  >
+    <span>{{ t('bypass.headerBanner', { time: bypassRemainingLabel }) }}</span>
+    <router-link
+      v-if="isAdmin"
+      to="/admin/emergency-bypass"
+      class="bypass-banner__link"
+    >
+      {{ t('bypass.headerBannerAdminLink') }}
+    </router-link>
+  </div>
   <header class="app-header">
     <div class="header-left">
       <button class="toggle-btn" @click="ui.toggleSidebar" :aria-label="t('common.menu')">
@@ -187,5 +218,23 @@ function logout() {
     padding: 2px 5px;
     font-size: 10px;
   }
+}
+
+.bypass-banner {
+  background: #fff7e6;
+  border-bottom: 1px solid #f0c36d;
+  color: #7a4e00;
+  padding: 0.4rem 0.9rem;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.bypass-banner__link {
+  color: inherit;
+  text-decoration: underline;
 }
 </style>

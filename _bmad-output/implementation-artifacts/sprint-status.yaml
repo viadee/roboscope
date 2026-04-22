@@ -120,10 +120,7 @@ development_status:
   # In-progress: 5-2 header-banner + 5-4 admin UI are small follow-ups.
   epic-5: in-progress
   5-1-emergency-bypass-toggle-api-and-auto-expire: done
-  # Admin page + i18n shipped; persistent header banner when bypass is
-  # active is a minor follow-up (useBypassStatus polling composable +
-  # slot in AppHeader).
-  5-2-emergency-bypass-admin-ui-and-header-indicator: in-progress
+  5-2-emergency-bypass-admin-ui-and-header-indicator: done
   5-3-user-deactivation-propagation: done
   # Backend endpoint shipped (POST /webhooks/tokens/{id}/reassign) with
   # role re-cap and audit. Admin-UI component deferred — follow-up can
