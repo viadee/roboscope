@@ -25,10 +25,12 @@ from sqlalchemy.orm import Session
 from src.auth.models import OidcLoginAttempt
 from src.database import SessionLocal
 from src.rate_limit import RateLimitCounter
+from src.recording.models import RecordingSession, RecordingStatus
 
 logger = logging.getLogger("roboscope.auth.retention_cleanup")
 
 _RATE_LIMIT_WINDOW_HOURS = 1
+_RECORDING_IDLE_TIMEOUT_MINUTES = 30
 
 
 def cleanup_oidc_login_attempts(db: Session | None = None) -> int:
@@ -125,6 +127,58 @@ def expire_sso_emergency_bypass(db: Session | None = None) -> bool:
             db.close()
 
 
+def abort_idle_recording_sessions(db: Session | None = None) -> int:
+    """Story W.8 — auto-abort recording sessions idle longer than 30 min.
+
+    "Idle" = status=recording AND started_at older than the timeout. We
+    flip the row to `cancelled` and emit `recording.session.aborted`
+    with reason=idle_timeout so the audit trail matches reality.
+    """
+    own_session = db is None
+    if own_session:
+        db = SessionLocal()
+    assert db is not None
+    try:
+        from src.audit.event_types import AuditEventType
+        from src.audit.service import log_event
+
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+            minutes=_RECORDING_IDLE_TIMEOUT_MINUTES
+        )
+        idle_rows = (
+            db.query(RecordingSession)
+            .filter(
+                RecordingSession.status == RecordingStatus.RECORDING,
+                RecordingSession.started_at < cutoff,
+            )
+            .all()
+        )
+        if not idle_rows:
+            return 0
+
+        now = datetime.now(timezone.utc)
+        for row in idle_rows:
+            row.status = RecordingStatus.CANCELLED
+            row.finished_at = now
+            log_event(
+                db,
+                AuditEventType.RECORDING_SESSION_ABORTED,
+                user_id=row.triggered_by,
+                resource_id=row.repository_id,
+                detail={
+                    "session_id": row.id,
+                    "reason": "idle_timeout",
+                    "idle_minutes": _RECORDING_IDLE_TIMEOUT_MINUTES,
+                },
+            )
+        db.commit()
+        logger.info("retention.recording aborted=%d idle_sessions", len(idle_rows))
+        return len(idle_rows)
+    finally:
+        if own_session:
+            db.close()
+
+
 def run_hourly_cleanup() -> None:
     """APScheduler entry point. Runs all hourly Phase 4 retention jobs.
 
@@ -135,6 +189,7 @@ def run_hourly_cleanup() -> None:
         ("oidc_login_attempts", cleanup_oidc_login_attempts),
         ("rate_limit_counters", cleanup_rate_limit_counters),
         ("sso_emergency_bypass_expire", expire_sso_emergency_bypass),
+        ("recording_idle_abort", abort_idle_recording_sessions),
     ):
         try:
             fn()

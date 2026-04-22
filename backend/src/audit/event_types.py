@@ -35,6 +35,10 @@ class AuditEventType(StrEnum):
     API_TOKEN_REASSIGNED = "api_token.reassigned"
     USER_ACCOUNT_LINKED = "user.account_linked"
     USER_ACCOUNT_LINK_CANCELLED = "user.account_link_cancelled"
+    RECORDING_SESSION_STARTED = "recording.session.started"
+    RECORDING_SESSION_COMPLETED = "recording.session.completed"
+    RECORDING_SESSION_ABORTED = "recording.session.aborted"
+    RECORDING_FLOW_SAVED = "recording.flow.saved"
 
 
 def resource_type_for(event_type: AuditEventType) -> str:
