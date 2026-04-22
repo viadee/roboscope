@@ -422,6 +422,119 @@ def v2_create_session(
     )
 
 
+class V2SaveRequest(BaseModel):
+    flow: dict  # Validated against RecordedFlow inside the handler.
+    repo_id: int
+    path: str
+
+
+class V2SaveResponse(BaseModel):
+    saved_path: str
+    bytes_written: int
+
+
+@router.post(
+    "/recordings/save",
+    response_model=V2SaveResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+@limiter.limit("30/minute")
+def v2_save_flow(
+    request: Request,
+    data: V2SaveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Story W.6 — serialise a RecordedFlow to `.robot` in the target repo.
+
+    Effective-role check is inline for the same body-vs-path reason as
+    the session-create endpoint. Path validation blocks `..` escape and
+    absolute paths — the flow lands strictly under `<repo local_path>/<path>`.
+    """
+    import os
+    from pathlib import Path
+
+    from src.recording.robot_emit import emit_robot
+    from src.recording.selector_schema import (
+        RecordedFlow,
+        validate_schema_version,
+    )
+
+    repo = db.get(Repository, data.repo_id)
+    if repo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found"
+        )
+    if getattr(current_user, "_auth_via_api_token", False):
+        role_level = ROLE_HIERARCHY.get(Role(current_user.role), -1)
+    else:
+        er = effective_role(db, current_user, repo)
+        role_level = ROLE_HIERARCHY.get(er, -1)
+    if role_level < ROLE_HIERARCHY.get(Role.EDITOR, 999):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERR_INSUFFICIENT_PERMISSIONS,
+        )
+
+    # Validate flow JSON against the v2 schema before touching disk.
+    try:
+        validate_schema_version(data.flow)
+        parsed = RecordedFlow.model_validate(data.flow)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="invalid flow shape") from exc
+
+    # Path-traversal guard: reject absolute paths, `..` segments, and
+    # anything that resolves outside the repo's local_path tree.
+    repo_root = Path(repo.local_path).resolve()
+    if not repo_root.exists():
+        raise HTTPException(
+            status_code=500,
+            detail="Repository filesystem path missing — server misconfiguration",
+        )
+    raw_path = data.path.strip()
+    if not raw_path:
+        raise HTTPException(status_code=400, detail="path must not be empty")
+    if raw_path.startswith("/") or raw_path.startswith("\\") or ".." in Path(raw_path).parts:
+        raise HTTPException(status_code=400, detail="path must be a repo-relative subpath")
+    target = (repo_root / raw_path).resolve()
+    try:
+        target.relative_to(repo_root)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="path resolves outside the repository")
+
+    # Auto-suffix .robot if missing for a smoother UX.
+    if target.suffix != ".robot":
+        target = target.with_suffix(".robot")
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    content = emit_robot(parsed)
+    blob = content.encode("utf-8")
+    target.write_bytes(blob)
+
+    log_event(
+        db,
+        AuditEventType.RECORDING_FLOW_SAVED,
+        user_id=current_user.id,
+        resource_id=repo.id,
+        detail={
+            "session_id": parsed.session_id,
+            "path": str(target.relative_to(repo_root)),
+            "command_count": len(parsed.commands),
+            "bytes": len(blob),
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+    db.commit()
+
+    return V2SaveResponse(
+        saved_path=str(target.relative_to(repo_root)),
+        bytes_written=len(blob),
+    )
+
+
 @router.delete(
     "/recordings/sessions/{session_id}",
     status_code=status.HTTP_204_NO_CONTENT,
