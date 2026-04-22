@@ -157,6 +157,8 @@ development_status:
   recorder-D-4-robot-library-mapping: done
 
   # Recorder v2 — Desktop Recorder (macOS, tentative)
+  # DM.1 decision: NO-GO for v2. See recorder-v2-macos-feasibility-spike.md
+  # for the four reconsider-triggers that would reopen DM.2.
   epic-recorder-v2-desktop-macos: backlog
-  recorder-DM-1-ax-feasibility-spike: backlog
+  recorder-DM-1-ax-feasibility-spike: done
   recorder-DM-2-macos-session-adapter: backlog
