@@ -650,8 +650,9 @@ import json as _json
 @router.get("/recordings/sessions/{session_id}/commands")
 def v2_command_stream(
     session_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    token: str | None = Query(None),
 ):
     """Story W.2 — single-subscriber SSE stream of RecordedCommand events.
 
@@ -660,10 +661,39 @@ def v2_command_stream(
     finalizes (end sentinel) OR the session row transitions to a
     terminal status out-of-band.
 
+    Auth: EventSource cannot set Authorization headers, so this endpoint
+    ALSO accepts a `?token=<jwt>` query param (same pattern as the
+    existing WebSocket notifications endpoint). Bearer header is still
+    honoured for programmatic clients.
+
     Single-subscriber per AR-3 — a second concurrent GET returns 409.
     """
     from fastapi.responses import StreamingResponse
+    from src.auth.service import decode_token, get_user_by_id
     from src.recording.v2_command_queue import iterate_commands
+
+    # Resolve current user: Authorization header wins, ?token= falls back.
+    # Duplicates a little logic from get_current_user because EventSource
+    # has no way to send custom headers and we can't bolt a query-param
+    # path onto the shared Depends() without changing every endpoint.
+    raw_token: str | None = None
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        raw_token = auth_header[len("Bearer "):]
+    elif token:
+        raw_token = token
+    if not raw_token:
+        raise HTTPException(status_code=401, detail="Missing credentials")
+    try:
+        payload = decode_token(raw_token)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Invalid token") from exc
+    if payload.get("type") != "access":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user = get_user_by_id(db, int(payload["sub"]))
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=401, detail="Invalid or inactive user")
+    current_user = user
 
     session = db.get(RecordingSession, session_id)
     if session is None:

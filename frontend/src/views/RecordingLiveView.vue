@@ -72,11 +72,35 @@ async function ensureBrowserStarted() {
 }
 
 function connectStream() {
-  const url = `/api/v1/recordings/sessions/${sessionId}/commands`
+  // EventSource cannot set Authorization headers — pass the access_token
+  // as a query param. Backend's /commands endpoint accepts either the
+  // `Authorization: Bearer …` header (programmatic clients) or this
+  // `?token=` fallback (browser EventSource).
+  const tok = localStorage.getItem('access_token') || ''
+  const url = `/api/v1/recordings/sessions/${sessionId}/commands?token=${encodeURIComponent(tok)}`
   eventSource = new EventSource(url, { withCredentials: true })
+  // Flip to 'live' as soon as the SSE handshake succeeds — otherwise
+  // users with no captured events yet stay on 'connecting' forever,
+  // which looks like a hang even though the stream is healthy.
+  eventSource.addEventListener('open', () => {
+    if (streamState.value === 'connecting') streamState.value = 'live'
+  })
   eventSource.addEventListener('command', handleCommand as EventListener)
   eventSource.addEventListener('end', handleEnd as EventListener)
   eventSource.addEventListener('error', handleError as EventListener)
+}
+
+async function restartRecording() {
+  // Clean the old session and route back to the launcher so the user
+  // can pick transport + repo again.
+  await abortV2Session(sessionId).catch(() => {
+    /* already terminal — ignore */
+  })
+  if (eventSource) {
+    eventSource.close()
+    eventSource = null
+  }
+  router.push('/recordings/new')
 }
 
 async function stopAndSave() {
@@ -141,7 +165,17 @@ const isTerminal = computed(() => streamState.value === 'done' || streamState.va
       <span :class="['recording-live__status', `is-${streamState}`]">{{ t(`recorder.live.status.${streamState}`) }}</span>
     </header>
 
-    <p v-if="errorMsg" class="recording-live__error" role="alert">{{ errorMsg }}</p>
+    <div v-if="errorMsg" class="recording-live__error" role="alert">
+      <span>{{ errorMsg }}</span>
+      <button
+        v-if="streamState === 'error'"
+        type="button"
+        class="recording-live__retry"
+        @click="restartRecording"
+      >
+        {{ t('recorder.live.restart') }}
+      </button>
+    </div>
 
     <ol class="recording-live__steps">
       <li v-for="(cmd, idx) in commands" :key="idx" class="recording-live__step">
@@ -175,7 +209,7 @@ const isTerminal = computed(() => streamState.value === 'done' || streamState.va
       <button
         type="button"
         class="recording-live__cta"
-        :disabled="saving || !commands.length"
+        :disabled="saving"
         @click="stopAndSave"
       >
         {{ isTerminal ? t('recorder.live.save') : t('recorder.live.stopAndSave') }}
@@ -278,5 +312,20 @@ const isTerminal = computed(() => streamState.value === 'done' || streamState.va
   border: 1px solid #f87171;
   border-radius: 4px;
   color: #7f1d1d;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.recording-live__retry {
+  padding: 0.35rem 0.9rem;
+  background: white;
+  color: #7f1d1d;
+  border: 1px solid #7f1d1d;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
 }
 </style>

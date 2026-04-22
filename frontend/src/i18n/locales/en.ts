@@ -50,6 +50,7 @@ export default {
     recorder: 'Recorder',
     teams: 'Teams',
     emergencyBypass: 'Emergency Bypass',
+    more: 'More',
   },
   auth: {
     tagline: 'Robot Framework Test Management',
@@ -1542,6 +1543,7 @@ export default {
       startFailed: 'Could not launch the browser.',
       saveFailed: 'Could not save the recording.',
       repoMissing: 'Repository reference lost — open the launcher again.',
+      restart: 'Start a new recording',
     },
   },
   bypass: {

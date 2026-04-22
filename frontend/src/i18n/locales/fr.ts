@@ -50,6 +50,7 @@ export default {
     recorder: 'Recorder',
     teams: 'Équipes',
     emergencyBypass: 'Bypass d\'urgence',
+    more: 'Plus',
   },
   auth: {
     tagline: 'Robot Framework Test Management',
@@ -1542,6 +1543,7 @@ export default {
       startFailed: 'Impossible de lancer le navigateur.',
       saveFailed: "Impossible d'enregistrer la session.",
       repoMissing: 'Référence du référentiel perdue — rouvrez le lanceur.',
+      restart: 'Démarrer un nouvel enregistrement',
     },
   },
   bypass: {

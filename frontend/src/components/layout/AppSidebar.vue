@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useExecutionStore } from '@/stores/execution.store'
-import { computed } from 'vue'
 import roboscopeLogo from '@/assets/roboscope_white.png'
+
+interface NavItem {
+  path: string
+  labelKey: string
+  icon: string
+  badge?: number | undefined
+}
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -16,39 +22,54 @@ const { t } = useI18n()
 
 const activeCount = computed(() => execution.activeRuns.length)
 
-const navItems = computed(() => {
-  const items = [
-    { path: '/dashboard', labelKey: 'nav.dashboard', icon: '\u2302' },
-    { path: '/repos', labelKey: 'nav.repos', icon: '\uD83D\uDCC1' },
-    { path: '/explorer', labelKey: 'nav.explorer', icon: '\uD83D\uDD0D' },
-    { path: '/runs', labelKey: 'nav.execution', icon: '\u25B6', badge: activeCount.value || undefined },
-    { path: '/stats', labelKey: 'nav.stats', icon: '\uD83D\uDCC8' },
-    { path: '/docs', labelKey: 'nav.docs', icon: '\uD83D\uDCD6' },
+const topNavItems = computed<NavItem[]>(() => {
+  const items: NavItem[] = [
+    { path: '/dashboard', labelKey: 'nav.dashboard', icon: '⌂' },
+    { path: '/repos', labelKey: 'nav.repos', icon: '📁' },
+    { path: '/explorer', labelKey: 'nav.explorer', icon: '🔍' },
+    { path: '/runs', labelKey: 'nav.execution', icon: '▶', badge: activeCount.value || undefined },
+    { path: '/stats', labelKey: 'nav.stats', icon: '📈' },
+    { path: '/docs', labelKey: 'nav.docs', icon: '📖' },
   ]
-
   if (auth.hasMinRole('editor')) {
-    items.push({ path: '/recordings/new', labelKey: 'nav.recorder', icon: '\u23FA' })
-    items.push({ path: '/environments', labelKey: 'nav.environments', icon: '\u2699' })
+    items.push({ path: '/recordings/new', labelKey: 'nav.recorder', icon: '⏺' })
+    items.push({ path: '/environments', labelKey: 'nav.environments', icon: '⚙' })
   }
-
-  if (auth.hasMinRole('admin')) {
-    items.push({ path: '/admin/identity-providers', labelKey: 'nav.identityProviders', icon: '\uD83D\uDD10' })
-    items.push({ path: '/admin/teams', labelKey: 'nav.teams', icon: '\uD83D\uDC65' })
-    items.push({ path: '/admin/emergency-bypass', labelKey: 'nav.emergencyBypass', icon: '\u26A0' })
-    items.push({ path: '/settings', labelKey: 'nav.settings', icon: '\uD83D\uDD27' })
-  }
-
   return items
 })
+
+// Admin-only entries live under a collapsible "More" section so the
+// main menu stays short. Auto-expands when the current route is
+// inside the group.
+const moreNavItems = computed<NavItem[]>(() => {
+  if (!auth.hasMinRole('admin')) return []
+  return [
+    { path: '/admin/identity-providers', labelKey: 'nav.identityProviders', icon: '🔐' },
+    { path: '/admin/teams', labelKey: 'nav.teams', icon: '👥' },
+    { path: '/admin/emergency-bypass', labelKey: 'nav.emergencyBypass', icon: '⚠' },
+    { path: '/settings', labelKey: 'nav.settings', icon: '🔧' },
+  ]
+})
+
+const moreOpen = ref(
+  moreNavItems.value.some((it) => route.path.startsWith(it.path)),
+)
+function toggleMore() {
+  moreOpen.value = !moreOpen.value
+}
+watch(
+  () => route.path,
+  (path) => {
+    if (moreNavItems.value.some((it) => path.startsWith(it.path))) {
+      moreOpen.value = true
+    }
+    ui.closeSidebarOnMobile()
+  },
+)
 
 function isActive(path: string): boolean {
   return route.path.startsWith(path)
 }
-
-// Close sidebar on route change when on mobile
-watch(() => route.path, () => {
-  ui.closeSidebarOnMobile()
-})
 </script>
 
 <template>
@@ -71,7 +92,7 @@ watch(() => route.path, () => {
 
     <nav class="sidebar-nav">
       <router-link
-        v-for="item in navItems"
+        v-for="item in topNavItems"
         :key="item.path"
         :to="item.path"
         class="nav-item"
@@ -81,6 +102,32 @@ watch(() => route.path, () => {
         <span class="nav-label" v-if="ui.sidebarOpen">{{ t(item.labelKey) }}</span>
         <span v-if="item.badge && ui.sidebarOpen" class="nav-badge">{{ item.badge }}</span>
       </router-link>
+
+      <template v-if="moreNavItems.length">
+        <button
+          type="button"
+          class="nav-item nav-more-toggle"
+          :class="{ active: moreOpen }"
+          :aria-expanded="moreOpen"
+          @click="toggleMore"
+        >
+          <span class="nav-icon">⋯</span>
+          <span class="nav-label" v-if="ui.sidebarOpen">{{ t('nav.more') }}</span>
+          <span v-if="ui.sidebarOpen" class="nav-chevron" :class="{ open: moreOpen }">›</span>
+        </button>
+        <div v-if="moreOpen" class="nav-more-group">
+          <router-link
+            v-for="item in moreNavItems"
+            :key="item.path"
+            :to="item.path"
+            class="nav-item nav-item-nested"
+            :class="{ active: isActive(item.path) }"
+          >
+            <span class="nav-icon">{{ item.icon }}</span>
+            <span class="nav-label" v-if="ui.sidebarOpen">{{ t(item.labelKey) }}</span>
+          </router-link>
+        </div>
+      </template>
     </nav>
 
     <div class="sidebar-footer" v-if="ui.sidebarOpen">
@@ -213,6 +260,40 @@ watch(() => route.path, () => {
   border-radius: 10px;
   min-width: 20px;
   text-align: center;
+}
+
+.nav-more-toggle {
+  background: transparent;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.nav-chevron {
+  font-size: 16px;
+  margin-left: auto;
+  transition: transform 0.15s ease;
+  color: var(--color-text-light);
+}
+
+.nav-chevron.open {
+  transform: rotate(90deg);
+}
+
+.nav-more-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 6px;
+  border-left: 1px solid rgba(180, 189, 217, 0.18);
+  margin-left: 14px;
+}
+
+.nav-item-nested {
+  padding-left: 10px;
+  font-size: 13px;
 }
 
 .sidebar-footer {
