@@ -123,6 +123,12 @@ const router = createRouter({
       meta: { requiresAuth: true, minRole: 'editor' },
     },
     {
+      path: '/recordings/live/:sessionId',
+      name: 'recording-live',
+      component: () => import('@/views/RecordingLiveView.vue'),
+      meta: { requiresAuth: true, minRole: 'editor' },
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       redirect: '/dashboard',

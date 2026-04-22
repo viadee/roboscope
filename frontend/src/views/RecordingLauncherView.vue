@@ -37,6 +37,9 @@ async function start() {
   error.value = null
   try {
     const session = await createV2Session(transport.value, repoId.value as number)
+    // Stash the repo id so the live view's save step can POST /save
+    // without re-prompting the user.
+    sessionStorage.setItem(`recorder.repo.${session.session_id}`, String(repoId.value))
     router.push(`/recordings/live/${session.session_id}`)
   } catch (e: any) {
     const detail = e?.response?.data?.detail

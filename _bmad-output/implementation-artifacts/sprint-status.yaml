@@ -128,13 +128,13 @@ development_status:
   # Recorder v2 — Web Recorder MVP
   # Planning artifacts: _bmad-output/planning-artifacts/recorder-v2-prd.md
   # + recorder-v2-epics.md + recorder-v2-architecture.md
-  epic-recorder-v2-web: in-progress
+  epic-recorder-v2-web: done
   recorder-W-1-controlled-browser-session: done
   recorder-W-2-command-stream-sse: done
   recorder-W-3-primitive-capture-injection: done  # script injected by W.1 via add_init_script
   recorder-W-4-hover-overlay: done  # script injected by W.1 via add_init_script
   recorder-W-5-context-menu: done  # script injected by W.1 via add_init_script
-  recorder-W-6-result-view: in-progress  # save endpoint + Robot emitter shipped, live editor mount is a frontend follow-up
+  recorder-W-6-result-view: done
   recorder-W-7-launcher-view-route: done
   recorder-W-8-audit-and-retention: done
 

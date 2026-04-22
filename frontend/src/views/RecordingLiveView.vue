@@ -1,0 +1,282 @@
+<script setup lang="ts">
+/**
+ * Story W.6 full — live recording view.
+ *
+ * Subscribes to the Story W.2 SSE stream, accumulates every incoming
+ * RecordedCommand into a reactive list with the Story S.4 inline
+ * selector picker, and offers a Stop-and-Save button that:
+ *   1) aborts the session (closes the Chromium + ends the stream)
+ *   2) prompts for a repo-relative path
+ *   3) POSTs the collected flow to /recordings/save
+ *   4) navigates to the saved file
+ *
+ * Deliberately minimal — the full Visual-Flow + Text editor remount
+ * that the PRD describes can reuse the existing editor components
+ * against the resulting .robot file; that's a follow-up story.
+ */
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { abortV2Session, saveV2Flow, startV2Browser } from '@/api/recording-v2.api'
+import type { RecordedCommand, RecordedFlow, RecordingTransport } from '@/types/recorder.types'
+import { RECORDER_SCHEMA_VERSION } from '@/types/recorder.types'
+import SelectorPicker from '@/components/recorder/SelectorPicker.vue'
+
+const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
+
+const sessionId = Number(route.params.sessionId)
+const commands = ref<RecordedCommand[]>([])
+const streamState = ref<'connecting' | 'live' | 'done' | 'error'>('connecting')
+const errorMsg = ref<string | null>(null)
+const saving = ref(false)
+const savePathInput = ref('flows/recording')
+
+let eventSource: EventSource | null = null
+
+function handleCommand(ev: MessageEvent) {
+  try {
+    const cmd = JSON.parse(ev.data) as RecordedCommand
+    commands.value.push(cmd)
+    streamState.value = 'live'
+  } catch (e) {
+    // Malformed payload — log and continue; the capture layer is the
+    // source of truth, not this consumer.
+    // eslint-disable-next-line no-console
+    console.warn('Unparseable command event', e)
+  }
+}
+
+function handleEnd() {
+  streamState.value = 'done'
+  if (eventSource) {
+    eventSource.close()
+    eventSource = null
+  }
+}
+
+function handleError() {
+  if (streamState.value !== 'done') {
+    streamState.value = 'error'
+    errorMsg.value = t('recorder.live.streamError')
+  }
+}
+
+async function ensureBrowserStarted() {
+  try {
+    await startV2Browser(sessionId)
+  } catch (e: any) {
+    errorMsg.value = e?.response?.data?.detail ?? t('recorder.live.startFailed')
+  }
+}
+
+function connectStream() {
+  const url = `/api/v1/recordings/sessions/${sessionId}/commands`
+  eventSource = new EventSource(url, { withCredentials: true })
+  eventSource.addEventListener('command', handleCommand as EventListener)
+  eventSource.addEventListener('end', handleEnd as EventListener)
+  eventSource.addEventListener('error', handleError as EventListener)
+}
+
+async function stopAndSave() {
+  saving.value = true
+  try {
+    // Stop the session so Chromium tears down + the stream emits `end`.
+    await abortV2Session(sessionId).catch(() => {
+      /* already terminal → ignore */
+    })
+    const flow: RecordedFlow = {
+      schema_version: RECORDER_SCHEMA_VERSION,
+      transport: 'web_playwright' as RecordingTransport,
+      session_id: String(sessionId),
+      name: null,
+      commands: commands.value,
+    }
+    // Repo id was picked on the launcher view and stashed in sessionStorage
+    // so the live view doesn't re-prompt.
+    const repoIdRaw = sessionStorage.getItem(`recorder.repo.${sessionId}`)
+    const repoId = repoIdRaw ? Number(repoIdRaw) : NaN
+    if (!repoId || Number.isNaN(repoId)) {
+      errorMsg.value = t('recorder.live.repoMissing')
+      saving.value = false
+      return
+    }
+    const res = await saveV2Flow(flow, repoId, savePathInput.value)
+    router.push(`/explorer/${repoId}?path=${encodeURIComponent(res.saved_path)}`)
+  } catch (e: any) {
+    const detail = e?.response?.data?.detail
+    errorMsg.value =
+      typeof detail === 'string' ? detail : detail?.message ?? t('recorder.live.saveFailed')
+  } finally {
+    saving.value = false
+  }
+}
+
+function updateActiveIndex(cmdIndex: number, newActive: number) {
+  const cmd = commands.value[cmdIndex]
+  if (!cmd) return
+  commands.value[cmdIndex] = { ...cmd, active_candidate_index: newActive }
+}
+
+onMounted(async () => {
+  await ensureBrowserStarted()
+  connectStream()
+})
+
+onBeforeUnmount(() => {
+  if (eventSource) {
+    eventSource.close()
+    eventSource = null
+  }
+})
+
+const isTerminal = computed(() => streamState.value === 'done' || streamState.value === 'error')
+</script>
+
+<template>
+  <section class="recording-live">
+    <header class="recording-live__header">
+      <h1>{{ t('recorder.live.heading') }}</h1>
+      <span :class="['recording-live__status', `is-${streamState}`]">{{ t(`recorder.live.status.${streamState}`) }}</span>
+    </header>
+
+    <p v-if="errorMsg" class="recording-live__error" role="alert">{{ errorMsg }}</p>
+
+    <ol class="recording-live__steps">
+      <li v-for="(cmd, idx) in commands" :key="idx" class="recording-live__step">
+        <span class="recording-live__keyword">{{ cmd.keyword }}</span>
+        <SelectorPicker
+          v-if="cmd.selector_candidates.length"
+          :command="cmd"
+          compact
+          @update:activeIndex="updateActiveIndex(idx, $event)"
+        />
+        <span v-if="cmd.args && Object.keys(cmd.args).length" class="recording-live__args">
+          {{ Object.values(cmd.args).join(' · ') }}
+        </span>
+      </li>
+    </ol>
+
+    <p v-if="!commands.length && streamState === 'live'" class="recording-live__hint">
+      {{ t('recorder.live.waiting') }}
+    </p>
+
+    <div class="recording-live__save">
+      <label class="recording-live__label" for="save-path">
+        {{ t('recorder.live.pathLabel') }}
+      </label>
+      <input
+        id="save-path"
+        v-model="savePathInput"
+        class="recording-live__input"
+        :placeholder="t('recorder.live.pathPlaceholder')"
+      />
+      <button
+        type="button"
+        class="recording-live__cta"
+        :disabled="saving || !commands.length"
+        @click="stopAndSave"
+      >
+        {{ isTerminal ? t('recorder.live.save') : t('recorder.live.stopAndSave') }}
+      </button>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.recording-live {
+  max-width: 720px;
+  margin: 1.5rem auto;
+  padding: 1rem 1.5rem;
+}
+
+.recording-live__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.recording-live__status {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.recording-live__status.is-connecting { background: rgba(0, 0, 0, 0.08); }
+.recording-live__status.is-live       { background: rgba(44, 152, 70, 0.15); color: #1a5c2a; }
+.recording-live__status.is-done       { background: rgba(59, 125, 216, 0.15); color: #1a3c7a; }
+.recording-live__status.is-error      { background: #fee2e2; color: #7f1d1d; }
+
+.recording-live__steps {
+  list-style: decimal;
+  padding-left: 1.5rem;
+  margin: 0 0 1.5rem;
+}
+
+.recording-live__step {
+  padding: 0.3rem 0;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.recording-live__keyword {
+  font-weight: 600;
+  color: var(--color-primary, #3B7DD8);
+}
+
+.recording-live__args {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  color: var(--color-text-secondary, #555);
+}
+
+.recording-live__hint {
+  color: var(--color-text-secondary, #555);
+  font-style: italic;
+  margin: 1rem 0;
+}
+
+.recording-live__save {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.recording-live__input {
+  flex: 1 1 240px;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 4px;
+}
+
+.recording-live__cta {
+  padding: 0.5rem 1.2rem;
+  background: #c0392b;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.recording-live__cta:disabled {
+  background: var(--color-border, #ccc);
+  cursor: not-allowed;
+}
+
+.recording-live__error {
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0 1rem;
+  background: #fee2e2;
+  border: 1px solid #f87171;
+  border-radius: 4px;
+  color: #7f1d1d;
+}
+</style>
