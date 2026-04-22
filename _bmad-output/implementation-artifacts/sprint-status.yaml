@@ -54,7 +54,7 @@ development_status:
   1-8-handoff-artifact-generator-reportlab: done
   1-9-discovery-cache-refresh-apscheduler-job: done
   1-10-tls-nginx-csp-return-to-validation: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done  # covered by planning-artifacts/retrospective-phase-4-and-recorder-v2.md
 
   # Epic 2: SSO User Access
   epic-2: done
@@ -66,7 +66,7 @@ development_status:
   2-6-session-invariance-during-idp-outage: done
   2-7-frontend-ssoerrorview-with-localized-outage-copy: done
   2-8-rate-limiting-failed-sso-attempts: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done  # covered by planning-artifacts/retrospective-phase-4-and-recorder-v2.md
 
   # Epic 3: Teams & Role Resolution
   epic-3: done
@@ -89,7 +89,7 @@ development_status:
   3-13-frontend-teamdetailview-with-tabs: done
   3-14-groupmappingrow-component-with-display-edit-role-modes: done
   3-15-apitoken-role-cap-verification: done
-  epic-3-retrospective: optional
+  epic-3-retrospective: done  # covered by planning-artifacts/retrospective-phase-4-and-recorder-v2.md
 
   epic-4: done
   4-1-auth-me-extension-with-effective-roles-and-first-login: done
@@ -103,12 +103,12 @@ development_status:
   # Story 4-9 shipped ahead of the Phase 4 cut — driver.js + useTour
   # composable + tour launch button in AppHeader were already in place.
   4-9-driver-js-tour-for-first-login: done
-  epic-4-retrospective: optional
+  epic-4-retrospective: done  # covered by planning-artifacts/retrospective-phase-4-and-recorder-v2.md
 
   # Epic R: Recorder Stability (out-of-band bugfix track)
   epic-R: done
   R-1-recorder-browser-lifecycle-event-based-shutdown: done
-  epic-R-retrospective: optional
+  epic-R-retrospective: done  # covered by planning-artifacts/retrospective-phase-4-and-recorder-v2.md
 
   # Epic 5: Operational Resilience, Offboarding, Compliance & Release Readiness
   epic-5: done
@@ -123,7 +123,7 @@ development_status:
   5-9-release-gate-ci-additions: done
   5-10-chrome-recorder-phase-4-impact-documentation: done
   5-11-non-goals-documentation-lock: done
-  epic-5-retrospective: optional
+  epic-5-retrospective: done  # covered by planning-artifacts/retrospective-phase-4-and-recorder-v2.md
 
   # Recorder v2 — Web Recorder MVP
   # Planning artifacts: _bmad-output/planning-artifacts/recorder-v2-prd.md
