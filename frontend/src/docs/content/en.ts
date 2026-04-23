@@ -748,7 +748,22 @@ const en: DocsContent = [
   The run enters <code>pending</code> status and is picked up by the task executor.
   Since RoboScope uses a single-worker executor, runs are processed one at a time in
   FIFO (first-in, first-out) order.
-</p>`,
+</p>
+<h4>Pending activity panel</h4>
+<p>
+  While a run is <code>pending</code>, the run detail panel shows a small amber
+  <em>Pending activity</em> box that explains <strong>why</strong> it has not started yet:
+</p>
+<ul>
+  <li><strong>Queued behind N run(s)</strong> — one or more earlier runs still occupy the
+  single executor slot. The box updates every few seconds with the current queue position.</li>
+  <li><strong>Waiting for Docker image build on &lt;env&gt;</strong> — the assigned environment is
+  currently building its image. The tail of the live build log is rendered inline so you
+  can watch progress without leaving the run panel. The <em>Open Environments</em> link
+  takes you to the full build log on the Environments page.</li>
+  <li><strong>Preparing this run…</strong> — a brief transitional state that usually flips to
+  <code>running</code> within seconds.</li>
+</ul>`,
         tip: 'If you need to run tests from multiple repositories, queue them sequentially. They will execute in order.'
       },
       {

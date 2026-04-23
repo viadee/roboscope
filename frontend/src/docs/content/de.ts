@@ -727,7 +727,22 @@ const de: DocsContent = [
   Nach dem Start wird der Run in die Warteschlange eingereiht. Da RoboScope mit
   einem einzelnen Worker arbeitet (<code>max_workers=1</code>), werden Runs
   nacheinander in FIFO-Reihenfolge abgearbeitet.
-</p>`,
+</p>
+<h4>Pending-Aktivit\u00E4ts-Panel</h4>
+<p>
+  Solange ein Run den Status <code>pending</code> hat, zeigt das Run-Detail-Panel
+  eine gelbe <em>Pending-Activity</em>-Box, die erkl\u00E4rt, <strong>warum</strong> er noch nicht startet:
+</p>
+<ul>
+  <li><strong>Wartet hinter N Run(s)</strong> &mdash; ein oder mehrere fr\u00FChere Runs belegen noch
+  den Executor-Slot. Die Box aktualisiert die Position alle paar Sekunden.</li>
+  <li><strong>Warten auf Docker-Image-Build f\u00FCr &lt;Umgebung&gt;</strong> &mdash; die zugeordnete Umgebung
+  baut gerade ihr Image. Der aktuelle Build-Log-Auszug wird direkt im Panel angezeigt, damit
+  der Fortschritt sichtbar bleibt, ohne die Seite zu wechseln. Der Link <em>Umgebungen \u00F6ffnen</em>
+  f\u00FChrt zum vollst\u00E4ndigen Log auf der Umgebungen-Seite.</li>
+  <li><strong>Run wird vorbereitet\u2026</strong> &mdash; kurzer \u00DCbergangszustand, der normalerweise innerhalb
+  weniger Sekunden nach <code>running</code> wechselt.</li>
+</ul>`,
         tip: 'Wenn Auto-Sync aktiviert ist, wird das Repository vor der Ausf\u00FChrung automatisch auf den neuesten Stand gebracht.'
       },
       {

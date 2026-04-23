@@ -22,6 +22,26 @@ export async function getRun(id: number): Promise<ExecutionRun> {
   return response.data
 }
 
+export interface PendingBuildInfo {
+  environment_id: number
+  environment_name: string
+  status: string | null
+  log_tail: string
+}
+
+export interface PendingActivity {
+  status: string
+  queue_position: number | null
+  ahead_count: number
+  active_build: PendingBuildInfo | null
+  effective_runner_type: string | null
+}
+
+export async function getRunPendingActivity(id: number): Promise<PendingActivity> {
+  const response = await apiClient.get<PendingActivity>(`/runs/${id}/pending-activity`)
+  return response.data
+}
+
 export async function cancelRun(id: number): Promise<ExecutionRun> {
   const response = await apiClient.post<ExecutionRun>(`/runs/${id}/cancel`)
   return response.data

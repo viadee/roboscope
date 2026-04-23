@@ -761,7 +761,21 @@ const fr: DocsContent = [
   L\u2019ex\u00E9cution passe au statut <code>pending</code> et est prise en charge par l\u2019ex\u00E9cuteur
   de t\u00E2ches. RoboScope utilisant un ex\u00E9cuteur mono-worker, les ex\u00E9cutions sont trait\u00E9es
   une par une dans l\u2019ordre FIFO (premier arriv\u00E9, premier servi).
-</p>`,
+</p>
+<h4>Panneau d\u2019activit\u00E9 en attente</h4>
+<p>
+  Tant qu\u2019une ex\u00E9cution reste \u00E0 l\u2019\u00E9tat <code>pending</code>, le panneau de d\u00E9tail affiche
+  une bo\u00EEte ambre&nbsp;<em>Activit\u00E9 en attente</em> expliquant <strong>pourquoi</strong> elle n\u2019a pas encore d\u00E9marr\u00E9&nbsp;:
+</p>
+<ul>
+  <li><strong>En attente derri\u00E8re N run(s)</strong> &mdash; d\u2019autres runs plus anciens occupent
+  encore l\u2019emplacement unique d\u2019ex\u00E9cution. La position dans la file est rafra\u00EEchie toutes les quelques secondes.</li>
+  <li><strong>En attente de la construction de l\u2019image Docker sur &lt;env&gt;</strong> &mdash; l\u2019environnement
+  assign\u00E9 est en train de construire son image. La queue du journal de build appara\u00EEt directement dans
+  le panneau&nbsp;; le lien <em>Ouvrir Environnements</em> m\u00E8ne au journal complet.</li>
+  <li><strong>Pr\u00E9paration du run\u2026</strong> &mdash; \u00E9tat transitoire court, qui passe g\u00E9n\u00E9ralement
+  \u00E0 <code>running</code> en quelques secondes.</li>
+</ul>`,
         tip: 'Si vous devez ex\u00E9cuter des tests de plusieurs d\u00E9p\u00F4ts, mettez-les en file d\u2019attente s\u00E9quentiellement. Ils s\u2019ex\u00E9cuteront dans l\u2019ordre.'
       },
       {

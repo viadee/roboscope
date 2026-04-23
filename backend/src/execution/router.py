@@ -20,6 +20,8 @@ from src.database import get_db
 from src.rate_limit import limiter
 from src.task_executor import TaskDispatchError, dispatch_task
 from src.execution.models import RunStatus
+from pydantic import BaseModel
+
 from src.execution.schemas import (
     RunCreate,
     RunListResponse,
@@ -28,6 +30,8 @@ from src.execution.schemas import (
     ScheduleResponse,
     ScheduleUpdate,
 )
+from src.environments.models import Environment
+from src.execution.models import ExecutionRun, RunnerType
 from src.execution.service import (
     cancel_run,
     create_run,
@@ -121,6 +125,105 @@ def get_run_detail(
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
     return run
+
+
+# --- Pending-run activity (Story EXEC-1) ---
+
+
+class PendingBuildInfo(BaseModel):
+    environment_id: int
+    environment_name: str
+    status: str | None
+    log_tail: str
+
+
+class PendingActivityResponse(BaseModel):
+    status: str
+    queue_position: int | None
+    ahead_count: int
+    active_build: PendingBuildInfo | None
+    effective_runner_type: str | None
+
+
+# Only the trailing slice of a (potentially multi-MB) build log is shipped
+# to the browser. The full log stays available on the Environments view.
+_BUILD_LOG_TAIL_CHARS = 6_000
+
+
+@router.get("/runs/{run_id}/pending-activity", response_model=PendingActivityResponse)
+def get_run_pending_activity(
+    run_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+) -> PendingActivityResponse:
+    """Tell the caller *why* a pending run has not started yet.
+
+    - How many earlier runs are still ahead of it in the single-worker
+      queue (``ahead_count`` / ``queue_position``).
+    - Whether the run's environment is currently building a Docker image
+      (``active_build``), and if so, the tail of the live build log so
+      the detail panel can render it inline without a separate request.
+
+    Emits the full response on any run state (pending / running /
+    terminal); the frontend relies on ``status`` to decide whether to
+    render the pending box at all. Returning the shape universally keeps
+    the polling contract simple (the consumer can stop polling the
+    moment it sees a non-pending status).
+    """
+    run = db.get(ExecutionRun, run_id)
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Run not found"
+        )
+
+    # Queue position — only meaningful while pending. Runs created before
+    # this one that are still in pending / running contend for the single
+    # executor slot. We count the running one too so "queued behind 1"
+    # correctly describes the common "one running, this one next" state.
+    ahead_count = 0
+    queue_position: int | None = None
+    if run.status == RunStatus.PENDING:
+        ahead_count = (
+            db.query(ExecutionRun)
+            .filter(
+                ExecutionRun.id != run.id,
+                ExecutionRun.status.in_([RunStatus.PENDING, RunStatus.RUNNING]),
+                ExecutionRun.created_at < run.created_at,
+            )
+            .count()
+        )
+        queue_position = ahead_count + 1
+
+    # Effective runner type mirrors the fallback logic in
+    # execute_test_run: a run created with subprocess inherits docker if
+    # the bound environment's default is docker.
+    effective_runner_type: str | None = run.runner_type
+    env: Environment | None = (
+        db.get(Environment, run.environment_id) if run.environment_id else None
+    )
+    if env is not None and env.default_runner_type == RunnerType.DOCKER and run.runner_type == RunnerType.SUBPROCESS:
+        effective_runner_type = RunnerType.DOCKER
+
+    # Active build detection — any env row whose `docker_build_status`
+    # is currently "building" qualifies. `docker_build_log` is the
+    # consolidated log the env's build task appends to.
+    active_build: PendingBuildInfo | None = None
+    if env is not None and env.docker_build_status == "building":
+        full_log = env.docker_build_log or ""
+        active_build = PendingBuildInfo(
+            environment_id=env.id,
+            environment_name=env.name,
+            status=env.docker_build_status,
+            log_tail=full_log[-_BUILD_LOG_TAIL_CHARS:],
+        )
+
+    return PendingActivityResponse(
+        status=run.status,
+        queue_position=queue_position,
+        ahead_count=ahead_count,
+        active_build=active_build,
+        effective_runner_type=effective_runner_type,
+    )
 
 
 @router.post("/runs/{run_id}/cancel", response_model=RunResponse)

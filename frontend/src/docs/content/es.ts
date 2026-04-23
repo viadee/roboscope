@@ -784,7 +784,22 @@ const es: DocsContent = [
   La ejecuci\u00F3n entra en estado <code>pending</code> y es recogida por el ejecutor
   de tareas. Dado que RoboScope utiliza un ejecutor de un solo worker, las ejecuciones
   se procesan una a la vez en orden FIFO (primero en entrar, primero en salir).
-</p>`,
+</p>
+<h4>Panel de actividad pendiente</h4>
+<p>
+  Mientras una ejecuci\u00F3n est\u00E9 en estado <code>pending</code>, el panel de detalle muestra
+  un peque\u00F1o recuadro \u00E1mbar de <em>Actividad pendiente</em> que explica <strong>por qu\u00E9</strong>
+  a\u00FAn no ha comenzado:
+</p>
+<ul>
+  <li><strong>En espera detr\u00E1s de N run(s)</strong> &mdash; uno o m\u00E1s runs anteriores ocupan todav\u00EDa
+  el \u00FAnico slot del ejecutor. La posici\u00F3n en la cola se refresca cada pocos segundos.</li>
+  <li><strong>Esperando la construcci\u00F3n de la imagen Docker en &lt;entorno&gt;</strong> &mdash; el entorno
+  asignado est\u00E1 construyendo su imagen. La cola del log de build se muestra en el panel; el enlace
+  <em>Abrir Entornos</em> lleva al log completo.</li>
+  <li><strong>Preparando el run\u2026</strong> &mdash; estado transitorio breve que normalmente pasa a
+  <code>running</code> en pocos segundos.</li>
+</ul>`,
         tip: 'Si necesita ejecutar pruebas de m\u00FAltiples repositorios, p\u00F3ngalas en cola secuencialmente. Se ejecutar\u00E1n en orden.'
       },
       {

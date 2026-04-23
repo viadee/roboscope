@@ -10,6 +10,7 @@ import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import ReportXmlView from '@/components/report/ReportXmlView.vue'
+import RunPendingActivity from '@/components/execution/RunPendingActivity.vue'
 import { formatDuration } from '@/utils/formatDuration'
 import { formatDateTime } from '@/utils/formatDate'
 import { renderMarkdown } from '@/utils/renderMarkdown'
@@ -186,6 +187,9 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
           <span class="info-value">{{ formatDuration(run.duration_seconds) }}</span>
         </div>
       </div>
+
+      <!-- Pending-activity panel (Story EXEC-1) -->
+      <RunPendingActivity :run-id="run.id" :status="run.status" />
 
       <!-- Error banner -->
       <div v-if="run.error_message" class="run-error-banner" :class="{ 'docker-error': isDockerError(run.error_message) }">
