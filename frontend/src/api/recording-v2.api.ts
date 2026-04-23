@@ -7,6 +7,17 @@ export interface V2SessionResponse {
   status: string
 }
 
+export interface V2Capabilities {
+  web_playwright_viable: boolean
+  desktop_windows_viable: boolean
+  desktop_macos_viable: boolean
+}
+
+export async function getV2Capabilities(): Promise<V2Capabilities> {
+  const response = await apiClient.get<V2Capabilities>('/recordings/sessions/capabilities')
+  return response.data
+}
+
 export async function createV2Session(
   transport: RecordingTransport,
   repoId: number,

@@ -316,6 +316,53 @@ from src.recording.selector_schema import RecordingTransport
 from src.repos.models import Repository
 
 
+class V2CapabilitiesResponse(BaseModel):
+    web_playwright_viable: bool
+    desktop_windows_viable: bool
+    desktop_macos_viable: bool
+
+
+def _web_playwright_viable() -> bool:
+    """Is a backend-launched, user-visible Chromium feasible on this host?
+
+    Heuristic:
+      * `ROBOSCOPE_HEADED_BROWSER=true|false` overrides everything.
+      * Linux: requires $DISPLAY or $WAYLAND_DISPLAY. No desktop → no
+        window the remote user could see.
+      * macOS / Windows: assume yes (no cheap remote-detection heuristic
+        — admins of a headless Windows Server SKU set the override).
+
+    Story DEPLOY-1 (2026-04-23).
+    """
+    import os as _os
+    import sys as _sys
+    override = _os.environ.get("ROBOSCOPE_HEADED_BROWSER", "auto").strip().lower()
+    if override in ("1", "true", "yes", "on"):
+        return True
+    if override in ("0", "false", "no", "off"):
+        return False
+    if _sys.platform.startswith("linux"):
+        return bool(_os.environ.get("DISPLAY") or _os.environ.get("WAYLAND_DISPLAY"))
+    return True
+
+
+@router.get("/recordings/sessions/capabilities", response_model=V2CapabilitiesResponse)
+def v2_recorder_capabilities(
+    _current_user: User = Depends(get_current_user),
+) -> V2CapabilitiesResponse:
+    """Tell the frontend which v2 recorder transports the *backend host*
+    can actually drive. Drives the launcher's transport radio group so
+    remote deployments don't silently offer "Web (Playwright)" when the
+    backend has no display to render Chromium into.
+    """
+    import sys as _sys
+    return V2CapabilitiesResponse(
+        web_playwright_viable=_web_playwright_viable(),
+        desktop_windows_viable=_sys.platform.startswith("win"),
+        desktop_macos_viable=False,  # DM.1 NO-GO lock.
+    )
+
+
 class V2SessionCreateRequest(BaseModel):
     transport: RecordingTransport
     repo_id: int

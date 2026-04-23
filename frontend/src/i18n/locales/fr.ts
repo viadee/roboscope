@@ -1536,6 +1536,11 @@ export default {
       record: "Démarrer l'enregistrement",
       starting: 'Démarrage…',
       startFailed: "Impossible de démarrer l'enregistrement. Réessayez.",
+      remote: {
+        heading: 'Enregistrement navigateur indisponible sur ce serveur',
+        body: "Le backend RoboScope ne dispose pas d'un navigateur affichable (typique d'un déploiement distant) et ne peut donc pas ouvrir une fenêtre Chromium à enregistrer. Installez plutôt l'extension Chrome RoboScope sur votre propre machine : elle enregistre dans votre navigateur et diffuse les événements vers ce backend.",
+        override: "Les administrateurs peuvent forcer l'enregistrement navigateur via la variable d'environnement ROBOSCOPE_HEADED_BROWSER=true côté backend.",
+      },
     },
     live: {
       heading: 'Enregistrement',

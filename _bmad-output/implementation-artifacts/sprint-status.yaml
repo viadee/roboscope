@@ -141,6 +141,7 @@ development_status:
   recorder-W-9-explorer-launch-entrypoint: done  # deep-link launcher from Explorer toolbar
   recorder-V1-1-remove-in-app-ui: done  # v1 button + RecorderPanel retired from Explorer
   exec-1-pending-run-activity: done  # queue-position + active-build log on pending runs
+  deploy-1-remote-aware-recorder-transport-picker: done  # launcher disables non-viable transports + Chrome-Extension hint
 
   # Recorder v2 — Shared Selector datamodel + editor UI
   epic-recorder-v2-selectors: done

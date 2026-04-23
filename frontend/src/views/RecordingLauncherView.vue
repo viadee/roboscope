@@ -10,7 +10,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { createV2Session } from '@/api/recording-v2.api'
+import { createV2Session, getV2Capabilities, type V2Capabilities } from '@/api/recording-v2.api'
 import { useReposStore } from '@/stores/repos.store'
 import type { RecordingTransport } from '@/types/recorder.types'
 
@@ -24,11 +24,35 @@ const repoId = ref<number | null>(null)
 const starting = ref(false)
 const error = ref<string | null>(null)
 
-const transports: { value: RecordingTransport; labelKey: string; disabled?: boolean }[] = [
-  { value: 'web_playwright', labelKey: 'recorder.launcher.transport.web' },
-  { value: 'desktop_windows', labelKey: 'recorder.launcher.transport.windows', disabled: true },
-  { value: 'desktop_macos', labelKey: 'recorder.launcher.transport.macos', disabled: true },
-]
+// Story DEPLOY-1 — capability probe. Defaults err on the side of
+// "everything enabled" so a failed probe never locks the user out.
+const capabilities = ref<V2Capabilities>({
+  web_playwright_viable: true,
+  desktop_windows_viable: true,
+  desktop_macos_viable: false,
+})
+
+const transports = computed<{ value: RecordingTransport; labelKey: string; disabled: boolean }[]>(
+  () => [
+    {
+      value: 'web_playwright',
+      labelKey: 'recorder.launcher.transport.web',
+      disabled: !capabilities.value.web_playwright_viable,
+    },
+    {
+      value: 'desktop_windows',
+      labelKey: 'recorder.launcher.transport.windows',
+      disabled: !capabilities.value.desktop_windows_viable,
+    },
+    {
+      value: 'desktop_macos',
+      labelKey: 'recorder.launcher.transport.macos',
+      disabled: !capabilities.value.desktop_macos_viable,
+    },
+  ],
+)
+
+const webNotViable = computed(() => !capabilities.value.web_playwright_viable)
 
 const canStart = computed(() => transport.value && repoId.value !== null && !starting.value)
 
@@ -55,6 +79,23 @@ async function start() {
 
 onMounted(async () => {
   await reposStore.fetchRepos()
+
+  // Story DEPLOY-1 — probe capabilities. Silent fallback on failure.
+  try {
+    capabilities.value = await getV2Capabilities()
+  } catch {
+    // Keep the optimistic defaults — the 501 guard on /start-browser
+    // is the real enforcement point.
+  }
+  // If the default-selected transport turned out to be unviable,
+  // switch to the first viable option so the user isn't stuck on a
+  // disabled radio.
+  const current = transports.value.find((t) => t.value === transport.value)
+  if (current?.disabled) {
+    const firstViable = transports.value.find((t) => !t.disabled)
+    if (firstViable) transport.value = firstViable.value
+  }
+
   if (reposStore.repos.length === 0) return
   // Story W.9 — deep-link from the Explorer: if the URL carries a
   // ?repoId=<N> query param and the repo is visible to the user, use
@@ -102,6 +143,12 @@ onMounted(async () => {
           <small v-if="opt.disabled" class="launcher__soon">{{ t('recorder.launcher.comingSoon') }}</small>
         </label>
       </div>
+    </div>
+
+    <div v-if="webNotViable" class="launcher__headless-hint" role="status">
+      <strong>{{ t('recorder.launcher.remote.heading') }}</strong>
+      <p>{{ t('recorder.launcher.remote.body') }}</p>
+      <p class="launcher__headless-hint-muted">{{ t('recorder.launcher.remote.override') }}</p>
     </div>
 
     <div v-if="error" class="launcher__error" role="alert">{{ error }}</div>
@@ -177,6 +224,31 @@ onMounted(async () => {
   border: 1px solid #f87171;
   border-radius: 4px;
   color: #7f1d1d;
+}
+
+.launcher__headless-hint {
+  padding: 0.7rem 0.9rem;
+  margin: 1rem 0;
+  background: #fff7e6;
+  border: 1px solid #f6c86b;
+  border-radius: 6px;
+  color: #704500;
+}
+
+.launcher__headless-hint strong {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.launcher__headless-hint p {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+}
+
+.launcher__headless-hint-muted {
+  color: #8b5b00;
+  font-size: 0.8rem !important;
+  font-style: italic;
 }
 
 .launcher__cta {

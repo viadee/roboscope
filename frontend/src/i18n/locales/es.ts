@@ -1536,6 +1536,11 @@ export default {
       record: 'Iniciar grabación',
       starting: 'Iniciando…',
       startFailed: 'No se pudo iniciar la grabación. Inténtalo de nuevo.',
+      remote: {
+        heading: 'Grabación de navegador no disponible en este servidor',
+        body: 'El backend de RoboScope no tiene un navegador visible (típico en despliegues remotos) y, por tanto, no puede abrir una ventana de Chromium para grabar. Instala la extensión de Chrome de RoboScope en tu propia máquina: graba en tu navegador y envía los eventos a este backend.',
+        override: 'Los administradores pueden forzar la grabación del navegador con la variable de entorno ROBOSCOPE_HEADED_BROWSER=true en el host del backend.',
+      },
     },
     live: {
       heading: 'Grabación',
