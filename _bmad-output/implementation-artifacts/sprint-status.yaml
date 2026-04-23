@@ -141,7 +141,6 @@ development_status:
   recorder-W-9-explorer-launch-entrypoint: done  # deep-link launcher from Explorer toolbar
   recorder-V1-1-remove-in-app-ui: done  # v1 button + RecorderPanel retired from Explorer
   exec-1-pending-run-activity: done  # queue-position + active-build log on pending runs
-  docs-1-bpmn-core-process-diagram: done  # /docs/process BPMN viewer (bpmn-js / bpmn.io)
 
   # Recorder v2 — Shared Selector datamodel + editor UI
   epic-recorder-v2-selectors: done

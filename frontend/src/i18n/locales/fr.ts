@@ -855,14 +855,6 @@ export default {
     noResults: 'Aucune section correspondante trouvée.',
     tableOfContents: 'Table des matières',
     tip: 'Conseil',
-    processDiagramLink: 'Ouvrir le diagramme BPMN du processus principal →',
-  },
-  process: {
-    heading: 'Processus principal RoboScope',
-    hint: 'Dépôt → rédiger ou enregistrer → lancer un run → build Docker (si nécessaire) → exécution → rapport. Déplacement et zoom à la souris ou au trackpad.',
-    loading: 'Chargement du diagramme…',
-    loadError: 'Impossible d\'afficher le diagramme ({reason}).',
-    credits: 'Propulsé par bpmn-js (bpmn.io)',
   },
   imprint: {
     title: 'Mentions légales',

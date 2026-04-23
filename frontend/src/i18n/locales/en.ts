@@ -855,14 +855,6 @@ export default {
     noResults: 'No matching sections found.',
     tableOfContents: 'Table of Contents',
     tip: 'Tip',
-    processDiagramLink: 'View the core-process BPMN diagram →',
-  },
-  process: {
-    heading: 'RoboScope core process',
-    hint: 'Repository → author or record → trigger run → Docker build (if stale) → execute → report. Pan and zoom with mouse or trackpad.',
-    loading: 'Loading diagram…',
-    loadError: 'Could not render the diagram ({reason}).',
-    credits: 'Powered by bpmn-js (bpmn.io)',
   },
   imprint: {
     title: 'Imprint',
