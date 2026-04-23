@@ -552,7 +552,7 @@ const de: DocsContent = [
         content: `
 <p>
   Der <strong>RoboScope Recorder</strong> erm\u00F6glicht es, Browser-Interaktionen aufzuzeichnen und
-  automatisch <code>.robot</code>-Testdateien zu generieren. Es gibt drei Aufnahmemethoden:
+  automatisch <code>.robot</code>-Testdateien zu generieren. Es gibt zwei Aufnahmemethoden:
 </p>
 <ul>
   <li><strong>Recorder v2 (empfohlen)</strong> &mdash; \u00D6ffnen Sie den Launcher \u00FCber den
@@ -561,11 +561,10 @@ const de: DocsContent = [
   bietet eine Transport-Auswahl (Web / Desktop&nbsp;Windows), \u00F6ffnet eine kontrollierte
   Browser-Sitzung und streamt jede erfasste Aktion \u00FCber Server-Sent Events in die
   Live-Schrittliste &mdash; inklusive Selektor-Kandidaten pro Schritt.</li>
-  <li><strong>Legacy In-App-Aufnahme</strong> &mdash; Klicken Sie auf den <em>Aufnehmen</em>-Button in der
-  Explorer-Ansicht (direkt neben dem Recorder-v2-Button). Nutzt die \u00E4ltere Pipeline, die direkt in
-  die aktuell ge\u00F6ffnete Datei speichert. F\u00FCr Nutzer, die den alten Ablauf ben\u00F6tigen.</li>
   <li><strong>Chrome-Erweiterung</strong> &mdash; Installieren Sie die RoboScope Recorder-Erweiterung, um
-  direkt in Ihrem eigenen Browser aufzunehmen. Aktionen werden bei bestehender Verbindung \u00FCber die API an RoboScope weitergeleitet.</li>
+  direkt in Ihrem eigenen Browser aufzunehmen. Aktionen werden bei bestehender Verbindung \u00FCber die API an RoboScope weitergeleitet.
+  Der fr\u00FChere In-App-Recorder-Button in der Explorer-Toolbar wurde entfernt; Chrome-Erweiterung-Workflows sind
+  nicht betroffen, da sie direkt mit dem Backend sprechen.</li>
 </ul>
 <h4>Aufnahme-Ablauf</h4>
 <ol>

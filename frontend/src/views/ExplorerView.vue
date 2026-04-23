@@ -17,8 +17,6 @@ import BaseModal from '@/components/ui/BaseModal.vue'
 import GenerateModal from '@/components/ai/GenerateModal.vue'
 import SpecEditor from '@/components/ai/SpecEditor.vue'
 import RobotEditor from '@/components/editor/RobotEditor.vue'
-import RecorderPanel from '@/components/recorder/RecorderPanel.vue'
-import { useRecorderStore } from '@/stores/recorder.store'
 import { useAuthStore } from '@/stores/auth.store'
 import type { TreeNode } from '@/types/domain.types'
 
@@ -36,7 +34,6 @@ const router = useRouter()
 const explorer = useExplorerStore()
 const repos = useReposStore()
 const envs = useEnvironmentsStore()
-const recorder = useRecorderStore()
 const auth = useAuthStore()
 const toast = useToast()
 const { t } = useI18n()
@@ -588,19 +585,6 @@ async function checkAndRunRobot(node: TreeNode) {
   doRunRobot(node)
 }
 
-async function handleRecord() {
-  if (!selectedRepoId.value) return
-  const currentEnv = currentRepo.value?.environment_id || undefined
-  const filePath = explorer.selectedFile?.path || undefined
-  await recorder.startBrowserSession({
-    repository_id: selectedRepoId.value,
-    environment_id: currentEnv,
-    source: 'playwright',
-    target_file_path: filePath,
-    target_library: 'Browser',
-  })
-}
-
 // Story W.9 — route to the v2 launcher with the current repo pre-selected.
 function handleRecordV2() {
   if (!selectedRepoId.value) return
@@ -1029,12 +1013,6 @@ const flatNodes = computed(() => {
                 :title="t('explorer.runRobot')"
               >▶ {{ t('explorer.run') }}</button>
               <button
-                class="action-btn record-btn"
-                @click="handleRecord"
-                :disabled="recorder.isRecording || recorder.loading"
-                :title="t('recorder.startRecording')"
-              >{{ recorder.isRecording ? '⏹' : '⏺' }} {{ t('recorder.record') }}</button>
-              <button
                 v-if="auth.hasMinRole('editor')"
                 class="action-btn record-btn"
                 @click="handleRecordV2"
@@ -1097,8 +1075,6 @@ const flatNodes = computed(() => {
           <p class="text-muted">{{ t('explorer.selectFile') }}</p>
         </div>
 
-        <!-- Recording Panel -->
-        <RecorderPanel />
       </div>
     </div>
 

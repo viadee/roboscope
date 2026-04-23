@@ -620,7 +620,7 @@ const es: DocsContent = [
         content: `
 <p>
   El <strong>Grabador de RoboScope</strong> permite capturar interacciones del navegador y
-  generar autom\u00E1ticamente archivos de prueba <code>.robot</code>. Hay tres m\u00E9todos de grabaci\u00F3n:
+  generar autom\u00E1ticamente archivos de prueba <code>.robot</code>. Hay dos m\u00E9todos de grabaci\u00F3n:
 </p>
 <ul>
   <li><strong>Recorder v2 (recomendado)</strong> &mdash; Abra el lanzador desde la entrada
@@ -629,10 +629,10 @@ const es: DocsContent = [
   repositorio actual). El lanzador ofrece un selector de transporte (Web / Desktop&nbsp;Windows),
   abre una sesi\u00F3n de navegador controlada y transmite cada acci\u00F3n capturada mediante Server-Sent
   Events a la lista de pasos en vivo &mdash; con candidatos de selector por paso.</li>
-  <li><strong>Grabaci\u00F3n integrada (legacy)</strong> &mdash; Haga clic en el bot\u00F3n <em>Grabar</em> en la vista
-  Explorer (justo al lado del bot\u00F3n Recorder&nbsp;v2). Se mantiene para usuarios que dependen del flujo antiguo.</li>
   <li><strong>Extensi\u00F3n de Chrome</strong> &mdash; Instale la extensi\u00F3n RoboScope Recorder para grabar
-  directamente en su propio navegador. Las acciones se env\u00EDan a RoboScope a trav\u00E9s de la API cuando est\u00E1 conectado.</li>
+  directamente en su propio navegador. Las acciones se env\u00EDan a RoboScope a trav\u00E9s de la API cuando est\u00E1 conectado.
+  El bot\u00F3n del grabador integrado legacy que antes aparec\u00EDa en la barra de herramientas del Explorer ha sido eliminado;
+  los flujos de la extensi\u00F3n de Chrome no se ven afectados porque se comunican directamente con el backend.</li>
 </ul>
 <h4>Flujo de grabaci\u00F3n</h4>
 <ol>

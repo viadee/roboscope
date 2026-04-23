@@ -587,7 +587,7 @@ const en: DocsContent = [
         content: `
 <p>
   The <strong>RoboScope Recorder</strong> lets you capture browser interactions and
-  automatically generate <code>.robot</code> test files. There are three ways to record:
+  automatically generate <code>.robot</code> test files. There are two ways to record:
 </p>
 <ul>
   <li><strong>Recorder v2 (recommended)</strong> &mdash; Open the launcher from the sidebar
@@ -596,11 +596,10 @@ const en: DocsContent = [
   transport picker (Web / Desktop&nbsp;Windows), opens a controlled browser session, and
   streams each captured action over Server-Sent Events into the live step list with
   per-step selector candidates.</li>
-  <li><strong>Legacy In-App Recorder</strong> &mdash; Click the <em>Record</em> button in the
-  Explorer view (next to the Recorder&nbsp;v2 button). Runs the older pipeline that saves
-  to the currently-open file. Kept for users who depend on the old workflow.</li>
   <li><strong>Chrome Extension</strong> &mdash; Install the RoboScope Recorder extension to record
-  directly in your own browser. Actions are forwarded to RoboScope via the API when connected.</li>
+  directly in your own browser. Actions are forwarded to RoboScope via the API when connected.
+  The legacy in-app Recorder button previously shown in the Explorer toolbar has been removed;
+  Chrome Extension workflows are unaffected because they talk to the backend directly.</li>
 </ul>
 <h4>Recording Flow</h4>
 <ol>
