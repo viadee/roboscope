@@ -63,3 +63,6 @@ extension/dist/
 
 # BMAD Method install sources (output artifacts under _bmad-output/ are tracked)
 _bmad/
+
+# Claude Code runtime state (scheduler locks, etc.)
+.claude/scheduled_tasks.lock
