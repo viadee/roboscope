@@ -263,7 +263,10 @@ def cancel_recording_endpoint(
     return recording
 
 
-@router.get("/recordings/{recording_id}/robot", response_class=None)
+from fastapi.responses import PlainTextResponse
+
+
+@router.get("/recordings/{recording_id}/robot", response_class=PlainTextResponse)
 def get_generated_robot(
     recording_id: int,
     db: Session = Depends(get_db),
@@ -278,7 +281,6 @@ def get_generated_robot(
             status_code=404,
             detail="No generated .robot content available",
         )
-    from fastapi.responses import PlainTextResponse
     return PlainTextResponse(
         content=recording.generated_robot,
         media_type="text/plain",
