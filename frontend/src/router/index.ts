@@ -93,6 +93,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/docs/process',
+      name: 'process-diagram',
+      component: () => import('@/views/ProcessDiagramView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/imprint',
       name: 'imprint',
       component: () => import('@/views/ImprintView.vue'),

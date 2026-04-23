@@ -855,6 +855,14 @@ export default {
     noResults: 'Keine passenden Abschnitte gefunden.',
     tableOfContents: 'Inhaltsverzeichnis',
     tip: 'Tipp',
+    processDiagramLink: 'BPMN-Diagramm des Kernprozesses öffnen →',
+  },
+  process: {
+    heading: 'RoboScope-Kernprozess',
+    hint: 'Repository → Schreiben oder Aufnehmen → Run starten → Docker-Build (falls nötig) → Ausführung → Report. Verschieben und Zoomen mit Maus oder Trackpad.',
+    loading: 'Diagramm wird geladen…',
+    loadError: 'Diagramm konnte nicht geladen werden ({reason}).',
+    credits: 'Powered by bpmn-js (bpmn.io)',
   },
   imprint: {
     title: 'Impressum',

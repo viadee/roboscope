@@ -151,9 +151,14 @@ onUnmounted(() => {
     <main class="docs-content">
       <div class="docs-header">
         <h1>{{ t('docs.title') }}</h1>
-        <button class="print-btn" @click="printDocs">
-          🖨️ {{ t('docs.printVersion') }}
-        </button>
+        <div class="docs-header__actions">
+          <router-link to="/docs/process" class="process-link">
+            📊 {{ t('docs.processDiagramLink') }}
+          </router-link>
+          <button class="print-btn" @click="printDocs">
+            🖨️ {{ t('docs.printVersion') }}
+          </button>
+        </div>
       </div>
 
       <div v-if="filteredDocs.length" class="docs-sections">
@@ -344,6 +349,31 @@ onUnmounted(() => {
   font-size: 26px;
   font-weight: 700;
   color: var(--color-text);
+}
+
+.docs-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.process-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--color-primary, #3B7DD8);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-primary, #3B7DD8);
+  font-size: 13px;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.process-link:hover {
+  background: var(--color-primary, #3B7DD8);
+  color: white;
 }
 
 .print-btn {
