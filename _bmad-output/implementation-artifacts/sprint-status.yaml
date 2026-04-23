@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-15
-last_updated: 2026-04-22T-desktop-windows-epic-close
+last_updated: 2026-04-23T-explorer-recorder-v2-entrypoint
 project: roboscope
 project_key: NOKEY
 tracking_system: file-system
@@ -138,6 +138,7 @@ development_status:
   recorder-W-7-launcher-view-route: done
   recorder-W-8-audit-and-retention: done
   recorder-W-e2e-capture-fixture: done  # real Chromium, fixture page, asserts RecordedCommand shape
+  recorder-W-9-explorer-launch-entrypoint: done  # deep-link launcher from Explorer toolbar
 
   # Recorder v2 — Shared Selector datamodel + editor UI
   epic-recorder-v2-selectors: done

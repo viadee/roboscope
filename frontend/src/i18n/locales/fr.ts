@@ -220,6 +220,8 @@ export default {
     saving: 'Enregistrement...',
     runRobot: 'Exécuter le test Robot',
     run: 'Exécuter',
+    recorderV2: 'Recorder v2',
+    recorderV2Title: 'Ouvrir le lanceur Recorder v2 avec ce dépôt présélectionné',
     selectFile: 'Sélectionnez un fichier dans l\'arborescence ou utilisez la recherche.',
     createDialog: {
       title: 'Créer un nouveau fichier',

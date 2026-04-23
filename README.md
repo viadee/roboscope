@@ -17,6 +17,7 @@ Built by [viadee Unternehmensberatung AG](https://www.viadee.de).
 - **Test Explorer** — Browse test files, parse Robot Framework keywords/tests, library dependency check
 - **Visual Flow Editor** — Node-based graphical test editor with keyword palette, drag & drop, control structures (IF/FOR/WHILE/TRY)
 - **Test Execution** — Run tests via subprocess or Docker, live WebSocket status updates, scheduling
+- **Recorder v2** — Record browser flows into `.robot` files end-to-end. Launch from the sidebar (Recorder) or from the Explorer toolbar (the Explorer button pre-selects the current repository). Transport picker for Web (Playwright) and Desktop Windows; each captured action streams live over SSE with ranked selector candidates (test-id, ARIA, text, CSS, XPath, Playwright locator). Legacy in-app recorder and Chrome extension remain available.
 - **Environment Management** — Create Python virtual environments, install/manage packages, set variables, secrets encryption
 - **Report Analysis** — Parse `output.xml`, compare runs, view embedded HTML reports
 - **AI-Powered Analysis** — LLM-based failure root-cause analysis with fix suggestions (OpenAI, Anthropic, OpenRouter, Ollama)

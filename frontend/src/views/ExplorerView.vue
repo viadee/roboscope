@@ -19,6 +19,7 @@ import SpecEditor from '@/components/ai/SpecEditor.vue'
 import RobotEditor from '@/components/editor/RobotEditor.vue'
 import RecorderPanel from '@/components/recorder/RecorderPanel.vue'
 import { useRecorderStore } from '@/stores/recorder.store'
+import { useAuthStore } from '@/stores/auth.store'
 import type { TreeNode } from '@/types/domain.types'
 
 // CodeMirror imports
@@ -36,6 +37,7 @@ const explorer = useExplorerStore()
 const repos = useReposStore()
 const envs = useEnvironmentsStore()
 const recorder = useRecorderStore()
+const auth = useAuthStore()
 const toast = useToast()
 const { t } = useI18n()
 
@@ -599,6 +601,12 @@ async function handleRecord() {
   })
 }
 
+// Story W.9 — route to the v2 launcher with the current repo pre-selected.
+function handleRecordV2() {
+  if (!selectedRepoId.value) return
+  router.push({ path: '/recordings/new', query: { repoId: String(selectedRepoId.value) } })
+}
+
 async function rebuildAndRun() {
   const defaultEnv = envs.environments.find(e => e.is_default)
   const envForRebuild = currentRepo.value?.environment_id
@@ -1026,6 +1034,13 @@ const flatNodes = computed(() => {
                 :disabled="recorder.isRecording || recorder.loading"
                 :title="t('recorder.startRecording')"
               >{{ recorder.isRecording ? '⏹' : '⏺' }} {{ t('recorder.record') }}</button>
+              <button
+                v-if="auth.hasMinRole('editor')"
+                class="action-btn record-btn"
+                @click="handleRecordV2"
+                :disabled="!selectedRepoId"
+                :title="t('explorer.recorderV2Title')"
+              >⏺ {{ t('explorer.recorderV2') }}</button>
             </div>
           </div>
           <!-- Binary file placeholder -->

@@ -602,12 +602,17 @@ const fr: DocsContent = [
         content: `
 <p>
   L\u2019<strong>Enregistreur RoboScope</strong> permet de capturer des interactions navigateur et
-  de g\u00E9n\u00E9rer automatiquement des fichiers de test <code>.robot</code>. Deux m\u00E9thodes sont disponibles\u00A0:
+  de g\u00E9n\u00E9rer automatiquement des fichiers de test <code>.robot</code>. Trois m\u00E9thodes sont disponibles\u00A0:
 </p>
 <ul>
-  <li><strong>Enregistrement int\u00E9gr\u00E9</strong> &mdash; Cliquez sur le bouton <em>Enregistrer</em> dans la vue Explorer.
-  RoboScope ouvre une session Playwright, capture vos actions et les diffuse
-  en temps r\u00E9el via WebSocket.</li>
+  <li><strong>Recorder v2 (recommand\u00E9)</strong> &mdash; Ouvrez le lanceur via l\u2019entr\u00E9e <em>Recorder</em>
+  de la barre lat\u00E9rale ou directement depuis la barre d\u2019outils de l\u2019Explorer via le bouton
+  <em>Recorder v2</em> (le bouton de l\u2019Explorer pr\u00E9s\u00E9lectionne le d\u00E9p\u00F4t courant). Le lanceur propose
+  un choix de transport (Web / Desktop&nbsp;Windows), ouvre une session navigateur contr\u00F4l\u00E9e et
+  diffuse chaque action captur\u00E9e via Server-Sent Events dans la liste des \u00E9tapes en direct
+  &mdash; avec des candidats de s\u00E9lecteur par \u00E9tape.</li>
+  <li><strong>Enregistreur int\u00E9gr\u00E9 (legacy)</strong> &mdash; Cliquez sur le bouton <em>Enregistrer</em> dans la vue
+  Explorer (juste \u00E0 c\u00F4t\u00E9 du bouton Recorder&nbsp;v2). Conserv\u00E9 pour les utilisateurs qui d\u00E9pendent de l\u2019ancien flux.</li>
   <li><strong>Extension Chrome</strong> &mdash; Installez l\u2019extension RoboScope Recorder pour enregistrer
   directement dans votre propre navigateur. Les actions sont transmises \u00E0 RoboScope via l\u2019API lorsque connect\u00E9.</li>
 </ul>

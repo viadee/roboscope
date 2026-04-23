@@ -8,13 +8,14 @@
  * decisions.
  */
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { createV2Session } from '@/api/recording-v2.api'
 import { useReposStore } from '@/stores/repos.store'
 import type { RecordingTransport } from '@/types/recorder.types'
 
 const { t } = useI18n()
+const route = useRoute()
 const router = useRouter()
 const reposStore = useReposStore()
 
@@ -54,7 +55,18 @@ async function start() {
 
 onMounted(async () => {
   await reposStore.fetchRepos()
-  if (reposStore.repos.length > 0 && repoId.value === null) {
+  if (reposStore.repos.length === 0) return
+  // Story W.9 — deep-link from the Explorer: if the URL carries a
+  // ?repoId=<N> query param and the repo is visible to the user, use
+  // it. Otherwise fall back to the first repo.
+  const qRaw = route.query.repoId
+  const qNum = typeof qRaw === 'string' ? Number.parseInt(qRaw, 10) : NaN
+  const match = Number.isFinite(qNum)
+    ? reposStore.repos.find((r) => r.id === qNum)
+    : undefined
+  if (match) {
+    repoId.value = match.id
+  } else if (repoId.value === null) {
     repoId.value = reposStore.repos[0].id
   }
 })

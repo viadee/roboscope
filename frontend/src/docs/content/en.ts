@@ -587,12 +587,18 @@ const en: DocsContent = [
         content: `
 <p>
   The <strong>RoboScope Recorder</strong> lets you capture browser interactions and
-  automatically generate <code>.robot</code> test files. There are two ways to record:
+  automatically generate <code>.robot</code> test files. There are three ways to record:
 </p>
 <ul>
-  <li><strong>In-App Recording</strong> &mdash; Click the <em>Record</em> button in the Explorer view.
-  RoboScope opens a Playwright browser session, captures your actions, and streams them
-  back in real time via WebSocket.</li>
+  <li><strong>Recorder v2 (recommended)</strong> &mdash; Open the launcher from the sidebar
+  entry <em>Recorder</em>, or directly from the Explorer toolbar via the <em>Recorder v2</em>
+  button (the Explorer button pre-selects the current repository). The launcher offers a
+  transport picker (Web / Desktop&nbsp;Windows), opens a controlled browser session, and
+  streams each captured action over Server-Sent Events into the live step list with
+  per-step selector candidates.</li>
+  <li><strong>Legacy In-App Recorder</strong> &mdash; Click the <em>Record</em> button in the
+  Explorer view (next to the Recorder&nbsp;v2 button). Runs the older pipeline that saves
+  to the currently-open file. Kept for users who depend on the old workflow.</li>
   <li><strong>Chrome Extension</strong> &mdash; Install the RoboScope Recorder extension to record
   directly in your own browser. Actions are forwarded to RoboScope via the API when connected.</li>
 </ul>

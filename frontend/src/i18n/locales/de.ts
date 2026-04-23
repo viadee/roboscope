@@ -220,6 +220,8 @@ export default {
     saving: 'Speichere...',
     runRobot: 'Robot-Testfall ausführen',
     run: 'Ausführen',
+    recorderV2: 'Recorder v2',
+    recorderV2Title: 'Den neuen Recorder v2 mit diesem Repository vorausgewählt öffnen',
     selectFile: 'Wähle eine Datei aus dem Baum oder nutze die Suche.',
     createDialog: {
       title: 'Neue Datei anlegen',
