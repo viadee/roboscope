@@ -320,6 +320,122 @@ def _has_batteries_package(packages: list[str]) -> bool:
     return any(_strip_version(p) == "robotframework-browser-batteries" for p in packages)
 
 
+def playwright_constraints_for_browser_package(
+    package_spec: str,
+    *,
+    pypi_json_fetcher=None,
+) -> str | None:
+    """Return the `playwright` version-specifier that a `robotframework-
+    browser*` package declares as its transitive requirement.
+
+    Used by `validate_playwright_pin_against_packages` to double-check
+    at Dockerfile-generation time that our backend-derived Playwright
+    pin satisfies whatever the user's package expects — catching the
+    class of drift "backend playwright is 1.58.0, but new
+    robotframework-browser-batteries requires >=1.59.0" BEFORE the
+    docker build burns minutes and fails at chromium.launch().
+
+    Args:
+        package_spec: plain package name OR "name==ver" OR "name>=ver".
+            Only the name is used — version is ignored here.
+        pypi_json_fetcher: optional `(url) -> bytes` override. Used by
+            tests to stub out network calls.
+
+    Returns the `playwright` constraint string (e.g. "<1.60,>=1.55")
+    or None if no constraint is declared / PyPI is unreachable /
+    parsing fails. `None` means "unknown, skip the check" — never
+    blocks the build.
+    """
+    import json
+    import re
+    import urllib.error
+    import urllib.request
+
+    name = re.split(r"[<>=!~\s]", package_spec, maxsplit=1)[0].strip()
+    if not name:
+        return None
+
+    url = f"https://pypi.org/pypi/{name}/json"
+    try:
+        if pypi_json_fetcher is None:
+            with urllib.request.urlopen(url, timeout=10) as resp:  # noqa: S310
+                raw = resp.read()
+        else:
+            raw = pypi_json_fetcher(url)
+        data = json.loads(raw)
+    except (urllib.error.URLError, ValueError, TimeoutError):
+        return None
+    except Exception:
+        return None
+
+    requires = (data.get("info") or {}).get("requires_dist") or []
+    for req in requires:
+        # Lines look like "playwright>=1.55,<1.60" or
+        # "playwright (>=1.55,<1.60)" or "playwright ; python_version >= '3.10'".
+        # We only need the playwright ones.
+        m = re.match(r"^\s*playwright\b(.*)$", req)
+        if not m:
+            continue
+        tail = m.group(1)
+        # Strip environment markers (anything after ';').
+        tail = tail.split(";", 1)[0].strip()
+        # Strip parens around the spec.
+        tail = tail.strip("()").strip()
+        return tail or None
+    return None
+
+
+def validate_playwright_pin_against_packages(
+    packages: list[str],
+    pinned_version: str,
+) -> list[str]:
+    """Cross-check our force-pinned Playwright version against the
+    constraints declared by every `robotframework-browser*` package in
+    the user's list.
+
+    Returns a list of human-readable warnings — empty list if all good
+    or if constraints couldn't be checked (offline, stale PyPI).
+    Callers decide whether to surface warnings as build-time errors,
+    log them, or ignore — this function itself never raises.
+    """
+    warnings: list[str] = []
+    try:
+        from packaging.specifiers import SpecifierSet
+        from packaging.version import Version
+    except Exception:
+        return warnings
+
+    try:
+        pin_ver = Version(pinned_version)
+    except Exception:
+        return warnings
+
+    for pkg in packages:
+        pkg_lower = pkg.lower()
+        if not (
+            pkg_lower.startswith("robotframework-browser")
+            or pkg_lower == "playwright"
+        ):
+            continue
+        spec_str = playwright_constraints_for_browser_package(pkg)
+        if not spec_str:
+            continue
+        try:
+            spec = SpecifierSet(spec_str)
+        except Exception:
+            continue
+        if not spec.contains(pin_ver, prereleases=True):
+            warnings.append(
+                f"Package {pkg!r} declares playwright{spec_str!r}, but "
+                f"the backend-derived Playwright pin is "
+                f"{pinned_version!r}. A rebuild will either install "
+                f"two Playwright versions or fail at dependency "
+                f"resolution. Upgrade the backend's playwright to a "
+                f"version in the required range."
+            )
+    return warnings
+
+
 def playwright_pinned_version() -> str:
     """Return the Playwright Python version the Docker container must
     be pinned to — derived from the currently installed backend package.
@@ -427,9 +543,26 @@ def generate_dockerfile(
     # Runs AFTER user packages so pip respects the pin.
     if needs_browser_any and not base_image:
         pinned = playwright_pinned_version()
+
+        # Future-proof sanity check: does the pin still satisfy each
+        # requested browser package's playwright constraint? If not, a
+        # rebuild will hit a pip resolver error or install two
+        # conflicting Playwrights. Warnings land in the Dockerfile
+        # itself as comments so build logs + `docker history` carry
+        # the signal; we also emit via logger for the backend process.
+        import logging
+        _log = logging.getLogger("roboscope.environments.dockerfile")
+        for warning in validate_playwright_pin_against_packages(packages, pinned):
+            _log.warning(warning)
+            # Render as Dockerfile comments so the warning survives into
+            # any artefact inspecting the generated file.
+            for wline in warning.split("\n"):
+                lines.append(f"# WARNING: {wline}")
+            lines.append("")
+
         lines.append(
             f"# Force-align Python Playwright with the base image's "
-            f"browser binaries"
+            f"browser binaries (playwright=={pinned})"
         )
         lines.append(
             f"RUN uv pip install --system --no-cache-dir "
