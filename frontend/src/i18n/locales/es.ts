@@ -301,6 +301,10 @@ export default {
       confirmed: 'confirmadas',
       suspect: 'sospechosas',
       copyPatch: 'Copiar parche',
+      applyPatch: 'Aplicar parche',
+      applying: 'Aplicando…',
+      applied: 'Aplicado',
+      applyFailed: 'Error al aplicar',
       suspectWarning: 'Test fallido — no se ofrece parche.',
       outcome: {
         confirmed: 'Test superado — reparación confirmada.',

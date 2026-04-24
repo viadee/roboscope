@@ -10,14 +10,49 @@
  */
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getRunHealReport, type HealAuditEntry, type HealReport } from '@/api/execution.api'
+import {
+  applyHealPatch,
+  getRunHealReport,
+  type HealAuditEntry,
+  type HealReport,
+} from '@/api/execution.api'
+import { useAuthStore } from '@/stores/auth.store'
 
 const props = defineProps<{ runId: number; status: string }>()
 const { t } = useI18n()
+const auth = useAuthStore()
 
 const report = ref<HealReport | null>(null)
 const loading = ref(false)
 const errored = ref(false)
+
+// Story SH-4 — track which heals have been applied in this view so
+// the button flips to ✅ without a full reload.
+const appliedIndices = ref<Set<number>>(new Set())
+const applyingIndices = ref<Set<number>>(new Set())
+const applyErrors = ref<Map<number, string>>(new Map())
+
+async function applyPatch(idx: number) {
+  if (applyingIndices.value.has(idx) || appliedIndices.value.has(idx)) return
+  applyingIndices.value.add(idx)
+  applyErrors.value.delete(idx)
+  try {
+    const res = await applyHealPatch(props.runId, idx)
+    if (res.applied || res.reason === 'already_patched') {
+      appliedIndices.value.add(idx)
+    }
+  } catch (e: any) {
+    const detail = e?.response?.data?.detail ?? ''
+    applyErrors.value.set(
+      idx,
+      typeof detail === 'string' && detail
+        ? detail
+        : t('execution.healReport.applyFailed'),
+    )
+  } finally {
+    applyingIndices.value.delete(idx)
+  }
+}
 
 const isTerminal = computed(() =>
   ['passed', 'failed', 'error', 'cancelled', 'timeout'].includes(props.status),
@@ -139,14 +174,38 @@ function outcomeIcon(entry: HealAuditEntry): string {
         <span class="heal-entry__confidence">
           {{ (entry.confidence * 100).toFixed(0) }}%
         </span>
-        <button
-          v-if="entry.outcome === 'confirmed'"
-          type="button"
-          class="heal-entry__copy"
-          @click="copyPatch(entry)"
-        >
-          {{ t('execution.healReport.copyPatch') }}
-        </button>
+        <template v-if="entry.outcome === 'confirmed'">
+          <span v-if="appliedIndices.has(idx)" class="heal-entry__applied">
+            ✅ {{ t('execution.healReport.applied') }}
+          </span>
+          <template v-else>
+            <button
+              type="button"
+              class="heal-entry__copy"
+              @click="copyPatch(entry)"
+            >
+              {{ t('execution.healReport.copyPatch') }}
+            </button>
+            <button
+              v-if="auth.hasMinRole('editor')"
+              type="button"
+              class="heal-entry__apply"
+              :disabled="applyingIndices.has(idx)"
+              @click="applyPatch(idx)"
+            >
+              {{ applyingIndices.has(idx)
+                  ? t('execution.healReport.applying')
+                  : t('execution.healReport.applyPatch') }}
+            </button>
+          </template>
+          <span
+            v-if="applyErrors.get(idx)"
+            class="heal-entry__apply-error"
+            role="alert"
+          >
+            {{ applyErrors.get(idx) }}
+          </span>
+        </template>
         <span
           v-else-if="entry.outcome === 'suspect'"
           class="heal-entry__suspect-note"
@@ -314,6 +373,43 @@ function outcomeIcon(entry: HealAuditEntry): string {
 .heal-entry__copy:hover {
   background: #6b21a8;
   color: white;
+}
+
+.heal-entry__apply {
+  padding: 3px 10px;
+  background: #6b21a8;
+  border: 1px solid #6b21a8;
+  color: white;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.heal-entry__apply:hover:not(:disabled) {
+  background: #581c87;
+  border-color: #581c87;
+}
+.heal-entry__apply:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.heal-entry__applied {
+  margin-left: auto;
+  padding: 3px 10px;
+  background: #dcfce7;
+  color: #166534;
+  border-radius: 3px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.heal-entry__apply-error {
+  flex-basis: 100%;
+  color: #7f1d1d;
+  font-size: 0.75rem;
+  font-style: italic;
+  margin-top: 0.2rem;
 }
 
 .heal-entry__suspect-note {

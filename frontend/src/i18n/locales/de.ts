@@ -301,6 +301,10 @@ export default {
       confirmed: 'bestätigt',
       suspect: 'verdächtig',
       copyPatch: 'Patch kopieren',
+      applyPatch: 'Patch anwenden',
+      applying: 'Wird angewendet…',
+      applied: 'Angewendet',
+      applyFailed: 'Anwenden fehlgeschlagen',
       suspectWarning: 'Test fehlgeschlagen — kein Patch angeboten.',
       outcome: {
         confirmed: 'Test bestanden — Heal bestätigt.',

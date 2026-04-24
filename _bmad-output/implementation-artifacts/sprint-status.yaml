@@ -146,6 +146,7 @@ development_status:
   ai-2-failure-analysis-patch-suggestions: done  # unified-diff patches extracted from AI analysis, copy-to-clipboard
   flaky-1-flaky-test-quarantine: done  # mark/unmark flaky tests + badge in Stats; runner-side skip follow-up (FLAKY-2)
   sh-2-runtime-self-healing-selectors: done  # RoboScopeHeal RF library + heal-audit + suspect-classification on run detail
+  sh-4-one-click-apply-patch: done  # server-side atomic rewrite of confirmed heals into .robot, ambiguity/path-traversal guarded
 
   # Recorder v2 — Shared Selector datamodel + editor UI
   epic-recorder-v2-selectors: done

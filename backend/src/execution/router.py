@@ -447,6 +447,182 @@ def get_run_heal_report(
     )
 
 
+class HealPatchApplyResponse(BaseModel):
+    file_path: str
+    line_number: int
+    applied: bool
+    reason: str | None = None
+
+
+@router.post(
+    "/runs/{run_id}/heal-report/{heal_index}/apply",
+    response_model=HealPatchApplyResponse,
+)
+def apply_heal_patch(
+    run_id: int,
+    heal_index: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.EDITOR)),
+) -> HealPatchApplyResponse:
+    """Story SH-4 — write a single confirmed heal swap into the .robot.
+
+    Safety gates (must ALL pass or the write is aborted):
+      * index in bounds
+      * heal outcome == "confirmed"
+      * target .robot file is inside the run's repo root (path-traversal)
+      * original selector appears on *exactly one* line (no guessing)
+
+    Re-application is idempotent — if the line already carries the
+    healed selector, returns 200 with `applied=false`.
+    """
+    import os
+    import tempfile
+    from pathlib import Path
+
+    from src.audit.event_types import AuditEventType
+    from src.audit.service import log_event
+    from src.recording.heal.heal_report import parse_heal_audit
+    from src.repos.models import Repository
+
+    run = db.get(ExecutionRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if not run.output_dir:
+        raise HTTPException(status_code=404, detail="Run has no output directory")
+
+    audit_path = Path(run.output_dir) / "heal_audit.jsonl"
+    output_xml = Path(run.output_dir) / "output.xml"
+    report = parse_heal_audit(
+        audit_path,
+        output_xml=output_xml if output_xml.is_file() else None,
+    )
+    if not (0 <= heal_index < len(report.entries)):
+        raise HTTPException(status_code=404, detail="Heal index out of bounds")
+    entry = report.entries[heal_index]
+    if entry.outcome != "confirmed":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Only confirmed heals can be applied (outcome={entry.outcome})",
+        )
+
+    # Resolve the target .robot file. We prefer the run's `target_path`
+    # because that's the file Robot Framework actually executed; if
+    # it's a directory (run-the-whole-folder case), we fall back to a
+    # per-test-name match inside the directory — but only if unique.
+    repo = db.get(Repository, run.repository_id) if run.repository_id else None
+    if repo is None:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    repo_root = Path(repo.local_path).resolve()
+    if not repo_root.exists():
+        raise HTTPException(status_code=500, detail="Repository path missing")
+
+    target_candidates: list[Path] = []
+    if run.target_path:
+        tp = (repo_root / run.target_path).resolve()
+        try:
+            tp.relative_to(repo_root)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Target path escapes repo")
+        if tp.is_file() and tp.suffix == ".robot":
+            target_candidates = [tp]
+        elif tp.is_dir():
+            # Find all .robot files in the dir that contain the original
+            # selector on a line with the matching keyword. Must be unique.
+            target_candidates = list(tp.rglob("*.robot"))
+
+    # Filter down by looking for the exact line.
+    needle_original = f"    {entry.keyword}    {entry.original_selector}"
+    candidates_with_match: list[tuple[Path, int, list[str]]] = []
+    for path in target_candidates:
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        hits = [i for i, ln in enumerate(lines) if ln.rstrip() == needle_original]
+        if len(hits) == 1:
+            candidates_with_match.append((path, hits[0], lines))
+
+    if not candidates_with_match:
+        # Is it already applied? Idempotent check — if exactly one file
+        # already carries the healed line, report applied=false.
+        needle_healed = f"    {entry.keyword}    {entry.healed_selector}"
+        for path in target_candidates:
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            healed_hits = [
+                i for i, ln in enumerate(lines) if ln.rstrip() == needle_healed
+            ]
+            if len(healed_hits) == 1:
+                return HealPatchApplyResponse(
+                    file_path=str(path.relative_to(repo_root)),
+                    line_number=healed_hits[0] + 1,
+                    applied=False,
+                    reason="already_patched",
+                )
+        raise HTTPException(
+            status_code=409,
+            detail="Original selector line not found (ambiguous or missing) — aborting write",
+        )
+
+    if len(candidates_with_match) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Original selector line found in {len(candidates_with_match)} files — ambiguous, aborting",
+        )
+
+    target, line_idx, lines = candidates_with_match[0]
+    new_line = f"    {entry.keyword}    {entry.healed_selector}"
+    lines[line_idx] = new_line
+    content = "\n".join(lines)
+    # Preserve trailing newline if the original file had one.
+    if not content.endswith("\n"):
+        content += "\n"
+
+    # Atomic write via temp-file-and-rename so a crash mid-write leaves
+    # either the old file or the new one, never a truncated hybrid.
+    tmp_fd, tmp_path = tempfile.mkstemp(
+        dir=str(target.parent), prefix=f".{target.name}.", suffix=".tmp",
+    )
+    try:
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp_path, str(target))
+    except Exception:
+        # Best-effort cleanup; re-raise the original exception.
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
+
+    log_event(
+        db,
+        AuditEventType.HEAL_PATCH_APPLIED,
+        user_id=current_user.id,
+        resource_id=repo.id,
+        detail={
+            "run_id": run.id,
+            "heal_index": heal_index,
+            "file_path": str(target.relative_to(repo_root)),
+            "line_number": line_idx + 1,
+            "keyword": entry.keyword,
+            "original_selector": entry.original_selector,
+            "healed_selector": entry.healed_selector,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+    db.commit()
+
+    return HealPatchApplyResponse(
+        file_path=str(target.relative_to(repo_root)),
+        line_number=line_idx + 1,
+        applied=True,
+    )
+
+
 @router.post("/runs/{run_id}/cancel", response_model=RunResponse)
 def cancel_run_endpoint(
     run_id: int,

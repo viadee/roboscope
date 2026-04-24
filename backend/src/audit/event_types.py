@@ -41,6 +41,7 @@ class AuditEventType(StrEnum):
     RECORDING_FLOW_SAVED = "recording.flow.saved"
     FLAKY_TEST_QUARANTINED = "flaky.test.quarantined"
     FLAKY_TEST_UNQUARANTINED = "flaky.test.unquarantined"
+    HEAL_PATCH_APPLIED = "heal.patch.applied"
 
 
 def resource_type_for(event_type: AuditEventType) -> str:

@@ -91,6 +91,23 @@ export async function getRunHealReport(id: number): Promise<HealReport> {
   return response.data
 }
 
+export interface HealPatchApplyResponse {
+  file_path: string
+  line_number: number
+  applied: boolean
+  reason?: string | null
+}
+
+export async function applyHealPatch(
+  runId: number,
+  healIndex: number,
+): Promise<HealPatchApplyResponse> {
+  const response = await apiClient.post<HealPatchApplyResponse>(
+    `/runs/${runId}/heal-report/${healIndex}/apply`,
+  )
+  return response.data
+}
+
 export async function cancelRun(id: number): Promise<ExecutionRun> {
   const response = await apiClient.post<ExecutionRun>(`/runs/${id}/cancel`)
   return response.data
