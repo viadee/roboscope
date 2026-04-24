@@ -433,6 +433,11 @@ export interface AiProvider {
   updated_at: string
 }
 
+export interface SuggestedPatch {
+  file_path: string
+  unified_diff: string
+}
+
 export interface AiJob {
   id: number
   job_type: AiJobType
@@ -449,6 +454,7 @@ export interface AiJob {
   started_at: string | null
   completed_at: string | null
   created_at: string
+  suggested_patches?: SuggestedPatch[]
 }
 
 export interface DriftResult {

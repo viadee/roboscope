@@ -529,6 +529,11 @@ export default {
       failed: 'El análisis ha fallado',
       tokensUsed: '{tokens} tokens utilizados',
       reanalyze: 'Reanalizar',
+      patches: {
+        heading: 'Parches sugeridos',
+        hint: 'Parches en formato unified-diff extraídos del análisis IA. Revisa, copia y aplica manualmente en tu editor.',
+        copy: 'Copiar parche',
+      },
     },
     missingLibraries: {
       title: 'Bibliotecas faltantes ({count})',

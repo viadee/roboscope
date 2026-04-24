@@ -623,6 +623,11 @@ def _provider_to_response(provider: AiProvider) -> dict:
 
 def _job_to_response(job: AiJob) -> dict:
     """Convert job to response dict."""
+    # Story AI-2 — pull suggested patches out of the analysis markdown on
+    # read. Only relevant for the analyze job type; other job types are
+    # still valid calls — we just always get back [].
+    from src.ai.patch_extractor import extract_patch_suggestions
+
     return {
         "id": job.id,
         "job_type": job.job_type,
@@ -639,4 +644,6 @@ def _job_to_response(job: AiJob) -> dict:
         "started_at": job.started_at,
         "completed_at": job.completed_at,
         "created_at": job.created_at,
+        "suggested_patches": extract_patch_suggestions(job.result_preview)
+            if job.job_type == "analyze" else [],
     }

@@ -529,6 +529,11 @@ export default {
       failed: 'Analysis failed',
       tokensUsed: '{tokens} tokens used',
       reanalyze: 'Re-analyze',
+      patches: {
+        heading: 'Suggested patches',
+        hint: 'Unified-diff patches extracted from the AI analysis. Review, copy, and apply manually in your editor.',
+        copy: 'Copy patch',
+      },
     },
     missingLibraries: {
       title: 'Missing Libraries ({count})',

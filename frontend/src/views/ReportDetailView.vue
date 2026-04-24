@@ -135,6 +135,17 @@ async function startAnalysis() {
   }
 }
 
+// Story AI-2 — copy a suggested unified-diff patch to the clipboard.
+async function copyPatch(unifiedDiff: string) {
+  try {
+    await navigator.clipboard.writeText(unifiedDiff)
+  } catch {
+    // Clipboard API may be blocked (HTTP on non-localhost, iframe
+    // policies). The patch body is visible inline, so silent no-op
+    // beats spamming an error toast.
+  }
+}
+
 </script>
 
 <template>
@@ -338,6 +349,37 @@ async function startAnalysis() {
             <!-- Result state -->
             <div v-else-if="aiStore.analysisJob && aiStore.analysisJob.status === 'completed' && aiStore.analysisJob.result_preview" class="analysis-result">
               <div class="analysis-content" v-html="renderMarkdown(aiStore.analysisJob.result_preview)"></div>
+
+              <!-- Story AI-2 — suggested patches pulled out of the markdown response. -->
+              <section
+                v-if="aiStore.analysisJob.suggested_patches && aiStore.analysisJob.suggested_patches.length"
+                class="analysis-patches"
+              >
+                <h4 class="analysis-patches__heading">
+                  🩹 {{ t('reportDetail.analysis.patches.heading') }}
+                </h4>
+                <p class="analysis-patches__hint">
+                  {{ t('reportDetail.analysis.patches.hint') }}
+                </p>
+                <div
+                  v-for="(patch, idx) in aiStore.analysisJob.suggested_patches"
+                  :key="`${patch.file_path}-${idx}`"
+                  class="analysis-patch"
+                >
+                  <div class="analysis-patch__head">
+                    <code class="analysis-patch__file">{{ patch.file_path }}</code>
+                    <button
+                      type="button"
+                      class="analysis-patch__copy"
+                      @click="copyPatch(patch.unified_diff)"
+                    >
+                      {{ t('reportDetail.analysis.patches.copy') }}
+                    </button>
+                  </div>
+                  <pre class="analysis-patch__diff"><code>{{ patch.unified_diff }}</code></pre>
+                </div>
+              </section>
+
               <div class="analysis-footer">
                 <span v-if="aiStore.analysisJob.token_usage" class="text-muted text-sm">
                   {{ t('reportDetail.analysis.tokensUsed', { tokens: aiStore.analysisJob.token_usage }) }}
@@ -580,6 +622,83 @@ async function startAnalysis() {
 
 .analysis-content :deep(strong) {
   font-weight: 600;
+}
+
+.analysis-patches {
+  margin: 16px 0 8px;
+  padding: 12px 14px;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+}
+
+.analysis-patches__heading {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: #1e3a8a;
+}
+
+.analysis-patches__hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #1e40af;
+  font-style: italic;
+}
+
+.analysis-patch {
+  background: white;
+  border: 1px solid #c7d2fe;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.analysis-patch:last-child { margin-bottom: 0; }
+
+.analysis-patch__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.analysis-patch__file {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: #1e3a8a;
+  background: #e0e7ff;
+  padding: 2px 6px;
+  border-radius: 3px;
+  overflow-wrap: anywhere;
+}
+
+.analysis-patch__copy {
+  padding: 3px 10px;
+  background: white;
+  border: 1px solid #93c5fd;
+  color: #1d4ed8;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.analysis-patch__copy:hover {
+  background: #1d4ed8;
+  color: white;
+}
+
+.analysis-patch__diff {
+  margin: 0;
+  padding: 8px 10px;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 3px;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-x: auto;
+  white-space: pre;
 }
 
 .analysis-footer {

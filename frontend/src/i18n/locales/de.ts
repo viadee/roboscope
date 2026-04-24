@@ -529,6 +529,11 @@ export default {
       failed: 'Analyse fehlgeschlagen',
       tokensUsed: '{tokens} Tokens verwendet',
       reanalyze: 'Erneut analysieren',
+      patches: {
+        heading: 'Patch-Vorschläge',
+        hint: 'Unified-Diff-Patches, die aus der KI-Analyse extrahiert wurden. Prüfen, kopieren und manuell im Editor anwenden.',
+        copy: 'Patch kopieren',
+      },
     },
     missingLibraries: {
       title: 'Fehlende Bibliotheken ({count})',

@@ -93,6 +93,15 @@ class ValidateSpecRequest(BaseModel):
     content: str
 
 
+class SuggestedPatch(BaseModel):
+    """Story AI-2 — a single patch suggestion extracted from an analysis
+    job's LLM response. Always derived from `result_preview`; never
+    persisted separately."""
+
+    file_path: str
+    unified_diff: str
+
+
 class AiJobResponse(BaseModel):
     """Job status response."""
 
@@ -113,6 +122,7 @@ class AiJobResponse(BaseModel):
     started_at: datetime | None = None
     completed_at: datetime | None = None
     created_at: datetime
+    suggested_patches: list[SuggestedPatch] = []
 
 
 # --- Drift schemas ---

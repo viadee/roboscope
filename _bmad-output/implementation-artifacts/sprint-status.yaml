@@ -143,6 +143,7 @@ development_status:
   exec-1-pending-run-activity: done  # queue-position + active-build log on pending runs
   deploy-1-remote-aware-recorder-transport-picker: done  # launcher disables non-viable transports + Chrome-Extension hint
   sh-1-self-healing-selector-diagnosis: done  # sidecar emit + failed-selector alternatives on run detail
+  ai-2-failure-analysis-patch-suggestions: done  # unified-diff patches extracted from AI analysis, copy-to-clipboard
 
   # Recorder v2 — Shared Selector datamodel + editor UI
   epic-recorder-v2-selectors: done
