@@ -150,6 +150,7 @@ development_status:
   flaky-2-runner-side-quarantine-skip: done  # subprocess-runner --listener injects QuarantineSkipListener for quarantined tests
   sh-6-heal-rate-kpi: done  # /stats/heal-rate endpoint + KPI card with sparkline on Stats Overview
   sh-5-heal-long-tail-keywords: done  # RoboScopeHeal: Upload File, Check/Uncheck Checkbox, Select Options By, Get Text, Get Element Count, Drag And Drop (two-selector)
+  e2e-sh-real-browser-heal: done  # Playwright + real Chromium integration test for candidate_finder + heal
 
   # Recorder v2 — Shared Selector datamodel + editor UI
   epic-recorder-v2-selectors: done

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>RoboScope heal fixture</title>
+    <style>
+      body { font-family: -apple-system, Segoe UI, sans-serif; padding: 2rem; max-width: 640px; }
+      button, input { font: inherit; padding: .5rem .8rem; margin: .3rem 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Heal Fixture</h1>
+
+    <!--
+      Drift scenario the e2e test exercises:
+
+      The original recording referenced `id=submit`. That id no longer
+      exists on the live DOM — but the same button still carries a
+      stable `data-testid=submit`. The candidate finder's live-verify
+      callback (Playwright locator().count()) should drop transposition
+      candidates that match 0 elements (e.g. `id=submit`, `#submit`)
+      and keep `[data-testid=submit]` which matches exactly one.
+    -->
+    <p>
+      <button data-testid="submit" type="button" class="primary-cta">Submit</button>
+    </p>
+
+    <p>
+      <input data-testid="email-input" type="email" placeholder="you@example.com" />
+    </p>
+
+    <p>
+      <a data-testid="next-link" href="#next">Go to next section</a>
+    </p>
+  </body>
+</html>
