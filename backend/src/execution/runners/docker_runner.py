@@ -1,11 +1,14 @@
 """Docker-based test runner for isolated execution."""
 
+import logging
 import time
 from collections.abc import Callable
 from pathlib import Path
 
 from src.config import settings
 from src.execution.runners.base import AbstractRunner, RunResult
+
+logger = logging.getLogger("roboscope.execution.docker")
 
 
 class DockerNotAvailableError(RuntimeError):
@@ -96,11 +99,28 @@ class DockerRunner(AbstractRunner):
         tags_exclude: str | None = None,
         timeout: int = 3600,
         on_output: Callable[[str], None] | None = None,
+        listeners: list[str] | None = None,
     ) -> RunResult:
-        """Execute Robot Framework tests in a Docker container."""
+        """Execute Robot Framework tests in a Docker container.
+
+        `listeners` is accepted for runner-interface parity with
+        SubprocessRunner (Story FLAKY-2) but silently dropped in the
+        Docker path: the quarantine-skip listener module lives in the
+        host-side `src/execution/runners/` package, which isn't
+        reachable from inside the test container. Mounting the listener
+        file + propagating it is tracked as follow-up FLAKY-3.
+        """
         self._cancelled = False
         start_time = time.time()
         client = self._get_client()
+
+        if listeners:
+            logger.warning(
+                "DockerRunner ignoring %d listener(s) — quarantine-skip "
+                "filtering is not yet wired for the Docker runner "
+                "(Story FLAKY-3 follow-up).",
+                len(listeners),
+            )
 
         # Ensure output directory exists
         Path(output_dir).mkdir(parents=True, exist_ok=True)
