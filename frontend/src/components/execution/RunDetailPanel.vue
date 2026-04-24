@@ -12,6 +12,7 @@ import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import ReportXmlView from '@/components/report/ReportXmlView.vue'
 import RunPendingActivity from '@/components/execution/RunPendingActivity.vue'
 import RunSelectorHealth from '@/components/execution/RunSelectorHealth.vue'
+import RunHealReport from '@/components/execution/RunHealReport.vue'
 import { formatDuration } from '@/utils/formatDuration'
 import { formatDateTime } from '@/utils/formatDate'
 import { renderMarkdown } from '@/utils/renderMarkdown'
@@ -194,6 +195,9 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
 
       <!-- Selector-health diagnosis for failed runs (Story SH-1) -->
       <RunSelectorHealth :run-id="run.id" :status="run.status" />
+
+      <!-- Runtime heal report (Story SH-2) -->
+      <RunHealReport :run-id="run.id" :status="run.status" />
 
       <!-- Error banner -->
       <div v-if="run.error_message" class="run-error-banner" :class="{ 'docker-error': isDockerError(run.error_message) }">

@@ -64,6 +64,33 @@ export async function getRunSelectorHealth(id: number): Promise<SelectorHealth> 
   return response.data
 }
 
+// Story SH-2 — runtime heal report.
+
+export type HealOutcome = 'confirmed' | 'suspect' | 'skipped' | 'unknown'
+
+export interface HealAuditEntry {
+  timestamp: string
+  test_name: string
+  keyword: string
+  original_selector: string
+  healed_selector: string
+  confidence: number
+  source: string
+  outcome: HealOutcome
+}
+
+export interface HealReport {
+  total_heals: number
+  confirmed: number
+  suspect: number
+  entries: HealAuditEntry[]
+}
+
+export async function getRunHealReport(id: number): Promise<HealReport> {
+  const response = await apiClient.get<HealReport>(`/runs/${id}/heal-report`)
+  return response.data
+}
+
 export async function cancelRun(id: number): Promise<ExecutionRun> {
   const response = await apiClient.post<ExecutionRun>(`/runs/${id}/cancel`)
   return response.data

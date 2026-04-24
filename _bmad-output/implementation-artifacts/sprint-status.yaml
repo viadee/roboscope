@@ -145,6 +145,7 @@ development_status:
   sh-1-self-healing-selector-diagnosis: done  # sidecar emit + failed-selector alternatives on run detail
   ai-2-failure-analysis-patch-suggestions: done  # unified-diff patches extracted from AI analysis, copy-to-clipboard
   flaky-1-flaky-test-quarantine: done  # mark/unmark flaky tests + badge in Stats; runner-side skip follow-up (FLAKY-2)
+  sh-2-runtime-self-healing-selectors: done  # RoboScopeHeal RF library + heal-audit + suspect-classification on run detail
 
   # Recorder v2 — Shared Selector datamodel + editor UI
   epic-recorder-v2-selectors: done

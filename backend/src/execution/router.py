@@ -386,6 +386,67 @@ def get_run_selector_health(
     )
 
 
+class HealAuditEntryOut(BaseModel):
+    timestamp: str
+    test_name: str
+    keyword: str
+    original_selector: str
+    healed_selector: str
+    confidence: float
+    source: str
+    outcome: str
+
+
+class HealReportOut(BaseModel):
+    total_heals: int
+    confirmed: int
+    suspect: int
+    entries: list[HealAuditEntryOut]
+
+
+@router.get("/runs/{run_id}/heal-report", response_model=HealReportOut)
+def get_run_heal_report(
+    run_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+) -> HealReportOut:
+    """Story SH-2 — return the structured heal report for a run.
+
+    Reads `<output_dir>/heal_audit.jsonl` and cross-references the
+    heal's `test_name` with Robot Framework's `output.xml`:
+      - test passed → heal `outcome=confirmed`
+      - test failed → `outcome=suspect` (heal may have swapped to the
+        wrong element, which is why the downstream test failed)
+      - no output.xml → `outcome=unknown`
+
+    Returns all-zero totals for runs that have no heal audit file
+    (tests without any `Heal *` keywords).
+    """
+    from pathlib import Path
+    from src.recording.heal.heal_report import parse_heal_audit
+
+    run = db.get(ExecutionRun, run_id)
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Run not found"
+        )
+    if not run.output_dir:
+        return HealReportOut(total_heals=0, confirmed=0, suspect=0, entries=[])
+
+    audit_path = Path(run.output_dir) / "heal_audit.jsonl"
+    output_xml = Path(run.output_dir) / "output.xml"
+    report = parse_heal_audit(
+        audit_path,
+        output_xml=output_xml if output_xml.is_file() else None,
+    )
+    return HealReportOut(
+        total_heals=report.total_heals,
+        confirmed=report.confirmed,
+        suspect=report.suspect,
+        entries=[HealAuditEntryOut(**e.to_dict()) for e in report.entries],
+    )
+
+
 @router.post("/runs/{run_id}/cancel", response_model=RunResponse)
 def cancel_run_endpoint(
     run_id: int,
