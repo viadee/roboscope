@@ -320,6 +320,36 @@ def _has_batteries_package(packages: list[str]) -> bool:
     return any(_strip_version(p) == "robotframework-browser-batteries" for p in packages)
 
 
+def playwright_docker_base_image() -> str:
+    """Return the Microsoft Playwright Python Docker tag that matches
+    the *currently installed* `playwright` Python package.
+
+    This is the single source of truth for the backend + Docker
+    alignment. The backend's own Playwright client does a protocol
+    handshake with the `headless_shell` binary bundled in the base
+    image; if the two minor versions drift, Playwright aborts at
+    launch with a `Please update docker image as well` banner. Deriving
+    the tag from the installed package guarantees `uv sync` and the
+    next docker build stay in lockstep.
+
+    Falls back to a safe recent pin when the introspection fails
+    (e.g. the process has an unusual packaging setup and
+    `importlib.metadata` can't find the dist). The fallback only
+    activates at generation time; live runs against a mismatched image
+    still fail loudly — good, because that's what we want tests to
+    catch.
+    """
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        ver = version("playwright").strip()
+    except PackageNotFoundError:
+        ver = "1.58.0"
+    # Microsoft tags releases as `v{X.Y.Z}-noble`. The scheme has been
+    # stable since v1.40 — safe to compose by string.
+    return f"mcr.microsoft.com/playwright/python:v{ver}-noble"
+
+
 def generate_dockerfile(
     python_version: str,
     packages: list[str],
@@ -340,8 +370,9 @@ def generate_dockerfile(
     if base_image:
         base = base_image
     elif needs_browser_any:
-        # Playwright image: Python + browser system deps
-        base = "mcr.microsoft.com/playwright/python:v1.52.0-noble"
+        # Playwright image tag derived from the installed `playwright`
+        # Python version — see `playwright_docker_base_image` docstring.
+        base = playwright_docker_base_image()
     else:
         base = f"python:{python_version}-slim"
 
