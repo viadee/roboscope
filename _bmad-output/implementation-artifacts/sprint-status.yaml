@@ -149,6 +149,7 @@ development_status:
   sh-4-one-click-apply-patch: done  # server-side atomic rewrite of confirmed heals into .robot, ambiguity/path-traversal guarded
   flaky-2-runner-side-quarantine-skip: done  # subprocess-runner --listener injects QuarantineSkipListener for quarantined tests
   sh-6-heal-rate-kpi: done  # /stats/heal-rate endpoint + KPI card with sparkline on Stats Overview
+  sh-5-heal-long-tail-keywords: done  # RoboScopeHeal: Upload File, Check/Uncheck Checkbox, Select Options By, Get Text, Get Element Count, Drag And Drop (two-selector)
 
   # Recorder v2 — Shared Selector datamodel + editor UI
   epic-recorder-v2-selectors: done

@@ -43,6 +43,12 @@ _MUTATING_KEYWORDS: set[str] = {
     "Type Text",
     "Press Keys",
     "Hover",
+    # Story SH-5 — long-tail mutating keywords.
+    "Upload File",
+    "Check Checkbox",
+    "Uncheck Checkbox",
+    "Select Options By",
+    "Drag And Drop",
 }
 
 # Read-only probes — swapping on the wrong element is cheaper (no side
@@ -141,6 +147,135 @@ class RoboScopeHeal:
         self, selector: str, *args: Any, **kwargs: Any
     ) -> Any:
         return self._dispatch("Wait For Elements State", selector, args, kwargs)
+
+    # -- Story SH-5 — long-tail keywords ------------------------------------
+
+    @keyword("Heal Upload File")
+    def heal_upload_file(
+        self, selector: str, path: str, *args: Any, **kwargs: Any
+    ) -> Any:
+        return self._dispatch("Upload File", selector, (path, *args), kwargs)
+
+    @keyword("Heal Check Checkbox")
+    def heal_check_checkbox(self, selector: str, *args: Any, **kwargs: Any) -> Any:
+        return self._dispatch("Check Checkbox", selector, args, kwargs)
+
+    @keyword("Heal Uncheck Checkbox")
+    def heal_uncheck_checkbox(self, selector: str, *args: Any, **kwargs: Any) -> Any:
+        return self._dispatch("Uncheck Checkbox", selector, args, kwargs)
+
+    @keyword("Heal Select Options By")
+    def heal_select_options_by(
+        self, selector: str, attribute: str, *values: Any, **kwargs: Any
+    ) -> Any:
+        return self._dispatch(
+            "Select Options By", selector, (attribute, *values), kwargs,
+        )
+
+    @keyword("Heal Get Text")
+    def heal_get_text(self, selector: str, *args: Any, **kwargs: Any) -> Any:
+        return self._dispatch("Get Text", selector, args, kwargs)
+
+    @keyword("Heal Get Element Count")
+    def heal_get_element_count(
+        self, selector: str, *args: Any, **kwargs: Any
+    ) -> Any:
+        return self._dispatch("Get Element Count", selector, args, kwargs)
+
+    @keyword("Heal Drag And Drop")
+    def heal_drag_and_drop(
+        self,
+        source_selector: str,
+        target_selector: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Heal the two-selector `Drag And Drop` in two rounds.
+
+        First attempt: call Browser.`Drag And Drop` with both selectors
+        as given. If that raises a selector-not-found, figure out which
+        side is the culprit by probing each with Get Element Count, heal
+        only the failing one, then retry. At most one heal per call
+        (per AC — SH-2 budget rules apply; Drag And Drop counts as one
+        keyword invocation)."""
+        if self._test_has_no_heal_tag():
+            return self._builtin.run_keyword(
+                "Drag And Drop", source_selector, target_selector, *args, **kwargs,
+            )
+
+        try:
+            return self._builtin.run_keyword(
+                "Drag And Drop", source_selector, target_selector, *args, **kwargs,
+            )
+        except Exception as first_exc:
+            if not self._should_retry(first_exc):
+                raise
+            if self._heals_in_current_test >= self._max_heals_per_test:
+                raise
+
+            # Work out which selector is missing on the live page.
+            source_missing = self._probe_missing(source_selector)
+            target_missing = self._probe_missing(target_selector)
+            if not (source_missing or target_missing):
+                # Neither is missing — the failure is something else we
+                # shouldn't touch.
+                raise
+
+            threshold = self._threshold_for("Drag And Drop")
+            healed_source, healed_target = source_selector, target_selector
+            healing_source: HealCandidate | None = None
+            healing_target: HealCandidate | None = None
+
+            if source_missing:
+                healing_source = self._pick_heal_candidate(source_selector, threshold)
+                if healing_source is None:
+                    raise first_exc
+                healed_source = healing_source.value
+            if target_missing:
+                healing_target = self._pick_heal_candidate(target_selector, threshold)
+                if healing_target is None:
+                    raise first_exc
+                healed_target = healing_target.value
+
+            try:
+                result = self._builtin.run_keyword(
+                    "Drag And Drop", healed_source, healed_target, *args, **kwargs,
+                )
+            except Exception:
+                raise first_exc
+
+            if healing_source is not None:
+                self._record_successful_heal(
+                    "Drag And Drop", source_selector, healing_source,
+                )
+            if healing_target is not None:
+                self._record_successful_heal(
+                    "Drag And Drop", target_selector, healing_target,
+                )
+            return result
+
+    def _probe_missing(self, selector: str) -> bool:
+        """Return True if the selector currently resolves to zero live
+        elements. Any probe error → optimistic 'not missing' so we
+        don't paper over a real problem with a phantom heal."""
+        verify = self._make_verifier()
+        if verify is None:
+            return False
+        try:
+            return verify(selector) == 0
+        except Exception:
+            return False
+
+    def _pick_heal_candidate(
+        self, selector: str, threshold: float
+    ) -> HealCandidate | None:
+        """Find the best live-verified candidate for a selector, or None."""
+        sidecar = self._resolve_sidecar_path()
+        verify = self._make_verifier()
+        candidates = find_heal_candidates(
+            selector, sidecar_path=sidecar, verify=verify,
+        )
+        return pick_best_candidate(candidates, threshold=threshold)
 
     # -- Dispatch machinery --------------------------------------------------
 
