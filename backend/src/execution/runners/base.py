@@ -44,8 +44,17 @@ class AbstractRunner(ABC):
         tags_exclude: str | None = None,
         timeout: int = 3600,
         on_output: Callable[[str], None] | None = None,
+        listeners: list[str] | None = None,
     ) -> RunResult:
-        """Execute tests and return the result."""
+        """Execute tests and return the result.
+
+        Args:
+            listeners: optional list of Robot Framework `--listener`
+                arguments (either `module.path` or `module.path:arg1:arg2`).
+                Concrete runners must translate each entry into a
+                `--listener <entry>` pair on the robot CLI. Used by
+                Story FLAKY-2 to register the quarantine-skip listener.
+        """
         ...
 
     @abstractmethod

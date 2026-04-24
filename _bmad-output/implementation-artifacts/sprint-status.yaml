@@ -147,6 +147,7 @@ development_status:
   flaky-1-flaky-test-quarantine: done  # mark/unmark flaky tests + badge in Stats; runner-side skip follow-up (FLAKY-2)
   sh-2-runtime-self-healing-selectors: done  # RoboScopeHeal RF library + heal-audit + suspect-classification on run detail
   sh-4-one-click-apply-patch: done  # server-side atomic rewrite of confirmed heals into .robot, ambiguity/path-traversal guarded
+  flaky-2-runner-side-quarantine-skip: done  # subprocess-runner --listener injects QuarantineSkipListener for quarantined tests
 
   # Recorder v2 — Shared Selector datamodel + editor UI
   epic-recorder-v2-selectors: done

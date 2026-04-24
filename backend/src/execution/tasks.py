@@ -281,6 +281,38 @@ def execute_test_run(run_id: int) -> dict:
             # Parse variables
             variables = json.loads(run.variables) if run.variables else None
 
+            # Story FLAKY-2 — if this repo has quarantine entries, dump
+            # them into a snapshot file and register the
+            # QuarantineSkipListener so Robot Framework skips those
+            # tests at start_test time. Zero overhead when the repo
+            # has no quarantine rows (no file, no listener).
+            listeners: list[str] | None = None
+            from src.stats.models import FlakyQuarantine
+            quarantine_rows = session.execute(
+                select(FlakyQuarantine).where(
+                    FlakyQuarantine.repository_id == run.repository_id
+                )
+            ).scalars().all()
+            if quarantine_rows:
+                from src.execution.runners.quarantine_listener import (
+                    write_quarantine_snapshot,
+                )
+                snapshot_path = write_quarantine_snapshot(
+                    Path(output_dir),
+                    [
+                        {
+                            "suite_name": r.suite_name,
+                            "test_name": r.test_name,
+                            "reason": r.reason or "",
+                        }
+                        for r in quarantine_rows
+                    ],
+                )
+                listeners = [
+                    f"src.execution.runners.quarantine_listener."
+                    f"QuarantineSkipListener:{snapshot_path}"
+                ]
+
             # Execute
             result = runner.execute(
                 repo_path=repo.local_path,
@@ -290,6 +322,7 @@ def execute_test_run(run_id: int) -> dict:
                 tags_include=run.tags_include,
                 tags_exclude=run.tags_exclude,
                 timeout=run.timeout_seconds,
+                listeners=listeners,
             )
 
             # Re-read run status — it may have been set to CANCELLED while we were executing
