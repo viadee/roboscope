@@ -266,6 +266,122 @@ class RoboScopeHeal:
         except Exception:
             return False
 
+    # JS snippet that collects interactive-element fingerprints on the
+    # live page. Runs inside the browser; returns a JSON-serialisable
+    # list. Each candidate carries both a `selector` (CSS-ish) and a
+    # `fingerprint` (dict of the same shape as the stored one).
+    _LIVE_CANDIDATE_JS = """
+    (() => {
+      const out = [];
+      const sel = 'button, a, input, select, textarea, [data-testid], [role]';
+      const nodes = Array.from(document.querySelectorAll(sel)).slice(0, 500);
+      for (const n of nodes) {
+        const fp = {
+          tag: (n.tagName || '').toLowerCase(),
+          id: n.id || null,
+          testid: n.getAttribute('data-testid') || null,
+          classes: Array.from(n.classList || []),
+          name: n.getAttribute('name') || null,
+          role: n.getAttribute('role') || null,
+          text: (n.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 80),
+          ancestors: [],
+        };
+        let p = n.parentElement;
+        while (p && fp.ancestors.length < 4) {
+          fp.ancestors.push({
+            tag: (p.tagName || '').toLowerCase(),
+            id: p.id || null,
+            testid: p.getAttribute && p.getAttribute('data-testid') || null,
+          });
+          p = p.parentElement;
+        }
+        // Cheap unique selector: prefer testid, else id, else tag+class.
+        let locator;
+        if (fp.testid) locator = '[data-testid=' + fp.testid + ']';
+        else if (fp.id) locator = 'id=' + fp.id;
+        else if (fp.classes.length) locator = fp.tag + '.' + fp.classes[0];
+        else locator = fp.tag;
+        out.push({ selector: locator, fingerprint: fp });
+      }
+      return out;
+    })()
+    """
+
+    def _try_fingerprint_heal(
+        self, failed_selector: str, threshold: float
+    ) -> HealCandidate | None:
+        """Story SH-3 — last-resort fingerprint walker.
+
+        1. Look up the stored fingerprint for the failing selector from
+           the sidecar (if present). No sidecar → no fingerprint → None.
+        2. Collect live-DOM candidates via the Browser library's
+           `Evaluate JavaScript` keyword. If Browser isn't reachable
+           or evaluation fails, silently skip.
+        3. Score each candidate; return the best above the walker
+           threshold (also gated by the keyword's heal threshold).
+        """
+        try:
+            self._builtin.get_library_instance("Browser")
+        except Exception:
+            return None
+
+        stored_fp = self._lookup_stored_fingerprint(failed_selector)
+        if not stored_fp:
+            return None
+
+        try:
+            live = self._builtin.run_keyword(
+                "Evaluate JavaScript", None, self._LIVE_CANDIDATE_JS,
+            )
+        except Exception:
+            return None
+        if not isinstance(live, list):
+            return None
+
+        from src.recording.heal.fingerprint import find_best_by_fingerprint
+
+        pairs = [
+            (item.get("selector"), item.get("fingerprint"))
+            for item in live
+            if isinstance(item, dict) and item.get("selector") and item.get("fingerprint")
+        ]
+        # Walker's own default threshold (0.6) is stricter than many
+        # per-keyword thresholds; combine them so the caller's gate
+        # always wins when it's higher.
+        walker_threshold = max(0.6, threshold)
+        match = find_best_by_fingerprint(
+            stored_fp, pairs, threshold=walker_threshold,
+        )
+        if match is None:
+            return None
+        return HealCandidate(
+            value=match.selector,
+            strategy="fingerprint",
+            confidence=match.score,
+            source="fingerprint",
+        )
+
+    def _lookup_stored_fingerprint(self, failed_selector: str) -> dict | None:
+        """Read the sidecar and return the `element_fingerprint` of the
+        command whose active selector equals `failed_selector`. Any
+        IO/parse error → None (graceful degrade)."""
+        import json as _json
+
+        sidecar = self._resolve_sidecar_path()
+        if sidecar is None:
+            return None
+        try:
+            data = _json.loads(sidecar.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        for cmd in (data.get("commands") or []):
+            cands = cmd.get("selector_candidates") or []
+            for c in cands:
+                if (c.get("value") or "").strip() == failed_selector.strip():
+                    fp = cmd.get("element_fingerprint")
+                    return fp if isinstance(fp, dict) else None
+        return None
+
     def _pick_heal_candidate(
         self, selector: str, threshold: float
     ) -> HealCandidate | None:
@@ -331,6 +447,24 @@ class RoboScopeHeal:
                     browser_keyword, selector, cand
                 )
                 return result
+
+            # Story SH-3 — fingerprint fallback. After transposition +
+            # sidecar candidates failed, if the recording stored an
+            # element fingerprint for this selector we can walk the
+            # live DOM looking for a multi-signal similarity match.
+            fingerprint_cand = self._try_fingerprint_heal(selector, threshold)
+            if fingerprint_cand is not None:
+                try:
+                    result = self._builtin.run_keyword(
+                        browser_keyword, fingerprint_cand.value, *args, **kwargs,
+                    )
+                except Exception:
+                    pass
+                else:
+                    self._record_successful_heal(
+                        browser_keyword, selector, fingerprint_cand,
+                    )
+                    return result
 
             # Nothing worked. Re-raise the original failure.
             raise first_exc

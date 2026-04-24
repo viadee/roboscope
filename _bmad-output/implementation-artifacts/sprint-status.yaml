@@ -151,6 +151,7 @@ development_status:
   sh-6-heal-rate-kpi: done  # /stats/heal-rate endpoint + KPI card with sparkline on Stats Overview
   sh-5-heal-long-tail-keywords: done  # RoboScopeHeal: Upload File, Check/Uncheck Checkbox, Select Options By, Get Text, Get Element Count, Drag And Drop (two-selector)
   e2e-sh-real-browser-heal: done  # Playwright + real Chromium integration test for candidate_finder + heal
+  sh-3-dom-walk-similarity-scoring: done  # element fingerprint + walker + live-DOM integration for Healenium-class fallback
 
   # Recorder v2 — Shared Selector datamodel + editor UI
   epic-recorder-v2-selectors: done

@@ -63,6 +63,12 @@ class RecordedCommand(BaseModel):
     args: dict = Field(default_factory=dict)
     selector_candidates: list[SelectorCandidate] = Field(default_factory=list)
     active_candidate_index: int = 0
+    # Story SH-3 — optional element fingerprint captured at record-time.
+    # Used by the runtime heal library as a last-resort Healenium-style
+    # fallback when transposition + sidecar candidates don't resolve on
+    # the drifted live DOM. Legacy / hand-written flows leave this None.
+    # Shape: {tag, id, testid, classes:[], name, role, text, ancestors:[]}.
+    element_fingerprint: dict | None = None
 
     def model_post_init(self, _context) -> None:  # type: ignore[override]
         if self.selector_candidates:
