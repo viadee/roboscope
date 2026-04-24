@@ -568,6 +568,19 @@ def v2_save_flow(
     blob = content.encode("utf-8")
     target.write_bytes(blob)
 
+    # Story SH-1 — emit a sidecar `<name>.rbs.json` next to the .robot
+    # file so a later selector-failure diagnosis can consult the ranked
+    # candidate list without re-running the recorder. Users who don't
+    # want these checked into git should add `*.rbs.json` to their
+    # repo's .gitignore.
+    sidecar_path = target.with_suffix(".rbs.json")
+    sidecar_payload = parsed.model_dump(mode="json")
+    import json as _sh_json
+    sidecar_path.write_text(
+        _sh_json.dumps(sidecar_payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     log_event(
         db,
         AuditEventType.RECORDING_FLOW_SAVED,

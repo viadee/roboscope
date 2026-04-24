@@ -42,6 +42,28 @@ export async function getRunPendingActivity(id: number): Promise<PendingActivity
   return response.data
 }
 
+export interface SelectorCandidateSnippet {
+  strategy: string
+  value: string
+  quality_score: number | null
+}
+
+export interface SelectorHealthHit {
+  raw_locator: string
+  candidates: SelectorCandidateSnippet[]
+}
+
+export interface SelectorHealth {
+  has_sidecar: boolean
+  sidecar_path: string | null
+  failed_locators: SelectorHealthHit[]
+}
+
+export async function getRunSelectorHealth(id: number): Promise<SelectorHealth> {
+  const response = await apiClient.get<SelectorHealth>(`/runs/${id}/selector-health`)
+  return response.data
+}
+
 export async function cancelRun(id: number): Promise<ExecutionRun> {
   const response = await apiClient.post<ExecutionRun>(`/runs/${id}/cancel`)
   return response.data

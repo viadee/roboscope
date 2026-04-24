@@ -142,6 +142,7 @@ development_status:
   recorder-V1-1-remove-in-app-ui: done  # v1 button + RecorderPanel retired from Explorer
   exec-1-pending-run-activity: done  # queue-position + active-build log on pending runs
   deploy-1-remote-aware-recorder-transport-picker: done  # launcher disables non-viable transports + Chrome-Extension hint
+  sh-1-self-healing-selector-diagnosis: done  # sidecar emit + failed-selector alternatives on run detail
 
   # Recorder v2 — Shared Selector datamodel + editor UI
   epic-recorder-v2-selectors: done

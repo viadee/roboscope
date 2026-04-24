@@ -226,6 +226,166 @@ def get_run_pending_activity(
     )
 
 
+# --- Selector-health diagnosis (Story SH-1) ---
+
+
+class SelectorCandidateSnippet(BaseModel):
+    strategy: str
+    value: str
+    quality_score: float | None = None
+
+
+class SelectorHealthHit(BaseModel):
+    raw_locator: str
+    candidates: list[SelectorCandidateSnippet]
+
+
+class SelectorHealthResponse(BaseModel):
+    has_sidecar: bool
+    sidecar_path: str | None
+    failed_locators: list[SelectorHealthHit]
+
+
+# Robot / Browser / Playwright "element not found" / "timeout on locator"
+# signatures we recognise. Deliberately permissive — one-shot patterns,
+# not a full log parser. Falls back to empty list on anything we don't
+# understand rather than hallucinating.
+_LOCATOR_FAILURE_PATTERNS: tuple[str, ...] = (
+    # Robot Framework `Element '<locator>' not found`
+    r"Element\s+'([^']+)'\s+(?:not\s+found|did\s+not\s+appear)",
+    # Browser library `locator('<locator>').click: Timeout`
+    r"locator\([\"']([^\"']+)[\"']\)\.[\w_]+:\s*Timeout",
+    # Browser library `Locator '<locator>' ...`
+    r"Locator\s+['\"]([^'\"]+)['\"]",
+    # Playwright `TimeoutError: ... waiting for selector "<locator>"`
+    r"waiting\s+for\s+selector\s+[\"']([^\"']+)[\"']",
+)
+
+
+def _extract_failed_locators(output_text: str) -> list[str]:
+    import re as _re
+
+    hits: list[str] = []
+    seen: set[str] = set()
+    for pattern in _LOCATOR_FAILURE_PATTERNS:
+        for m in _re.finditer(pattern, output_text, flags=_re.IGNORECASE):
+            loc = m.group(1).strip()
+            if loc and loc not in seen:
+                seen.add(loc)
+                hits.append(loc)
+    return hits
+
+
+@router.get(
+    "/runs/{run_id}/selector-health",
+    response_model=SelectorHealthResponse,
+)
+def get_run_selector_health(
+    run_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+) -> SelectorHealthResponse:
+    """Story SH-1 — cross-reference a run's failed selectors with the
+    recording's sidecar `.rbs.json` and return the ranked alternative
+    candidates for each failure.
+
+    Returns `has_sidecar=False` when the run wasn't produced from a v2
+    recording (no sidecar alongside the .robot file) or when the file
+    has simply been moved — not a failure, just nothing to suggest.
+    """
+    import json as _json
+    from pathlib import Path
+
+    run = db.get(ExecutionRun, run_id)
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Run not found"
+        )
+
+    # Locate the .robot file in its repository; the sidecar sits next to it.
+    from src.repos.models import Repository
+    repo = db.get(Repository, run.repository_id) if run.repository_id else None
+    if repo is None or not run.target_path:
+        return SelectorHealthResponse(
+            has_sidecar=False, sidecar_path=None, failed_locators=[]
+        )
+    repo_root = Path(repo.local_path).resolve()
+    robot_path = (repo_root / run.target_path).resolve()
+    try:
+        robot_path.relative_to(repo_root)
+    except ValueError:
+        return SelectorHealthResponse(
+            has_sidecar=False, sidecar_path=None, failed_locators=[]
+        )
+    sidecar_path = robot_path.with_suffix(".rbs.json")
+    if not sidecar_path.is_file():
+        return SelectorHealthResponse(
+            has_sidecar=False, sidecar_path=None, failed_locators=[]
+        )
+
+    # Load sidecar — build a locator → candidate-list index.
+    try:
+        flow_data = _json.loads(sidecar_path.read_text(encoding="utf-8"))
+    except Exception:
+        return SelectorHealthResponse(
+            has_sidecar=False, sidecar_path=str(sidecar_path.relative_to(repo_root)),
+            failed_locators=[],
+        )
+    commands = flow_data.get("commands") or []
+    # Build lookup: raw candidate string (e.g. "id=submit") → full command.
+    locator_to_command: dict[str, dict] = {}
+    for cmd in commands:
+        for cand in (cmd.get("selector_candidates") or []):
+            value = cand.get("value")
+            if value:
+                locator_to_command.setdefault(value, cmd)
+
+    # Pull failed locators out of the run output.
+    output_text_parts: list[str] = []
+    if run.output_dir:
+        for name in ("stdout.log", "stderr.log", "output.xml"):
+            p = Path(run.output_dir) / name
+            if p.is_file():
+                try:
+                    output_text_parts.append(p.read_text(encoding="utf-8", errors="replace"))
+                except OSError:
+                    pass
+    if run.error_message:
+        output_text_parts.append(run.error_message)
+    combined = "\n".join(output_text_parts)
+    failed_locators = _extract_failed_locators(combined)
+
+    hits: list[SelectorHealthHit] = []
+    for loc in failed_locators:
+        cmd = locator_to_command.get(loc)
+        if cmd is None:
+            # Not a recorder-originated selector — still surface it so
+            # the user sees "this failed but we can't offer alternatives".
+            hits.append(SelectorHealthHit(raw_locator=loc, candidates=[]))
+            continue
+        cands = cmd.get("selector_candidates") or []
+        active_idx = cmd.get("active_candidate_index", 0)
+        # Present the other candidates ordered by quality_score desc,
+        # excluding the one that was active (the one that just failed).
+        others = [
+            SelectorCandidateSnippet(
+                strategy=c.get("strategy", ""),
+                value=c.get("value", ""),
+                quality_score=c.get("quality_score"),
+            )
+            for i, c in enumerate(cands)
+            if i != active_idx
+        ]
+        others.sort(key=lambda c: c.quality_score or 0.0, reverse=True)
+        hits.append(SelectorHealthHit(raw_locator=loc, candidates=others))
+
+    return SelectorHealthResponse(
+        has_sidecar=True,
+        sidecar_path=str(sidecar_path.relative_to(repo_root)),
+        failed_locators=hits,
+    )
+
+
 @router.post("/runs/{run_id}/cancel", response_model=RunResponse)
 def cancel_run_endpoint(
     run_id: int,
