@@ -22,6 +22,9 @@
 #   - in-progress: Developer actively working on implementation
 #   - review: Ready for code review (via Dev's code-review workflow)
 #   - done: Story completed
+#   - blocked: Hardware / environmental prerequisite missing — spec
+#     ready in deferred-work.md, waiting on a specific re-open trigger
+#     (e.g. D-5 needs a Windows CI runner or a Windows-resident dev).
 #
 # Retrospective Status:
 #   - optional: Can be completed but not required
@@ -152,6 +155,12 @@ development_status:
   sh-5-heal-long-tail-keywords: done  # RoboScopeHeal: Upload File, Check/Uncheck Checkbox, Select Options By, Get Text, Get Element Count, Drag And Drop (two-selector)
   e2e-sh-real-browser-heal: done  # Playwright + real Chromium integration test for candidate_finder + heal
   sh-3-dom-walk-similarity-scoring: done  # element fingerprint + walker + live-DOM integration for Healenium-class fallback
+  # D-5 Windows native event-hook wiring stays hardware-blocked (no
+  # Windows dev host available). Canonical spec lives in
+  # deferred-work.md → "Follow-up: Recorder v2 — D-5 Windows native
+  # event-hook wiring". Re-open when a Windows CI runner lands or a
+  # contributor with a Win host volunteers.
+  recorder-D-5-windows-native-hook: blocked
 
   # Recorder v2 — Shared Selector datamodel + editor UI
   epic-recorder-v2-selectors: done

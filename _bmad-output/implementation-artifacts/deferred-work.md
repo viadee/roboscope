@@ -174,6 +174,8 @@
 
 **Gating signal for promoting D-5 out of deferred-work:** a Windows CI runner lands on the project (Phase 5 distributed-exec work item) OR a contributor with a Windows dev host volunteers.
 
+**Close-out confirmation (2026-04-24).** Revisited during the follow-up pass for SH / FLAKY / E2E stories. D-5 remains **hardware-blocked**; no change to the plan above. All platform-agnostic work (translator, selector synthesis, .robot emit, transport-aware dispatch, session lifecycle) shipped in the earlier Windows epic closure and still has full test coverage. This entry is the authoritative follow-up spec — a Windows-resident contributor can cherry-pick it into a new sprint without re-planning.
+
 ---
 
 ## Post-mortem: Phase 4 login-page flicker / redirect loop (2026-04-22)
