@@ -71,6 +71,22 @@ class FlakyQuarantineResponse(BaseModel):
     quarantined_at: datetime
 
 
+class HealRatePoint(BaseModel):
+    date: str  # YYYY-MM-DD
+    heals: int
+    confirmed: int
+    suspect: int
+
+
+class HealRateResponse(BaseModel):
+    total_runs_in_window: int
+    runs_with_heals: int
+    total_heals: int
+    confirmed_heals: int
+    suspect_heals: int
+    trend: list[HealRatePoint]
+
+
 class DurationStat(BaseModel):
     """Duration statistics."""
 

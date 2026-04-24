@@ -21,6 +21,28 @@ export async function getFlakyTests(params: { days?: number; min_runs?: number; 
   return response.data
 }
 
+// Story SH-6 — heal-rate KPI
+export interface HealRatePoint {
+  date: string
+  heals: number
+  confirmed: number
+  suspect: number
+}
+export interface HealRateResponse {
+  total_runs_in_window: number
+  runs_with_heals: number
+  total_heals: number
+  confirmed_heals: number
+  suspect_heals: number
+  trend: HealRatePoint[]
+}
+export async function getHealRate(
+  params: { days?: number; repository_id?: number } = {},
+): Promise<HealRateResponse> {
+  const response = await apiClient.get<HealRateResponse>('/stats/heal-rate', { params })
+  return response.data
+}
+
 // Story FLAKY-1 — flaky-test quarantine.
 
 export async function listFlakyQuarantine(

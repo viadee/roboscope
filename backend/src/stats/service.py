@@ -248,6 +248,116 @@ def get_flaky_tests(
     return flaky_tests
 
 
+def get_heal_rate(
+    db: Session,
+    days: int = 30,
+    repository_id: int | None = None,
+):
+    """Story SH-6 — aggregate heal audit files from recent runs.
+
+    Walks the last `days` worth of runs, reads each run's
+    `output_dir/heal_audit.jsonl` + cross-references with `output.xml`
+    for confirmed/suspect classification. Cheap-ish: one small file
+    read per run. No DB pre-aggregation.
+    """
+    from pathlib import Path
+
+    from src.execution.models import ExecutionRun
+    from src.recording.heal.heal_report import parse_heal_audit
+    from src.stats.schemas import HealRatePoint, HealRateResponse
+
+    since = date.today() - timedelta(days=days)
+    stmt = (
+        select(ExecutionRun)
+        .where(ExecutionRun.created_at >= str(since))
+    )
+    if repository_id is not None:
+        stmt = stmt.where(ExecutionRun.repository_id == repository_id)
+    runs = list(db.execute(stmt).scalars().all())
+
+    # Build zero-filled per-day buckets so the trend array always has
+    # `days` entries even when nothing happened that day.
+    day_buckets: dict[str, dict[str, int]] = {}
+    for offset in range(days):
+        d = date.today() - timedelta(days=days - 1 - offset)
+        day_buckets[d.isoformat()] = {"heals": 0, "confirmed": 0, "suspect": 0}
+
+    total_heals = 0
+    confirmed = 0
+    suspect = 0
+    runs_with_heals = 0
+
+    for run in runs:
+        if not run.output_dir:
+            continue
+        audit_path = Path(run.output_dir) / "heal_audit.jsonl"
+        if not audit_path.is_file():
+            continue
+        output_xml = Path(run.output_dir) / "output.xml"
+        report = parse_heal_audit(
+            audit_path,
+            output_xml=output_xml if output_xml.is_file() else None,
+        )
+        if report.total_heals == 0:
+            continue
+        runs_with_heals += 1
+        total_heals += report.total_heals
+        confirmed += report.confirmed
+        suspect += report.suspect
+
+        # Attribute heals to the run's created_at date (best available
+        # bucket when individual audit records don't carry a day key
+        # we trust across tz boundaries).
+        created = getattr(run, "created_at", None)
+        if created is None:
+            continue
+        bucket_key = _run_date_key(created)
+        if bucket_key in day_buckets:
+            day_buckets[bucket_key]["heals"] += report.total_heals
+            day_buckets[bucket_key]["confirmed"] += report.confirmed
+            day_buckets[bucket_key]["suspect"] += report.suspect
+
+    trend = [
+        HealRatePoint(
+            date=k,
+            heals=v["heals"],
+            confirmed=v["confirmed"],
+            suspect=v["suspect"],
+        )
+        for k, v in sorted(day_buckets.items())
+    ]
+
+    return HealRateResponse(
+        total_runs_in_window=len(runs),
+        runs_with_heals=runs_with_heals,
+        total_heals=total_heals,
+        confirmed_heals=confirmed,
+        suspect_heals=suspect,
+        trend=trend,
+    )
+
+
+def _run_date_key(created_at) -> str:
+    """Robust-ish mapping of ExecutionRun.created_at to a YYYY-MM-DD
+    bucket. `created_at` can be either a datetime or a string
+    (SQLite's column type is flexible); handle both."""
+    from datetime import datetime as _dt
+
+    if hasattr(created_at, "date"):
+        try:
+            return created_at.date().isoformat()
+        except Exception:
+            pass
+    s = str(created_at)
+    # ISO-ish first 10 chars → YYYY-MM-DD.
+    if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+        return s[:10]
+    try:
+        return _dt.fromisoformat(s).date().isoformat()
+    except Exception:
+        return date.today().isoformat()
+
+
 def get_duration_stats(
     db: Session,
     days: int = 30,

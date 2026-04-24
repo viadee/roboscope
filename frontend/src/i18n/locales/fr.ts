@@ -615,6 +615,12 @@ export default {
       mute: 'Mettre en sourdine',
       unmute: 'Lever la quarantaine',
     },
+    healRate: {
+      total: 'sélecteurs auto-guéris sur la fenêtre',
+      healedOf: '{healed} runs sur {total} ont été guéris',
+      confirmed: 'confirmés',
+      suspect: 'suspects',
+    },
     analysis: {
       tabOverview: 'Aperçu',
       tabAnalysis: 'Analyse approfondie',

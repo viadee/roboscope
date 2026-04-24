@@ -8,6 +8,7 @@ export const useStatsStore = defineStore('stats', () => {
   const successRate = ref<SuccessRatePoint[]>([])
   const trends = ref<TrendPoint[]>([])
   const flakyTests = ref<FlakyTest[]>([])
+  const healRate = ref<statsApi.HealRateResponse | null>(null)
   const loading = ref(false)
 
   // Filter state
@@ -41,10 +42,29 @@ export const useStatsStore = defineStore('stats', () => {
     flakyTests.value = await statsApi.getFlakyTests({ days: filterDays.value, repository_id: filterRepoId.value ?? undefined })
   }
 
+  async function fetchHealRate() {
+    // Non-fatal — a failing scan must never take down the whole Stats page.
+    try {
+      healRate.value = await statsApi.getHealRate({
+        days: filterDays.value,
+        repository_id: filterRepoId.value ?? undefined,
+      })
+    } catch {
+      healRate.value = null
+    }
+  }
+
   async function fetchAll() {
     loading.value = true
     try {
-      await Promise.all([fetchOverview(), fetchSuccessRate(), fetchTrends(), fetchFlakyTests(), fetchDataStatus()])
+      await Promise.all([
+        fetchOverview(),
+        fetchSuccessRate(),
+        fetchTrends(),
+        fetchFlakyTests(),
+        fetchHealRate(),
+        fetchDataStatus(),
+      ])
     } finally {
       loading.value = false
     }
@@ -113,9 +133,10 @@ export const useStatsStore = defineStore('stats', () => {
   }
 
   return {
-    overview, successRate, trends, flakyTests, loading, filterDays, filterRepoId,
+    overview, successRate, trends, flakyTests, healRate, loading, filterDays, filterRepoId,
     lastAggregated, lastRunFinished, aggregating,
-    fetchOverview, fetchSuccessRate, fetchTrends, fetchFlakyTests, fetchAll, setFilter,
+    fetchOverview, fetchSuccessRate, fetchTrends, fetchFlakyTests, fetchHealRate,
+    fetchAll, setFilter,
     fetchDataStatus, aggregateKpis,
     analyses, currentAnalysis, availableKpis, analysisLoading,
     fetchAvailableKpis, fetchAnalyses, createAnalysis, fetchAnalysis, updateAnalysisFromWs,

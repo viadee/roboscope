@@ -312,6 +312,44 @@ function formatDate(d: string | null) {
           </div>
         </div>
 
+        <!-- Story SH-6 — heal-rate KPI card -->
+        <div v-if="stats.healRate && stats.healRate.total_runs_in_window > 0" class="card heal-kpi mb-4">
+          <div class="heal-kpi__body">
+            <div class="heal-kpi__value">
+              🩹 <span class="heal-kpi__big">{{ stats.healRate.total_heals }}</span>
+              <span class="heal-kpi__label">{{ t('stats.healRate.total') }}</span>
+            </div>
+            <p class="heal-kpi__sub">
+              {{ t('stats.healRate.healedOf', {
+                healed: stats.healRate.runs_with_heals,
+                total: stats.healRate.total_runs_in_window,
+              }) }}
+            </p>
+            <div class="heal-kpi__badges">
+              <span class="heal-kpi__badge heal-kpi__badge--confirmed">
+                🩹 {{ stats.healRate.confirmed_heals }} {{ t('stats.healRate.confirmed') }}
+              </span>
+              <span
+                v-if="stats.healRate.suspect_heals > 0"
+                class="heal-kpi__badge heal-kpi__badge--suspect"
+              >
+                ⚠️ {{ stats.healRate.suspect_heals }} {{ t('stats.healRate.suspect') }}
+              </span>
+            </div>
+          </div>
+          <div class="heal-kpi__sparkline" aria-hidden="true">
+            <div
+              v-for="p in stats.healRate.trend"
+              :key="p.date"
+              class="heal-kpi__bar"
+              :title="`${p.date}: ${p.heals} (🩹 ${p.confirmed} · ⚠️ ${p.suspect})`"
+              :style="{
+                height: (p.heals === 0 ? 2 : Math.min(100, 8 + p.heals * 12)) + '%',
+              }"
+            ></div>
+          </div>
+        </div>
+
         <!-- Success Rate Trend -->
         <div class="card mb-4">
           <div class="card-header">
@@ -1362,6 +1400,73 @@ function formatDate(d: string | null) {
 .stale-detail {
   color: var(--color-text-muted);
   font-size: 12px;
+}
+
+/* Story SH-6 — heal-rate KPI card */
+.heal-kpi {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  padding: 18px 22px;
+  background: linear-gradient(135deg, #faf5ff 0%, #fdf4ff 100%);
+  border-left: 4px solid #a855f7;
+}
+.heal-kpi__body { flex: 1; }
+.heal-kpi__value {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 15px;
+  color: #6b21a8;
+}
+.heal-kpi__big {
+  font-size: 36px;
+  font-weight: 700;
+  color: #581c87;
+}
+.heal-kpi__label {
+  color: #7e22ce;
+  font-size: 13px;
+}
+.heal-kpi__sub {
+  margin: 4px 0 10px;
+  color: #6b21a8;
+  font-size: 13px;
+}
+.heal-kpi__badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.heal-kpi__badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.heal-kpi__badge--confirmed {
+  background: #dcfce7;
+  color: #166534;
+}
+.heal-kpi__badge--suspect {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.heal-kpi__sparkline {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  min-width: 180px;
+  height: 64px;
+  padding: 0 4px;
+  border-left: 1px dashed rgba(168, 85, 247, 0.3);
+}
+.heal-kpi__bar {
+  flex: 1;
+  background: linear-gradient(180deg, #a855f7 0%, #7e22ce 100%);
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+  transition: height 0.2s ease;
 }
 
 /* Story FLAKY-1 — quarantine column + row styling */

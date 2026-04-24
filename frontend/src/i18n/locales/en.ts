@@ -615,6 +615,12 @@ export default {
       mute: 'Mute',
       unmute: 'Unmute',
     },
+    healRate: {
+      total: 'self-healed selectors in window',
+      healedOf: '{healed} of {total} runs healed',
+      confirmed: 'confirmed',
+      suspect: 'suspect',
+    },
     analysis: {
       tabOverview: 'Overview',
       tabAnalysis: 'Deep Analysis',

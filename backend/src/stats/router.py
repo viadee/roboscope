@@ -22,6 +22,7 @@ from src.stats.schemas import (
     FlakyQuarantineCreate,
     FlakyQuarantineResponse,
     FlakyTest,
+    HealRateResponse,
     HeatmapCell,
     OverviewKpi,
     SuccessRatePoint,
@@ -32,6 +33,7 @@ from src.stats.service import (
     get_analysis,
     get_duration_stats,
     get_flaky_tests,
+    get_heal_rate,
     get_heatmap_data,
     get_overview,
     get_success_rate_trend,
@@ -74,6 +76,17 @@ def trends(
 ):
     """Get pass/fail/error trends over time."""
     return get_trends(db, days, repository_id)
+
+
+@router.get("/heal-rate", response_model=HealRateResponse)
+def heal_rate(
+    days: int = Query(default=30, ge=1, le=365),
+    repository_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Story SH-6 — aggregate self-healing activity over a rolling window."""
+    return get_heal_rate(db, days=days, repository_id=repository_id)
 
 
 @router.get("/flaky", response_model=list[FlakyTest])

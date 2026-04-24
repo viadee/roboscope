@@ -615,6 +615,12 @@ export default {
       mute: 'Silenciar',
       unmute: 'Quitar cuarentena',
     },
+    healRate: {
+      total: 'selectores autoreparados en el intervalo',
+      healedOf: '{healed} de {total} runs reparados',
+      confirmed: 'confirmados',
+      suspect: 'sospechosos',
+    },
     analysis: {
       tabOverview: 'Resumen',
       tabAnalysis: 'Análisis profundo',
