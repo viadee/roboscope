@@ -1135,6 +1135,177 @@ const de: DocsContent = [
       }
     ]
   },
+  // ─── 7.5 Self-Healing & Resilienz ─────────────────────────────────
+  {
+    id: 'self-healing',
+    title: 'Self-Healing & Resilienz',
+    icon: '🩹',
+    subsections: [
+      {
+        id: 'self-healing-overview',
+        title: 'Wie Self-Healing funktioniert',
+        content: `
+<p>
+  Tests driften. Ein Entwickler benennt <code>id=submit</code> in <code>id=submit-btn</code> um
+  oder verpackt einen Button in ein neues <code>&lt;form&gt;</code> &mdash; und jeder Test der
+  den alten Locator referenziert, bricht. RoboScopes Self-Healing-Library wiederholt
+  fehlgeschlagene Selektoren zur Laufzeit gegen den Live-DOM: der Test besteht, und
+  RoboScope protokolliert den Swap zur späteren Überprüfung.
+</p>
+<h4>Opt-in pro Keyword</h4>
+<p>
+  Self-Healing ist nicht automatisch. Sie importieren die Library und schreiben die
+  gehealte Variante statt des einfachen Browser-Keywords:
+</p>
+<pre><code>*** Settings ***
+Library    Browser
+Library    RoboScopeHeal
+
+*** Test Cases ***
+Login Works
+    New Browser    chromium
+    New Page       https://app.example.com/login
+    Heal Fill Text    id=user      alice
+    Heal Fill Text    id=password  secret
+    Heal Click        id=submit
+    Get Text          .welcome-banner
+</code></pre>
+<h4>Drei Fallback-Stufen, in Reihenfolge</h4>
+<ol>
+  <li><strong>Sidecar-Lookup</strong> &mdash; wenn die <code>.robot</code>-Datei eine geschwisterliche
+  <code>&lt;name&gt;.rbs.json</code> vom Recorder v2 hat, konsultiert RoboScope die
+  rangsortierte Kandidatenliste aus der Aufnahme.</li>
+  <li><strong>Strategie-Transposition</strong> &mdash; <code>id=submit</code> probiert
+  <code>[data-testid=submit]</code>, <code>text=submit</code>, <code>css=input#submit</code>,
+  <code>role=button[name="submit"]</code>. Jeder Kandidat wird gegen den Live-DOM via
+  <code>Get Element Count</code> verifiziert &mdash; Nicht-Unique / Null-Treffer werden verworfen.</li>
+  <li><strong>DOM-Walk-Fingerprint</strong> &mdash; letzte Instanz. Wenn die Aufnahme einen
+  Element-Fingerprint gespeichert hat (Tag + ID + Testid + Klassen + Rolle + Text +
+  Ahnen-Kette), durchsucht RoboScope die interaktiven Elemente auf der Live-Seite und
+  wählt den besten Multi-Signal-Ähnlichkeitstreffer oberhalb eines Konfidenz-Schwellenwerts.</li>
+</ol>`,
+        tip: 'Self-Healing feuert nur bei selektor-bezogenen Fehlern (Element not found, Locator-Timeout). Assertion-Fehler und andere Fehler werden unverändert weitergereicht — RoboScope weigert sich, eine echte Regression mit einem stillen Swap zu übertünchen.'
+      },
+      {
+        id: 'self-healing-safety',
+        title: 'Sicherheitskonzept',
+        content: `
+<p>
+  Zur Laufzeit auf das falsche Element zu klicken ist schlimmer als zu scheitern.
+  Jede Heal-Operation durchläuft vier Schutzschichten:
+</p>
+<ul>
+  <li><strong>Budget pro Test</strong> &mdash; standardmäßig maximal drei Heals pro Test. Ein
+  Test der mehr als drei Swaps braucht, ist zu weit driftet; RoboScope reicht dann den
+  Original-Fehler weiter statt ihn zu übermalen.</li>
+  <li><strong>Konfidenz-Schwellenwert</strong> &mdash; jeder Kandidat hat einen
+  Qualitäts-Score (<code>testid</code> schlägt <code>aria</code> schlägt <code>text</code>
+  schlägt reines XPath). Mutierende Keywords (<code>Heal Click</code>,
+  <code>Heal Fill Text</code> usw.) brauchen 0.7+; Read-Only-Proben 0.5+.</li>
+  <li><strong>Retry-Budget pro Aufruf</strong> &mdash; eine Alternative, dann Abbruch.</li>
+  <li><strong>Suspect-Klassifizierung</strong> &mdash; nach dem Run werden Heals mit dem
+  Testresultat aus der <code>output.xml</code> abgeglichen. Bestanden &rarr; <em>bestätigt</em>;
+  fehlgeschlagen &rarr; <em>verdächtig</em> (der Swap hat möglicherweise das falsche
+  Element getroffen). Nur bestätigte Heals bieten einen Apply-Patch-Button.</li>
+</ul>
+<h4>Escape-Hatch: der <code>no-heal</code>-Tag</h4>
+<p>
+  Strikte CI-Läufe können Healing pro Test deaktivieren, indem sie den
+  <code>no-heal</code>-Tag setzen. Die <code>Heal *</code>-Keywords delegieren dann ohne
+  Retry direkt an das zugrunde liegende Browser-Keyword.
+</p>`,
+        tip: 'Default-Schwellenwerte, Budgets und der Sidecar-Pfad sind allesamt als Library-Import-Argumente konfigurierbar — kein Monkey-Patching.'
+      },
+      {
+        id: 'self-healing-report',
+        title: 'Heal-Report im Run-Detail',
+        content: `
+<p>
+  Jedes erfolgreiche Heal wird an <code>&lt;output_dir&gt;/heal_audit.jsonl</code> angehängt
+  &mdash; mit Zeitstempel, Keyword, Original-Selektor, gehealtem Selektor, Konfidenz und
+  Quelle. Das Run-Detail-Panel parst diese Datei und rendert eine kompakte Karte
+  <strong>Selbstgeheilte Selektoren</strong> pro Run.
+</p>
+<ul>
+  <li><strong>🩹 Bestätigt</strong> &mdash; der Test ist nach dem Heal durchgelaufen. Die
+  Karte bietet <em>Patch kopieren</em> und <em>Patch anwenden</em> (nur Editor+).</li>
+  <li><strong>⚠️ Verdächtig</strong> &mdash; der Test ist nach dem Heal fehlgeschlagen.
+  Der Swap wird protokolliert, aber <em>kein</em> Patch-Button angeboten.</li>
+</ul>
+<h4>Apply-Patch-Sicherheit</h4>
+<p>
+  Der Endpoint schreibt den Patch atomar (Temp-Datei + Rename), weist verdächtige /
+  out-of-bounds / Viewer-Aufrufe ab, weigert sich zu schreiben wenn die Original-Selektor-Zeile
+  in der Zieldatei fehlt oder mehrdeutig ist, und ist idempotent.
+</p>`,
+      },
+      {
+        id: 'self-healing-diagnosis',
+        title: 'Selektor-Diagnose bei fehlgeschlagenen Runs',
+        content: `
+<p>
+  Nicht jeder Run nutzt <code>RoboScopeHeal</code>. Für fehlgeschlagene Runs die <em>nicht</em>
+  geheilt haben (oder trotz Heal gescheitert sind), hilft RoboScope trotzdem: es scannt
+  die Run-Ausgabe auf gängige Locator-Fehler-Signaturen und schlägt jede in der
+  Aufnahme-Sidecar nach. Eine <strong>Selektor-Diagnose</strong>-Karte zeigt den fehlerhaften
+  Selektor und rangsortierte Alternativen &mdash; ein Klick zum Kopieren.
+</p>`,
+      },
+      {
+        id: 'self-healing-rate-kpi',
+        title: 'Heal-Rate-KPI',
+        content: `
+<p>
+  Healing ist ein vorauslaufender Indikator. Eine steigende Heal-Rate bedeutet, dass die
+  Test-Suite gegen die Anwendung driftet. Die Stats-Übersicht macht das Signal via
+  <strong>🩹 Selbstgeheilte Selektoren</strong>-Karte sichtbar: Große Zahl für Total-Heals,
+  Unterzeile mit Run-Anteil, Badges für bestätigt vs verdächtig, Sparkline über den Zeitraum.
+</p>`,
+        tip: 'Achten Sie auf die Verdächtig-Spalte. Ein anhaltender Strom von Verdächtigen bedeutet, dass die Heuristiken für Ihre Codebasis falsch sind — bitte ein Issue melden.'
+      },
+      {
+        id: 'flaky-quarantine',
+        title: 'Flaky-Test-Quarantäne',
+        content: `
+<p>
+  Ein Test der beim selben Commit mal besteht und mal fehlschlägt, ist <em>flaky</em>.
+  RoboScope erkennt diese automatisch in der <strong>Flaky-Tests</strong>-Tabelle auf der
+  Statistik-Seite. Mit <strong>Quarantäne</strong> werden solche Tests aktiv übersprungen.
+</p>
+<h4>Test als quarantänisiert markieren</h4>
+<ul>
+  <li>Öffnen Sie <strong>Statistik</strong>, scrollen Sie zur Flaky-Tests-Tabelle.</li>
+  <li>Editor+-Nutzer sehen einen <strong>Stumm schalten</strong>-Button. Klick → Test wird
+  für das Repository als quarantänisiert gespeichert.</li>
+  <li>Die Zeile bekommt ein <strong>🔕 In Quarantäne</strong>-Badge und sortiert sich oben ein.</li>
+</ul>
+<h4>Laufzeit-Effekt</h4>
+<p>
+  Beim nächsten Run für das Repository registriert RoboScope einen Robot-Framework-Listener,
+  der passende Testnamen via <code>BuiltIn().skip()</code> als SKIP markiert &mdash; nicht als FAIL.
+  CI-Zusammenfassungen ertrinken nicht mehr in bekanntem Flaky-Rauschen.
+</p>`,
+        tip: 'Quarantäne ist für existierende Einträge immer aktiv. Aufheben via gleichem Button.'
+      },
+      {
+        id: 'self-healing-ai-patches',
+        title: 'KI-generierte Patch-Vorschläge',
+        content: `
+<p>
+  Beim Ausführen von <strong>Fehler analysieren</strong> auf einem Report wird das LLM
+  zusätzlich zur Prosa-Analyse gebeten, Unified-Diff-Patches zu liefern, wann immer der Fix
+  konkret genug ist. Eine <strong>Patch-Vorschläge</strong>-Sektion erscheint unter der
+  Markdown-Analyse mit Diff-Vorschau pro Datei und <em>Patch kopieren</em>-Button.
+</p>
+<p>
+  Diese Patches sind <em>Vorschläge</em> &mdash; werden nie automatisch angewendet. Die
+  RoboScope-App verändert Ihr Repository nur, wenn Sie den Diff selbst einfügen oder den
+  Apply-Patch-Button für <strong>bestätigte</strong> Laufzeit-Heals nutzen.
+</p>`,
+        tip: 'Mehrdeutige Fehler (Flaky-Timing, Infrastruktur-Probleme) erzeugen nie einen Patch-Block.'
+      },
+    ],
+  },
   {
     id: 'environments',
     title: 'Umgebungen',

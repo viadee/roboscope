@@ -1182,6 +1182,214 @@ const en: DocsContent = [
     ]
   },
 
+  // ─── 7.5 Self-Healing & Resilience ────────────────────────────────
+  {
+    id: 'self-healing',
+    title: 'Self-Healing & Resilience',
+    icon: '🩹',
+    subsections: [
+      {
+        id: 'self-healing-overview',
+        title: 'How self-healing works',
+        content: `
+<p>
+  Tests drift. A dev renames <code>id=submit</code> to <code>id=submit-btn</code>,
+  or wraps a button in a new <code>&lt;form&gt;</code>, and every test that referenced
+  the old locator breaks. RoboScope's self-healing library retries failed
+  selectors at runtime against the live DOM — the test passes while RoboScope
+  records the swap for you to review.
+</p>
+<h4>Opt-in per keyword</h4>
+<p>
+  Self-healing is not automatic. You import the library and write the
+  healed variant of the keyword instead of the plain Browser one:
+</p>
+<pre><code>*** Settings ***
+Library    Browser
+Library    RoboScopeHeal
+
+*** Test Cases ***
+Login Works
+    New Browser    chromium
+    New Page       https://app.example.com/login
+    Heal Fill Text    id=user      alice
+    Heal Fill Text    id=password  secret
+    Heal Click        id=submit
+    Get Text          .welcome-banner
+</code></pre>
+<h4>Three fallback tiers, in order</h4>
+<ol>
+  <li><strong>Sidecar lookup</strong> &mdash; if the <code>.robot</code> file has a sibling
+  <code>&lt;name&gt;.rbs.json</code> from Recorder v2, RoboScope consults the ranked
+  candidate list captured at record-time.</li>
+  <li><strong>Strategy transposition</strong> &mdash; <code>id=submit</code> probes
+  <code>[data-testid=submit]</code>, <code>text=submit</code>, <code>css=input#submit</code>,
+  <code>role=button[name="submit"]</code>. Each candidate is verified against the live DOM
+  via <code>Get Element Count</code> before being tried — non-unique / zero matches are dropped.</li>
+  <li><strong>DOM-walk fingerprint</strong> &mdash; last resort. If the recording stored an
+  element fingerprint (tag + id + testid + classes + role + text + ancestor chain),
+  RoboScope scans the interactive elements on the live page and picks the best
+  multi-signal similarity match above a confidence threshold.</li>
+</ol>`,
+        tip: 'Self-healing only fires on selector-related errors (Element not found, locator timeout). Assertion failures and other errors propagate untouched — RoboScope refuses to paper over a real regression with a silent swap.'
+      },
+      {
+        id: 'self-healing-safety',
+        title: 'Safety envelope',
+        content: `
+<p>
+  Clicking the wrong element at runtime is worse than failing. Every heal
+  operation passes through four guard rails:
+</p>
+<ul>
+  <li><strong>Per-test budget</strong> &mdash; at most three heals per test by default.
+  A test that needs more than three swaps has drifted too far; RoboScope re-raises
+  the original failure instead of papering over it.</li>
+  <li><strong>Confidence threshold</strong> &mdash; each candidate has a quality score
+  (<code>testid</code> beats <code>aria</code> beats <code>text</code> beats raw XPath).
+  Mutating keywords (<code>Heal Click</code>, <code>Heal Fill Text</code>, etc.) need
+  0.7+; read-only probes (<code>Heal Get Text</code>) 0.5+.</li>
+  <li><strong>Per-call retry budget</strong> &mdash; one alternative, then give up. A
+  second failure is the real failure.</li>
+  <li><strong>Suspect classification</strong> &mdash; after the run, heals are
+  cross-referenced with each test's <code>output.xml</code> outcome. If the test passed,
+  the heal is <em>confirmed</em>; if it failed, the heal is <em>suspect</em> (the swap
+  may have clicked the wrong element, which is why the test still broke). Only
+  confirmed heals offer an Apply-Patch button.</li>
+</ul>
+<h4>Escape hatch: the <code>no-heal</code> tag</h4>
+<p>
+  Strict-CI runs can disable healing per-test by adding the <code>no-heal</code>
+  tag. The <code>Heal *</code> keywords then delegate straight to the underlying
+  Browser keyword without any retry — accurate pass/fail signal for flakiness
+  investigations.
+</p>`,
+        tip: 'Default thresholds, budgets, and the sidecar path are all configurable as Library-import arguments — no monkey-patching.'
+      },
+      {
+        id: 'self-healing-report',
+        title: 'Heal report on the run detail',
+        content: `
+<p>
+  Every successful heal is appended to <code>&lt;output_dir&gt;/heal_audit.jsonl</code>
+  with the timestamp, keyword, original selector, healed selector, confidence,
+  and source (sidecar / transposition / fingerprint). The run-detail panel
+  parses this file and renders a compact <strong>Self-healed selectors</strong>
+  card per run.
+</p>
+<ul>
+  <li><strong>🩹 Confirmed</strong> &mdash; the test passed after the heal. The card
+  offers two actions: <em>Copy patch</em> (unified-diff to your clipboard) and
+  <em>Apply patch</em> (editor+ only — writes the swap directly into the
+  <code>.robot</code> file with a path-traversal guard and ambiguity check).</li>
+  <li><strong>⚠️ Suspect</strong> &mdash; the test failed after the heal. The swap is
+  logged but <em>no</em> patch affordance is offered. Investigate before
+  accepting.</li>
+</ul>
+<h4>Apply-patch safety</h4>
+<p>
+  The <code>POST /runs/&#123;id&#125;/heal-report/&#123;idx&#125;/apply</code> endpoint
+  writes the patch atomically (temp file + rename), rejects suspect /
+  out-of-bounds / viewer calls, refuses to write if the original selector
+  line is missing or ambiguous in the target file, and is idempotent —
+  re-applying the same patch returns <code>applied: false</code>.
+</p>`,
+      },
+      {
+        id: 'self-healing-diagnosis',
+        title: 'Selector diagnosis on failed runs',
+        content: `
+<p>
+  Not every run uses <code>RoboScopeHeal</code>. For failed runs that did <em>not</em>
+  heal (or failed even after healing), RoboScope still helps: it scans the run
+  output for common locator-failure signatures (<em>Element '...' not found</em>,
+  <em>locator(...).click: Timeout</em>, <em>waiting for selector '...'</em>) and
+  looks each one up in the recording sidecar. A <strong>Selector diagnosis</strong>
+  card shows the failing selector + ranked alternative candidates from the
+  original recording — one click to copy, paste into your editor.
+</p>`,
+      },
+      {
+        id: 'self-healing-rate-kpi',
+        title: 'Heal-rate KPI',
+        content: `
+<p>
+  Healing is a leading indicator. A rising heal rate means the test suite is
+  drifting against the app; if you do nothing, tests will start failing
+  outright. The Stats overview surfaces this signal via the
+  <strong>🩹 Self-healed selectors</strong> card:
+</p>
+<ul>
+  <li>Big number: total heals in the selected time window.</li>
+  <li>Sub-line: how many of the runs in that window needed any healing.</li>
+  <li>Badges: confirmed vs suspect split.</li>
+  <li>Sparkline: per-day heal count across the window.</li>
+</ul>
+<p>
+  The card auto-hides when no runs occurred in the window — fresh installs stay
+  visually quiet.
+</p>`,
+        tip: 'Watch the suspect column. One or two suspects are normal (selector drift without enough signal to heal correctly). A steady stream of suspects means the fingerprint + transposition heuristics are wrong for your codebase — file an issue.'
+      },
+      {
+        id: 'flaky-quarantine',
+        title: 'Flaky-test quarantine',
+        content: `
+<p>
+  A test that sometimes passes and sometimes fails on the same commit is
+  <em>flaky</em>. RoboScope already detects these automatically (see the
+  <strong>Flaky tests</strong> table on the Statistics page), but detection alone
+  isn't actionable. <strong>Quarantine</strong> is:
+</p>
+<h4>Marking a test quarantined</h4>
+<ul>
+  <li>Open <strong>Statistics</strong>, scroll to the Flaky tests table.</li>
+  <li>Editor+ users see a <strong>Mute</strong> button in the Quarantine column.
+  Click it &rarr; the test is recorded as quarantined for the selected
+  repository.</li>
+  <li>The row picks up a <strong>🔕 Quarantined</strong> badge and sorts to the top
+  of the table so outstanding mutes stay visible.</li>
+  <li>A corresponding audit event lands in the audit log (who muted what, when,
+  why).</li>
+</ul>
+<h4>Runtime effect</h4>
+<p>
+  When a run is dispatched for a repository that has quarantine entries,
+  RoboScope registers a Robot Framework listener that inspects every
+  <code>start_test</code>. If the test name matches a quarantine entry, the
+  listener calls <code>BuiltIn().skip()</code>. The test shows as <code>SKIP</code>
+  in <code>output.xml</code> &mdash; not as <code>FAIL</code> &mdash; so CI summaries
+  stop drowning in known-flaky noise.
+</p>
+<h4>Unquarantine</h4>
+<p>
+  Toggling the same button (or deleting the row via the API) removes the
+  entry. No DB surgery, no config diffing.
+</p>`,
+        tip: 'Quarantine is always-on for rows that exist. The escape hatch for "let me see the flaky signal for this one CI run" is to unquarantine the specific rows before the run and re-quarantine after. A per-run opt-out flag is deferred to a future story.'
+      },
+      {
+        id: 'self-healing-ai-patches',
+        title: 'AI-generated patch suggestions',
+        content: `
+<p>
+  When you run <strong>Analyze failures</strong> on a report, the LLM is
+  asked to emit unified-diff patches alongside the prose root-cause
+  analysis wherever the fix is concrete enough. A second section
+  &mdash; <strong>Suggested patches</strong> &mdash; appears below the markdown
+  analysis with a per-file diff preview and a <em>Copy patch</em> button.
+</p>
+<p>
+  These patches are <em>suggestions</em> &mdash; never auto-applied. The
+  RoboScope app will not modify your repository unless you copy+paste the
+  diff yourself (or use the similar Apply-patch affordance that
+  <strong>confirmed</strong> runtime heals offer).
+</p>`,
+        tip: 'Ambiguous failures (flaky timing, infrastructure issues) never produce a patch block — the prompt explicitly instructs the LLM to stay with prose in those cases.'
+      },
+    ],
+  },
+
   // ─── 8. Environments ──────────────────────────────────────────────
   {
     id: 'environments',

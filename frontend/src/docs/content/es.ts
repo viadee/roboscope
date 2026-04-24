@@ -1249,6 +1249,167 @@ const es: DocsContent = [
   },
 
   // ─── 8. Entornos ──────────────────────────────────────────────────
+  // ─── 7.5 Auto-sanación y resiliencia ────────────────────────────
+  {
+    id: 'self-healing',
+    title: 'Auto-sanación y resiliencia',
+    icon: '🩹',
+    subsections: [
+      {
+        id: 'self-healing-overview',
+        title: 'Cómo funciona la auto-sanación',
+        content: `
+<p>
+  Los tests derivan. Un dev renombra <code>id=submit</code> a <code>id=submit-btn</code>,
+  o envuelve un botón en un nuevo <code>&lt;form&gt;</code>, y cada test que referenciaba
+  el locator antiguo se rompe. La librería de auto-sanación de RoboScope reintenta
+  los selectores fallidos en tiempo de ejecución contra el DOM vivo &mdash; el test
+  pasa mientras RoboScope registra el cambio para revisión.
+</p>
+<h4>Opt-in por keyword</h4>
+<p>
+  La auto-sanación no es automática. Importas la librería y usas la variante sanada
+  en lugar del keyword Browser simple:
+</p>
+<pre><code>*** Settings ***
+Library    Browser
+Library    RoboScopeHeal
+
+*** Test Cases ***
+Login Works
+    New Browser    chromium
+    New Page       https://app.example.com/login
+    Heal Fill Text    id=user      alice
+    Heal Fill Text    id=password  secret
+    Heal Click        id=submit
+    Get Text          .welcome-banner
+</code></pre>
+<h4>Tres niveles de fallback, en orden</h4>
+<ol>
+  <li><strong>Búsqueda en el sidecar</strong> &mdash; si el fichero <code>.robot</code> tiene
+  un hermano <code>&lt;name&gt;.rbs.json</code> del Recorder v2, RoboScope consulta la
+  lista de candidatos clasificados capturada en la grabación.</li>
+  <li><strong>Transposición de estrategia</strong> &mdash; <code>id=submit</code> prueba
+  <code>[data-testid=submit]</code>, <code>text=submit</code>, <code>css=input#submit</code>,
+  <code>role=button[name="submit"]</code>. Cada candidato se verifica contra el DOM
+  vivo via <code>Get Element Count</code> antes de probarlo &mdash; los no únicos / cero
+  coincidencias se descartan.</li>
+  <li><strong>Recorrido DOM por huella</strong> &mdash; último recurso. Si la grabación
+  guardó una huella (tag + id + testid + clases + rol + texto + cadena de ancestros),
+  RoboScope escanea los elementos interactivos y selecciona la mejor coincidencia
+  multi-señal por encima de un umbral.</li>
+</ol>`,
+        tip: 'La auto-sanación solo se dispara en errores de selector. Los fallos de aserción se propagan intactos — RoboScope se niega a tapar una regresión real con una sustitución silenciosa.'
+      },
+      {
+        id: 'self-healing-safety',
+        title: 'Sobre de seguridad',
+        content: `
+<p>
+  Hacer clic en el elemento equivocado en tiempo de ejecución es peor que fallar.
+  Cada operación pasa por cuatro barreras:
+</p>
+<ul>
+  <li><strong>Presupuesto por test</strong> &mdash; máximo tres sanaciones por defecto.</li>
+  <li><strong>Umbral de confianza</strong> &mdash; mutadores 0.7+; solo lectura 0.5+.</li>
+  <li><strong>Presupuesto de reintento por llamada</strong> &mdash; una alternativa.</li>
+  <li><strong>Clasificación de sospechosos</strong> &mdash; tras el run, las sanaciones se
+  cruzan con el resultado de cada test. Pasó → <em>confirmado</em>;
+  falló → <em>sospechoso</em>. Solo las confirmadas ofrecen botón Aplicar parche.</li>
+</ul>
+<h4>Válvula de escape: la etiqueta <code>no-heal</code></h4>
+<p>
+  Runs CI estrictos pueden desactivar la sanación por test añadiendo la etiqueta
+  <code>no-heal</code>. Los keywords <code>Heal *</code> delegan entonces directamente.
+</p>`,
+        tip: 'Umbrales, presupuestos y ruta del sidecar son todos configurables como argumentos de Library-import.'
+      },
+      {
+        id: 'self-healing-report',
+        title: 'Informe de sanaciones en el detalle del run',
+        content: `
+<p>
+  Cada sanación exitosa se añade a <code>&lt;output_dir&gt;/heal_audit.jsonl</code>.
+  El panel de detalle del run parsea este fichero y renderiza una tarjeta compacta
+  <strong>Selectores autoreparados</strong>.
+</p>
+<ul>
+  <li><strong>🩹 Confirmado</strong> &mdash; el test pasó. Ofrece <em>Copiar parche</em>
+  y <em>Aplicar parche</em> (solo Editor+).</li>
+  <li><strong>⚠️ Sospechoso</strong> &mdash; el test falló. <em>No</em> se ofrece botón
+  de parche.</li>
+</ul>
+<h4>Seguridad del Aplicar parche</h4>
+<p>
+  El endpoint escribe atómicamente (temp + rename), rechaza sospechosos / fuera de
+  rango / viewer, se niega si la línea del selector falta o es ambigua, y es
+  idempotente.
+</p>`,
+      },
+      {
+        id: 'self-healing-diagnosis',
+        title: 'Diagnóstico de selectores en runs fallidos',
+        content: `
+<p>
+  Para runs fallidos sin sanación, RoboScope sigue ayudando: escanea la salida buscando
+  firmas comunes de fallo de locator y busca cada una en el sidecar. Una tarjeta
+  <strong>Diagnóstico de selectores</strong> muestra el selector fallido y alternativas
+  clasificadas — un clic para copiar.
+</p>`,
+      },
+      {
+        id: 'self-healing-rate-kpi',
+        title: 'KPI de tasa de sanación',
+        content: `
+<p>
+  La sanación es un indicador adelantado. Una tasa creciente significa que la suite
+  está derivando. La vista general de Estadísticas expone esta señal vía la tarjeta
+  <strong>🩹 Selectores autoreparados</strong>: número grande, sub-línea con proporción
+  de runs, insignias confirmado/sospechoso, sparkline.
+</p>`,
+        tip: 'Vigila la columna Sospechosos. Un flujo constante significa que las heurísticas son incorrectas para tu base de código — abre una issue.'
+      },
+      {
+        id: 'flaky-quarantine',
+        title: 'Cuarentena de tests inestables',
+        content: `
+<p>
+  RoboScope detecta automáticamente los tests inestables en la tabla <strong>Tests
+  inestables</strong> de Estadísticas. La <strong>cuarentena</strong> permite marcarlos
+  para que se salten en ejecución.
+</p>
+<h4>Marcar un test en cuarentena</h4>
+<ul>
+  <li>Abre <strong>Estadísticas</strong>, localiza la tabla.</li>
+  <li>Editor+ ven un botón <strong>Silenciar</strong>. Clic → test registrado.</li>
+  <li>La fila recibe una insignia <strong>🔕 En cuarentena</strong>.</li>
+</ul>
+<h4>Efecto en tiempo de ejecución</h4>
+<p>
+  RoboScope registra un listener de Robot Framework que llama a
+  <code>BuiltIn().skip()</code> en tests coincidentes. Aparecen como <code>SKIP</code>
+  en <code>output.xml</code> — no como <code>FAIL</code>.
+</p>`,
+        tip: 'La cuarentena está siempre activa. Quitar vía el mismo botón.'
+      },
+      {
+        id: 'self-healing-ai-patches',
+        title: 'Parches sugeridos por IA',
+        content: `
+<p>
+  Al ejecutar <strong>Analizar fallos</strong>, el LLM emite parches unified-diff junto
+  al análisis en prosa cuando el arreglo es concreto. Una sección <strong>Parches
+  sugeridos</strong> aparece con vista previa del diff por fichero y botón
+  <em>Copiar parche</em>.
+</p>
+<p>
+  Estos parches son <em>sugerencias</em> — nunca se aplican automáticamente. RoboScope
+  no modificará tu repositorio sin acción explícita.
+</p>`,
+        tip: 'Los fallos ambiguos nunca producen un bloque de parche.'
+      },
+    ],
+  },
   {
     id: 'environments',
     title: 'Entornos',

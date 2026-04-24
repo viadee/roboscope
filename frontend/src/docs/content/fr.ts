@@ -1209,6 +1209,173 @@ const fr: DocsContent = [
   },
 
   // ─── 8. Environnements ──────────────────────────────────────────────
+  // ─── 7.5 Auto-guérison & Résilience ──────────────────────────────────
+  {
+    id: 'self-healing',
+    title: 'Auto-guérison & Résilience',
+    icon: '🩹',
+    subsections: [
+      {
+        id: 'self-healing-overview',
+        title: 'Comment fonctionne l’auto-guérison',
+        content: `
+<p>
+  Les tests dérivent. Un développeur renomme <code>id=submit</code> en
+  <code>id=submit-btn</code>, ou enveloppe un bouton dans un nouveau <code>&lt;form&gt;</code>,
+  et tous les tests qui référençaient l’ancien locator cassent. La bibliothèque
+  d’auto-guérison de RoboScope réessaie les sélecteurs en échec à l’exécution contre
+  le DOM vivant &mdash; le test réussit pendant que RoboScope enregistre la substitution
+  pour revue.
+</p>
+<h4>Opt-in par mot-clé</h4>
+<p>
+  L’auto-guérison n’est pas automatique. Importez la bibliothèque et utilisez la
+  variante guérie au lieu du mot-clé Browser standard :
+</p>
+<pre><code>*** Settings ***
+Library    Browser
+Library    RoboScopeHeal
+
+*** Test Cases ***
+Login Works
+    New Browser    chromium
+    New Page       https://app.example.com/login
+    Heal Fill Text    id=user      alice
+    Heal Fill Text    id=password  secret
+    Heal Click        id=submit
+    Get Text          .welcome-banner
+</code></pre>
+<h4>Trois étages de repli, dans l’ordre</h4>
+<ol>
+  <li><strong>Recherche dans le sidecar</strong> &mdash; si le fichier <code>.robot</code> a un
+  frère <code>&lt;name&gt;.rbs.json</code> du Recorder v2, RoboScope consulte la liste de
+  candidats classés captés à l’enregistrement.</li>
+  <li><strong>Transposition de stratégie</strong> &mdash; <code>id=submit</code> teste
+  <code>[data-testid=submit]</code>, <code>text=submit</code>, <code>css=input#submit</code>,
+  <code>role=button[name="submit"]</code>. Chaque candidat est vérifié sur le DOM vivant
+  via <code>Get Element Count</code> avant d’être essayé &mdash; les non-uniques / zéro
+  correspondance sont écartés.</li>
+  <li><strong>Parcours DOM par empreinte</strong> &mdash; dernier recours. Si l’enregistrement
+  a stocké une empreinte d’élément (tag + id + testid + classes + rôle + texte +
+  chaîne d’ancêtres), RoboScope scanne les éléments interactifs et choisit la meilleure
+  similarité multi-signaux au-dessus d’un seuil de confiance.</li>
+</ol>`,
+        tip: 'L’auto-guérison ne se déclenche que sur des erreurs de sélecteur (Element not found, timeout de locator). Les échecs d’assertion et autres erreurs se propagent intacts — RoboScope refuse de masquer une vraie régression par une substitution silencieuse.'
+      },
+      {
+        id: 'self-healing-safety',
+        title: 'Enveloppe de sécurité',
+        content: `
+<p>
+  Cliquer sur le mauvais élément à l’exécution est pire qu’échouer. Chaque opération
+  de guérison passe par quatre garde-fous :
+</p>
+<ul>
+  <li><strong>Budget par test</strong> &mdash; au plus trois guérisons par test par défaut.</li>
+  <li><strong>Seuil de confiance</strong> &mdash; les mots-clés modifiants exigent 0.7+,
+  les sondes en lecture seule 0.5+.</li>
+  <li><strong>Budget de réessai par appel</strong> &mdash; une alternative, puis abandon.</li>
+  <li><strong>Classification suspect</strong> &mdash; après le run, les guérisons sont
+  croisées avec le résultat de chaque test. Passé → <em>confirmé</em> ;
+  échoué → <em>suspect</em> (la substitution a peut-être cliqué le mauvais élément).
+  Seules les guérisons confirmées offrent un bouton Appliquer le patch.</li>
+</ul>
+<h4>Sortie de secours : le tag <code>no-heal</code></h4>
+<p>
+  Les exécutions CI strictes peuvent désactiver la guérison par test en ajoutant le
+  tag <code>no-heal</code>. Les mots-clés <code>Heal *</code> délèguent alors directement
+  sans aucune tentative.
+</p>`,
+        tip: 'Seuils par défaut, budgets et chemin du sidecar sont tous configurables en arguments à l’import de la Library.'
+      },
+      {
+        id: 'self-healing-report',
+        title: 'Rapport de guérison dans le détail du run',
+        content: `
+<p>
+  Chaque guérison réussie est ajoutée à <code>&lt;output_dir&gt;/heal_audit.jsonl</code>
+  avec l’horodatage, le mot-clé, le sélecteur d’origine, le sélecteur guéri, la
+  confiance et la source. Le panneau de détail du run parse ce fichier et affiche
+  une carte compacte <strong>Sélecteurs auto-guéris</strong>.
+</p>
+<ul>
+  <li><strong>🩹 Confirmé</strong> &mdash; le test est passé après la guérison. Propose
+  <em>Copier le patch</em> et <em>Appliquer le patch</em> (Editor+ uniquement).</li>
+  <li><strong>⚠️ Suspect</strong> &mdash; le test a échoué après la guérison. <em>Aucun</em>
+  bouton de patch n’est proposé.</li>
+</ul>
+<h4>Sécurité de l’application du patch</h4>
+<p>
+  L’endpoint écrit le patch atomiquement (fichier temp + rename), refuse les appels
+  suspects / hors bornes / viewer, refuse d’écrire si la ligne du sélecteur d’origine
+  est absente ou ambiguë, et est idempotent.
+</p>`,
+      },
+      {
+        id: 'self-healing-diagnosis',
+        title: 'Diagnostic de sélecteurs sur les runs en échec',
+        content: `
+<p>
+  Pour les runs en échec qui n’ont <em>pas</em> guéri, RoboScope aide encore : il
+  scanne la sortie du run à la recherche de signatures d’échec de locator et
+  recherche chacune dans le sidecar de l’enregistrement. Une carte
+  <strong>Diagnostic de sélecteurs</strong> montre le sélecteur en échec et les
+  alternatives classées — un clic pour copier.
+</p>`,
+      },
+      {
+        id: 'self-healing-rate-kpi',
+        title: 'KPI de taux de guérison',
+        content: `
+<p>
+  La guérison est un indicateur avancé. Un taux de guérison qui monte signifie que
+  la suite de tests dérive contre l’application. La vue d’ensemble des statistiques
+  affiche ce signal via la carte <strong>🩹 Sélecteurs auto-guéris</strong> : grand
+  nombre, sous-ligne avec part de runs, badges confirmés/suspects, sparkline.
+</p>`,
+        tip: 'Surveillez la colonne Suspect. Un flot constant signifie que les heuristiques sont fausses pour votre codebase — ouvrez un ticket.'
+      },
+      {
+        id: 'flaky-quarantine',
+        title: 'Quarantaine des tests instables',
+        content: `
+<p>
+  RoboScope détecte automatiquement les tests instables dans la table <strong>Tests
+  instables</strong> de la page Statistiques. La <strong>quarantaine</strong> permet de
+  les marquer pour qu’ils soient sautés à l’exécution.
+</p>
+<h4>Marquer un test en quarantaine</h4>
+<ul>
+  <li>Ouvrez <strong>Statistiques</strong>, localisez la table.</li>
+  <li>Editor+ voient un bouton <strong>Mettre en sourdine</strong>. Clic → test enregistré.</li>
+  <li>La ligne reçoit un badge <strong>🔕 En quarantaine</strong>.</li>
+</ul>
+<h4>Effet à l’exécution</h4>
+<p>
+  RoboScope enregistre un listener Robot Framework qui appelle <code>BuiltIn().skip()</code>
+  sur les tests correspondants. Ils apparaissent en <code>SKIP</code> dans
+  <code>output.xml</code> — pas en <code>FAIL</code>.
+</p>`,
+        tip: 'La quarantaine est toujours active. Lever via le même bouton.'
+      },
+      {
+        id: 'self-healing-ai-patches',
+        title: 'Patches générés par l’IA',
+        content: `
+<p>
+  Quand vous lancez <strong>Analyser les erreurs</strong>, le LLM émet des patches
+  unified-diff à côté de l’analyse en prose quand le correctif est suffisamment
+  concret. Une section <strong>Patches suggérés</strong> apparaît avec aperçu diff
+  par fichier et bouton <em>Copier le patch</em>.
+</p>
+<p>
+  Ces patches sont des <em>suggestions</em> — jamais appliqués automatiquement. La
+  RoboScope-App ne modifiera pas votre dépôt sans action explicite de votre part.
+</p>`,
+        tip: 'Les échecs ambigus ne produisent jamais de bloc de patch.'
+      },
+    ],
+  },
   {
     id: 'environments',
     title: 'Environnements',
