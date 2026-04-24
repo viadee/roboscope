@@ -120,13 +120,50 @@ class TestTagDerivation:
             "the transitive upgrade overwrites it."
         )
 
-    def test_dockerfile_force_pins_playwright_for_batteries_too(self) -> None:
-        # Same safety applies to robotframework-browser-batteries.
+    def test_batteries_uses_python_slim_not_ms_playwright_base(self) -> None:
+        """Story Playwright-fix-C — `robotframework-browser-batteries`
+        is self-contained (ships its own Playwright + browsers as wheel
+        contents). Using the MS Playwright image as the base sets
+        PLAYWRIGHT_BROWSERS_PATH=/ms-playwright, batteries inherits
+        that env var (its __init__ only assigns the fallback when
+        unset), and Playwright then tries to launch a binary build id
+        that doesn't match. Root fix: use python-slim and let batteries
+        manage its own bundle."""
         df = generate_dockerfile(
             python_version="3.12",
             packages=["robotframework-browser-batteries"],
         )
+        assert "FROM python:3.12-slim" in df, (
+            "batteries must use python-slim; MS Playwright base drags in "
+            "the PLAYWRIGHT_BROWSERS_PATH env that breaks batteries."
+        )
+        assert "mcr.microsoft.com/playwright" not in df
+        # No force-pin of `playwright` — not needed on python-slim
+        # since batteries brings its own bundle.
+        assert "playwright==" not in df
+
+    def test_standard_browser_still_uses_ms_playwright_base(self) -> None:
+        """Non-batteries robotframework-browser still needs the MS
+        Playwright image (Node runtime + system deps for rfbrowser init)."""
+        df = generate_dockerfile(
+            python_version="3.12",
+            packages=["robotframework-browser"],
+        )
+        assert "mcr.microsoft.com/playwright" in df
+        # Force-pin still applies on this path.
         assert f"'playwright=={playwright_pinned_version()}'" in df
+
+    def test_batteries_plus_other_packages_still_python_slim(self) -> None:
+        df = generate_dockerfile(
+            python_version="3.12",
+            packages=[
+                "robotframework",
+                "robotframework-browser-batteries",
+                "robotframework-requests",
+            ],
+        )
+        assert "FROM python:3.12-slim" in df
+        assert "mcr.microsoft.com/playwright" not in df
 
 
 # ---------------------------------------------------------------------------

@@ -501,9 +501,23 @@ def generate_dockerfile(
 
     if base_image:
         base = base_image
-    elif needs_browser_any:
-        # Playwright image tag derived from the installed `playwright`
-        # Python version — see `playwright_docker_base_image` docstring.
+    elif needs_batteries:
+        # Story Playwright-fix-C (2026-04-24): `robotframework-browser-
+        # batteries` ships its own Playwright + browser binaries inside
+        # the wheel. Using the Microsoft Playwright image as base ends
+        # in tears — that image sets PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+        # via a default env, batteries inherits it (its __init__.py
+        # only sets the fallback when the var is UNSET), and Playwright
+        # then tries to launch /ms-playwright/chromium_headless_shell-<X>
+        # where <X> is the MS image's build id — almost certainly ≠ the
+        # build id the batteries wheel expects. Solution: use plain
+        # python-slim and let batteries manage browsers itself.
+        base = f"python:{python_version}-slim"
+    elif needs_browser_standard:
+        # Standard robotframework-browser (non-batteries) is NOT
+        # self-contained — it calls `rfbrowser init` which uses the
+        # Microsoft Playwright image's pre-installed browsers and Node
+        # runtime. Keep the MS base here.
         base = playwright_docker_base_image()
     else:
         base = f"python:{python_version}-slim"
@@ -541,7 +555,11 @@ def generate_dockerfile(
     # the base image — `chromium.launch()` then aborts with
     # "Please update docker image as well" on the very first call.
     # Runs AFTER user packages so pip respects the pin.
-    if needs_browser_any and not base_image:
+    #
+    # Only applies to the standard `robotframework-browser` path, where
+    # we actually use the MS Playwright base image. Batteries ships its
+    # own bundle on top of python-slim — nothing to pin against.
+    if needs_browser_standard and not needs_batteries and not base_image:
         pinned = playwright_pinned_version()
 
         # Future-proof sanity check: does the pin still satisfy each
