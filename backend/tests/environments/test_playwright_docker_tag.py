@@ -34,6 +34,7 @@ import pytest
 from src.environments.service import (
     generate_dockerfile,
     playwright_docker_base_image,
+    playwright_pinned_version,
 )
 
 
@@ -72,6 +73,7 @@ class TestTagDerivation:
         )
         assert "python:3.12-slim" in df
         assert "mcr.microsoft.com/playwright" not in df
+        assert "playwright==" not in df  # no pin when no browser
 
     def test_explicit_base_image_wins(self) -> None:
         df = generate_dockerfile(
@@ -81,6 +83,50 @@ class TestTagDerivation:
         )
         assert "FROM custom/internal:pinned-42" in df
         assert "mcr.microsoft.com/playwright" not in df
+        # Explicit base image means the caller owns the version pairing —
+        # we don't double-install playwright.
+        assert "playwright==" not in df
+
+    def test_dockerfile_force_pins_playwright_matching_base_image(self) -> None:
+        """Regression — the incident that made this fix necessary.
+
+        Microsoft's playwright/python:v{X.Y.Z}-noble image carries
+        browser binaries for exactly that Playwright version. When the
+        user's packages (robotframework-browser) transitively upgrade
+        Python Playwright past {X.Y.Z}, the client-binary handshake
+        fails at chromium.launch() with 'Please update docker image
+        as well'.
+
+        The generated Dockerfile must therefore re-pin
+        `playwright==<X.Y.Z>` AFTER the user packages install.
+        """
+        df = generate_dockerfile(
+            python_version="3.12",
+            packages=["robotframework-browser"],
+        )
+        pinned = playwright_pinned_version()
+        # The pin line must exist.
+        assert f"'playwright=={pinned}'" in df, (
+            f"Dockerfile must force-pin playwright=={pinned} so "
+            f"transitive upgrades don't drift past the base image's "
+            f"browser binaries."
+        )
+        # And it must come AFTER the user package install so pip
+        # respects the pin.
+        install_block_end = df.find("robotframework-browser")
+        pin_index = df.find(f"'playwright=={pinned}'")
+        assert install_block_end < pin_index, (
+            "Force-pin must come after user package install; otherwise "
+            "the transitive upgrade overwrites it."
+        )
+
+    def test_dockerfile_force_pins_playwright_for_batteries_too(self) -> None:
+        # Same safety applies to robotframework-browser-batteries.
+        df = generate_dockerfile(
+            python_version="3.12",
+            packages=["robotframework-browser-batteries"],
+        )
+        assert f"'playwright=={playwright_pinned_version()}'" in df
 
 
 # ---------------------------------------------------------------------------

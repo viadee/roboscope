@@ -320,34 +320,50 @@ def _has_batteries_package(packages: list[str]) -> bool:
     return any(_strip_version(p) == "robotframework-browser-batteries" for p in packages)
 
 
-def playwright_docker_base_image() -> str:
-    """Return the Microsoft Playwright Python Docker tag that matches
-    the *currently installed* `playwright` Python package.
+def playwright_pinned_version() -> str:
+    """Return the Playwright Python version the Docker container must
+    be pinned to — derived from the currently installed backend package.
 
-    This is the single source of truth for the backend + Docker
-    alignment. The backend's own Playwright client does a protocol
-    handshake with the `headless_shell` binary bundled in the base
-    image; if the two minor versions drift, Playwright aborts at
-    launch with a `Please update docker image as well` banner. Deriving
-    the tag from the installed package guarantees `uv sync` and the
-    next docker build stay in lockstep.
-
-    Falls back to a safe recent pin when the introspection fails
-    (e.g. the process has an unusual packaging setup and
-    `importlib.metadata` can't find the dist). The fallback only
-    activates at generation time; live runs against a mismatched image
-    still fail loudly — good, because that's what we want tests to
-    catch.
+    Single source of truth used by both:
+      * `playwright_docker_base_image()` (chooses the matching browser binaries)
+      * the `uv pip install --system playwright==<ver>` pin that the
+        generated Dockerfile emits AFTER user packages, so transitive
+        upgrades (e.g. `robotframework-browser` pulling in a newer
+        playwright) can't push the Python client ahead of the base
+        image's browser binaries.
     """
     from importlib.metadata import PackageNotFoundError, version
 
     try:
-        ver = version("playwright").strip()
+        return version("playwright").strip()
     except PackageNotFoundError:
-        ver = "1.58.0"
-    # Microsoft tags releases as `v{X.Y.Z}-noble`. The scheme has been
-    # stable since v1.40 — safe to compose by string.
-    return f"mcr.microsoft.com/playwright/python:v{ver}-noble"
+        return "1.58.0"
+
+
+def playwright_docker_base_image() -> str:
+    """Return the Microsoft Playwright Python Docker tag that matches
+    the backend's installed `playwright` Python package.
+
+    Background — production incident 2026-04-24: the backend's
+    Playwright client does a protocol handshake with the
+    `headless_shell` binary bundled in the base image; a drift of
+    even one minor version aborts `chromium.launch()` with
+    "Please update docker image as well". Deriving the tag from the
+    installed package keeps `uv sync` and the next docker build in
+    lockstep.
+
+    Paired with `playwright_pinned_version()` — same version — which
+    gets re-installed inside the container so transitive upgrades via
+    robotframework-browser can't push the Python client ahead of the
+    browser binaries.
+
+    Falls back to v1.58.0 on introspection failure (unusual packaging
+    setups). Live runs against a mismatched image still fail loudly
+    — that is what the regression tests catch.
+    """
+    # Microsoft tags releases as `v{X.Y.Z}-noble`. Scheme stable since
+    # v1.40 — safe to compose by string.
+    return f"mcr.microsoft.com/playwright/python:v{playwright_pinned_version()}-noble"
 
 
 def generate_dockerfile(
@@ -401,6 +417,25 @@ def generate_dockerfile(
         suffix = "" if i == len(packages) - 1 else " \\"
         lines.append(f"    {pkg}{suffix}")
     lines.append("")
+
+    # Story Playwright-pin fix (2026-04-24): force-pin the Python
+    # `playwright` package back to the version the base image carries.
+    # Without this, `robotframework-browser` transitively upgrades
+    # Playwright past the version whose browser binaries are baked into
+    # the base image — `chromium.launch()` then aborts with
+    # "Please update docker image as well" on the very first call.
+    # Runs AFTER user packages so pip respects the pin.
+    if needs_browser_any and not base_image:
+        pinned = playwright_pinned_version()
+        lines.append(
+            f"# Force-align Python Playwright with the base image's "
+            f"browser binaries"
+        )
+        lines.append(
+            f"RUN uv pip install --system --no-cache-dir "
+            f"'playwright=={pinned}'"
+        )
+        lines.append("")
 
     # rfbrowser init — only for standard browser, NOT for batteries
     if needs_browser_standard:
