@@ -591,6 +591,12 @@ export default {
     lastStatus: 'Último estado',
     noFlaky: 'No se detectaron tests inestables. ¡Excelente!',
     runsTooltip: '{total} runs',
+    quarantine: {
+      column: 'Cuarentena',
+      quarantined: 'En cuarentena',
+      mute: 'Silenciar',
+      unmute: 'Quitar cuarentena',
+    },
     analysis: {
       tabOverview: 'Resumen',
       tabAnalysis: 'Análisis profundo',

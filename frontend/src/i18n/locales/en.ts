@@ -591,6 +591,12 @@ export default {
     lastStatus: 'Last Status',
     noFlaky: 'No flaky tests detected. Great!',
     runsTooltip: '{total} runs',
+    quarantine: {
+      column: 'Quarantine',
+      quarantined: 'Quarantined',
+      mute: 'Mute',
+      unmute: 'Unmute',
+    },
     analysis: {
       tabOverview: 'Overview',
       tabAnalysis: 'Deep Analysis',

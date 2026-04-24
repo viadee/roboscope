@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { AnalysisReport, FlakyTest, KpiMeta, OverviewKpi, SuccessRatePoint, TrendPoint } from '@/types/domain.types'
+import type { AnalysisReport, FlakyQuarantineEntry, FlakyTest, KpiMeta, OverviewKpi, SuccessRatePoint, TrendPoint } from '@/types/domain.types'
 
 export async function getOverview(params: { days?: number; repository_id?: number } = {}): Promise<OverviewKpi> {
   const response = await apiClient.get<OverviewKpi>('/stats/overview', { params })
@@ -19,6 +19,29 @@ export async function getTrends(params: { days?: number; repository_id?: number 
 export async function getFlakyTests(params: { days?: number; min_runs?: number; repository_id?: number } = {}): Promise<FlakyTest[]> {
   const response = await apiClient.get<FlakyTest[]>('/stats/flaky', { params })
   return response.data
+}
+
+// Story FLAKY-1 — flaky-test quarantine.
+
+export async function listFlakyQuarantine(
+  params: { repository_id?: number } = {},
+): Promise<FlakyQuarantineEntry[]> {
+  const response = await apiClient.get<FlakyQuarantineEntry[]>('/stats/quarantine', { params })
+  return response.data
+}
+
+export async function quarantineFlakyTest(data: {
+  repository_id: number
+  suite_name: string
+  test_name: string
+  reason?: string
+}): Promise<FlakyQuarantineEntry> {
+  const response = await apiClient.post<FlakyQuarantineEntry>('/stats/quarantine', data)
+  return response.data
+}
+
+export async function unquarantineFlakyTest(quarantineId: number): Promise<void> {
+  await apiClient.delete(`/stats/quarantine/${quarantineId}`)
 }
 
 export async function getDurationStats(params: { days?: number; repository_id?: number; limit?: number } = {}): Promise<any[]> {

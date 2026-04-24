@@ -3,6 +3,9 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useStatsStore } from '@/stores/stats.store'
 import { useReposStore } from '@/stores/repos.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { quarantineFlakyTest, unquarantineFlakyTest } from '@/api/stats.api'
+import type { FlakyTest } from '@/types/domain.types'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -12,7 +15,35 @@ import type { AnalysisReport, KpiMeta } from '@/types/domain.types'
 
 const stats = useStatsStore()
 const repos = useReposStore()
+const auth = useAuthStore()
 const { t } = useI18n()
+
+// Story FLAKY-1 — quarantine toggle state
+const togglingQuarantine = ref<Set<string>>(new Set())
+const flakyKey = (t: FlakyTest) => `${t.repository_id ?? 'x'}::${t.suite_name}::${t.test_name}`
+
+async function toggleQuarantine(test: FlakyTest) {
+  const key = flakyKey(test)
+  if (togglingQuarantine.value.has(key)) return
+  togglingQuarantine.value.add(key)
+  try {
+    if (test.is_quarantined && test.quarantine_id) {
+      await unquarantineFlakyTest(test.quarantine_id)
+    } else if (test.repository_id) {
+      await quarantineFlakyTest({
+        repository_id: test.repository_id,
+        suite_name: test.suite_name,
+        test_name: test.test_name,
+      })
+    }
+    await stats.fetchFlakyTests()
+  } catch {
+    // Surface via toast in a follow-up; silent no-op keeps scope tight
+    // and the view still usable.
+  } finally {
+    togglingQuarantine.value.delete(key)
+  }
+}
 
 const selectedDays = ref(30)
 const selectedRepoId = ref<number | null>(null)
@@ -373,10 +404,11 @@ function formatDate(d: string | null) {
                 <th>{{ t('stats.failed') }}</th>
                 <th>{{ t('stats.flakyRate') }}</th>
                 <th>{{ t('stats.lastStatus') }}</th>
+                <th>{{ t('stats.quarantine.column') }}</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="test in stats.flakyTests" :key="test.test_name">
+              <tr v-for="test in stats.flakyTests" :key="flakyKey(test)" :class="{ 'row-quarantined': test.is_quarantined }">
                 <td><strong>{{ test.test_name }}</strong></td>
                 <td class="text-muted text-sm">{{ test.suite_name }}</td>
                 <td>{{ test.total_runs }}</td>
@@ -386,6 +418,20 @@ function formatDate(d: string | null) {
                   <BaseBadge variant="warning">{{ formatPercent(test.flaky_rate) }}</BaseBadge>
                 </td>
                 <td><BaseBadge :status="test.last_status" /></td>
+                <td>
+                  <span v-if="test.is_quarantined" class="quarantine-badge">
+                    🔕 {{ t('stats.quarantine.quarantined') }}
+                  </span>
+                  <span v-else class="text-muted text-sm">—</span>
+                  <button
+                    v-if="auth.hasMinRole('editor') && test.repository_id"
+                    class="quarantine-btn"
+                    :disabled="togglingQuarantine.has(flakyKey(test))"
+                    @click="toggleQuarantine(test)"
+                  >
+                    {{ test.is_quarantined ? t('stats.quarantine.unmute') : t('stats.quarantine.mute') }}
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -1316,5 +1362,45 @@ function formatDate(d: string | null) {
 .stale-detail {
   color: var(--color-text-muted);
   font-size: 12px;
+}
+
+/* Story FLAKY-1 — quarantine column + row styling */
+.row-quarantined {
+  background: rgba(148, 163, 184, 0.08);
+}
+.row-quarantined td {
+  color: var(--color-text-muted);
+}
+.row-quarantined td strong {
+  text-decoration: line-through dotted rgba(148, 163, 184, 0.55);
+}
+.quarantine-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #fef3c7;
+  color: #854d0e;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 6px;
+}
+.quarantine-btn {
+  padding: 3px 9px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--color-text);
+  cursor: pointer;
+  margin-left: 4px;
+}
+.quarantine-btn:hover:not(:disabled) {
+  background: var(--color-primary, #3B7DD8);
+  color: white;
+  border-color: var(--color-primary, #3B7DD8);
+}
+.quarantine-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

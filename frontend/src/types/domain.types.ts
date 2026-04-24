@@ -277,6 +277,20 @@ export interface FlakyTest {
   fail_count: number
   flaky_rate: number
   last_status: string
+  // Story FLAKY-1 — quarantine state merged in server-side.
+  is_quarantined?: boolean
+  quarantine_id?: number | null
+  repository_id?: number | null
+}
+
+export interface FlakyQuarantineEntry {
+  id: number
+  repository_id: number
+  suite_name: string
+  test_name: string
+  reason: string | null
+  quarantined_by: number
+  quarantined_at: string
 }
 
 export interface AppSetting {

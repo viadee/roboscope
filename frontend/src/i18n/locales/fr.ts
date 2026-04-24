@@ -591,6 +591,12 @@ export default {
     lastStatus: 'Dernier statut',
     noFlaky: 'Aucun test instable détecté. Parfait !',
     runsTooltip: '{total} runs',
+    quarantine: {
+      column: 'Quarantaine',
+      quarantined: 'En quarantaine',
+      mute: 'Mettre en sourdine',
+      unmute: 'Lever la quarantaine',
+    },
     analysis: {
       tabOverview: 'Aperçu',
       tabAnalysis: 'Analyse approfondie',

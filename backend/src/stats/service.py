@@ -171,12 +171,15 @@ def get_flaky_tests(
     """Detect flaky tests (tests that alternate between pass and fail)."""
     since = date.today() - timedelta(days=days)
 
-    # Get all test results within the period
+    # Get all test results within the period, carrying repository_id
+    # through so we can match against the FlakyQuarantine table
+    # (Story FLAKY-1).
     query = (
         select(
             TestResult.test_name,
             TestResult.suite_name,
             TestResult.status,
+            ExecutionRun.repository_id,
         )
         .join(Report, TestResult.report_id == Report.id)
         .join(ExecutionRun, Report.execution_run_id == ExecutionRun.id)
@@ -188,21 +191,31 @@ def get_flaky_tests(
     result = db.execute(query)
     rows = result.all()
 
-    # Group by test name
-    test_map: dict[str, dict] = {}
+    # Group by (repo, suite, test) so results for the same name in
+    # different repos don't collide.
+    test_map: dict[tuple[int, str, str], dict] = {}
     for row in rows:
-        key = f"{row.suite_name}::{row.test_name}"
+        key = (row.repository_id, row.suite_name, row.test_name)
         if key not in test_map:
             test_map[key] = {
                 "test_name": row.test_name,
                 "suite_name": row.suite_name,
+                "repository_id": row.repository_id,
                 "statuses": [],
             }
         test_map[key]["statuses"].append(row.status)
 
-    # Find flaky tests
+    # Single shot: which (repo, suite, test) tuples are currently
+    # quarantined? Cheap — expected to be dozens of rows max.
+    from src.stats.models import FlakyQuarantine
+
+    quarantine_rows = db.execute(select(FlakyQuarantine)).scalars().all()
+    quarantine_index: dict[tuple[int, str, str], FlakyQuarantine] = {
+        (q.repository_id, q.suite_name, q.test_name): q for q in quarantine_rows
+    }
+
     flaky_tests: list[FlakyTest] = []
-    for key, data in test_map.items():
+    for (_repo_id, _suite, _test), data in test_map.items():
         statuses = data["statuses"]
         if len(statuses) < min_runs:
             continue
@@ -213,6 +226,9 @@ def get_flaky_tests(
         # A test is flaky if it has both passes and failures
         if pass_count > 0 and fail_count > 0:
             flaky_rate = min(pass_count, fail_count) / len(statuses)
+            q_row = quarantine_index.get(
+                (data["repository_id"], data["suite_name"], data["test_name"]),
+            )
             flaky_tests.append(FlakyTest(
                 test_name=data["test_name"],
                 suite_name=data["suite_name"],
@@ -221,10 +237,14 @@ def get_flaky_tests(
                 fail_count=fail_count,
                 flaky_rate=round(flaky_rate * 100, 1),
                 last_status=statuses[-1],
+                is_quarantined=q_row is not None,
+                quarantine_id=q_row.id if q_row is not None else None,
+                repository_id=data["repository_id"],
             ))
 
-    # Sort by flaky rate descending
-    flaky_tests.sort(key=lambda t: t.flaky_rate, reverse=True)
+    # Sort: quarantined tests first (so admins see outstanding muted
+    # items up top), then by flaky rate desc.
+    flaky_tests.sort(key=lambda t: (not t.is_quarantined, -t.flaky_rate))
     return flaky_tests
 
 

@@ -47,6 +47,28 @@ class FlakyTest(BaseModel):
     fail_count: int = 0
     flaky_rate: float = 0.0
     last_status: str = ""
+    # Story FLAKY-1 — quarantine surface so the UI can render the
+    # badge + swap the action button without a second fetch.
+    is_quarantined: bool = False
+    quarantine_id: int | None = None
+    repository_id: int | None = None
+
+
+class FlakyQuarantineCreate(BaseModel):
+    repository_id: int
+    suite_name: str
+    test_name: str
+    reason: str | None = None
+
+
+class FlakyQuarantineResponse(BaseModel):
+    id: int
+    repository_id: int
+    suite_name: str
+    test_name: str
+    reason: str | None
+    quarantined_by: int
+    quarantined_at: datetime
 
 
 class DurationStat(BaseModel):
