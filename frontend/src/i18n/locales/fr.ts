@@ -1160,6 +1160,11 @@ export default {
       extraNamed: 'nommés supplémentaires',
       defaultPlaceholder: 'défaut : {default}',
     },
+    addArgPicker: {
+      custom: 'Valeur personnalisée …',
+      noUnused: 'Tous les paramètres sont déjà ajoutés.',
+      namedHint: 'nommé',
+    },
     docModal: {
       title: 'Documentation du mot-clé',
       argsHeader: 'Arguments',

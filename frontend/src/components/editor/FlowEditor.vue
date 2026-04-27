@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, computed, nextTick } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -274,8 +274,29 @@ const selectorIsCustom = computed(() => {
   return data?.recording ? isCustomSelectorValue(data.step, data.recording) : false
 })
 
+/**
+ * Story EDITOR-9 — when a slot value starts with `name=`, find the
+ * matching arg spec by name (Robot Framework named-arg form). Falls
+ * back to positional lookup otherwise. Lets the detail panel label a
+ * `namespace=${vars}` slot as `namespace:` even though it sits at a
+ * positional index that would otherwise resolve to a different name.
+ */
+function specForSlot(index: number) {
+  const data = selectedNodeData.value
+  if (!data) return null
+  const value = data.step.args[index] ?? ''
+  const m = /^([A-Za-z_][\w]*)\s*=/.exec(value)
+  if (m && data.argSpecs) {
+    const named = data.argSpecs.find((s) => s.name === m[1])
+    if (named) return { spec: named, viaName: true as const }
+  }
+  return data.argSpecs?.[index] ? { spec: data.argSpecs[index], viaName: false as const } : null
+}
+
 // Story EDITOR-2 — per-arg label + default placeholder for the detail panel.
 function argLabelAt(index: number): string {
+  const r = specForSlot(index)
+  if (r?.viaName) return r.spec.name
   return getArgLabel(selectedNodeData.value?.argSpecs ?? null, index, t)
 }
 
@@ -300,26 +321,21 @@ function openDocModal() {
 }
 
 function argPlaceholderAt(index: number): string {
-  const spec = selectedNodeData.value?.argSpecs?.[index]
+  const r = specForSlot(index)
   // Prefer the bare default value as placeholder — terse, fits the
   // narrow input. The parameter-name label above carries the context.
-  if (spec?.defaultValue != null && spec.defaultValue !== '') {
-    return spec.defaultValue
+  if (r?.spec.defaultValue != null && r.spec.defaultValue !== '') {
+    return r.spec.defaultValue
   }
   return t('flowEditor.argLabels.fallback', { n: index + 1 })
 }
 
-// Story EDITOR-3 — friendly type lookup for a positional arg slot.
-// Memoized via a computed so each row resolves once per render rather
-// than the 6-8× the template would otherwise trigger.
-const argTypes = computed<FriendlyType[]>(() => {
-  const specs = selectedNodeData.value?.argSpecs ?? null
-  const args = selectedNodeData.value?.step.args ?? []
-  return args.map((_, i) => friendlyType(specs?.[i]?.type ?? null))
-})
-
+// Story EDITOR-3 / EDITOR-9 — friendly type lookup. Resolves via
+// `specForSlot` so a `name=value` slot uses the named spec's type,
+// not the positional spec at the same index.
 function argTypeAt(index: number): FriendlyType {
-  return argTypes.value[index] ?? friendlyType(null)
+  const r = specForSlot(index)
+  return friendlyType(r?.spec.type ?? null)
 }
 
 function argTooltipAt(index: number): string | undefined {
@@ -365,6 +381,97 @@ function addArg() {
   updateStepFromNode(props.form, selectedNodeData.value)
   rebuildAndReselect()
 }
+
+// --- Story EDITOR-9: named-parameter picker on "+ Add argument" -------
+
+const addArgPickerOpen = ref(false)
+
+interface AddArgOption {
+  name: string
+  defaultValue: string | null
+  isNextPositional: boolean
+}
+
+/**
+ * Build the picker option list from the keyword's signature minus the
+ * names already filled (positionally OR via `name=` form). `*args` /
+ * `**kwargs` slots are excluded — power users reach them via the
+ * "Custom value" fallback (story AC9).
+ */
+const addArgOptions = computed<AddArgOption[]>(() => {
+  const data = selectedNodeData.value
+  if (!data?.argSpecs) return []
+  const args = data.step.args
+  const usedNames = new Set<string>()
+  for (let i = 0; i < args.length; i++) {
+    const v = args[i]
+    const m = /^([A-Za-z_][\w]*)\s*=/.exec(v)
+    if (m) {
+      usedNames.add(m[1])
+    } else {
+      const positional = data.argSpecs[i]
+      if (positional && (positional.kind === 'positional' || positional.kind === 'optional')) {
+        usedNames.add(positional.name)
+      }
+    }
+  }
+  const out: AddArgOption[] = []
+  for (let i = 0; i < data.argSpecs.length; i++) {
+    const s = data.argSpecs[i]
+    if (s.kind !== 'positional' && s.kind !== 'optional') continue
+    if (!s.name || usedNames.has(s.name)) continue
+    out.push({
+      name: s.name,
+      defaultValue: s.defaultValue,
+      isNextPositional: i === args.length,
+    })
+  }
+  return out
+})
+
+function toggleAddArgPicker() {
+  addArgPickerOpen.value = !addArgPickerOpen.value
+}
+
+function pickAddArg(opt: AddArgOption) {
+  if (!selectedNodeData.value) return
+  // Next positional → bare value (RF reads positionally, label resolves
+  // by index). Otherwise write a named arg `name=` so RF doesn't depend
+  // on order, and `specForSlot` will pick up the spec by name.
+  const value = opt.isNextPositional ? '' : `${opt.name}=`
+  selectedNodeData.value.step.args.push(value)
+  updateStepFromNode(props.form, selectedNodeData.value)
+  rebuildAndReselect()
+  addArgPickerOpen.value = false
+}
+
+function pickCustomArg() {
+  addArg()
+  addArgPickerOpen.value = false
+}
+
+let addArgDocListenerBound = false
+function onAddArgDocClick(e: MouseEvent) {
+  const t = e.target
+  if (!(t instanceof Element)) return
+  if (t.closest('.flow-add-arg-wrap')) return
+  addArgPickerOpen.value = false
+}
+function bindAddArgDocClick() {
+  if (addArgDocListenerBound) return
+  document.addEventListener('click', onAddArgDocClick)
+  addArgDocListenerBound = true
+}
+function unbindAddArgDocClick() {
+  if (!addArgDocListenerBound) return
+  document.removeEventListener('click', onAddArgDocClick)
+  addArgDocListenerBound = false
+}
+watch(addArgPickerOpen, (open) => {
+  if (open) bindAddArgDocClick()
+  else unbindAddArgDocClick()
+})
+onUnmounted(unbindAddArgDocClick)
 function removeArg(index: number) {
   if (!selectedNodeData.value) return
   selectedNodeData.value.step.args.splice(index, 1)
@@ -828,9 +935,14 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
             >{{ argLabelAt(i) }}:</span>
             <!-- Story EDITOR-3: friendly type chip (icon + localised label),
                  raw type in tooltip. Hidden whenever the SelectorPicker
-                 actually replaces the input for this slot. -->
+                 actually replaces the input for this slot, AND hidden
+                 (Story EDITOR-10) when the type bucket is the generic
+                 "unknown" — that chip shows "? Value" which is noise,
+                 not information. The parameter-name label still carries
+                 the title-attribute tooltip with the raw type if any. -->
             <span
-              v-if="!(i === 0 && selectorPickerVisible && selectedNodeData.recording)"
+              v-if="!(i === 0 && selectorPickerVisible && selectedNodeData.recording)
+                    && argTypeAt(i).labelKey !== 'flowEditor.argTypes.unknown'"
               class="flow-arg-type-chip"
               :title="argTooltipAt(i)"
               data-testid="arg-type-chip"
@@ -913,7 +1025,49 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
             </template>
             <button class="flow-btn-remove" @click="removeArg(i)">&times;</button>
           </div>
-          <button class="flow-btn-add" @click="addArg">+ {{ t('flowEditor.addArg') }}</button>
+          <!-- Story EDITOR-9: "+ Add argument" → small picker of unused
+               named parameters; "Custom value" appends an empty positional
+               slot for keywords with no signature. -->
+          <div class="flow-add-arg-wrap">
+            <button class="flow-btn-add" type="button" @click="toggleAddArgPicker">
+              + {{ t('flowEditor.addArg') }}
+              <span v-if="addArgOptions.length > 0" class="flow-add-arg-caret">▾</span>
+            </button>
+            <div
+              v-if="addArgPickerOpen"
+              class="flow-add-arg-popover"
+              role="listbox"
+              data-testid="add-arg-popover"
+            >
+              <div v-if="addArgOptions.length === 0" class="flow-add-arg-empty">
+                {{ t('flowEditor.addArgPicker.noUnused') }}
+              </div>
+              <button
+                v-for="opt in addArgOptions"
+                :key="opt.name"
+                type="button"
+                class="flow-add-arg-option"
+                :data-testid="`add-arg-option-${opt.name}`"
+                @click="pickAddArg(opt)"
+              >
+                <span class="flow-add-arg-option-name">{{ opt.name }}</span>
+                <span v-if="opt.defaultValue !== null" class="flow-add-arg-option-default">
+                  = {{ opt.defaultValue }}
+                </span>
+                <span v-if="!opt.isNextPositional" class="flow-add-arg-option-named">
+                  {{ t('flowEditor.addArgPicker.namedHint') }}
+                </span>
+              </button>
+              <button
+                type="button"
+                class="flow-add-arg-option flow-add-arg-option--custom"
+                data-testid="add-arg-custom"
+                @click="pickCustomArg"
+              >
+                {{ t('flowEditor.addArgPicker.custom') }}
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Return variables (assignment) -->
@@ -1238,6 +1392,84 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   flex-shrink: 0;
   cursor: pointer;
   accent-color: var(--color-primary, #3B7DD8);
+}
+/* Story EDITOR-9 — named-arg picker popover */
+.flow-add-arg-wrap {
+  position: relative;
+  display: inline-block;
+  margin-top: 2px;
+}
+.flow-add-arg-caret {
+  font-size: 10px;
+  margin-left: 2px;
+  opacity: 0.7;
+}
+.flow-add-arg-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 200px;
+  max-width: 280px;
+  background: #fff;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.10);
+  padding: 4px 0;
+  z-index: 1000;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.flow-add-arg-option {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--color-text, #1A2D50);
+  cursor: pointer;
+}
+.flow-add-arg-option:hover {
+  background: var(--color-bg, #F4F7FA);
+}
+.flow-add-arg-option-name {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+.flow-add-arg-option-default {
+  flex: 1;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--color-text-muted, #5A6380);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.flow-add-arg-option-named {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-accent, #D4883E);
+  font-family: var(--font-sans, sans-serif);
+  flex-shrink: 0;
+}
+.flow-add-arg-option--custom {
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  margin-top: 2px;
+  font-style: italic;
+  color: var(--color-text-muted, #5A6380);
+  font-family: var(--font-sans, sans-serif);
+  font-size: 11px;
+}
+.flow-add-arg-empty {
+  padding: 6px 10px;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--color-text-muted, #5A6380);
 }
 .flow-selector-picker-wrap {
   flex: 1;

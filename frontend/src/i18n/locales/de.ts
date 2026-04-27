@@ -1160,6 +1160,11 @@ export default {
       extraNamed: 'weitere Schlüsselwortargumente',
       defaultPlaceholder: 'Standard: {default}',
     },
+    addArgPicker: {
+      custom: 'Eigener Wert …',
+      noUnused: 'Alle Parameter bereits hinzugefügt.',
+      namedHint: 'benannt',
+    },
     docModal: {
       title: 'Keyword-Dokumentation',
       argsHeader: 'Argumente',
