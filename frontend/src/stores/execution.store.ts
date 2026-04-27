@@ -17,19 +17,28 @@ export const useExecutionStore = defineStore('execution', () => {
     runs.value.filter((r) => r.status === 'pending' || r.status === 'running')
   )
 
-  async function fetchRuns(params: { page?: number; repository_id?: number; status?: string } = {}) {
-    loading.value = true
+  async function fetchRuns(
+    params: { page?: number; repository_id?: number; status?: string; silent?: boolean } = {},
+  ) {
+    // `silent: true` skips the global loading flag — used by the
+    // 5-second auto-poll on the Executions page so the spinner +
+    // hidden table don't repeatedly layout-shift the user back to
+    // scroll-top while they're reading the list. The first load and
+    // any user-initiated fetch (filter, page change) keep the flag.
+    const setLoading = !params.silent
+    if (setLoading) loading.value = true
     try {
       const response = await executionApi.getRuns({
         page: params.page || currentPage.value,
         page_size: pageSize.value,
-        ...params,
+        repository_id: params.repository_id,
+        status: params.status,
       })
       runs.value = response.items
       totalRuns.value = response.total
       currentPage.value = response.page
     } finally {
-      loading.value = false
+      if (setLoading) loading.value = false
     }
   }
 

@@ -152,7 +152,10 @@ function startPolling() {
   if (pollTimer) return
   pollTimer = setInterval(() => {
     if (execution.activeRuns.length > 0) {
-      execution.fetchRuns()
+      // silent: true → no global loading flag during the poll, which
+      // means the table stays mounted and the browser doesn't reset
+      // scroll position to the top of the page on each tick.
+      execution.fetchRuns({ silent: true })
     } else {
       stopPolling()
     }
