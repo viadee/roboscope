@@ -92,3 +92,13 @@ so that **I understand what kind of value the parameter expects (text, number, o
 ## Risk notes
 - **Don't over-translate.** Resist the urge to translate `JsonReply` / `BrowserContext` / library-specific types. They land in the `argTypes.unknown` bucket with the raw type in the tooltip — that's the right answer.
 - **Boolean round-tripping.** Robot Framework accepts `True`/`False`/`yes`/`no`/`on`/`off`. We pick `True`/`False` as the canonical write form because it is the most common and reads cleanly in the source. Reading existing `.robot` files needs to handle the others as truthy/falsy when populating the checkbox initial state — add 4-5 cases for that.
+
+## Review fixes applied
+- **M1** — `select` control prepends an extra "(custom)" option when `args[i]` already holds a value not in `Literal[...]` choices, so legacy values stay visible and aren't silently overwritten.
+- **M2** — typed inputs (`checkbox`, `select`, `number`, `duration`) fall back to plain text whenever `args[i]` is a Robot Framework variable reference (`${VAR}`, `@{LIST}`, `&{DICT}`). New `isVariableRef()` helper. Prevents `${TRUE}` getting nuked to literal `False` on the first checkbox toggle.
+- **M3** — `friendlyType` now handles `Optional[T]` (PEP 484 spelling) and arbitrary unions (3-way `int | None | str`, `None | T`, etc.). New `splitTopLevel(body, sep)` helper for bracket-aware splitting.
+- **S2** — `parseLiteralChoices` upgraded: outer regex captures up to the LAST `]` (so nested brackets in choice values work), state machine honours `\\` escapes, and a depth counter ignores commas inside nested brackets.
+- **S3** — `argTypes` is now a `computed` so each render resolves once per row instead of 6-8× from inline template usages.
+- **N3** — chip guard tightened to mirror the picker guard (`!(i === 0 && selectorPickerVisible && selectedNodeData.recording)`).
+- **N4** — select-placeholder option is now `disabled hidden` so users can't accidentally clear via keyboard nav.
+- 6 new test cases (3 `friendlyType` review-fix cases + 2 `isVariableRef` + 1 already counted in the original commit's 19); full suite 325/325.

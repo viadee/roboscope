@@ -3,6 +3,7 @@ import {
   parseArgSignature,
   getArgLabel,
   friendlyType,
+  isVariableRef,
   readBoolValue,
   writeBoolValue,
   type ParsedArg,
@@ -320,5 +321,46 @@ describe('boolean read/write helpers (Story EDITOR-3)', () => {
   it('writes the canonical True / False capitalisation', () => {
     expect(writeBoolValue(true)).toBe('True')
     expect(writeBoolValue(false)).toBe('False')
+  })
+})
+
+describe('friendlyType (review fixes M3 + S2)', () => {
+  it('handles Optional[T] (PEP 484 alternative spelling)', () => {
+    const ft = friendlyType('Optional[int]')
+    expect(ft.control).toBe('integer')
+    expect(ft.optional).toBe(true)
+    expect(ft.raw).toBe('Optional[int]')
+  })
+
+  it('handles 3-way unions like int | None | str (None in middle)', () => {
+    const ft = friendlyType('int | None | str')
+    expect(ft.optional).toBe(true)
+    // After stripping `None`, the remainder is `int | str` — not a
+    // recognised single type, falls through to unknown but keeps optional.
+    expect(ft.labelKey).toBe('flowEditor.argTypes.unknown')
+  })
+
+  it('parses Literal with nested brackets in the values', () => {
+    const ft = friendlyType("Literal['a[1]', 'b']")
+    expect(ft.control).toBe('select')
+    expect(ft.choices).toEqual(['a[1]', 'b'])
+  })
+})
+
+describe('isVariableRef', () => {
+  it('matches RF variable shapes', () => {
+    expect(isVariableRef('${TRUE}')).toBe(true)
+    expect(isVariableRef('${some var}')).toBe(true)
+    expect(isVariableRef('@{LIST}')).toBe(true)
+    expect(isVariableRef('&{DICT}')).toBe(true)
+    expect(isVariableRef('  ${X}  ')).toBe(true)
+  })
+
+  it('rejects plain values', () => {
+    expect(isVariableRef('text=foo')).toBe(false)
+    expect(isVariableRef('True')).toBe(false)
+    expect(isVariableRef('')).toBe(false)
+    expect(isVariableRef(undefined)).toBe(false)
+    expect(isVariableRef(null)).toBe(false)
   })
 })

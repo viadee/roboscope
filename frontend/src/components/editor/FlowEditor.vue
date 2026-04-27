@@ -20,6 +20,7 @@ import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
 import {
   getArgLabel,
   friendlyType,
+  isVariableRef,
   readBoolValue,
   writeBoolValue,
   type FriendlyType,
@@ -309,15 +310,37 @@ function argPlaceholderAt(index: number): string {
 }
 
 // Story EDITOR-3 — friendly type lookup for a positional arg slot.
+// Memoized via a computed so each row resolves once per render rather
+// than the 6-8× the template would otherwise trigger.
+const argTypes = computed<FriendlyType[]>(() => {
+  const specs = selectedNodeData.value?.argSpecs ?? null
+  const args = selectedNodeData.value?.step.args ?? []
+  return args.map((_, i) => friendlyType(specs?.[i]?.type ?? null))
+})
+
 function argTypeAt(index: number): FriendlyType {
-  const spec = selectedNodeData.value?.argSpecs?.[index]
-  return friendlyType(spec?.type ?? null)
+  return argTypes.value[index] ?? friendlyType(null)
 }
 
 function argTooltipAt(index: number): string | undefined {
   const ft = argTypeAt(index)
   if (!ft.raw) return undefined
   return ft.raw + (ft.optional ? t('flowEditor.argTypes.optionalSuffix') : '')
+}
+
+/**
+ * Story EDITOR-3 — when the user has a Robot Framework variable ref
+ * (`${TRUE}`, `${SELECTED}`) in the slot, fall back to the plain text
+ * input even for typed slots. A naive checkbox would read `${TRUE}` as
+ * falsy and overwrite the variable reference with literal `False` on
+ * the first toggle — silent data loss.
+ */
+function effectiveControl(index: number): FriendlyType['control'] {
+  const ctrl = argTypeAt(index).control
+  if (ctrl === 'text') return ctrl
+  const v = selectedNodeData.value?.step.args[index]
+  if (isVariableRef(v)) return 'text'
+  return ctrl
 }
 
 // Bool control round-trip: value may be 'True', 'true', 'yes', 'on', '1'
@@ -804,10 +827,10 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
               :title="selectedNodeData.argSpecs?.[i]?.type ?? undefined"
             >{{ argLabelAt(i) }}:</span>
             <!-- Story EDITOR-3: friendly type chip (icon + localised label),
-                 raw type in tooltip. Hidden for the first-arg selector slot
-                 where the SelectorPicker carries its own visual context. -->
+                 raw type in tooltip. Hidden whenever the SelectorPicker
+                 actually replaces the input for this slot. -->
             <span
-              v-if="!(i === 0 && selectorPickerVisible)"
+              v-if="!(i === 0 && selectorPickerVisible && selectedNodeData.recording)"
               class="flow-arg-type-chip"
               :title="argTooltipAt(i)"
               data-testid="arg-type-chip"
@@ -828,10 +851,12 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
                 </span>
               </div>
             </template>
-            <!-- Story EDITOR-3: typed input control by friendlyType().control -->
+            <!-- Story EDITOR-3: typed input control by friendlyType().control,
+                 with `effectiveControl(i)` falling back to `text` for RF
+                 variable refs to preserve `${VAR}` round-tripping. -->
             <template v-else>
               <input
-                v-if="argTypeAt(i).control === 'checkbox'"
+                v-if="effectiveControl(i) === 'checkbox'"
                 type="checkbox"
                 class="flow-input-checkbox"
                 :checked="isBoolChecked(i)"
@@ -839,13 +864,21 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
                 :data-testid="`arg-bool-${i}`"
               />
               <select
-                v-else-if="argTypeAt(i).control === 'select'"
+                v-else-if="effectiveControl(i) === 'select'"
                 v-model="selectedNodeData.step.args[i]"
                 class="flow-input flow-input-sm"
                 :data-testid="`arg-select-${i}`"
                 @change="onStepFieldChange"
               >
-                <option value="">{{ argPlaceholderAt(i) }}</option>
+                <!-- Pre-existing custom value the user typed before
+                     EDITOR-3 landed (or any value not in the choice
+                     list). Render it as an option so it stays visible
+                     and isn't silently overwritten on next pick. -->
+                <option
+                  v-if="selectedNodeData.step.args[i] && !(argTypeAt(i).choices ?? []).includes(selectedNodeData.step.args[i])"
+                  :value="selectedNodeData.step.args[i]"
+                >{{ selectedNodeData.step.args[i] }} ({{ t('flowEditor.argTypes.customValue') }})</option>
+                <option value="" disabled hidden>{{ argPlaceholderAt(i) }}</option>
                 <option
                   v-for="choice in (argTypeAt(i).choices ?? [])"
                   :key="choice"
@@ -853,17 +886,17 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
                 >{{ choice }}</option>
               </select>
               <input
-                v-else-if="argTypeAt(i).control === 'integer' || argTypeAt(i).control === 'number'"
+                v-else-if="effectiveControl(i) === 'integer' || effectiveControl(i) === 'number'"
                 v-model="selectedNodeData.step.args[i]"
                 type="number"
-                :step="argTypeAt(i).control === 'integer' ? '1' : 'any'"
+                :step="effectiveControl(i) === 'integer' ? '1' : 'any'"
                 inputmode="decimal"
                 class="flow-input flow-input-sm"
                 :placeholder="argPlaceholderAt(i)"
                 @change="onStepFieldChange"
               />
               <input
-                v-else-if="argTypeAt(i).control === 'duration'"
+                v-else-if="effectiveControl(i) === 'duration'"
                 v-model="selectedNodeData.step.args[i]"
                 class="flow-input flow-input-sm"
                 :placeholder="argPlaceholderAt(i) || t('flowEditor.argTypes.durationHint')"

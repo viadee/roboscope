@@ -1179,6 +1179,7 @@ export default {
       collection: 'Lista / mapa',
       unknown: 'Valor',
       optionalSuffix: ' (opcional)',
+      customValue: 'personalizado',
     },
   },
   robotEditor: {

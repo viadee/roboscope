@@ -1179,6 +1179,7 @@ export default {
       collection: 'List / map',
       unknown: 'Value',
       optionalSuffix: ' (optional)',
+      customValue: 'custom',
     },
   },
   robotEditor: {

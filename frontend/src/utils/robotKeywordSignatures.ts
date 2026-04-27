@@ -162,22 +162,62 @@ export interface FriendlyType {
   raw: string
 }
 
+/**
+ * Split `body` on `sep` at top scope only — i.e. ignore separators
+ * inside brackets `(…)` `[…]` `{…}` and inside string literals.
+ */
+function splitTopLevel(body: string, sep: string): string[] {
+  const out: string[] = []
+  let cur = ''
+  let depth = 0
+  let inS = false, inD = false
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i]
+    if ((inS || inD) && c === '\\' && i + 1 < body.length) { cur += c + body[i + 1]; i++; continue }
+    if (inS) { if (c === "'") inS = false; cur += c; continue }
+    if (inD) { if (c === '"') inD = false; cur += c; continue }
+    if (c === "'") { inS = true; cur += c; continue }
+    if (c === '"') { inD = true; cur += c; continue }
+    if (c === '[' || c === '(' || c === '{') { depth++; cur += c; continue }
+    if (c === ']' || c === ')' || c === '}') { depth--; cur += c; continue }
+    if (depth === 0 && c === sep) { out.push(cur); cur = ''; continue }
+    cur += c
+  }
+  out.push(cur)
+  return out
+}
+
 function parseLiteralChoices(t: string): string[] | null {
-  // Match Literal['a', 'b'] / Literal["a","b"] / OneOf['a','b'] etc.
-  const m = /^(?:Literal|OneOf)\s*\[\s*([^\]]*)\]\s*$/i.exec(t)
+  // Match Literal[...] / OneOf[...] — capture from the first `[` to the
+  // LAST `]` so nested brackets in choice values (e.g. `'a[1]'`) survive.
+  const m = /^(?:Literal|OneOf)\s*\[(.+)\]\s*$/is.exec(t)
   if (!m) return null
   const inner = m[1].trim()
   if (!inner) return []
-  // Split on commas not inside quotes — simple state machine.
+  // Split on commas at top level (not inside quotes / brackets).
+  // Honours `\\` as the escape character inside string literals.
   const out: string[] = []
   let cur = ''
-  let inS = false, inD = false
-  for (const c of inner) {
+  let inS = false, inD = false, depth = 0
+  for (let i = 0; i < inner.length; i++) {
+    const c = inner[i]
+    if ((inS || inD) && c === '\\' && i + 1 < inner.length) {
+      // Pass through escape + the following char unchanged.
+      cur += c + inner[i + 1]
+      i++
+      continue
+    }
     if (inS) { if (c === "'") inS = false; else cur += c; continue }
     if (inD) { if (c === '"') inD = false; else cur += c; continue }
     if (c === "'") { inS = true; continue }
     if (c === '"') { inD = true; continue }
-    if (c === ',') { if (cur.trim()) out.push(cur.trim()); cur = ''; continue }
+    if (c === '[' || c === '(' || c === '{') { depth++; cur += c; continue }
+    if (c === ']' || c === ')' || c === '}') { depth--; cur += c; continue }
+    if (c === ',' && depth === 0) {
+      if (cur.trim()) out.push(cur.trim())
+      cur = ''
+      continue
+    }
     cur += c
   }
   if (cur.trim()) out.push(cur.trim())
@@ -191,12 +231,25 @@ function parseLiteralChoices(t: string): string[] | null {
  */
 export function friendlyType(rawType: string | null | undefined): FriendlyType {
   const raw = (rawType ?? '').trim()
-  // `T | None` → recurse on T and flag optional.
-  const noneUnion = /^\s*(.+?)\s*\|\s*None\s*$|^\s*None\s*\|\s*(.+?)\s*$/.exec(raw)
-  if (noneUnion) {
-    const inner = (noneUnion[1] ?? noneUnion[2] ?? '').trim()
-    const recurse = friendlyType(inner)
-    return { ...recurse, optional: true, raw }
+
+  // `Optional[T]` → recurse on T and flag optional.
+  const optWrap = /^Optional\s*\[\s*(.+)\s*\]\s*$/is.exec(raw)
+  if (optWrap) {
+    const inner = friendlyType(optWrap[1])
+    return { ...inner, optional: true, raw }
+  }
+
+  // Union types: `T | None`, `None | T`, `T | None | U`, `int | str` …
+  // Split at the top level (ignore `|` inside brackets) and treat any
+  // `None` member as the optional-flag signal. Recurse on the remainder.
+  if (raw.includes('|')) {
+    const parts = splitTopLevel(raw, '|').map((p) => p.trim()).filter(Boolean)
+    const hasNone = parts.some((p) => p === 'None')
+    if (hasNone && parts.length > 1) {
+      const rest = parts.filter((p) => p !== 'None').join(' | ')
+      const inner = friendlyType(rest)
+      return { ...inner, optional: true, raw }
+    }
   }
 
   // Strip leading `*` / `**` for varargs/kwargs typed shapes — though
@@ -265,6 +318,18 @@ export function readBoolValue(v: string | undefined): boolean {
 /** Canonical write form for booleans we round-trip into `.robot` source. */
 export function writeBoolValue(b: boolean): 'True' | 'False' {
   return b ? 'True' : 'False'
+}
+
+/**
+ * True when `v` looks like a Robot Framework variable reference
+ * (`${VAR}`, `@{LIST}`, `&{DICT}`). Used by typed input controls to fall
+ * back to a plain text input — replacing `${TRUE}` with the literal
+ * `False` because a checkbox naively read `${TRUE}` as falsy would be
+ * silent data loss.
+ */
+export function isVariableRef(v: string | undefined | null): boolean {
+  if (!v) return false
+  return /^[$@&]\{.+\}$/.test(v.trim())
 }
 
 /**
