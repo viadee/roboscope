@@ -90,7 +90,8 @@ function makeStep(type: StepType = 'keyword'): RobotStep {
 }
 
 // --- State ---
-const activeTab = ref<'visual' | 'flow' | 'code'>('visual')
+// Story EDITOR-5 — Flow is the leftmost / default tab in the explorer.
+const activeTab = ref<'visual' | 'flow' | 'code'>('flow')
 const parseError = ref<string | null>(null)
 const codeEditorContainer = ref<HTMLElement | null>(null)
 const codeEditorView = shallowRef<EditorView | null>(null)
@@ -1595,13 +1596,14 @@ watch(() => props.content, (newContent) => {
 <template>
   <div class="robot-editor">
     <!-- Tab Bar -->
+    <!-- Story EDITOR-5: Flow first (leftmost) — it's the primary view now. -->
     <div class="spec-tabs">
       <div class="tab-buttons">
-        <button class="tab-btn" :class="{ active: activeTab === 'visual' }" @click="switchTab('visual')">
-          {{ t('robotEditor.visualTab') }}
-        </button>
         <button class="tab-btn" :class="{ active: activeTab === 'flow' }" @click="switchTab('flow')">
           {{ t('robotEditor.flowTab') }}
+        </button>
+        <button class="tab-btn" :class="{ active: activeTab === 'visual' }" @click="switchTab('visual')">
+          {{ t('robotEditor.visualTab') }}
         </button>
         <button class="tab-btn" :class="{ active: activeTab === 'code' }" @click="switchTab('code')">
           {{ t('robotEditor.codeTab') }}
