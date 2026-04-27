@@ -219,8 +219,13 @@ function estimateNodeHeight(step: RobotStep): number {
   let h = NODE_BASE_HEIGHT
   if (type === 'keyword' || type === 'assignment') {
     if (step.args.length > 0) {
-      const rows = Math.ceil(step.args.length / 3)
-      h += 4 + rows * 22
+      // Story EDITOR-8 — one chip per row (KeywordNode now uses
+      // `flex-direction: column` for args). The previous `ceil(n/3)`
+      // estimate assumed 3 chips per row but long selector values
+      // (e.g. recorded text= / xpath= selectors) take a full row
+      // each, so the node grew taller than estimated and overlapped
+      // the next one.
+      h += 4 + step.args.length * 22
     }
     if (step.returnVars.length > 0) h += 20
   }

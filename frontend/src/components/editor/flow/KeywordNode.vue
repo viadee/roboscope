@@ -151,8 +151,12 @@ const candidateTooltip = computed(() =>
 }
 .flow-node-args {
   margin-top: 4px;
+  /* Story EDITOR-8 — one chip per row so the rendered node height
+     stays in sync with `estimateNodeHeight()` and nodes don't overlap
+     when long selector / multi-arg values would otherwise wrap. */
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 4px;
 }
 .flow-arg {
