@@ -1574,7 +1574,10 @@ watch(() => props.content, (newContent) => {
   // that would lose items with empty names during round-trip serialize→parse)
   if (newContent === lastEmittedContent) return
 
-  if (activeTab.value === 'visual') {
+  // Story EDITOR-6 — re-parse for both the visual and flow tab. Previously
+  // the flow tab never re-parsed on file switch, so the FlowEditor kept
+  // showing the previous file's content until the user toggled to visual.
+  if (activeTab.value === 'visual' || activeTab.value === 'flow') {
     parseRobotToForm(newContent)
     lazyLoadKeywordArgs()
   } else {

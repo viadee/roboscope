@@ -135,17 +135,26 @@ let suppressFitView = false
 // Note: sidecar mutations are NOT deep-watched here — `rebuildAndReselect()`
 // is called explicitly from the swap handler so we don't double-render.
 watch([() => props.form, activeSection], () => {
-  if (suppressFitView) {
-    suppressFitView = false
-    return
+  // Story EDITOR-6 — `suppressFitView` originally short-circuited the
+  // entire watcher to avoid double-rebuilds + re-fitting after an
+  // internal step edit. The early return ALSO swallowed the rebuild
+  // when a stuck flag got batched with a real file-switch mutation
+  // (`form` mutates in place when RobotEditor re-parses), so the user
+  // saw the old test case after switching files. Now we rebuild every
+  // time and only the fitView call is conditional.
+  const skipFit = suppressFitView
+  suppressFitView = false
+  if (!skipFit) {
+    activeItemIndex.value = 0
+    selectedNode.value = null
   }
-  activeItemIndex.value = 0
-  selectedNode.value = null
   buildGraph()
-  nextTick(() => {
-    fitView({ padding: 0.3 })
-    setTimeout(() => fitView({ padding: 0.3 }), 100)
-  })
+  if (!skipFit) {
+    nextTick(() => {
+      fitView({ padding: 0.3 })
+      setTimeout(() => fitView({ padding: 0.3 }), 100)
+    })
+  }
 }, { deep: true })
 
 // Sidecar identity change (file open / refresh) → rebuild without resetting tab/selection.
