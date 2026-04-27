@@ -29,6 +29,7 @@ Built by [viadee Unternehmensberatung AG](https://www.viadee.de).
 - **Statistics & KPIs** — Pass rate trends, flaky test detection, heatmaps, deep analysis (15 KPIs in 5 categories)
 - **AI Code Generation** — Generate `.robot` files from `.roboscope` YAML specs, reverse-engineer specs from `.robot` files
 - **CI/CD Integration** — API tokens for service accounts, outbound webhooks (6 events), git webhook triggers for automatic test runs
+- **Single Sign-On (SSO)** — OpenID Connect identity providers (Azure AD / Microsoft Entra ID, Google Workspace, GitHub, generic OIDC) with dry-run probe, group-to-team mapping and per-provider PDF/Markdown handoff document
 - **Audit & Compliance** — Full audit log with CSV export, retention enforcement, secrets encryption at rest
 - **rf-mcp Integration** — Optional Robot Framework keyword knowledge server for enhanced AI suggestions
 - **Role-Based Access** — Four roles: Viewer, Runner, Editor, Admin
@@ -176,6 +177,19 @@ bash scripts/build-mac-and-linux.sh
 | `WORKSPACE_DIR` | `~/.roboscope/workspace` | Git repos directory |
 | `REPORTS_DIR` | `~/.roboscope/reports` | Report files directory |
 | `VENVS_DIR` | `~/.roboscope/venvs` | Virtual environments directory |
+
+### Single Sign-On (SSO)
+
+RoboScope supports OIDC identity providers for **Azure AD / Microsoft Entra ID**, **Google Workspace**, **GitHub** and any standards-compliant OIDC issuer (Okta, Keycloak, Auth0, Authentik, …). High-level setup:
+
+1. Register a new web application at your IdP and note the **Client ID** + **Client Secret**.
+2. Set the **Redirect URI** to `https://<your-roboscope-host>/auth/sso/callback`.
+3. In RoboScope, log in as admin and open **Admin → Identity Providers → Add Provider**.
+4. Fill in name, type, **Issuer URL**, Client ID/Secret, scopes (default `openid profile email`) and the **Group claim name** (default `groups`).
+5. Click **Run Dry-Run** — only a passing probe unlocks **Save**.
+6. Optional: download the **Hand-off PDF/Markdown** (per language) for the IdP admin team, and map IdP groups to RoboScope teams under **Admin → Teams**.
+
+A local-password emergency bypass (`admin@roboscope.local` by default) remains available even if the IdP is unreachable. Full step-by-step guidance, including IdP-specific Issuer URL examples and group-mapping details, is in the **in-app documentation** under *Settings → Identity Providers (SSO)*.
 
 ## Contributing
 

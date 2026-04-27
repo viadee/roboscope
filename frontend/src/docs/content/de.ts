@@ -1745,6 +1745,132 @@ Login Works
   <li>Legacy-Klartext-Secrets (erstellt vor Aktivierung der Verschl\u00FCsselung) funktionieren weiterhin durch Graceful Fallback.</li>
 </ul>`,
         tip: 'Verwenden Sie in Produktion immer einen starken, einzigartigen SECRET_KEY. Wenn der SECRET_KEY ge\u00E4ndert wird, werden zuvor verschl\u00FCsselte Secrets unlesbar.'
+      },
+      {
+        id: 'identity-providers',
+        title: 'Identity Provider (SSO)',
+        content: `
+<p>
+  RoboScope unterstützt <strong>Single Sign-On (SSO)</strong> über OpenID Connect (OIDC).
+  Sobald ein Identity Provider konfiguriert und aktiviert ist, erscheint auf der
+  Login-Seite ein entsprechender <strong>Anmelden mit &hellip;</strong>-Button und
+  Ihre Nutzer benötigen kein separates RoboScope-Passwort mehr.
+</p>
+<p>
+  Unterstützte Provider-Typen:
+</p>
+<ul>
+  <li><strong>Azure AD / Microsoft Entra ID</strong></li>
+  <li><strong>Google Workspace</strong></li>
+  <li><strong>GitHub</strong></li>
+  <li><strong>Generisch (OIDC)</strong> &mdash; jeder standardkonforme OIDC-Issuer
+      (Okta, Keycloak, Auth0, Authentik, &hellip;)</li>
+</ul>
+
+<h4>1. Anwendung beim IdP vorbereiten</h4>
+<p>
+  Registrieren Sie in der Admin-Konsole Ihres IdPs eine neue Webanwendung und
+  notieren Sie sich <strong>Client ID</strong> und <strong>Client Secret</strong>.
+  Setzen Sie die <strong>Redirect-URI</strong> auf:
+</p>
+<p><code>https://&lt;ihr-roboscope-host&gt;/auth/sso/callback</code></p>
+<p>
+  RoboScope zeigt die exakte URL im Konfigurationsformular an (mit Kopier-Button).
+  Die Anwendung muss mindestens die Scopes <code>openid profile email</code>
+  anfordern dürfen. Für die gruppenbasierte Team-Zuordnung aktivieren Sie
+  zusätzlich den <strong>groups</strong>-Claim
+  (Azure AD: <em>Tokenkonfiguration</em> &rarr; <em>groups</em>-Claim hinzufügen;
+  Keycloak: <em>group membership</em>-Mapper anlegen).
+</p>
+
+<h4>2. Provider in RoboScope anlegen</h4>
+<ol>
+  <li>Öffnen Sie <strong>Admin &gt; Identity Provider</strong> in der Sidebar.</li>
+  <li>Klicken Sie auf <strong>Provider hinzufügen</strong>.</li>
+  <li>Füllen Sie das Formular aus:
+    <ul>
+      <li><strong>Name</strong> &mdash; Beschriftung des Login-Buttons (z.&nbsp;B. &bdquo;Firmen-SSO&ldquo;).</li>
+      <li><strong>Provider-Typ</strong> &mdash; einer der vier Typen oben.</li>
+      <li><strong>Issuer-URL</strong> &mdash; die OIDC-Issuer-/Discovery-Basis-URL.
+          Beispiele:
+        <ul>
+          <li>Azure AD: <code>https://login.microsoftonline.com/&lt;tenant-id&gt;/v2.0</code></li>
+          <li>Google: <code>https://accounts.google.com</code></li>
+          <li>GitHub: <code>https://token.actions.githubusercontent.com</code> oder Ihr OIDC-Proxy</li>
+          <li>Generisch: die URL, unter der <code>/.well-known/openid-configuration</code> bereitgestellt wird</li>
+        </ul>
+      </li>
+      <li><strong>Client ID</strong> &mdash; aus der IdP-Anwendung.</li>
+      <li><strong>Client Secret</strong> &mdash; aus der IdP-Anwendung. Wird verschlüsselt gespeichert (Fernet).</li>
+      <li><strong>Scopes</strong> &mdash; Standard <code>openid profile email</code>; weitere (z.&nbsp;B. <code>groups</code>, <code>offline_access</code>) als Chips hinzufügen.</li>
+      <li><strong>Group-Claim-Name</strong> &mdash; der JWT-Claim, der die Gruppen des Nutzers enthält (Standard <code>groups</code>).</li>
+    </ul>
+  </li>
+</ol>
+
+<h4>3. Dry-Run-Probe ausführen</h4>
+<p>
+  Bevor der Provider gespeichert werden kann, klicken Sie auf <strong>Dry-Run starten</strong>.
+  Die Probe lädt das OIDC-Discovery-Dokument, validiert den JWKS-Endpoint, die
+  konfigurierten Scopes und den Group-Claim-Namen. Das Ergebnis wird inline angezeigt:
+</p>
+<ul>
+  <li><strong>Erfolgreich</strong> &mdash; der <strong>Speichern</strong>-Button wird freigeschaltet.</li>
+  <li><strong>Fehlgeschlagen</strong> &mdash; klappen Sie die Zeile auf, um zu sehen,
+      welcher Check fehlgeschlagen ist (häufigste Ursachen: falsche Issuer-URL,
+      ausgehender Netzwerkverkehr blockiert, Scope am IdP nicht freigegeben).</li>
+</ul>
+<p>
+  Wird nach einem erfolgreichen Dry-Run ein Feld geändert, wird die Probe als
+  <em>veraltet</em> markiert &mdash; sie muss vor dem Speichern erneut ausgeführt werden.
+</p>
+
+<h4>4. Übergabe-Dokument</h4>
+<p>
+  Nach dem ersten Speichern können Sie auf der Provider-Editierseite ein
+  <strong>PDF- oder Markdown-Handoff-Dokument</strong> herunterladen. Es enthält
+  alles, was der IdP-Admin braucht (Redirect-URI, benötigte Scopes, Group-Claim)
+  und wird in der aktuellen UI-Sprache erzeugt &mdash; nützlich, wenn RoboScope
+  und IdP von unterschiedlichen Teams verwaltet werden.
+</p>
+
+<h4>5. Erste Anmeldung</h4>
+<p>
+  Sobald der Provider aktiv ist, zeigt die Login-Seite einen
+  <strong>Anmelden mit <em>&lt;Name&gt;</em></strong>-Button. Beim ersten
+  SSO-Login wird automatisch ein RoboScope-Benutzerkonto erzeugt und mit dem
+  IdP-Subject verknüpft. Existiert bereits ein lokales Passwort-Konto mit
+  derselben E-Mail, wird der Nutzer um Bestätigung der Verknüpfung gebeten
+  (Consent-Dialog).
+</p>
+
+<h4>Gruppen-zu-Team-Zuordnung</h4>
+<p>
+  Unter <strong>Admin &gt; Teams</strong> können Sie IdP-Gruppennamen auf
+  RoboScope-Teams mappen. Bei jedem SSO-Login werden die Team-Mitgliedschaften
+  des Nutzers anhand des konfigurierten Group-Claims neu synchronisiert. Mit
+  <strong>Teams aus IdP-Gruppen anlegen</strong> auf der Teams-Seite lassen sich
+  Mappings aus den bereits beobachteten Gruppen der letzten Logins bootstrappen.
+</p>
+
+<h4>Discovery-Cache</h4>
+<p>
+  OIDC-Discovery-Dokumente werden 24&nbsp;h zwischengespeichert, damit Logins
+  schnell bleiben und kurze IdP-Ausfälle abgefedert werden. Die Provider-Liste
+  zeigt ein <strong>Stale-Cache-Badge</strong>, wenn der Cache älter als 24&nbsp;h
+  ist. Manuelle Aktualisierung über die Provider-Liste.
+</p>
+
+<h4>Notfall-Bypass</h4>
+<p>
+  Ist Ihr IdP nicht erreichbar, kann sich ein Admin weiterhin mit dem lokalen
+  Konto <code>admin@roboscope.local</code> (oder einem anderen lokalen
+  Passwort-Konto) über den Link <strong>Stattdessen Passwort verwenden</strong>
+  auf der Login-Seite anmelden. Dieser Link kann unter
+  <strong>Einstellungen &gt; Sicherheit &gt; Passwortformular ausblenden</strong>
+  versteckt werden, sobald SSO vollständig ausgerollt ist.
+</p>`,
+        tip: 'Führen Sie die Dry-Run-Probe immer vor dem Speichern und vor dem Rollout an Endnutzer aus. Sie fängt 90&nbsp;% aller Fehlkonfigurationen (falscher Issuer, fehlender Scope, nicht erreichbarer JWKS) ab, ohne Endnutzer zu beeinträchtigen.'
       }
     ]
   },

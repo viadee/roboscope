@@ -1859,6 +1859,132 @@ Login Works
   <li>Los secretos en texto plano existentes (creados antes de habilitar el cifrado) siguen funcionando mediante una compatibilidad regresiva elegante.</li>
 </ul>`,
         tip: 'Use siempre un SECRET_KEY fuerte y \u00FAnico en producci\u00F3n. Si el SECRET_KEY cambia, los secretos cifrados anteriormente se volver\u00E1n ilegibles.'
+      },
+      {
+        id: 'identity-providers',
+        title: 'Proveedores de identidad (SSO)',
+        content: `
+<p>
+  RoboScope admite <strong>inicio de sesión único (SSO)</strong> mediante OpenID Connect (OIDC).
+  Una vez configurado y habilitado un proveedor de identidad, aparece un botón
+  <strong>Iniciar sesión con &hellip;</strong> en la pantalla de inicio de sesión y sus
+  usuarios ya no necesitan una contraseña separada de RoboScope.
+</p>
+<p>
+  Tipos de proveedor admitidos:
+</p>
+<ul>
+  <li><strong>Azure AD / Microsoft Entra ID</strong></li>
+  <li><strong>Google Workspace</strong></li>
+  <li><strong>GitHub</strong></li>
+  <li><strong>OIDC genérico</strong> &mdash; cualquier emisor OIDC compatible con los estándares
+      (Okta, Keycloak, Auth0, Authentik, &hellip;)</li>
+</ul>
+
+<h4>1. Preparar la aplicación en su IdP</h4>
+<p>
+  En la consola de administración de su IdP, registre una nueva aplicación web y
+  anote el <strong>Client ID</strong> y el <strong>Client Secret</strong>. Configure
+  la <strong>URI de redirección</strong> como:
+</p>
+<p><code>https://&lt;su-host-roboscope&gt;/auth/sso/callback</code></p>
+<p>
+  RoboScope muestra la URL exacta en el formulario de configuración (con un botón
+  para copiar). La aplicación debe poder solicitar como mínimo los scopes
+  <code>openid profile email</code>. Si desea asignación de equipos basada en
+  grupos, habilite también un claim <strong>groups</strong>
+  (Azure AD: <em>Configuración de tokens</em> &rarr; añadir el claim <em>groups</em>;
+  Keycloak: añadir un mapeador de <em>group membership</em>).
+</p>
+
+<h4>2. Crear el proveedor en RoboScope</h4>
+<ol>
+  <li>Abra <strong>Admin &gt; Proveedores de identidad</strong> en la barra lateral.</li>
+  <li>Haga clic en <strong>Añadir proveedor</strong>.</li>
+  <li>Complete el formulario:
+    <ul>
+      <li><strong>Nombre</strong> &mdash; etiqueta mostrada en el botón de inicio de sesión (p.&nbsp;ej. «SSO de la empresa»).</li>
+      <li><strong>Tipo de proveedor</strong> &mdash; uno de los cuatro tipos anteriores.</li>
+      <li><strong>URL del emisor</strong> &mdash; la URL base del emisor / descubrimiento OIDC.
+          Ejemplos:
+        <ul>
+          <li>Azure AD: <code>https://login.microsoftonline.com/&lt;tenant-id&gt;/v2.0</code></li>
+          <li>Google: <code>https://accounts.google.com</code></li>
+          <li>GitHub: <code>https://token.actions.githubusercontent.com</code> o su proxy OIDC</li>
+          <li>Genérico: la URL donde se sirve <code>/.well-known/openid-configuration</code></li>
+        </ul>
+      </li>
+      <li><strong>Client ID</strong> &mdash; de la aplicación IdP.</li>
+      <li><strong>Client Secret</strong> &mdash; de la aplicación IdP. Almacenado cifrado en reposo (Fernet).</li>
+      <li><strong>Scopes</strong> &mdash; por defecto <code>openid profile email</code>; añada otros (p.&nbsp;ej. <code>groups</code>, <code>offline_access</code>) como chips.</li>
+      <li><strong>Nombre del claim de grupo</strong> &mdash; el claim JWT que contiene los grupos del usuario (por defecto <code>groups</code>).</li>
+    </ul>
+  </li>
+</ol>
+
+<h4>3. Ejecutar la sonda Dry-Run</h4>
+<p>
+  Antes de poder guardar el proveedor, haga clic en <strong>Ejecutar Dry-Run</strong>.
+  La sonda obtiene el documento de descubrimiento OIDC, valida el endpoint JWKS,
+  los scopes configurados y el nombre del claim de grupo. El resultado se muestra en línea:
+</p>
+<ul>
+  <li><strong>Aprobado</strong> &mdash; el botón <strong>Guardar</strong> se desbloquea.</li>
+  <li><strong>Fallido</strong> &mdash; expanda la fila para ver qué comprobación falló
+      (causas más comunes: URL de emisor incorrecta, tráfico de red saliente bloqueado,
+      scope no autorizado en el IdP).</li>
+</ul>
+<p>
+  Editar cualquier campo después de un dry-run exitoso marca la sonda como
+  <em>obsoleta</em> &mdash; debe volver a ejecutarla antes de guardar.
+</p>
+
+<h4>4. Documento de transferencia</h4>
+<p>
+  Después del primer guardado, puede descargar un documento de
+  <strong>transferencia en PDF o Markdown</strong> desde la página de edición del proveedor.
+  El artefacto enumera todo lo que el administrador del IdP necesita (URI de redirección,
+  scopes requeridos, claim de grupo) y se genera en el mismo idioma que la interfaz
+  &mdash; útil cuando RoboScope y el IdP son gestionados por equipos diferentes.
+</p>
+
+<h4>5. Primer inicio de sesión del usuario</h4>
+<p>
+  Una vez habilitado el proveedor, la página de inicio de sesión muestra un botón
+  <strong>Iniciar sesión con <em>&lt;Nombre&gt;</em></strong>. En el primer inicio de sesión SSO,
+  se crea automáticamente una cuenta de usuario de RoboScope y se vincula al sujeto IdP.
+  Si ya existe una cuenta local con contraseña para el mismo correo electrónico,
+  se solicita al usuario que confirme la vinculación (pantalla de consentimiento).
+</p>
+
+<h4>Asignación de grupos a equipos</h4>
+<p>
+  En <strong>Admin &gt; Equipos</strong>, puede asignar nombres de grupos del IdP a
+  equipos de RoboScope. En cada inicio de sesión SSO, la pertenencia a equipos del
+  usuario se resincroniza desde el claim de grupo configurado. Use
+  <strong>Crear equipos en lote a partir de grupos del IdP</strong> en la página Equipos
+  para iniciar las asignaciones a partir de los grupos ya observados en inicios de sesión recientes.
+</p>
+
+<h4>Caché de descubrimiento</h4>
+<p>
+  Los documentos de descubrimiento OIDC se almacenan en caché durante 24&nbsp;h para
+  mantener los inicios de sesión rápidos y resilientes ante breves interrupciones del IdP.
+  La lista de proveedores muestra una <strong>insignia de caché obsoleta</strong> cuando
+  la caché tiene más de 24&nbsp;h. Active una actualización manual desde la página de
+  la lista de proveedores.
+</p>
+
+<h4>Bypass de emergencia</h4>
+<p>
+  Si su IdP no es accesible, un administrador aún puede iniciar sesión con la cuenta
+  local <code>admin@roboscope.local</code> (o cualquier otra cuenta local con
+  contraseña) mediante el enlace <strong>Usar contraseña en su lugar</strong> en la
+  página de inicio de sesión. Este enlace puede ocultarse en
+  <strong>Ajustes &gt; Seguridad &gt; Ocultar formulario de contraseña</strong> una vez
+  que el SSO esté completamente desplegado.
+</p>`,
+        tip: 'Ejecute siempre la sonda Dry-Run antes de guardar y antes de desplegar a los usuarios. Detecta el 90&nbsp;% de los errores de configuración (emisor incorrecto, scope faltante, JWKS inaccesible) sin afectar a los usuarios finales.'
       }
     ]
   },

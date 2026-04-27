@@ -1843,6 +1843,130 @@ Login Works
       through graceful fallback.</li>
 </ul>`,
         tip: 'Always use a strong, unique SECRET_KEY in production. If the SECRET_KEY changes, previously encrypted secrets will become unreadable.'
+      },
+      {
+        id: 'identity-providers',
+        title: 'Identity Providers (SSO)',
+        content: `
+<p>
+  RoboScope supports <strong>Single Sign-On (SSO)</strong> via OpenID Connect (OIDC).
+  Once an identity provider is configured and enabled, a corresponding
+  <strong>Sign in with &hellip;</strong> button appears on the login screen and your
+  users no longer need a separate RoboScope password.
+</p>
+<p>
+  Supported provider types:
+</p>
+<ul>
+  <li><strong>Azure AD / Microsoft Entra ID</strong></li>
+  <li><strong>Google Workspace</strong></li>
+  <li><strong>GitHub</strong></li>
+  <li><strong>Generic OIDC</strong> &mdash; any standards-compliant OIDC issuer
+      (Okta, Keycloak, Auth0, Authentik, &hellip;)</li>
+</ul>
+
+<h4>1. Prepare the application at your IdP</h4>
+<p>
+  In your IdP&rsquo;s admin console, register a new web application and note the
+  <strong>Client ID</strong> and <strong>Client Secret</strong>. Set the
+  <strong>Redirect URI</strong> to:
+</p>
+<p><code>https://&lt;your-roboscope-host&gt;/auth/sso/callback</code></p>
+<p>
+  RoboScope shows the exact URL on the configuration form (with a copy button).
+  The application must be allowed to request the scopes
+  <code>openid profile email</code> at minimum. If you want group-based team
+  assignment, also enable a <strong>groups</strong> claim
+  (Azure AD: <em>Token configuration</em> &rarr; add <em>groups</em> claim;
+  Keycloak: add a <em>group membership</em> mapper).
+</p>
+
+<h4>2. Create the provider in RoboScope</h4>
+<ol>
+  <li>Open <strong>Admin &gt; Identity Providers</strong> in the sidebar.</li>
+  <li>Click <strong>Add Provider</strong>.</li>
+  <li>Fill in the form:
+    <ul>
+      <li><strong>Name</strong> &mdash; label shown on the login button (e.g. &ldquo;Company SSO&rdquo;).</li>
+      <li><strong>Provider Type</strong> &mdash; one of the four types above.</li>
+      <li><strong>Issuer URL</strong> &mdash; the OIDC issuer / discovery base URL.
+          Examples:
+        <ul>
+          <li>Azure AD: <code>https://login.microsoftonline.com/&lt;tenant-id&gt;/v2.0</code></li>
+          <li>Google: <code>https://accounts.google.com</code></li>
+          <li>GitHub: <code>https://token.actions.githubusercontent.com</code> or your OIDC proxy</li>
+          <li>Generic: the URL where <code>/.well-known/openid-configuration</code> is served</li>
+        </ul>
+      </li>
+      <li><strong>Client ID</strong> &mdash; from the IdP application.</li>
+      <li><strong>Client Secret</strong> &mdash; from the IdP application. Stored encrypted at rest (Fernet).</li>
+      <li><strong>Scopes</strong> &mdash; default <code>openid profile email</code>; add more (e.g. <code>groups</code>, <code>offline_access</code>) as chips.</li>
+      <li><strong>Group claim name</strong> &mdash; the JWT claim that holds the user&rsquo;s groups (default <code>groups</code>).</li>
+    </ul>
+  </li>
+</ol>
+
+<h4>3. Run the Dry-Run probe</h4>
+<p>
+  Before the provider can be saved, click <strong>Run Dry-Run</strong>. The probe
+  fetches the OIDC discovery document, validates the JWKS endpoint, the
+  configured scopes, and the group claim name. The result is shown inline:
+</p>
+<ul>
+  <li><strong>Passed</strong> &mdash; the <strong>Save</strong> button is unlocked.</li>
+  <li><strong>Failed</strong> &mdash; expand the row to see which check failed
+      (most common: wrong issuer URL, blocked outbound network, scope not
+      whitelisted at the IdP).</li>
+</ul>
+<p>
+  Editing any field after a successful dry-run marks the probe as
+  <em>stale</em> &mdash; you must re-run it before saving.
+</p>
+
+<h4>4. Hand-off artifact</h4>
+<p>
+  After the first save you can download a <strong>PDF or Markdown handoff</strong>
+  from the provider edit page. The artifact lists everything the IdP admin needs
+  (Redirect URI, required scopes, group claim) and is generated in the same
+  language as the UI &mdash; useful when RoboScope and IdP are managed by
+  different teams.
+</p>
+
+<h4>5. First user sign-in</h4>
+<p>
+  Once the provider is enabled, the login page shows a
+  <strong>Sign in with <em>&lt;Name&gt;</em></strong> button. On first SSO login a
+  RoboScope user account is created automatically and linked to the IdP subject.
+  If a local password account already exists for the same email, the user is
+  asked to confirm linking (consent screen).
+</p>
+
+<h4>Group-to-Team mapping</h4>
+<p>
+  Under <strong>Admin &gt; Teams</strong> you can map IdP group names to
+  RoboScope teams. On every SSO login the user&rsquo;s team membership is
+  re-synchronised from the configured group claim. Use
+  <strong>Bulk-create teams from IdP groups</strong> on the Teams page to
+  bootstrap mappings from groups already observed during recent logins.
+</p>
+
+<h4>Discovery cache</h4>
+<p>
+  OIDC discovery documents are cached for 24&nbsp;h to keep logins fast and
+  resilient to short IdP outages. The provider list shows a
+  <strong>stale-cache badge</strong> when the cache is older than 24&nbsp;h.
+  Trigger a manual refresh from the provider list page.
+</p>
+
+<h4>Emergency bypass</h4>
+<p>
+  If your IdP is unreachable, an admin can still log in with the local
+  <code>admin@roboscope.local</code> account (or any other local password
+  account) via the <strong>Use password instead</strong> link on the login page.
+  This link can be hidden under <strong>Settings &gt; Security &gt; Hide
+  password form</strong> once SSO is fully rolled out.
+</p>`,
+        tip: 'Always run the Dry-Run probe before saving and before rolling out to users. The check catches 90% of misconfigurations (wrong issuer, missing scope, unreachable JWKS) without affecting end users.'
       }
     ]
   },
