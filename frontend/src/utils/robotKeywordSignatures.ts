@@ -137,6 +137,136 @@ export function parseArgSignature(raw: string): ParsedArg {
   return { name, type, defaultValue, kind }
 }
 
+// ---------------------------------------------------------------------
+// Story EDITOR-3 — friendly, non-developer type chip + control resolver.
+// Maps a raw libdoc type string ("str", "int", "bool", "timedelta",
+// "Literal['a','b']", …) to a localisable label, an icon, and the kind
+// of input control the detail panel should render. Pure data — no
+// validation, no coercion.
+// ---------------------------------------------------------------------
+
+export type ArgControl = 'text' | 'number' | 'integer' | 'checkbox' | 'select' | 'duration'
+
+export interface FriendlyType {
+  /** Icon glyph for the type chip (Aa, 123, ✓, ⏱, …). Always set. */
+  icon: string
+  /** Localisable label key under `flowEditor.argTypes.*`. Always set. */
+  labelKey: string
+  /** Input control kind for the detail panel. */
+  control: ArgControl
+  /** True when the type is `T | None` — i.e. the input is optional. */
+  optional: boolean
+  /** When `control === 'select'`, the literal choice values. */
+  choices: string[] | null
+  /** The raw type string, kept for the tooltip. Empty when null. */
+  raw: string
+}
+
+function parseLiteralChoices(t: string): string[] | null {
+  // Match Literal['a', 'b'] / Literal["a","b"] / OneOf['a','b'] etc.
+  const m = /^(?:Literal|OneOf)\s*\[\s*([^\]]*)\]\s*$/i.exec(t)
+  if (!m) return null
+  const inner = m[1].trim()
+  if (!inner) return []
+  // Split on commas not inside quotes — simple state machine.
+  const out: string[] = []
+  let cur = ''
+  let inS = false, inD = false
+  for (const c of inner) {
+    if (inS) { if (c === "'") inS = false; else cur += c; continue }
+    if (inD) { if (c === '"') inD = false; else cur += c; continue }
+    if (c === "'") { inS = true; continue }
+    if (c === '"') { inD = true; continue }
+    if (c === ',') { if (cur.trim()) out.push(cur.trim()); cur = ''; continue }
+    cur += c
+  }
+  if (cur.trim()) out.push(cur.trim())
+  return out
+}
+
+/**
+ * Resolve a raw type string into a friendly label + control.
+ * Always returns a value — unknown types degrade to the `unknown` bucket
+ * with the raw string carried through for the tooltip.
+ */
+export function friendlyType(rawType: string | null | undefined): FriendlyType {
+  const raw = (rawType ?? '').trim()
+  // `T | None` → recurse on T and flag optional.
+  const noneUnion = /^\s*(.+?)\s*\|\s*None\s*$|^\s*None\s*\|\s*(.+?)\s*$/.exec(raw)
+  if (noneUnion) {
+    const inner = (noneUnion[1] ?? noneUnion[2] ?? '').trim()
+    const recurse = friendlyType(inner)
+    return { ...recurse, optional: true, raw }
+  }
+
+  // Strip leading `*` / `**` for varargs/kwargs typed shapes — though
+  // this helper is rarely called for those (the row label handles them);
+  // keep it defensive.
+  const stripped = raw.replace(/^\*\*?/, '').trim()
+  const literalChoices = parseLiteralChoices(stripped)
+
+  let icon = '?'
+  let labelKey = 'flowEditor.argTypes.unknown'
+  let control: ArgControl = 'text'
+  let choices: string[] | null = null
+
+  if (raw === '') {
+    // empty / null type
+  } else if (literalChoices) {
+    icon = '▼'
+    labelKey = 'flowEditor.argTypes.choice'
+    control = 'select'
+    choices = literalChoices
+  } else if (/^str$/i.test(stripped)) {
+    icon = 'Aa'
+    labelKey = 'flowEditor.argTypes.text'
+    control = 'text'
+  } else if (/^int$/i.test(stripped)) {
+    icon = '123'
+    labelKey = 'flowEditor.argTypes.integer'
+    control = 'integer'
+  } else if (/^float$|^number$/i.test(stripped)) {
+    icon = '1.0'
+    labelKey = 'flowEditor.argTypes.number'
+    control = 'number'
+  } else if (/^bool(ean)?$/i.test(stripped)) {
+    icon = '✓'
+    labelKey = 'flowEditor.argTypes.yesNo'
+    control = 'checkbox'
+  } else if (/^timedelta$/i.test(stripped)) {
+    icon = '⏱'
+    labelKey = 'flowEditor.argTypes.duration'
+    control = 'duration'
+  } else if (/^(pathlib\.)?path$/i.test(stripped)) {
+    icon = '\u{1F4C1}'
+    labelKey = 'flowEditor.argTypes.path'
+    control = 'text'
+  } else if (/^any$/i.test(stripped)) {
+    icon = '*'
+    labelKey = 'flowEditor.argTypes.any'
+    control = 'text'
+  } else if (/^(dict|list|tuple|set|sequence|mapping|iterable)\b/i.test(stripped)) {
+    icon = '[ ]'
+    labelKey = 'flowEditor.argTypes.collection'
+    control = 'text'
+  }
+
+  return { icon, labelKey, control, optional: false, choices, raw }
+}
+
+const TRUTHY_BOOL_LITERALS = new Set(['true', 'yes', 'on', '1'])
+
+/** Read the boolean intent of a Robot Framework string (truthy / falsy). */
+export function readBoolValue(v: string | undefined): boolean {
+  if (!v) return false
+  return TRUTHY_BOOL_LITERALS.has(v.trim().toLowerCase())
+}
+
+/** Canonical write form for booleans we round-trip into `.robot` source. */
+export function writeBoolValue(b: boolean): 'True' | 'False' {
+  return b ? 'True' : 'False'
+}
+
 /**
  * Resolve the user-facing label for the input at positional `index`.
  * Falls back to the localised "arg N" placeholder when nothing better is

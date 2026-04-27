@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   parseArgSignature,
   getArgLabel,
+  friendlyType,
+  readBoolValue,
+  writeBoolValue,
   type ParsedArg,
 } from '@/utils/robotKeywordSignatures'
 
@@ -217,5 +220,105 @@ describe('getArgLabel', () => {
       { name: 'item', type: null, defaultValue: null, kind: 'positional' },
     ]
     expect(getArgLabel(bare, 0, t)).toBe('item')
+  })
+})
+
+describe('friendlyType (Story EDITOR-3)', () => {
+  it('maps str → text control', () => {
+    const ft = friendlyType('str')
+    expect(ft.control).toBe('text')
+    expect(ft.labelKey).toBe('flowEditor.argTypes.text')
+    expect(ft.icon).toBe('Aa')
+    expect(ft.optional).toBe(false)
+  })
+
+  it('maps int / float to numeric controls', () => {
+    expect(friendlyType('int').control).toBe('integer')
+    expect(friendlyType('float').control).toBe('number')
+    expect(friendlyType('number').control).toBe('number')
+  })
+
+  it('maps bool / boolean to checkbox', () => {
+    expect(friendlyType('bool').control).toBe('checkbox')
+    expect(friendlyType('boolean').control).toBe('checkbox')
+  })
+
+  it('maps timedelta to duration', () => {
+    const ft = friendlyType('timedelta')
+    expect(ft.control).toBe('duration')
+    expect(ft.icon).toBe('⏱')
+  })
+
+  it('maps Path / pathlib.Path to text with folder icon', () => {
+    expect(friendlyType('Path').labelKey).toBe('flowEditor.argTypes.path')
+    expect(friendlyType('pathlib.Path').labelKey).toBe('flowEditor.argTypes.path')
+  })
+
+  it('maps Any / unknown to the unknown bucket', () => {
+    expect(friendlyType('Any').labelKey).toBe('flowEditor.argTypes.any')
+    expect(friendlyType('JsonReply').labelKey).toBe('flowEditor.argTypes.unknown')
+  })
+
+  it('maps Literal[...] to a select with parsed choices', () => {
+    const ft = friendlyType("Literal['a', 'b', 'c']")
+    expect(ft.control).toBe('select')
+    expect(ft.choices).toEqual(['a', 'b', 'c'])
+  })
+
+  it('maps OneOf[...] to a select too', () => {
+    const ft = friendlyType("OneOf['x', 'y']")
+    expect(ft.control).toBe('select')
+    expect(ft.choices).toEqual(['x', 'y'])
+  })
+
+  it('marks T | None as optional and recurses on T', () => {
+    const ft = friendlyType('int | None')
+    expect(ft.control).toBe('integer')
+    expect(ft.optional).toBe(true)
+    expect(ft.raw).toBe('int | None')
+  })
+
+  it('handles None | T (reverse order)', () => {
+    const ft = friendlyType('None | str')
+    expect(ft.control).toBe('text')
+    expect(ft.optional).toBe(true)
+  })
+
+  it('maps dict / list / tuple to the collection bucket', () => {
+    expect(friendlyType('dict[str, int]').labelKey).toBe('flowEditor.argTypes.collection')
+    expect(friendlyType('list[str]').labelKey).toBe('flowEditor.argTypes.collection')
+    expect(friendlyType('tuple[int, ...]').labelKey).toBe('flowEditor.argTypes.collection')
+  })
+
+  it('null / empty type → unknown bucket but no crash', () => {
+    expect(friendlyType(null).labelKey).toBe('flowEditor.argTypes.unknown')
+    expect(friendlyType('').labelKey).toBe('flowEditor.argTypes.unknown')
+  })
+
+  it('carries the raw type through the tooltip slot', () => {
+    expect(friendlyType('AssertionOperator | None').raw).toBe('AssertionOperator | None')
+  })
+})
+
+describe('boolean read/write helpers (Story EDITOR-3)', () => {
+  it('reads RF truthy aliases', () => {
+    expect(readBoolValue('True')).toBe(true)
+    expect(readBoolValue('true')).toBe(true)
+    expect(readBoolValue('YES')).toBe(true)
+    expect(readBoolValue('on')).toBe(true)
+    expect(readBoolValue('1')).toBe(true)
+  })
+
+  it('reads RF falsy values', () => {
+    expect(readBoolValue('False')).toBe(false)
+    expect(readBoolValue('no')).toBe(false)
+    expect(readBoolValue('off')).toBe(false)
+    expect(readBoolValue('')).toBe(false)
+    expect(readBoolValue(undefined)).toBe(false)
+  })
+
+  it('writes the canonical True / False capitalisation', () => {
+    expect(writeBoolValue(true)).toBe('True')
+    expect(writeBoolValue(false)).toBe('False')
   })
 })

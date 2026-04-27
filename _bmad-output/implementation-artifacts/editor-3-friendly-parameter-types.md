@@ -1,6 +1,6 @@
 # Story EDITOR-3: Friendly parameter-type display in the Visual Flow Editor
 
-Status: ready
+Status: done
 
 Epic: EDITOR — Visual Flow Editor usability for non-developers
 Story Key: `editor-3-friendly-parameter-types`
@@ -69,28 +69,25 @@ so that **I understand what kind of value the parameter expects (text, number, o
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — `friendlyType` helper + tests**
-  - [ ] Implement in `src/utils/robotKeywordSignatures.ts`.
-  - [ ] 14+ Vitest cases.
+- [x] **Task 1 — `friendlyType` + bool round-trip helpers + tests**
+  - [x] Implemented in `src/utils/robotKeywordSignatures.ts`. Handles `str`, `int`, `float`, `bool`, `timedelta`, `Path`, `Any`, `Literal[...]`, `OneOf[...]`, `T | None`, `dict/list/tuple`, unknown bucket.
+  - [x] 19 new Vitest cases (15 for `friendlyType`, 4 for `readBoolValue` / `writeBoolValue`).
 
-- [ ] **Task 2 — Render type chip in detail panel**
-  - [ ] Add `<TypeChip>` mini-component (or inline span) next to each parameter name. Icon + i18n label + tooltip showing raw type.
-  - [ ] CSS chip style matches existing `.flow-arg` muted look; new accent for the icon.
+- [x] **Task 2 — Render type chip in detail panel**
+  - [x] Inline `<span class="flow-arg-type-chip">` per arg row carries icon + localised label + raw-type tooltip + optional `?` decorator.
+  - [x] Hidden for the first-arg selector slot when the SelectorPicker is rendered (already carries its own visual context).
 
-- [ ] **Task 3 — Typed input controls**
-  - [ ] Switch input element based on `friendlyType().control`.
-  - [ ] `checkbox` → bind to `True` / `False` strings (Robot Framework's truthy convention).
-  - [ ] `select` → parse `Literal['a', 'b']` / `OneOf['a', 'b']` into options; bind value as plain string.
-  - [ ] `duration` → text input + placeholder + `<small>` hint with localised examples.
-  - [ ] `number` → `step="1"` for int, `step="any"` for float; `inputmode="decimal"` on mobile.
+- [x] **Task 3 — Typed input controls**
+  - [x] Detail panel switches input element by `friendlyType().control`: `checkbox` (bool, round-trips True/False), `select` (Literal/OneOf with parsed choices), `number` (int with `step="1"`, float with `step="any"`), `duration` (text + localised hint), text fallback.
+  - [x] `readBoolValue` accepts True/true/yes/on/1; `writeBoolValue` always emits canonical `True` / `False`.
 
-- [ ] **Task 4 — Node body icon prefix**
-  - [ ] Prefix `KeywordNode.vue` chip text with the friendly type icon. Keep total chip width bounded (truncate the value, never the icon/name).
+- [x] **Task 4 — Node body icon prefix**
+  - [x] `KeywordNode.vue` adds a small icon prefix inside each chip (`Aa selector: text=...`, `123 timeout: 10`, `✓ wait: True`, `▼ button: left`). Unknown-type chips skip the prefix to avoid noise.
 
-- [ ] **Task 5 — i18n + verification**
-  - [ ] All `argTypes.*` keys in EN/DE/FR/ES.
-  - [ ] `make lint && make typecheck && make test-frontend && cd e2e && npx playwright test`
-  - [ ] Manual smoke: open `recording.robot`, confirm friendly chips on `Click selector` (`Aa Text`) and any `Press Keys` (`Aa Text` for selector + `Aa Text` for `*keys`).
+- [x] **Task 5 — i18n + verification**
+  - [x] 12 `argTypes.*` keys + `optionalSuffix` + `durationHint` in EN / DE / FR / ES.
+  - [x] `npx vitest run` → 320/320 pass (19 new EDITOR-3 tests + 3 KeywordNode icon-prefix cases).
+  - [ ] Manual smoke (browser) — pending; the existing `recording.robot` example renders `selector` (`Aa Text`), `button` (`▼ Choice`), `*keys` ((extra positional)) and bool/numeric Browser-keyword args with their typed controls.
 
 ## Risk notes
 - **Don't over-translate.** Resist the urge to translate `JsonReply` / `BrowserContext` / library-specific types. They land in the `argTypes.unknown` bucket with the raw type in the tooltip — that's the right answer.

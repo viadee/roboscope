@@ -163,3 +163,30 @@ describe('KeywordNode parameter-name chips (Story EDITOR-2)', () => {
     expect(prefixes[2].text()).toContain('extra positional')
   })
 })
+
+describe('KeywordNode friendly type icon prefix (Story EDITOR-3)', () => {
+  it('renders the icon prefix when the arg has a recognised type', () => {
+    const w = mountNode(mkData({
+      argSpecs: [
+        { name: 'selector', type: 'str', defaultValue: null, kind: 'positional' },
+      ],
+    }))
+    const icons = w.findAll('[data-testid="arg-type-icon"]')
+    expect(icons).toHaveLength(1)
+    expect(icons[0].text()).toBe('Aa')
+  })
+
+  it('omits the icon prefix for the unknown type bucket (no noise)', () => {
+    const w = mountNode(mkData({
+      argSpecs: [
+        { name: 'opaque', type: 'JsonReply', defaultValue: null, kind: 'positional' },
+      ],
+    }))
+    expect(w.find('[data-testid="arg-type-icon"]').exists()).toBe(false)
+  })
+
+  it('omits the icon prefix when there is no signature at all', () => {
+    const w = mountNode(mkData({ argSpecs: null }))
+    expect(w.find('[data-testid="arg-type-icon"]').exists()).toBe(false)
+  })
+})

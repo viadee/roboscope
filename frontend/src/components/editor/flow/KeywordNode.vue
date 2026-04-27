@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { Handle, Position } from '@vue-flow/core'
 import { activeSelector } from '@/types/recorder.types'
 import { qualityBand } from '@/utils/selectorQuality'
-import { getArgLabel } from '@/utils/robotKeywordSignatures'
+import { getArgLabel, friendlyType } from '@/utils/robotKeywordSignatures'
 import type { FlowNodeData } from './flowConverter'
 
 const props = defineProps<{
@@ -42,6 +42,18 @@ function chipTitleAt(index: number): string | undefined {
   if (spec.type) out += `: ${spec.type}`
   if (spec.defaultValue != null) out += ` = ${spec.defaultValue}`
   return out
+}
+
+// Story EDITOR-3 — small friendly-type icon prefixed inside the chip.
+function chipTypeIconAt(index: number): string | null {
+  const spec = props.data.argSpecs?.[index]
+  if (!spec?.type) return null
+  const ft = friendlyType(spec.type)
+  // Don't render the unknown bucket's `?` here — it adds noise on
+  // every untyped chip (no signature info → noisy UI). Keep prefixes
+  // for shapes the user genuinely benefits from recognising.
+  if (ft.labelKey === 'flowEditor.argTypes.unknown') return null
+  return ft.icon
 }
 
 // Story EDITOR-1 — selector-candidate badge for the first arg chip.
@@ -84,6 +96,11 @@ const candidateTooltip = computed(() =>
           :title="candidateTooltip"
           aria-hidden="true"
         />
+        <span
+          v-if="chipTypeIconAt(i)"
+          class="flow-arg-type-icon-prefix"
+          data-testid="arg-type-icon"
+        >{{ chipTypeIconAt(i) }}</span>
         <span v-if="chipNameAt(i)" class="flow-arg-name-prefix" data-testid="arg-name-prefix">
           {{ chipNameAt(i) }}:
         </span>
@@ -188,6 +205,13 @@ const candidateTooltip = computed(() =>
   font-weight: 600;
   color: var(--color-navy, #1A2D50);
   opacity: 0.7;
+}
+.flow-arg-type-icon-prefix {
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--color-primary, #3B7DD8);
+  opacity: 0.85;
 }
 .flow-arg-value {
   overflow: hidden;

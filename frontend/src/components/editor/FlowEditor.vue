@@ -17,7 +17,13 @@ import KeywordDocModal from './flow/KeywordDocModal.vue'
 import SelectorPicker from '@/components/recorder/SelectorPicker.vue'
 import { type RecordedFlow } from '@/types/recorder.types'
 import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
-import { getArgLabel } from '@/utils/robotKeywordSignatures'
+import {
+  getArgLabel,
+  friendlyType,
+  readBoolValue,
+  writeBoolValue,
+  type FriendlyType,
+} from '@/utils/robotKeywordSignatures'
 import {
   applySelectorSwap,
   isCustomSelectorValue,
@@ -300,6 +306,34 @@ function argPlaceholderAt(index: number): string {
     return spec.defaultValue
   }
   return t('flowEditor.argLabels.fallback', { n: index + 1 })
+}
+
+// Story EDITOR-3 — friendly type lookup for a positional arg slot.
+function argTypeAt(index: number): FriendlyType {
+  const spec = selectedNodeData.value?.argSpecs?.[index]
+  return friendlyType(spec?.type ?? null)
+}
+
+function argTooltipAt(index: number): string | undefined {
+  const ft = argTypeAt(index)
+  if (!ft.raw) return undefined
+  return ft.raw + (ft.optional ? t('flowEditor.argTypes.optionalSuffix') : '')
+}
+
+// Bool control round-trip: value may be 'True', 'true', 'yes', 'on', '1'
+// for truthy or anything else for falsy. We always write 'True' / 'False'.
+function onBoolToggle(index: number, e: Event) {
+  if (!selectedNodeData.value) return
+  const checked = (e.target as HTMLInputElement).checked
+  selectedNodeData.value.step.args[index] = writeBoolValue(checked)
+  onStepFieldChange()
+}
+function isBoolChecked(index: number): boolean {
+  const v = selectedNodeData.value?.step.args[index] ?? ''
+  if (v) return readBoolValue(v)
+  // Fall back to the default value when the user hasn't entered anything.
+  const def = selectedNodeData.value?.argSpecs?.[index]?.defaultValue
+  return readBoolValue(def ?? '')
 }
 
 function addArg() {
@@ -769,6 +803,19 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
               class="flow-arg-name-inline"
               :title="selectedNodeData.argSpecs?.[i]?.type ?? undefined"
             >{{ argLabelAt(i) }}:</span>
+            <!-- Story EDITOR-3: friendly type chip (icon + localised label),
+                 raw type in tooltip. Hidden for the first-arg selector slot
+                 where the SelectorPicker carries its own visual context. -->
+            <span
+              v-if="!(i === 0 && selectorPickerVisible)"
+              class="flow-arg-type-chip"
+              :title="argTooltipAt(i)"
+              data-testid="arg-type-chip"
+            >
+              <span class="flow-arg-type-icon">{{ argTypeAt(i).icon }}</span>
+              <span class="flow-arg-type-label">{{ t(argTypeAt(i).labelKey) }}</span>
+              <span v-if="argTypeAt(i).optional" class="flow-arg-type-opt">?</span>
+            </span>
             <!-- Story EDITOR-1: SelectorPicker for args[0] when we have recorded candidates -->
             <template v-if="i === 0 && selectorPickerVisible && selectedNodeData.recording">
               <div class="flow-selector-picker-wrap">
@@ -781,13 +828,56 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
                 </span>
               </div>
             </template>
-            <input
-              v-else
-              v-model="selectedNodeData.step.args[i]"
-              class="flow-input flow-input-sm"
-              :placeholder="argPlaceholderAt(i)"
-              @change="onStepFieldChange"
-            />
+            <!-- Story EDITOR-3: typed input control by friendlyType().control -->
+            <template v-else>
+              <input
+                v-if="argTypeAt(i).control === 'checkbox'"
+                type="checkbox"
+                class="flow-input-checkbox"
+                :checked="isBoolChecked(i)"
+                @change="onBoolToggle(i, $event)"
+                :data-testid="`arg-bool-${i}`"
+              />
+              <select
+                v-else-if="argTypeAt(i).control === 'select'"
+                v-model="selectedNodeData.step.args[i]"
+                class="flow-input flow-input-sm"
+                :data-testid="`arg-select-${i}`"
+                @change="onStepFieldChange"
+              >
+                <option value="">{{ argPlaceholderAt(i) }}</option>
+                <option
+                  v-for="choice in (argTypeAt(i).choices ?? [])"
+                  :key="choice"
+                  :value="choice"
+                >{{ choice }}</option>
+              </select>
+              <input
+                v-else-if="argTypeAt(i).control === 'integer' || argTypeAt(i).control === 'number'"
+                v-model="selectedNodeData.step.args[i]"
+                type="number"
+                :step="argTypeAt(i).control === 'integer' ? '1' : 'any'"
+                inputmode="decimal"
+                class="flow-input flow-input-sm"
+                :placeholder="argPlaceholderAt(i)"
+                @change="onStepFieldChange"
+              />
+              <input
+                v-else-if="argTypeAt(i).control === 'duration'"
+                v-model="selectedNodeData.step.args[i]"
+                class="flow-input flow-input-sm"
+                :placeholder="argPlaceholderAt(i) || t('flowEditor.argTypes.durationHint')"
+                :title="t('flowEditor.argTypes.durationHint')"
+                @change="onStepFieldChange"
+              />
+              <input
+                v-else
+                v-model="selectedNodeData.step.args[i]"
+                class="flow-input flow-input-sm"
+                :placeholder="argPlaceholderAt(i)"
+                @change="onStepFieldChange"
+              />
+            </template>
             <button class="flow-btn-remove" @click="removeArg(i)">&times;</button>
           </div>
           <button class="flow-btn-add" @click="addArg">+ {{ t('flowEditor.addArg') }}</button>
@@ -1082,6 +1172,39 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.flow-arg-type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  background: var(--color-bg, #F4F7FA);
+  border-radius: 9px;
+  font-size: 9px;
+  color: var(--color-text-muted, #5A6380);
+  flex-shrink: 0;
+  cursor: default;
+  user-select: none;
+}
+.flow-arg-type-icon {
+  color: var(--color-primary, #3B7DD8);
+  font-weight: 700;
+  font-size: 9px;
+  font-family: var(--font-mono, monospace);
+}
+.flow-arg-type-label {
+  font-size: 9px;
+}
+.flow-arg-type-opt {
+  font-weight: 700;
+  color: var(--color-accent, #D4883E);
+}
+.flow-input-checkbox {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--color-primary, #3B7DD8);
 }
 .flow-selector-picker-wrap {
   flex: 1;
