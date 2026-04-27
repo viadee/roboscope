@@ -7,6 +7,13 @@
 
 import type { Node, Edge } from '@vue-flow/core'
 import type { RecordedCommand, RecordedFlow } from '@/types/recorder.types'
+import { parseArgSignature, type ParsedArg } from '@/utils/robotKeywordSignatures'
+
+// Map of lowercase-keyword-name → raw libdoc args; produced by
+// `useKeywordSignatures()`. Threaded through the converter so node
+// data carries pre-parsed argSpecs that the UI can label without
+// re-parsing on every render.
+export type SignatureMap = Map<string, string[]>
 
 // --- Types matching RobotEditor.vue ---
 
@@ -78,6 +85,14 @@ export interface FlowNodeData {
    * steps beyond the sidecar length.
    */
   recording: RecordedCommand | null
+  /**
+   * Story EDITOR-2 — parsed argument signature for this keyword,
+   * resolved from the dynamic library introspection + the static RF
+   * fallback via `useKeywordSignatures`. Null when the keyword is not
+   * known to the signature map; the UI then falls back to "arg N"
+   * labels and plain text inputs.
+   */
+  argSpecs: ParsedArg[] | null
 }
 
 // --- Sidecar matching (Story EDITOR-1) ---
@@ -130,6 +145,20 @@ export function matchStepToCommand(
   const idx = recordedIndex(steps, stepIndex)
   if (idx < 0) return null
   return sidecar.commands[idx] ?? null
+}
+
+/**
+ * Story EDITOR-2 — resolve parsed arg specs for the keyword on `step`
+ * via the signature map. Returns null for unknown keywords (the caller
+ * falls back to "arg N" labels).
+ */
+export function resolveArgSpecs(
+  step: RobotStep, signatures: SignatureMap | null,
+): ParsedArg[] | null {
+  if (!signatures || !step.keyword) return null
+  const raw = signatures.get(step.keyword.toLowerCase())
+  if (!raw) return null
+  return raw.map(parseArgSignature)
 }
 
 /**
@@ -294,6 +323,7 @@ export function stepsToFlow(
   section: 'testcase' | 'keyword',
   sectionIndex: number,
   sidecar: RecordedFlow | null = null,
+  signatures: SignatureMap | null = null,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
@@ -330,6 +360,7 @@ export function stepsToFlow(
         sectionIndex,
         stepIndex: i,
         recording: matchStepToCommand(steps, sidecar, i),
+        argSpecs: resolveArgSpecs(step, signatures),
       } as FlowNodeData,
     })
 
@@ -370,16 +401,18 @@ export function stepsToFlow(
 export function testCaseToFlow(
   tc: RobotTestCase, index: number,
   sidecar: RecordedFlow | null = null,
+  signatures: SignatureMap | null = null,
 ): { nodes: Node[]; edges: Edge[] } {
-  return stepsToFlow(tc.steps, tc.name, `tc${index}`, 'testcase', index, sidecar)
+  return stepsToFlow(tc.steps, tc.name, `tc${index}`, 'testcase', index, sidecar, signatures)
 }
 
 /** Convert a single keyword definition to flow graph. */
 export function keywordDefToFlow(
   kw: RobotKeywordDef, index: number,
   sidecar: RecordedFlow | null = null,
+  signatures: SignatureMap | null = null,
 ): { nodes: Node[]; edges: Edge[] } {
-  return stepsToFlow(kw.steps, kw.name, `kw${index}`, 'keyword', index, sidecar)
+  return stepsToFlow(kw.steps, kw.name, `kw${index}`, 'keyword', index, sidecar, signatures)
 }
 
 // --- Converter: Full RobotForm → Nodes + Edges ---
@@ -392,13 +425,15 @@ export function keywordDefToFlow(
  * additional test cases get no sidecar matching; that's the right answer.
  */
 export function robotFormToFlow(
-  form: RobotForm, sidecar: RecordedFlow | null = null,
+  form: RobotForm,
+  sidecar: RecordedFlow | null = null,
+  signatures: SignatureMap | null = null,
 ): { nodes: Node[]; edges: Edge[] } {
   const allNodes: Node[] = []
   const allEdges: Edge[] = []
   for (let i = 0; i < form.testCases.length; i++) {
     const sc = i === 0 ? sidecar : null
-    const { nodes, edges } = testCaseToFlow(form.testCases[i], i, sc)
+    const { nodes, edges } = testCaseToFlow(form.testCases[i], i, sc, signatures)
     const xOffset = i * 500
     for (const node of nodes) {
       node.position.x += xOffset
@@ -414,11 +449,14 @@ export function robotFormToFlow(
  * to user-defined keyword bodies (Recorder v2 targets test cases), so this
  * function intentionally takes no sidecar parameter.
  */
-export function robotKeywordsToFlow(form: RobotForm): { nodes: Node[]; edges: Edge[] } {
+export function robotKeywordsToFlow(
+  form: RobotForm,
+  signatures: SignatureMap | null = null,
+): { nodes: Node[]; edges: Edge[] } {
   const allNodes: Node[] = []
   const allEdges: Edge[] = []
   for (let i = 0; i < form.keywords.length; i++) {
-    const { nodes, edges } = keywordDefToFlow(form.keywords[i], i, null)
+    const { nodes, edges } = keywordDefToFlow(form.keywords[i], i, null, signatures)
     const xOffset = i * 500
     for (const node of nodes) {
       node.position.x += xOffset

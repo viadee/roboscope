@@ -9,6 +9,163 @@
  *
  * Covers: BuiltIn, String, Collections, DateTime, OperatingSystem, Process, XML
  */
+
+/**
+ * Find the index of the `=` that separates `name[: type]` from `default`
+ * at the top scope of `body`. Returns -1 when there is no default.
+ *
+ * Walks the string while tracking bracket depth (`()`, `[]`, `{}`) and
+ * quote state (`'`, `"`) so an `=` inside a complex type like
+ * `Annotated[str, Field(min_length=1)]` does not look like an arg
+ * separator. Prefers the spaced form ` = ` when both are present at the
+ * top level — that's what libdoc emits for typed signatures.
+ */
+function findTopLevelEquals(body: string): number {
+  let depth = 0
+  let inSingle = false
+  let inDouble = false
+  let firstPlain = -1
+
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i]
+    if (inSingle) { if (c === "'" && body[i - 1] !== '\\') inSingle = false; continue }
+    if (inDouble) { if (c === '"' && body[i - 1] !== '\\') inDouble = false; continue }
+    if (c === "'") { inSingle = true; continue }
+    if (c === '"') { inDouble = true; continue }
+    if (c === '(' || c === '[' || c === '{') { depth++; continue }
+    if (c === ')' || c === ']' || c === '}') { depth--; continue }
+    if (depth !== 0) continue
+    if (c === '=') {
+      // Prefer ` = ` (spaced) over plain `=`. Return the spaced index
+      // immediately when seen; otherwise remember the first plain hit
+      // and fall back to it if no spaced form turns up.
+      if (body[i - 1] === ' ' && body[i + 1] === ' ') return i
+      if (firstPlain === -1) firstPlain = i
+    }
+  }
+  return firstPlain
+}
+
+// Story EDITOR-2 — parsed view of a single argument descriptor.
+export interface ParsedArg {
+  /** Bare parameter name (no type, no default). Empty for separators. */
+  name: string
+  /** Type annotation as written, e.g. "str", "int", "MouseButton",
+   *  "timedelta | None". Null when the descriptor has no type info. */
+  type: string | null
+  /** Default value as written (without surrounding spaces or quotes).
+   *  Null when the parameter is required. */
+  defaultValue: string | null
+  /** Structural role of this descriptor. */
+  kind:
+    | 'positional'        // name (required)
+    | 'optional'          // name=default OR name: type = default
+    | 'varargs'           // *args / *args: type
+    | 'kwargs'            // **kwargs / **kwargs: type
+    | 'named-only-sep'    // lone "*" — positional-only / named-only separator
+    | 'optional-sep'      // lone "?" — optional separator (rare)
+}
+
+/**
+ * Parse one argument descriptor as emitted by Robot Framework's
+ * libdoc / library-introspection. Examples it must handle:
+ *
+ *   "selector"                              → positional
+ *   "selector: str"                         → positional + type
+ *   "base=None"                             → optional
+ *   "clickCount: int = 1"                   → optional + type
+ *   "button: MouseButton = left"            → optional + enum-like type
+ *   "delay: timedelta | None = None"        → optional + union type
+ *   "*items"                                → varargs
+ *   "*modifiers: KeyboardModifier"          → varargs + type
+ *   "**kwargs"                              → kwargs
+ *   "**options: str"                        → kwargs + type
+ *   "*"                                     → named-only separator
+ *   "?"                                     → optional separator
+ *
+ * Robust against extra whitespace and around-the-equals styling.
+ * Never throws — unknown shapes degrade to `{ kind: 'positional', name: raw }`.
+ */
+export function parseArgSignature(raw: string): ParsedArg {
+  const trimmed = raw.trim()
+  const empty = (kind: ParsedArg['kind']): ParsedArg => ({
+    name: '',
+    type: null,
+    defaultValue: null,
+    kind,
+  })
+  if (trimmed === '*') return empty('named-only-sep')
+  if (trimmed === '?') return empty('optional-sep')
+
+  let kind: ParsedArg['kind'] = 'positional'
+  let body = trimmed
+  if (body.startsWith('**')) {
+    kind = 'kwargs'
+    body = body.slice(2)
+  } else if (body.startsWith('*')) {
+    kind = 'varargs'
+    body = body.slice(1)
+  }
+
+  // Split off the default value first. RF libdoc emits two flavours:
+  //   "clickCount: int = 1"   ← typed args use ` = ` (with spaces)
+  //   "base=None"             ← untyped (legacy) args use `=` (no spaces)
+  // Use a bracket / quote aware scan so we don't split inside complex
+  // types like `Annotated[str, Field(min_length=1)]` or `Literal['a = b']`.
+  let defaultValue: string | null = null
+  let nameAndType = body
+  const sepIdx = findTopLevelEquals(body)
+  if (sepIdx >= 0) {
+    const rawDefault = body.slice(sepIdx + 1).trim()
+    // `name=` (empty default) shouldn't yield a placeholder — treat as
+    // "has no default" so the UI doesn't display a stray "default: ".
+    defaultValue = rawDefault === '' ? null : rawDefault
+    nameAndType = body.slice(0, sepIdx).trimEnd()
+  }
+
+  if (defaultValue !== null && kind === 'positional') kind = 'optional'
+
+  let name = nameAndType
+  let type: string | null = null
+  const colonIdx = nameAndType.indexOf(':')
+  if (colonIdx >= 0) {
+    name = nameAndType.slice(0, colonIdx).trim()
+    type = nameAndType.slice(colonIdx + 1).trim()
+    if (type === '') type = null
+  }
+
+  return { name, type, defaultValue, kind }
+}
+
+/**
+ * Resolve the user-facing label for the input at positional `index`.
+ * Falls back to the localised "arg N" placeholder when nothing better is
+ * known. `*args` / `**kwargs` propagate forward: any positional past the
+ * varargs entry is also labelled "extra positional".
+ */
+export function getArgLabel(
+  argSpecs: ParsedArg[] | null,
+  index: number,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string {
+  const fallback = () => t('flowEditor.argLabels.fallback', { n: index + 1 })
+  if (!argSpecs || argSpecs.length === 0) return fallback()
+
+  const spec = argSpecs[index]
+  if (spec) {
+    if (spec.kind === 'varargs') return t('flowEditor.argLabels.extraPositional')
+    if (spec.kind === 'kwargs') return t('flowEditor.argLabels.extraNamed')
+    if (spec.name) return spec.name
+    return fallback()
+  }
+
+  // Past the declared signature — propagate varargs / kwargs if present.
+  const last = argSpecs[argSpecs.length - 1]
+  if (last?.kind === 'varargs') return t('flowEditor.argLabels.extraPositional')
+  if (last?.kind === 'kwargs') return t('flowEditor.argLabels.extraNamed')
+  return fallback()
+}
+
 export const RF_KEYWORD_SIGNATURES = new Map<string, string[]>([
   // =====================================================================
   // BuiltIn Library

@@ -1154,6 +1154,12 @@ export default {
       candidatesBadge: '× {count}',
       replaceCustomConfirm: 'Remplacer votre sélecteur personnalisé\n\n  {current}\n\npar le candidat enregistré\n\n  {next}\n?',
     },
+    argLabels: {
+      fallback: 'arg {n}',
+      extraPositional: 'positionnels supplémentaires',
+      extraNamed: 'nommés supplémentaires',
+      defaultPlaceholder: 'défaut : {default}',
+    },
   },
   robotEditor: {
     visualTab: 'Éditeur visuel',

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { Handle, Position } from '@vue-flow/core'
 import { activeSelector } from '@/types/recorder.types'
 import { qualityBand } from '@/utils/selectorQuality'
+import { getArgLabel } from '@/utils/robotKeywordSignatures'
 import type { FlowNodeData } from './flowConverter'
 
 const props = defineProps<{
@@ -19,6 +20,28 @@ const { t } = useI18n()
 
 function onHandleDragStart(event: DragEvent) {
   emit('reorder-drag-start', event)
+}
+
+// Story EDITOR-2 — render chips as `name: value` when the signature is
+// known, fall back to plain `value` otherwise. The label resolver is the
+// same one the detail panel uses, so node + panel never disagree.
+function chipNameAt(index: number): string | null {
+  const specs = props.data.argSpecs
+  if (!specs || specs.length === 0) return null
+  const label = getArgLabel(specs, index, t)
+  // Don't prefix with the generic fallback ("arg N") — that's just noise
+  // on the node body. Only show prefixes that carry real meaning.
+  const fallback = t('flowEditor.argLabels.fallback', { n: index + 1 })
+  return label === fallback ? null : label
+}
+
+function chipTitleAt(index: number): string | undefined {
+  const spec = props.data.argSpecs?.[index]
+  if (!spec || !spec.name) return undefined
+  let out = spec.name
+  if (spec.type) out += `: ${spec.type}`
+  if (spec.defaultValue != null) out += ` = ${spec.defaultValue}`
+  return out
 }
 
 // Story EDITOR-1 — selector-candidate badge for the first arg chip.
@@ -53,6 +76,7 @@ const candidateTooltip = computed(() =>
         :key="i"
         class="flow-arg"
         :class="{ 'flow-arg--has-candidates': i === 0 && showCandidateBadge }"
+        :title="chipTitleAt(i)"
       >
         <span
           v-if="i === 0 && showCandidateBadge"
@@ -60,6 +84,9 @@ const candidateTooltip = computed(() =>
           :title="candidateTooltip"
           aria-hidden="true"
         />
+        <span v-if="chipNameAt(i)" class="flow-arg-name-prefix" data-testid="arg-name-prefix">
+          {{ chipNameAt(i) }}:
+        </span>
         <span class="flow-arg-value">{{ arg }}</span>
         <span
           v-if="i === 0 && showCandidateBadge"
@@ -153,6 +180,11 @@ const candidateTooltip = computed(() =>
 .flow-arg-dot--good { background: #2c9846; }
 .flow-arg-dot--ok   { background: #d4883e; }
 .flow-arg-dot--poor { background: #c0392b; }
+.flow-arg-name-prefix {
+  font-weight: 600;
+  color: var(--color-navy, #1A2D50);
+  opacity: 0.7;
+}
 .flow-arg-value {
   overflow: hidden;
   text-overflow: ellipsis;

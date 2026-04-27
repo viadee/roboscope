@@ -1154,6 +1154,12 @@ export default {
       candidatesBadge: '× {count}',
       replaceCustomConfirm: 'Eigenen Selektor\n\n  {current}\n\ndurch aufgezeichneten Kandidaten\n\n  {next}\n\nersetzen?',
     },
+    argLabels: {
+      fallback: 'Arg {n}',
+      extraPositional: 'weitere Positionsargumente',
+      extraNamed: 'weitere Schlüsselwortargumente',
+      defaultPlaceholder: 'Standard: {default}',
+    },
   },
   robotEditor: {
     visualTab: 'Visueller Editor',

@@ -14,6 +14,8 @@ import StartEndNode from './flow/StartEndNode.vue'
 import KeywordPalette from './flow/KeywordPalette.vue'
 import SelectorPicker from '@/components/recorder/SelectorPicker.vue'
 import { type RecordedFlow } from '@/types/recorder.types'
+import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
+import { getArgLabel } from '@/utils/robotKeywordSignatures'
 import {
   applySelectorSwap,
   isCustomSelectorValue,
@@ -78,14 +80,20 @@ const selectedNodeData = computed<FlowNodeData | null>(() => {
   return selectedNode.value.data as FlowNodeData
 })
 
+// Story EDITOR-2 — keyword signature map (lowercase keyword name → raw
+// libdoc args). Reactive: rebuilds graph automatically when the
+// explorer-store cache resolves after a repo open.
+const { argsByName } = useKeywordSignatures()
+
 function buildGraph() {
   const sc = props.sidecar ?? null
+  const sig = argsByName.value
   if (activeSection.value === 'testcases') {
-    const result = robotFormToFlow(props.form, sc)
+    const result = robotFormToFlow(props.form, sc, sig)
     nodes.value = result.nodes
     edges.value = result.edges
   } else {
-    const result = robotKeywordsToFlow(props.form)
+    const result = robotKeywordsToFlow(props.form, sig)
     nodes.value = result.nodes
     edges.value = result.edges
   }
@@ -142,6 +150,12 @@ watch([() => props.form, activeSection], () => {
 
 // Sidecar identity change (file open / refresh) → rebuild without resetting tab/selection.
 watch(() => props.sidecar, () => {
+  buildGraph()
+})
+
+// Story EDITOR-2 — re-render argSpecs once dynamic library signatures
+// resolve (the backend fetch lags the first paint when a repo opens).
+watch(argsByName, () => {
   buildGraph()
 })
 
@@ -241,6 +255,21 @@ const selectorIsCustom = computed(() => {
   const data = selectedNodeData.value
   return data?.recording ? isCustomSelectorValue(data.step, data.recording) : false
 })
+
+// Story EDITOR-2 — per-arg label + default placeholder for the detail panel.
+function argLabelAt(index: number): string {
+  return getArgLabel(selectedNodeData.value?.argSpecs ?? null, index, t)
+}
+
+function argPlaceholderAt(index: number): string {
+  const spec = selectedNodeData.value?.argSpecs?.[index]
+  // Prefer the bare default value as placeholder — terse, fits the
+  // narrow input. The parameter-name label above carries the context.
+  if (spec?.defaultValue != null && spec.defaultValue !== '') {
+    return spec.defaultValue
+  }
+  return t('flowEditor.argLabels.fallback', { n: index + 1 })
+}
 
 function addArg() {
   if (!selectedNodeData.value) return
@@ -695,6 +724,12 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
         <div v-if="['keyword', 'assignment'].includes(selectedNodeData.stepType)" class="flow-detail-row">
           <label>{{ t('flowEditor.arguments') }}</label>
           <div v-for="(arg, i) in selectedNodeData.step.args" :key="i" class="flow-arg-row">
+            <!-- Story EDITOR-2: per-arg name label inline with the input,
+                 matches the row layout used by condition / loopVar / etc. -->
+            <span
+              class="flow-arg-name-inline"
+              :title="selectedNodeData.argSpecs?.[i]?.type ?? undefined"
+            >{{ argLabelAt(i) }}:</span>
             <!-- Story EDITOR-1: SelectorPicker for args[0] when we have recorded candidates -->
             <template v-if="i === 0 && selectorPickerVisible && selectedNodeData.recording">
               <div class="flow-selector-picker-wrap">
@@ -711,7 +746,7 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
               v-else
               v-model="selectedNodeData.step.args[i]"
               class="flow-input flow-input-sm"
-              :placeholder="'arg ' + (i+1)"
+              :placeholder="argPlaceholderAt(i)"
               @change="onStepFieldChange"
             />
             <button class="flow-btn-remove" @click="removeArg(i)">&times;</button>
@@ -982,6 +1017,18 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   padding: 3px 8px;
   cursor: pointer;
   margin-top: 2px;
+}
+.flow-arg-name-inline {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-muted, #5A6380);
+  cursor: default;
+  flex-shrink: 0;
+  min-width: 60px;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .flow-selector-picker-wrap {
   flex: 1;

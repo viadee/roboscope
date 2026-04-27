@@ -1,0 +1,65 @@
+/**
+ * Story EDITOR-2 — verifies the composable that combines static
+ * RF_KEYWORD_SIGNATURES with the dynamic explorer-store cache.
+ */
+import { describe, it, expect, beforeEach } from 'vitest'
+import { setActivePinia, createPinia } from 'pinia'
+import { useExplorerStore } from '@/stores/explorer.store'
+import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
+
+describe('useKeywordSignatures', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('returns args from RF_KEYWORD_SIGNATURES for built-in keywords', () => {
+    const { getArgs } = useKeywordSignatures()
+    // RF BuiltIn → "log" has signature ['message', 'level=INFO', ...]
+    expect(getArgs('Log')).toEqual([
+      'message', 'level=INFO', 'html=False', 'console=False', 'repr=False',
+    ])
+  })
+
+  it('is case-insensitive', () => {
+    const { getArgs } = useKeywordSignatures()
+    expect(getArgs('log')).toEqual(getArgs('LOG'))
+  })
+
+  it('returns null for unknown keywords', () => {
+    const { getArgs } = useKeywordSignatures()
+    expect(getArgs('No Such Keyword')).toBeNull()
+  })
+
+  it('returns null for empty / falsy input', () => {
+    const { getArgs } = useKeywordSignatures()
+    expect(getArgs('')).toBeNull()
+  })
+
+  it('dynamic explorer.keywords entries override the static fallback', () => {
+    const explorer = useExplorerStore()
+    // Push a dynamic library kw shadowing the BuiltIn name
+    explorer.keywords.push({
+      name: 'Log',
+      library: 'CustomLib',
+      doc: '',
+      args: ['custom_message: str', 'level: int = 5'],
+    })
+    const { getArgs } = useKeywordSignatures()
+    expect(getArgs('Log')).toEqual(['custom_message: str', 'level: int = 5'])
+  })
+
+  it('getParsedArgs maps each raw arg through parseArgSignature', () => {
+    const explorer = useExplorerStore()
+    explorer.keywords.push({
+      name: 'Click',
+      library: 'Browser',
+      doc: '',
+      args: ['selector: str', 'button: MouseButton = left'],
+    })
+    const { getParsedArgs } = useKeywordSignatures()
+    const parsed = getParsedArgs('Click')
+    expect(parsed).toHaveLength(2)
+    expect(parsed![0].name).toBe('selector')
+    expect(parsed![1].defaultValue).toBe('left')
+  })
+})
