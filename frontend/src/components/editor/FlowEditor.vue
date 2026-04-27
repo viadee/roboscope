@@ -12,6 +12,7 @@ import ControlNode from './flow/ControlNode.vue'
 import ControlGroupNode from './flow/ControlGroupNode.vue'
 import StartEndNode from './flow/StartEndNode.vue'
 import KeywordPalette from './flow/KeywordPalette.vue'
+import KeywordAutocompleteInput from './flow/KeywordAutocompleteInput.vue'
 import SelectorPicker from '@/components/recorder/SelectorPicker.vue'
 import { type RecordedFlow } from '@/types/recorder.types'
 import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
@@ -268,6 +269,12 @@ const selectorIsCustom = computed(() => {
 // Story EDITOR-2 — per-arg label + default placeholder for the detail panel.
 function argLabelAt(index: number): string {
   return getArgLabel(selectedNodeData.value?.argSpecs ?? null, index, t)
+}
+
+// Story EDITOR-4 — keyword input v-model glue for the autocomplete component.
+function onKeywordValueChange(v: string) {
+  if (!selectedNodeData.value) return
+  selectedNodeData.value.step.keyword = v
 }
 
 function argPlaceholderAt(index: number): string {
@@ -719,13 +726,13 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
           </div>
         </div>
 
-        <!-- Keyword name -->
+        <!-- Keyword name (Story EDITOR-4: autocompleted from useKeywordSignatures) -->
         <div v-if="['keyword', 'assignment'].includes(selectedNodeData.stepType)" class="flow-detail-row">
           <label>{{ t('flowEditor.keyword') }}</label>
-          <input
-            v-model="selectedNodeData.step.keyword"
-            class="flow-input"
-            @change="onStepFieldChange"
+          <KeywordAutocompleteInput
+            :value="selectedNodeData.step.keyword"
+            @update:value="onKeywordValueChange"
+            @select="onStepFieldChange"
           />
         </div>
 
