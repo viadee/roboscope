@@ -12,6 +12,7 @@
 import { computed, ref, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RecordedCommand, SelectorCandidate, SelectorStrategy } from '@/types/recorder.types'
+import { qualityBand } from '@/utils/selectorQuality'
 
 const props = defineProps<{
   command: RecordedCommand
@@ -39,14 +40,6 @@ const hasChoices = computed(() => props.command.selector_candidates.length > 1)
 function pick(index: number) {
   emit('update:activeIndex', index)
   menuOpen.value = false
-}
-
-/** Quality → colour band matching AR-7: testid/aria (>=80) green,
- *  pw_locator/text/short-css (50..79) amber, xpath/fragile (<50) red. */
-function qualityBand(score: number): 'good' | 'ok' | 'poor' {
-  if (score >= 80) return 'good'
-  if (score >= 50) return 'ok'
-  return 'poor'
 }
 
 function strategyLabelKey(strategy: SelectorStrategy): string {

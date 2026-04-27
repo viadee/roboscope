@@ -6,6 +6,8 @@ import FlowEditor from '@/components/editor/FlowEditor.vue'
 import { robotLanguage } from '@/utils/robotLanguage'
 import { RF_KEYWORD_SIGNATURES } from '@/utils/robotKeywordSignatures'
 import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
+import { loadSidecar, saveSidecar } from '@/composables/useRecordingSidecar'
+import type { RecordedFlow } from '@/types/recorder.types'
 
 // CodeMirror imports
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightSpecialChars } from '@codemirror/view'
@@ -787,10 +789,67 @@ function emitFormContent() {
 }
 
 // --- Form watchers ---
-watch(() => form.settings, () => { if (activeTab.value === 'visual') emitFormContent() }, { deep: true })
-watch(() => form.variables, () => { if (activeTab.value === 'visual') emitFormContent() }, { deep: true })
-watch(() => form.testCases, () => { if (activeTab.value === 'visual') emitFormContent() }, { deep: true })
-watch(() => form.keywords, () => { if (activeTab.value === 'visual') emitFormContent() }, { deep: true })
+// Story EDITOR-1 follow-up — also emit when on the flow tab so visual-flow
+// edits (selector swap, arg edits in the detail panel) reach the parent.
+const inFormEditingTab = computed(() => activeTab.value === 'visual' || activeTab.value === 'flow')
+watch(() => form.settings, () => { if (inFormEditingTab.value) emitFormContent() }, { deep: true })
+watch(() => form.variables, () => { if (inFormEditingTab.value) emitFormContent() }, { deep: true })
+watch(() => form.testCases, () => { if (inFormEditingTab.value) emitFormContent() }, { deep: true })
+watch(() => form.keywords, () => { if (inFormEditingTab.value) emitFormContent() }, { deep: true })
+
+// --- Story EDITOR-1: recording sidecar (`<file>.rbs.json`) ---
+const sidecar = ref<RecordedFlow | null>(null)
+const sidecarDirty = ref(false)
+// Path the current sidecar belongs to — captured at load-time so a
+// later swap can never write the wrong path's data after a tab switch.
+const sidecarPath = ref<string | null>(null)
+// Race-token: increments on every refresh so stale awaits drop their result.
+let sidecarLoadToken = 0
+
+async function refreshSidecar() {
+  // Reset eagerly so a swap during the in-flight load can never touch
+  // the previous file's sidecar (review fix #3).
+  sidecar.value = null
+  sidecarDirty.value = false
+  sidecarPath.value = null
+
+  if (props.repoId == null || !props.filePath) return
+  if (!props.filePath.toLowerCase().endsWith('.robot')) return
+
+  const token = ++sidecarLoadToken
+  const path = props.filePath
+  const repoId = props.repoId
+  const loaded = await loadSidecar(repoId, path)
+  // Discard the result if a newer refresh has started in the meantime.
+  if (token !== sidecarLoadToken) return
+  sidecar.value = loaded
+  if (loaded) sidecarPath.value = path
+}
+
+function onSidecarUpdated(updated: RecordedFlow) {
+  // FlowEditor mutates the sidecar object in place, so identity is preserved.
+  // Mark dirty so the next user Save persists it.
+  if (updated === sidecar.value) sidecarDirty.value = true
+}
+
+/**
+ * Persist the sidecar if it has been modified since the last save.
+ * Called by the parent (ExplorerView) right before it writes the
+ * `.robot` content, so both files end up on disk together — never the
+ * "sidecar swapped but .robot unchanged" inconsistency that breaks the
+ * SH-2 invariant. Safe to call when nothing is dirty.
+ */
+async function saveSidecarIfDirty(): Promise<void> {
+  if (!sidecarDirty.value || !sidecar.value || sidecarPath.value == null || props.repoId == null) {
+    return
+  }
+  await saveSidecar(props.repoId, sidecarPath.value, sidecar.value)
+  sidecarDirty.value = false
+}
+
+defineExpose({ saveSidecarIfDirty })
+
+watch(() => [props.repoId, props.filePath] as const, refreshSidecar, { immediate: true })
 
 // --- Known RF Libraries (for Library setting autocomplete) ---
 const RF_LIBRARIES = [
@@ -2401,7 +2460,12 @@ watch(() => props.content, (newContent) => {
 
     <!-- Flow Tab -->
     <div v-if="activeTab === 'flow'" class="flow-tab-wrapper">
-      <FlowEditor :form="form" :repo-id="props.repoId" />
+      <FlowEditor
+        :form="form"
+        :repo-id="props.repoId"
+        :sidecar="sidecar"
+        @update:sidecar="onSidecarUpdated"
+      />
     </div>
 
     <!-- Code Tab -->

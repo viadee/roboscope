@@ -1,5 +1,9 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Handle, Position } from '@vue-flow/core'
+import { activeSelector } from '@/types/recorder.types'
+import { qualityBand } from '@/utils/selectorQuality'
 import type { FlowNodeData } from './flowConverter'
 
 const props = defineProps<{
@@ -11,9 +15,22 @@ const emit = defineEmits<{
   (e: 'reorder-drag-start', event: DragEvent): void
 }>()
 
+const { t } = useI18n()
+
 function onHandleDragStart(event: DragEvent) {
   emit('reorder-drag-start', event)
 }
+
+// Story EDITOR-1 — selector-candidate badge for the first arg chip.
+const candidateCount = computed(() => props.data.recording?.selector_candidates.length ?? 0)
+const showCandidateBadge = computed(() => candidateCount.value > 0)
+const candidateBand = computed(() => {
+  const a = props.data.recording ? activeSelector(props.data.recording) : null
+  return qualityBand(a?.quality_score ?? 0)
+})
+const candidateTooltip = computed(() =>
+  t('flowEditor.selector.tooltipHasCandidates', { count: candidateCount.value }),
+)
 </script>
 
 <template>
@@ -31,7 +48,26 @@ function onHandleDragStart(event: DragEvent) {
       <span class="flow-node-label">{{ data.step.keyword || 'Keyword' }}</span>
     </div>
     <div v-if="data.step.args.length" class="flow-node-args">
-      <span v-for="(arg, i) in data.step.args" :key="i" class="flow-arg">{{ arg }}</span>
+      <span
+        v-for="(arg, i) in data.step.args"
+        :key="i"
+        class="flow-arg"
+        :class="{ 'flow-arg--has-candidates': i === 0 && showCandidateBadge }"
+      >
+        <span
+          v-if="i === 0 && showCandidateBadge"
+          :class="['flow-arg-dot', `flow-arg-dot--${candidateBand}`]"
+          :title="candidateTooltip"
+          aria-hidden="true"
+        />
+        <span class="flow-arg-value">{{ arg }}</span>
+        <span
+          v-if="i === 0 && showCandidateBadge"
+          class="flow-arg-count"
+          :title="candidateTooltip"
+          data-testid="selector-candidate-count"
+        >{{ t('flowEditor.selector.candidatesBadge', { count: candidateCount }) }}</span>
+      </span>
     </div>
     <div v-if="data.step.returnVars.length" class="flow-node-return">
       {{ data.step.returnVars.join(', ') }} =
@@ -98,6 +134,35 @@ function onHandleDragStart(event: DragEvent) {
   border-radius: 4px;
   font-size: 11px;
   color: var(--color-text-muted, #5A6380);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.flow-arg--has-candidates {
+  background: rgba(59, 125, 216, 0.10);
+  border: 1px solid rgba(59, 125, 216, 0.30);
+  padding: 0 6px;
+}
+.flow-arg-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.flow-arg-dot--good { background: #2c9846; }
+.flow-arg-dot--ok   { background: #d4883e; }
+.flow-arg-dot--poor { background: #c0392b; }
+.flow-arg-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+.flow-arg-count {
+  font-size: 10px;
+  color: var(--color-primary, #3B7DD8);
+  font-weight: 600;
 }
 .flow-node-return {
   margin-top: 4px;

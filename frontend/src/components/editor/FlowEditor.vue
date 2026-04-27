@@ -12,7 +12,11 @@ import ControlNode from './flow/ControlNode.vue'
 import ControlGroupNode from './flow/ControlGroupNode.vue'
 import StartEndNode from './flow/StartEndNode.vue'
 import KeywordPalette from './flow/KeywordPalette.vue'
+import SelectorPicker from '@/components/recorder/SelectorPicker.vue'
+import { type RecordedFlow } from '@/types/recorder.types'
 import {
+  applySelectorSwap,
+  isCustomSelectorValue,
   robotFormToFlow,
   robotKeywordsToFlow,
   updateStepFromNode,
@@ -31,10 +35,16 @@ import '@vue-flow/minimap/dist/style.css'
 const props = defineProps<{
   form: RobotForm
   repoId?: number
+  /** Story EDITOR-1 — sidecar (`<file>.rbs.json`) carrying recorded
+   *  selector candidates. Null if the file has none, the editor still
+   *  works as before. Persistence is the parent's responsibility:
+   *  FlowEditor only emits `update:sidecar` after a swap. */
+  sidecar?: RecordedFlow | null
 }>()
 
 const emit = defineEmits<{
   (e: 'update:step', data: FlowNodeData): void
+  (e: 'update:sidecar', sidecar: RecordedFlow): void
 }>()
 
 const { t } = useI18n()
@@ -69,8 +79,9 @@ const selectedNodeData = computed<FlowNodeData | null>(() => {
 })
 
 function buildGraph() {
+  const sc = props.sidecar ?? null
   if (activeSection.value === 'testcases') {
-    const result = robotFormToFlow(props.form)
+    const result = robotFormToFlow(props.form, sc)
     nodes.value = result.nodes
     edges.value = result.edges
   } else {
@@ -112,7 +123,9 @@ const visibleEdges = computed(() => {
 // Flag to suppress fitView during inline edits/reorder
 let suppressFitView = false
 
-// Rebuild graph when form or section changes
+// Rebuild graph when form, section, or sidecar identity changes.
+// Note: sidecar mutations are NOT deep-watched here — `rebuildAndReselect()`
+// is called explicitly from the swap handler so we don't double-render.
 watch([() => props.form, activeSection], () => {
   if (suppressFitView) {
     suppressFitView = false
@@ -126,6 +139,11 @@ watch([() => props.form, activeSection], () => {
     setTimeout(() => fitView({ padding: 0.3 }), 100)
   })
 }, { deep: true })
+
+// Sidecar identity change (file open / refresh) → rebuild without resetting tab/selection.
+watch(() => props.sidecar, () => {
+  buildGraph()
+})
 
 watch(activeItemIndex, () => {
   selectedNode.value = null
@@ -174,6 +192,55 @@ function onStepFieldChange() {
   rebuildAndReselect()
   emit('update:step', selectedNodeData.value)
 }
+
+// --- Story EDITOR-1: selector candidate swap ---
+//
+// When the user picks a different selector candidate, we mutate args[0]
+// + the sidecar's active_candidate_index in-memory and emit
+// `update:sidecar` so the parent can fold both writes (`.robot` and
+// `.rbs.json`) into one Save action. We never touch the disk here —
+// that would re-introduce the silent-edit anti-pattern called out in
+// CLAUDE.md (SH-2 invariant: never mutate `.robot` on disk at runtime).
+
+function onSelectorPickerSwap(newIndex: number) {
+  if (!selectedNodeData.value) return
+  const cmd = selectedNodeData.value.recording
+  if (!cmd) return
+  const candidate = cmd.selector_candidates[newIndex]
+  if (!candidate) return
+
+  // If the user has typed a custom selector and is about to overwrite it,
+  // confirm — otherwise the value disappears with no recovery path.
+  if (isCustomSelectorValue(selectedNodeData.value.step, cmd)) {
+    const ok = window.confirm(
+      t('flowEditor.selector.replaceCustomConfirm', {
+        current: selectedNodeData.value.step.args[0] ?? '',
+        next: candidate.value,
+      }),
+    )
+    if (!ok) return
+  }
+
+  if (!applySelectorSwap(selectedNodeData.value.step, cmd, newIndex)) return
+  updateStepFromNode(props.form, selectedNodeData.value)
+  rebuildAndReselect()
+  emit('update:step', selectedNodeData.value)
+  if (props.sidecar) emit('update:sidecar', props.sidecar)
+}
+
+/** True when the currently-selected step has at least one recorded
+ *  selector candidate that the picker should expose. */
+const selectorPickerVisible = computed(() => {
+  const cmd = selectedNodeData.value?.recording
+  return !!cmd && cmd.selector_candidates.length > 0
+})
+
+/** True when args[0] does not match any of the recorded candidates'
+ *  values — the user has hand-edited the selector to a custom value. */
+const selectorIsCustom = computed(() => {
+  const data = selectedNodeData.value
+  return data?.recording ? isCustomSelectorValue(data.step, data.recording) : false
+})
 
 function addArg() {
   if (!selectedNodeData.value) return
@@ -628,7 +695,20 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
         <div v-if="['keyword', 'assignment'].includes(selectedNodeData.stepType)" class="flow-detail-row">
           <label>{{ t('flowEditor.arguments') }}</label>
           <div v-for="(arg, i) in selectedNodeData.step.args" :key="i" class="flow-arg-row">
+            <!-- Story EDITOR-1: SelectorPicker for args[0] when we have recorded candidates -->
+            <template v-if="i === 0 && selectorPickerVisible && selectedNodeData.recording">
+              <div class="flow-selector-picker-wrap">
+                <SelectorPicker
+                  :command="selectedNodeData.recording"
+                  @update:active-index="onSelectorPickerSwap"
+                />
+                <span v-if="selectorIsCustom" class="flow-selector-custom-hint">
+                  {{ t('flowEditor.selector.customValueHint') }}
+                </span>
+              </div>
+            </template>
             <input
+              v-else
               v-model="selectedNodeData.step.args[i]"
               class="flow-input flow-input-sm"
               :placeholder="'arg ' + (i+1)"
@@ -902,6 +982,18 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   padding: 3px 8px;
   cursor: pointer;
   margin-top: 2px;
+}
+.flow-selector-picker-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.flow-selector-custom-hint {
+  font-size: 10px;
+  color: var(--color-accent, #D4883E);
+  font-style: italic;
 }
 
 /* Comment/flow-control inline nodes */

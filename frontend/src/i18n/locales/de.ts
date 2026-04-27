@@ -1148,6 +1148,12 @@ export default {
     exceptVar: 'Fehlervariable',
     varName: 'Variablenname',
     varScope: 'Geltungsbereich',
+    selector: {
+      tooltipHasCandidates: '{count} aufgezeichnete Kandidaten — zum Wechseln klicken',
+      customValueHint: '(eigener Wert, nicht aus der Aufzeichnung)',
+      candidatesBadge: '× {count}',
+      replaceCustomConfirm: 'Eigenen Selektor\n\n  {current}\n\ndurch aufgezeichneten Kandidaten\n\n  {next}\n\nersetzen?',
+    },
   },
   robotEditor: {
     visualTab: 'Visueller Editor',

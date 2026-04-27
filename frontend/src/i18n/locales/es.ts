@@ -1148,6 +1148,12 @@ export default {
     exceptVar: 'Variable de error',
     varName: 'Nombre de variable',
     varScope: 'Alcance',
+    selector: {
+      tooltipHasCandidates: '{count} candidatos grabados — haga clic para cambiar',
+      customValueHint: '(valor personalizado, no de la grabación)',
+      candidatesBadge: '× {count}',
+      replaceCustomConfirm: '¿Reemplazar su selector personalizado\n\n  {current}\n\ncon el candidato grabado\n\n  {next}\n?',
+    },
   },
   robotEditor: {
     visualTab: 'Editor visual',

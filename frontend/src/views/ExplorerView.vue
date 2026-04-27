@@ -460,10 +460,19 @@ function onEditorContentUpdate(content: string) {
 
 // --- File actions ---
 
+// Story EDITOR-1 — RobotEditor exposes saveSidecarIfDirty(); we call it
+// alongside the .robot save so a swapped selector candidate persists in
+// the same Save action that writes the .robot content.
+const robotEditorRef = ref<{ saveSidecarIfDirty?: () => Promise<void> } | null>(null)
+
 async function handleSave() {
   if (!selectedRepoId.value || !explorer.selectedFile || !isDirty.value) return
   saving.value = true
   try {
+    // Persist the recording sidecar first (cheap; usually a no-op).
+    // If it fails we still try to save the .robot — better one half-saved
+    // than zero saved on a transient sidecar write error.
+    try { await robotEditorRef.value?.saveSidecarIfDirty?.() } catch { /* noop */ }
     await explorer.saveFile(selectedRepoId.value, explorer.selectedFile.path, editorContent.value)
     isDirty.value = false
   } finally {
@@ -1058,6 +1067,7 @@ const flatNodes = computed(() => {
           <!-- Visual editor for .robot / .resource files -->
           <RobotEditor
             v-else-if="isRobotOrResource"
+            ref="robotEditorRef"
             :content="editorContent"
             :file-path="explorer.selectedFile.path"
             :repo-id="selectedRepoId ?? undefined"

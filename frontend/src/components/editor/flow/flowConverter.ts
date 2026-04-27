@@ -6,6 +6,7 @@
  */
 
 import type { Node, Edge } from '@vue-flow/core'
+import type { RecordedCommand, RecordedFlow } from '@/types/recorder.types'
 
 // --- Types matching RobotEditor.vue ---
 
@@ -68,6 +69,104 @@ export interface FlowNodeData {
   section: 'testcase' | 'keyword'
   sectionIndex: number
   stepIndex: number
+  /**
+   * Story EDITOR-1 — sidecar command matched to this step (if any).
+   * Set when a `<file>.rbs.json` exists alongside the `.robot` file
+   * and the step's positional index in the visible (non-control-flow)
+   * step sequence has a corresponding `RecordedCommand`. `null` for
+   * hand-written steps, control-flow steps, or excess hand-inserted
+   * steps beyond the sidecar length.
+   */
+  recording: RecordedCommand | null
+}
+
+// --- Sidecar matching (Story EDITOR-1) ---
+//
+// Strategy: iterate the section's flat step list, skip every control-flow /
+// non-keyword step (`if`, `for`, `while`, `try`, `except`, `finally`, `else`,
+// `else_if`, `end`, `break`, `continue`, `return`, `comment`, `var`), and
+// match the N-th remaining keyword/assignment step to the N-th
+// `RecordedCommand` in the sidecar.
+//
+// Limits (acceptable for V1, see story EDITOR-1 AC10):
+//   - A hand-inserted keyword in the middle of a recorded suite shifts every
+//     subsequent match by one. The picker simply disappears for the
+//     unmatched steps; nothing crashes.
+//   - Re-ordering steps does NOT re-fingerprint — the step at the new
+//     position picks up that position's recorded command. Re-recording is
+//     the recommended workflow for invalidated suites.
+
+const RECORDED_STEP_TYPES = new Set<StepType>(['keyword', 'assignment'])
+
+export function isRecordedStep(step: RobotStep): boolean {
+  return RECORDED_STEP_TYPES.has(step.type)
+}
+
+/**
+ * Returns the visible (recorded-step-only) index of `stepIndex` inside
+ * `steps`, or -1 if the step at `stepIndex` is not recorded-eligible.
+ */
+export function recordedIndex(steps: RobotStep[], stepIndex: number): number {
+  if (stepIndex < 0 || stepIndex >= steps.length) return -1
+  if (!isRecordedStep(steps[stepIndex])) return -1
+  let n = 0
+  for (let i = 0; i < stepIndex; i++) {
+    if (isRecordedStep(steps[i])) n++
+  }
+  return n
+}
+
+/**
+ * Match the step at `stepIndex` to a sidecar command, or `null` if the
+ * sidecar is missing, the step is not recorded-eligible, or no command
+ * exists at the matching position.
+ */
+export function matchStepToCommand(
+  steps: RobotStep[],
+  sidecar: RecordedFlow | null,
+  stepIndex: number,
+): RecordedCommand | null {
+  if (!sidecar) return null
+  const idx = recordedIndex(steps, stepIndex)
+  if (idx < 0) return null
+  return sidecar.commands[idx] ?? null
+}
+
+/**
+ * Apply a SelectorPicker swap to a step + its matched RecordedCommand.
+ * Both arguments are mutated in place: `step.args[0]` becomes the new
+ * candidate's value, and `cmd.active_candidate_index` is updated. Returns
+ * `true` if anything changed (or `false` if the index was out of range).
+ *
+ * Pure data transform — extracted so it can be tested without mounting
+ * Vue Flow / the visual editor.
+ */
+export function applySelectorSwap(
+  step: RobotStep,
+  cmd: RecordedCommand,
+  newIndex: number,
+): boolean {
+  const candidate = cmd.selector_candidates[newIndex]
+  if (!candidate) return false
+  if (step.args.length === 0) {
+    step.args.push(candidate.value)
+  } else {
+    step.args[0] = candidate.value
+  }
+  cmd.active_candidate_index = newIndex
+  return true
+}
+
+/**
+ * Detects whether `step.args[0]` is a value the user typed by hand
+ * rather than one of the recorded selector candidates. Used to gate a
+ * confirmation prompt before overwriting a custom selector during swap.
+ */
+export function isCustomSelectorValue(step: RobotStep, cmd: RecordedCommand): boolean {
+  if (cmd.selector_candidates.length === 0) return false
+  const current = step.args[0] ?? ''
+  if (current === '') return false
+  return !cmd.selector_candidates.some((c) => c.value === current)
 }
 
 // --- Layout constants ---
@@ -194,6 +293,7 @@ export function stepsToFlow(
   prefix: string,
   section: 'testcase' | 'keyword',
   sectionIndex: number,
+  sidecar: RecordedFlow | null = null,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
@@ -229,6 +329,7 @@ export function stepsToFlow(
         section,
         sectionIndex,
         stepIndex: i,
+        recording: matchStepToCommand(steps, sidecar, i),
       } as FlowNodeData,
     })
 
@@ -268,24 +369,36 @@ export function stepsToFlow(
 /** Convert a single test case to flow graph. */
 export function testCaseToFlow(
   tc: RobotTestCase, index: number,
+  sidecar: RecordedFlow | null = null,
 ): { nodes: Node[]; edges: Edge[] } {
-  return stepsToFlow(tc.steps, tc.name, `tc${index}`, 'testcase', index)
+  return stepsToFlow(tc.steps, tc.name, `tc${index}`, 'testcase', index, sidecar)
 }
 
 /** Convert a single keyword definition to flow graph. */
 export function keywordDefToFlow(
   kw: RobotKeywordDef, index: number,
+  sidecar: RecordedFlow | null = null,
 ): { nodes: Node[]; edges: Edge[] } {
-  return stepsToFlow(kw.steps, kw.name, `kw${index}`, 'keyword', index)
+  return stepsToFlow(kw.steps, kw.name, `kw${index}`, 'keyword', index, sidecar)
 }
 
 // --- Converter: Full RobotForm → Nodes + Edges ---
 
-export function robotFormToFlow(form: RobotForm): { nodes: Node[]; edges: Edge[] } {
+/**
+ * The sidecar is a flat list of recorded commands. We apply it to test
+ * case index 0 only — Recorder v2 always emits one test case per recording
+ * (`Recording <session_id>`), so attaching the same command list to every
+ * test case would mis-match anything but the first one. Hand-authored
+ * additional test cases get no sidecar matching; that's the right answer.
+ */
+export function robotFormToFlow(
+  form: RobotForm, sidecar: RecordedFlow | null = null,
+): { nodes: Node[]; edges: Edge[] } {
   const allNodes: Node[] = []
   const allEdges: Edge[] = []
   for (let i = 0; i < form.testCases.length; i++) {
-    const { nodes, edges } = testCaseToFlow(form.testCases[i], i)
+    const sc = i === 0 ? sidecar : null
+    const { nodes, edges } = testCaseToFlow(form.testCases[i], i, sc)
     const xOffset = i * 500
     for (const node of nodes) {
       node.position.x += xOffset
@@ -296,12 +409,16 @@ export function robotFormToFlow(form: RobotForm): { nodes: Node[]; edges: Edge[]
   return { nodes: allNodes, edges: allEdges }
 }
 
-/** Convert all keyword definitions to flow. */
+/**
+ * Convert all keyword definitions to flow. Sidecar entries are never bound
+ * to user-defined keyword bodies (Recorder v2 targets test cases), so this
+ * function intentionally takes no sidecar parameter.
+ */
 export function robotKeywordsToFlow(form: RobotForm): { nodes: Node[]; edges: Edge[] } {
   const allNodes: Node[] = []
   const allEdges: Edge[] = []
   for (let i = 0; i < form.keywords.length; i++) {
-    const { nodes, edges } = keywordDefToFlow(form.keywords[i], i)
+    const { nodes, edges } = keywordDefToFlow(form.keywords[i], i, null)
     const xOffset = i * 500
     for (const node of nodes) {
       node.position.x += xOffset

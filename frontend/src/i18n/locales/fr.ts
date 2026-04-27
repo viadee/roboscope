@@ -1148,6 +1148,12 @@ export default {
     exceptVar: 'Variable d\'erreur',
     varName: 'Nom de variable',
     varScope: 'Portée',
+    selector: {
+      tooltipHasCandidates: '{count} candidats enregistrés — cliquez pour changer',
+      customValueHint: '(valeur personnalisée, pas issue de l\'enregistrement)',
+      candidatesBadge: '× {count}',
+      replaceCustomConfirm: 'Remplacer votre sélecteur personnalisé\n\n  {current}\n\npar le candidat enregistré\n\n  {next}\n?',
+    },
   },
   robotEditor: {
     visualTab: 'Éditeur visuel',

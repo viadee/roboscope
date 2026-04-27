@@ -1148,6 +1148,12 @@ export default {
     exceptVar: 'Error Variable',
     varName: 'Variable Name',
     varScope: 'Scope',
+    selector: {
+      tooltipHasCandidates: '{count} recorded candidates — click to switch',
+      customValueHint: '(custom value, not from recording)',
+      candidatesBadge: '× {count}',
+      replaceCustomConfirm: 'Replace your custom selector\n\n  {current}\n\nwith the recorded candidate\n\n  {next}\n?',
+    },
   },
   robotEditor: {
     visualTab: 'Visual Editor',
