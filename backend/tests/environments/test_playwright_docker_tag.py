@@ -51,20 +51,34 @@ class TestTagDerivation:
             f"speak the backend's Playwright protocol."
         )
 
-    def test_dockerfile_embeds_derived_tag_for_browser_package(self) -> None:
+    def test_dockerfile_uses_python_slim_and_installs_playwright_browsers(
+        self, monkeypatch
+    ) -> None:
+        """Story Playwright-fix-E (2026-04-27): rfbrowser ships ahead
+        of Microsoft's published image tags (rfbrowser 19.14.2 needs
+        Playwright 1.59.1, MS only has up to 1.58.0-noble). Solution:
+        always python:<ver>-slim base + run `python -m playwright
+        install --with-deps chromium` to pull the matching browsers
+        ourselves. `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` keeps the
+        Python and Node halves looking in the same place."""
+        from src.environments import service
+
+        monkeypatch.setattr(
+            service, "rfbrowser_node_playwright_version",
+            lambda *a, **kw: "1.59.1",
+        )
         df = generate_dockerfile(
             python_version="3.12",
             packages=["robotframework", "robotframework-browser"],
         )
-        expected_tag = playwright_docker_base_image()
-        assert expected_tag in df, (
-            "Generated Dockerfile must embed the derived Playwright tag "
-            "when a Browser-library package is requested."
-        )
+        assert "FROM python:3.12-slim" in df
+        assert "mcr.microsoft.com/playwright" not in df
+        assert "ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright" in df
+        assert "python -m playwright install --with-deps chromium" in df
+        # Pin still derived from rfbrowser, not backend.
+        assert "'playwright==1.59.1'" in df
         # Defensive: the old hardcoded v1.52.0 literal must never reappear.
-        assert "v1.52.0-noble" not in df or "v1.52.0-noble" in expected_tag, (
-            "Hardcoded v1.52.0 tag detected in generated Dockerfile"
-        )
+        assert "v1.52.0-noble" not in df
 
     def test_dockerfile_uses_python_slim_when_no_browser(self) -> None:
         df = generate_dockerfile(
@@ -87,83 +101,80 @@ class TestTagDerivation:
         # we don't double-install playwright.
         assert "playwright==" not in df
 
-    def test_dockerfile_force_pins_playwright_matching_base_image(self) -> None:
-        """Regression — the incident that made this fix necessary.
+    def test_dockerfile_force_pins_playwright_at_node_derived_version(
+        self, monkeypatch
+    ) -> None:
+        """Force-pin must match the node-derived version (= the
+        rfbrowser-wrapper's expected playwright), not the backend's."""
+        from src.environments import service
 
-        Microsoft's playwright/python:v{X.Y.Z}-noble image carries
-        browser binaries for exactly that Playwright version. When the
-        user's packages (robotframework-browser) transitively upgrade
-        Python Playwright past {X.Y.Z}, the client-binary handshake
-        fails at chromium.launch() with 'Please update docker image
-        as well'.
-
-        The generated Dockerfile must therefore re-pin
-        `playwright==<X.Y.Z>` AFTER the user packages install.
-        """
+        monkeypatch.setattr(
+            service, "rfbrowser_node_playwright_version",
+            lambda *a, **kw: "1.59.1",
+        )
         df = generate_dockerfile(
             python_version="3.12",
             packages=["robotframework-browser"],
         )
-        pinned = playwright_pinned_version()
-        # The pin line must exist.
-        assert f"'playwright=={pinned}'" in df, (
-            f"Dockerfile must force-pin playwright=={pinned} so "
-            f"transitive upgrades don't drift past the base image's "
-            f"browser binaries."
+        assert "'playwright==1.59.1'" in df, (
+            "Dockerfile must force-pin to the rfbrowser-derived "
+            "playwright version, NOT the backend's."
         )
-        # And it must come AFTER the user package install so pip
-        # respects the pin.
+        # And it must come AFTER the user package install.
         install_block_end = df.find("robotframework-browser")
-        pin_index = df.find(f"'playwright=={pinned}'")
-        assert install_block_end < pin_index, (
-            "Force-pin must come after user package install; otherwise "
-            "the transitive upgrade overwrites it."
-        )
+        pin_index = df.find("'playwright==1.59.1'")
+        assert install_block_end < pin_index
 
-    def test_batteries_uses_python_slim_not_ms_playwright_base(self) -> None:
-        """Story Playwright-fix-C — `robotframework-browser-batteries`
-        is self-contained (ships its own Playwright + browsers as wheel
-        contents). Using the MS Playwright image as the base sets
-        PLAYWRIGHT_BROWSERS_PATH=/ms-playwright, batteries inherits
-        that env var (its __init__ only assigns the fallback when
-        unset), and Playwright then tries to launch a binary build id
-        that doesn't match. Root fix: use python-slim and let batteries
-        manage its own bundle."""
+    def test_batteries_path_pins_to_node_version_and_installs_browsers(
+        self, monkeypatch
+    ) -> None:
+        from src.environments import service
+
+        monkeypatch.setattr(
+            service, "rfbrowser_node_playwright_version",
+            lambda *a, **kw: "1.59.1",
+        )
         df = generate_dockerfile(
             python_version="3.12",
             packages=["robotframework-browser-batteries"],
         )
-        assert "FROM python:3.12-slim" in df, (
-            "batteries must use python-slim; MS Playwright base drags in "
-            "the PLAYWRIGHT_BROWSERS_PATH env that breaks batteries."
-        )
-        assert "mcr.microsoft.com/playwright" not in df
-        # No force-pin of `playwright` — not needed on python-slim
-        # since batteries brings its own bundle.
-        assert "playwright==" not in df
+        assert "FROM python:3.12-slim" in df
+        assert "'playwright==1.59.1'" in df
+        assert "python -m playwright install --with-deps chromium" in df
 
-    def test_standard_browser_still_uses_ms_playwright_base(self) -> None:
-        """Non-batteries robotframework-browser still needs the MS
-        Playwright image (Node runtime + system deps for rfbrowser init)."""
+    def test_standard_browser_pins_and_runs_rfbrowser_init(
+        self, monkeypatch
+    ) -> None:
+        from src.environments import service
+
+        monkeypatch.setattr(
+            service, "rfbrowser_node_playwright_version",
+            lambda *a, **kw: "1.59.1",
+        )
         df = generate_dockerfile(
             python_version="3.12",
             packages=["robotframework-browser"],
         )
-        assert "mcr.microsoft.com/playwright" in df
-        # Force-pin still applies on this path.
-        assert f"'playwright=={playwright_pinned_version()}'" in df
+        assert "FROM python:3.12-slim" in df
+        assert "'playwright==1.59.1'" in df
+        # Standard browser still needs rfbrowser init for the Node side.
+        assert "RUN rfbrowser init" in df
 
-    def test_batteries_plus_other_packages_still_python_slim(self) -> None:
+    def test_falls_back_to_backend_version_when_pypi_unreachable(
+        self, monkeypatch
+    ) -> None:
+        from src.environments import service
+
+        monkeypatch.setattr(
+            service, "rfbrowser_node_playwright_version",
+            lambda *a, **kw: None,
+        )
         df = generate_dockerfile(
             python_version="3.12",
-            packages=[
-                "robotframework",
-                "robotframework-browser-batteries",
-                "robotframework-requests",
-            ],
+            packages=["robotframework-browser-batteries"],
         )
-        assert "FROM python:3.12-slim" in df
-        assert "mcr.microsoft.com/playwright" not in df
+        backend_pin = playwright_pinned_version()
+        assert f"'playwright=={backend_pin}'" in df
 
 
 # ---------------------------------------------------------------------------

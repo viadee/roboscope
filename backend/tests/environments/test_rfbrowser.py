@@ -354,13 +354,21 @@ class TestInstallPackageBrowserHook:
 
 
 class TestGenerateDockerfileBrowser:
-    def test_with_browser_package_uses_playwright_base_image(self):
+    def test_with_browser_package_runs_rfbrowser_init_on_python_slim(self):
+        """Story Playwright-fix-E (2026-04-27): rfbrowser-aware images
+        always start from python-slim; the matching Playwright browser
+        binaries get pulled by `python -m playwright install` rather
+        than relying on a Microsoft-published base image. rfbrowser
+        ships ahead of Microsoft's image releases (e.g. rfbrowser
+        19.14.2 needs Playwright 1.59.1, MS only has up to 1.58.0)."""
         df = generate_dockerfile("3.12", ["robotframework", "robotframework-browser==18.0.0"])
-        assert "mcr.microsoft.com/playwright/python" in df
+        assert "FROM python:3.12-slim" in df
         assert "rfbrowser init" in df
         assert "nodejs" in df  # rfbrowser init requires npm
-        # Should NOT use python-slim as base
-        assert "python:3.12-slim" not in df
+        # Browser binaries pulled explicitly via Python Playwright CLI.
+        assert "python -m playwright install --with-deps chromium" in df
+        # Microsoft Playwright base image is no longer used as anchor.
+        assert "mcr.microsoft.com/playwright" not in df
 
     def test_without_browser_package_uses_python_slim(self):
         df = generate_dockerfile("3.12", ["robotframework", "requests"])
@@ -370,7 +378,7 @@ class TestGenerateDockerfileBrowser:
 
     def test_browser_package_with_underscore(self):
         df = generate_dockerfile("3.12", ["robotframework_browser"])
-        assert "mcr.microsoft.com/playwright/python" in df
+        assert "FROM python:3.12-slim" in df
         assert "nodejs" in df
         assert "rfbrowser init" in df
 

@@ -123,15 +123,12 @@ class TestDockerfileGeneration:
         df = generate_dockerfile("3.12", ["robotframework", "robotframework-browser-batteries"])
         assert "nodejs" not in df
         assert "rfbrowser init" not in df
-        # Story Playwright-fix-C (2026-04-24): batteries ships its own
-        # Playwright+browser bundle. The MS Playwright base image sets
-        # PLAYWRIGHT_BROWSERS_PATH=/ms-playwright which batteries honours
-        # as-is — it then looks for the base image's browser binaries
-        # rather than its own, and hits a build-id mismatch the moment
-        # you call chromium.launch(). Using python-slim is what lets
-        # batteries find its own bundle unambiguously.
+        # Story Playwright-fix-E (2026-04-27): batteries replaces the
+        # gRPC wrapper but still needs browser binaries. Pull them
+        # explicitly via the Python Playwright CLI on a slim base —
+        # avoids the rfbrowser-vs-Microsoft tag-publishing-lag trap.
         assert "FROM python:3.12-slim" in df
-        assert "mcr.microsoft.com/playwright" not in df
+        assert "python -m playwright install --with-deps chromium" in df
 
     def test_no_browser_uses_slim_image(self):
         df = generate_dockerfile("3.12", ["robotframework", "robotframework-requests"])

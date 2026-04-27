@@ -235,3 +235,136 @@ def test_pinned_version_matches_currently_installed() -> None:
     `importlib.metadata`. A future refactor that hardcodes the
     version back as a string literal would reintroduce bug #1."""
     assert playwright_pinned_version() == _installed_version("playwright")
+
+
+# ---------------------------------------------------------------------------
+# Wheel-probe (Story Playwright-fix-D) — extract Node-Playwright version
+# from rfbrowser's shipped Browser/wrapper/package.json.
+# ---------------------------------------------------------------------------
+
+
+def _build_fake_wheel(playwright_spec: str) -> bytes:
+    """Synthesise a minimal in-memory zip mimicking rfbrowser's wheel
+    layout: just enough for the probe to find Browser/wrapper/package.json."""
+    import io
+    import json as _json
+    import zipfile as _zip
+
+    buf = io.BytesIO()
+    with _zip.ZipFile(buf, "w") as zf:
+        zf.writestr(
+            "Browser/wrapper/package.json",
+            _json.dumps({
+                "name": "robotframework-playwright",
+                "version": "19.14.2",
+                "dependencies": {"playwright": playwright_spec},
+            }),
+        )
+    return buf.getvalue()
+
+
+class TestWheelProbe:
+    def test_extracts_caret_pinned_version(self) -> None:
+        from src.environments.service import rfbrowser_node_playwright_version
+
+        wheel = _build_fake_wheel("^1.59.1")
+        meta = {
+            "urls": [
+                {"filename": "robotframework_browser-19.14.2-py3-none-manylinux_2_17_x86_64.whl",
+                 "url": "fake://wheel"},
+            ],
+        }
+        ver = rfbrowser_node_playwright_version(
+            "robotframework-browser",
+            pypi_json_fetcher=lambda url: __import__("json").dumps(meta).encode(),
+            wheel_fetcher=lambda url: wheel,
+        )
+        assert ver == "1.59.1"
+
+    def test_extracts_tilde_pinned_version(self) -> None:
+        from src.environments.service import rfbrowser_node_playwright_version
+
+        wheel = _build_fake_wheel("~1.58.0")
+        meta = {
+            "urls": [
+                {"filename": "robotframework_browser-19.0-py3-none-manylinux_2_17_x86_64.whl",
+                 "url": "fake://wheel"},
+            ],
+        }
+        ver = rfbrowser_node_playwright_version(
+            "robotframework-browser",
+            pypi_json_fetcher=lambda url: __import__("json").dumps(meta).encode(),
+            wheel_fetcher=lambda url: wheel,
+        )
+        assert ver == "1.58.0"
+
+    def test_returns_none_when_no_playwright_dep(self) -> None:
+        from src.environments.service import rfbrowser_node_playwright_version
+
+        import io
+        import json as _json
+        import zipfile as _zip
+
+        buf = io.BytesIO()
+        with _zip.ZipFile(buf, "w") as zf:
+            zf.writestr(
+                "Browser/wrapper/package.json",
+                _json.dumps({"dependencies": {"other-dep": "1.0.0"}}),
+            )
+        wheel = buf.getvalue()
+        meta = {"urls": [
+            {"filename": "robotframework_browser-19.0-py3-none-manylinux_2_17_x86_64.whl",
+             "url": "fake://wheel"},
+        ]}
+        ver = rfbrowser_node_playwright_version(
+            "robotframework-browser",
+            pypi_json_fetcher=lambda url: __import__("json").dumps(meta).encode(),
+            wheel_fetcher=lambda url: wheel,
+        )
+        assert ver is None
+
+    def test_returns_none_on_pypi_failure(self) -> None:
+        from src.environments.service import rfbrowser_node_playwright_version
+
+        def _broken(_url):
+            raise TimeoutError("pretend offline")
+
+        ver = rfbrowser_node_playwright_version(
+            "robotframework-browser",
+            pypi_json_fetcher=_broken,
+        )
+        assert ver is None
+
+    def test_returns_none_on_corrupt_wheel(self) -> None:
+        from src.environments.service import rfbrowser_node_playwright_version
+
+        meta = {"urls": [
+            {"filename": "robotframework_browser-19.0-py3-none-manylinux_2_17_x86_64.whl",
+             "url": "fake://wheel"},
+        ]}
+        ver = rfbrowser_node_playwright_version(
+            "robotframework-browser",
+            pypi_json_fetcher=lambda url: __import__("json").dumps(meta).encode(),
+            wheel_fetcher=lambda url: b"not a zip",
+        )
+        assert ver is None
+
+
+@pytest.mark.integration
+def test_real_pypi_rfbrowser_node_playwright_version() -> None:
+    """Hit real PyPI, download the rfbrowser wheel, extract the
+    Node-Playwright version. Catches PyPI/wheel-layout drift before
+    a user's docker rebuild does."""
+    from src.environments.service import rfbrowser_node_playwright_version
+
+    ver = rfbrowser_node_playwright_version("robotframework-browser")
+    assert ver is not None, (
+        "Could not extract Node-Playwright version from "
+        "robotframework-browser's wheel. Either PyPI is unreachable, "
+        "the wheel layout changed (Browser/wrapper/package.json moved), "
+        "or the wheel's package.json no longer declares a 'playwright' "
+        "dependency. Inspect the wheel manually."
+    )
+    # Sanity: the extracted version is a valid semver-ish string.
+    import re
+    assert re.match(r"^\d+\.\d+\.\d+$", ver), f"unexpected format: {ver!r}"

@@ -436,6 +436,102 @@ def validate_playwright_pin_against_packages(
     return warnings
 
 
+def rfbrowser_node_playwright_version(
+    package_spec: str = "robotframework-browser",
+    *,
+    pypi_json_fetcher=None,
+    wheel_fetcher=None,
+) -> str | None:
+    """Fetch the Node-side `playwright` version that
+    `robotframework-browser`'s shipped `Browser/wrapper/package.json`
+    declares as its dependency.
+
+    This — NOT the backend's installed Python `playwright` package —
+    is the actual source of truth for which MS-Playwright Docker image
+    tag matches. The Node-side gRPC wrapper (also used by batteries
+    via `BrowserBatteries/bin/grpc_server`) is what does
+    `chromium.launch()`, and it expects browser binaries matching the
+    Node-Playwright version baked into the rfbrowser wheel.
+
+    Returns a pinned version string like ``"1.59.1"`` or None on any
+    failure (offline / wheel layout changed / parse error). Callers
+    fall back to `playwright_pinned_version()`.
+    """
+    import io
+    import json
+    import re
+    import urllib.error
+    import urllib.request
+    import zipfile
+
+    name = re.split(r"[<>=!~\s]", package_spec, maxsplit=1)[0].strip()
+    if not name:
+        return None
+
+    pypi_url = f"https://pypi.org/pypi/{name}/json"
+    try:
+        if pypi_json_fetcher is None:
+            with urllib.request.urlopen(pypi_url, timeout=10) as resp:  # noqa: S310
+                meta = json.loads(resp.read())
+        else:
+            meta = json.loads(pypi_json_fetcher(pypi_url))
+    except (urllib.error.URLError, ValueError, TimeoutError, OSError):
+        return None
+
+    # Pick a wheel — prefer manylinux x86_64 since that's what we Dockerfile-target,
+    # fall back to any wheel.
+    files = meta.get("urls") or []
+    wheel = next(
+        (f for f in files if "manylinux_2_17_x86_64" in f.get("filename", "")),
+        None,
+    )
+    if wheel is None:
+        wheel = next(
+            (f for f in files if f.get("filename", "").endswith(".whl")),
+            None,
+        )
+    if wheel is None:
+        return None
+
+    try:
+        if wheel_fetcher is None:
+            buf = urllib.request.urlopen(wheel["url"], timeout=120).read()  # noqa: S310
+        else:
+            buf = wheel_fetcher(wheel["url"])
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return None
+
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(buf))
+        # Look for the wrapper package.json. Robotframework-browser places it at
+        # Browser/wrapper/package.json; tolerate layout drift defensively.
+        candidates = [
+            n for n in zf.namelist()
+            if n.endswith("/package.json") and "wrapper" in n.lower()
+        ]
+        for entry in candidates:
+            try:
+                payload = json.loads(zf.read(entry).decode("utf-8", errors="replace"))
+            except Exception:
+                continue
+            deps = {**(payload.get("dependencies") or {}),
+                    **(payload.get("devDependencies") or {})}
+            spec = deps.get("playwright") or deps.get("playwright-core")
+            if not spec:
+                continue
+            # Strip caret/tilde/range prefixes — pin to the exact version
+            # rfbrowser was built against. Anything beyond that is
+            # speculation about what browsers Microsoft published.
+            # `re.search` (not `match`) because the spec often starts
+            # with `^` or `~`.
+            cleaned = re.search(r"\d+\.\d+\.\d+", spec)
+            if cleaned:
+                return cleaned.group(0)
+        return None
+    except (zipfile.BadZipFile, KeyError):
+        return None
+
+
 def playwright_pinned_version() -> str:
     """Return the Playwright Python version the Docker container must
     be pinned to — derived from the currently installed backend package.
@@ -501,25 +597,15 @@ def generate_dockerfile(
 
     if base_image:
         base = base_image
-    elif needs_batteries:
-        # Story Playwright-fix-C (2026-04-24): `robotframework-browser-
-        # batteries` ships its own Playwright + browser binaries inside
-        # the wheel. Using the Microsoft Playwright image as base ends
-        # in tears — that image sets PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-        # via a default env, batteries inherits it (its __init__.py
-        # only sets the fallback when the var is UNSET), and Playwright
-        # then tries to launch /ms-playwright/chromium_headless_shell-<X>
-        # where <X> is the MS image's build id — almost certainly ≠ the
-        # build id the batteries wheel expects. Solution: use plain
-        # python-slim and let batteries manage browsers itself.
-        base = f"python:{python_version}-slim"
-    elif needs_browser_standard:
-        # Standard robotframework-browser (non-batteries) is NOT
-        # self-contained — it calls `rfbrowser init` which uses the
-        # Microsoft Playwright image's pre-installed browsers and Node
-        # runtime. Keep the MS base here.
-        base = playwright_docker_base_image()
     else:
+        # Story Playwright-fix-E (2026-04-27): always start from
+        # `python:<ver>-slim` and install Playwright browsers
+        # explicitly. rfbrowser ships ahead of Microsoft's published
+        # image tags (e.g. rfbrowser 19.14.2 ships Node-Playwright
+        # 1.59.1, but Microsoft only has up to v1.58.0-noble). The MS
+        # base image is therefore unreliable as a long-term anchor.
+        # python-slim has nothing pre-installed → no version drift to
+        # accommodate.
         base = f"python:{python_version}-slim"
 
     lines = [
@@ -529,11 +615,16 @@ def generate_dockerfile(
         "",
     ]
 
-    # Node.js 20 LTS — only needed for standard robotframework-browser (rfbrowser init requires npm)
-    # NOT needed for robotframework-browser-batteries (self-contained)
-    if needs_browser_standard:
+    # Node.js 20 LTS. Story Playwright-fix-E (2026-04-27): both
+    # `robotframework-browser` AND `-batteries` need Node — rfbrowser init
+    # is the cleanest way to lay down browsers compatible with rfbrowser's
+    # Node-side wrapper, regardless of whether the user picked the
+    # standard or the batteries variant. The earlier "batteries is
+    # self-contained" assumption was wrong: batteries replaces the gRPC
+    # server binary but does NOT bundle browser binaries.
+    if needs_browser_any:
         lines += [
-            "# Node.js required for rfbrowser init (standard browser package)",
+            "# Node.js required for rfbrowser init (downloads matching browsers)",
             "RUN apt-get update && apt-get install -y --no-install-recommends \\",
             "    curl gnupg \\",
             "    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \\",
@@ -548,49 +639,28 @@ def generate_dockerfile(
         lines.append(f"    {pkg}{suffix}")
     lines.append("")
 
-    # Story Playwright-pin fix (2026-04-24): force-pin the Python
-    # `playwright` package back to the version the base image carries.
-    # Without this, `robotframework-browser` transitively upgrades
-    # Playwright past the version whose browser binaries are baked into
-    # the base image — `chromium.launch()` then aborts with
-    # "Please update docker image as well" on the very first call.
-    # Runs AFTER user packages so pip respects the pin.
-    #
-    # Only applies to the standard `robotframework-browser` path, where
-    # we actually use the MS Playwright base image. Batteries ships its
-    # own bundle on top of python-slim — nothing to pin against.
-    if needs_browser_standard and not needs_batteries and not base_image:
-        pinned = playwright_pinned_version()
-
-        # Future-proof sanity check: does the pin still satisfy each
-        # requested browser package's playwright constraint? If not, a
-        # rebuild will hit a pip resolver error or install two
-        # conflicting Playwrights. Warnings land in the Dockerfile
-        # itself as comments so build logs + `docker history` carry
-        # the signal; we also emit via logger for the backend process.
-        import logging
-        _log = logging.getLogger("roboscope.environments.dockerfile")
-        for warning in validate_playwright_pin_against_packages(packages, pinned):
-            _log.warning(warning)
-            # Render as Dockerfile comments so the warning survives into
-            # any artefact inspecting the generated file.
-            for wline in warning.split("\n"):
-                lines.append(f"# WARNING: {wline}")
-            lines.append("")
-
+    # Story Playwright-fix-E (2026-04-27, verified by real-build smoke):
+    # rfbrowser init is the canonical path to populate
+    # `Browser/wrapper/node_modules/playwright-core/.local-browsers/`
+    # with browsers matching rfbrowser's Node-side Playwright. After
+    # that, `npx playwright install-deps chromium` adds the Linux apt
+    # libs Chromium needs at runtime (libnss3, libnspr4, ...). One pass
+    # for both rfbrowser variants — batteries had the same browser-
+    # missing problem; only its grpc_server differs.
+    if needs_browser_any:
         lines.append(
-            f"# Force-align Python Playwright with the base image's "
-            f"browser binaries (playwright=={pinned})"
+            "# Story Playwright-fix-E: rfbrowser init lays down browsers"
         )
         lines.append(
-            f"RUN uv pip install --system --no-cache-dir "
-            f"'playwright=={pinned}'"
+            "# matching its Node-side Playwright wrapper; install-deps"
         )
-        lines.append("")
-
-    # rfbrowser init — only for standard browser, NOT for batteries
-    if needs_browser_standard:
-        lines.append("RUN rfbrowser init")
+        lines.append("# adds the system libs Chromium needs at runtime.")
+        lines.append("RUN rfbrowser init \\")
+        lines.append(
+            "    && cd /usr/local/lib/python3.12/site-packages/Browser/wrapper \\"
+        )
+        lines.append("    && npx playwright install-deps chromium \\")
+        lines.append("    && rm -rf /var/lib/apt/lists/*")
         lines.append("")
 
     lines.append('CMD ["python", "-m", "robot", "--help"]')
