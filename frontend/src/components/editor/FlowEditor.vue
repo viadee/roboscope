@@ -13,6 +13,7 @@ import ControlGroupNode from './flow/ControlGroupNode.vue'
 import StartEndNode from './flow/StartEndNode.vue'
 import KeywordPalette from './flow/KeywordPalette.vue'
 import KeywordAutocompleteInput from './flow/KeywordAutocompleteInput.vue'
+import KeywordDocModal from './flow/KeywordDocModal.vue'
 import SelectorPicker from '@/components/recorder/SelectorPicker.vue'
 import { type RecordedFlow } from '@/types/recorder.types'
 import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
@@ -275,6 +276,20 @@ function argLabelAt(index: number): string {
 function onKeywordValueChange(v: string) {
   if (!selectedNodeData.value) return
   selectedNodeData.value.step.keyword = v
+}
+
+// Story EDITOR-7 — keyword doc modal toggle.
+const docModalOpen = ref(false)
+const docModalKeyword = computed(() => selectedNodeData.value?.step.keyword ?? '')
+const canShowDoc = computed(() => {
+  const data = selectedNodeData.value
+  if (!data) return false
+  if (data.stepType !== 'keyword' && data.stepType !== 'assignment') return false
+  return (data.step.keyword ?? '').trim().length > 0
+})
+function openDocModal() {
+  if (!canShowDoc.value) return
+  docModalOpen.value = true
 }
 
 function argPlaceholderAt(index: number): string {
@@ -722,6 +737,14 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
           <div class="flow-detail-actions">
             <button class="flow-action-btn" @click="moveStepUp" title="Move up">&#x2191;</button>
             <button class="flow-action-btn" @click="moveStepDown" title="Move down">&#x2193;</button>
+            <!-- Story EDITOR-7: keyword documentation popup -->
+            <button
+              v-if="canShowDoc"
+              class="flow-action-btn flow-action-info"
+              :title="t('flowEditor.docModal.button')"
+              data-testid="kw-doc-info-btn"
+              @click="openDocModal"
+            >&#9432;</button>
             <button class="flow-action-btn flow-action-delete" @click="deleteStep" title="Delete">&times;</button>
           </div>
         </div>
@@ -848,6 +871,11 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
         </div>
       </div>
     </div>
+    <!-- Story EDITOR-7: keyword documentation modal (teleported to body by BaseModal) -->
+    <KeywordDocModal
+      v-model="docModalOpen"
+      :keyword="docModalKeyword"
+    />
   </div>
 </template>
 
@@ -978,6 +1006,15 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
 }
 .flow-action-delete:hover {
   background: #fee;
+}
+.flow-action-info {
+  color: var(--color-primary, #3B7DD8);
+  border-color: rgba(59, 125, 216, 0.4);
+  font-style: italic;
+  font-weight: 700;
+}
+.flow-action-info:hover {
+  background: rgba(59, 125, 216, 0.08);
 }
 .flow-detail-row {
   margin-bottom: 10px;

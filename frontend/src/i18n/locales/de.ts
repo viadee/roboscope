@@ -1160,6 +1160,12 @@ export default {
       extraNamed: 'weitere Schlüsselwortargumente',
       defaultPlaceholder: 'Standard: {default}',
     },
+    docModal: {
+      title: 'Keyword-Dokumentation',
+      argsHeader: 'Argumente',
+      noDoc: 'Keine Dokumentation verfügbar.',
+      button: 'Dokumentation anzeigen',
+    },
   },
   robotEditor: {
     visualTab: 'Visueller Editor',

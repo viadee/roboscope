@@ -1160,6 +1160,12 @@ export default {
       extraNamed: 'nommés supplémentaires',
       defaultPlaceholder: 'défaut : {default}',
     },
+    docModal: {
+      title: 'Documentation du mot-clé',
+      argsHeader: 'Arguments',
+      noDoc: 'Aucune documentation disponible.',
+      button: 'Afficher la documentation',
+    },
   },
   robotEditor: {
     visualTab: 'Éditeur visuel',

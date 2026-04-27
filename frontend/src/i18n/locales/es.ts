@@ -1160,6 +1160,12 @@ export default {
       extraNamed: 'nombrados adicionales',
       defaultPlaceholder: 'por defecto: {default}',
     },
+    docModal: {
+      title: 'Documentación del keyword',
+      argsHeader: 'Argumentos',
+      noDoc: 'No hay documentación disponible.',
+      button: 'Mostrar documentación',
+    },
   },
   robotEditor: {
     visualTab: 'Editor visual',

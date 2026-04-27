@@ -52,5 +52,30 @@ export function useKeywordSignatures() {
     return raw.map(parseArgSignature)
   }
 
-  return { argsByName, getArgs, getParsedArgs }
+  /**
+   * Story EDITOR-7 — return everything we know about a keyword for the
+   * doc modal. `doc` and `library` are only available for dynamic-
+   * library introspection entries; the static `RF_KEYWORD_SIGNATURES`
+   * map carries args only.
+   */
+  function getKeywordInfo(keywordName: string): {
+    display: string
+    library: string
+    doc: string
+    args: string[]
+  } | null {
+    if (!keywordName) return null
+    const lower = keywordName.toLowerCase()
+    const args = argsByName.value.get(lower)
+    if (!args) return null
+    const dynamic = explorer.keywords.find((k) => k.name.toLowerCase() === lower)
+    return {
+      display: dynamic?.name ?? keywordName,
+      library: dynamic?.library ?? 'BuiltIn',
+      doc: dynamic?.doc ?? '',
+      args,
+    }
+  }
+
+  return { argsByName, getArgs, getParsedArgs, getKeywordInfo }
 }
