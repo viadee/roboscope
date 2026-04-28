@@ -1,11 +1,21 @@
 import type { DocsContent } from './types'
-import en from './content/en'
-import de from './content/de'
-import fr from './content/fr'
-import es from './content/es'
 
-const docsMap: Record<string, DocsContent> = { en, de, fr, es }
+// Story PERF-1: lazy-load each locale's content as its own bundler
+// chunk. Rollup splits the four ~2300-line content files into separate
+// chunks; only the active locale ships on initial DocsView load.
+const loaders: Record<string, () => Promise<{ default: DocsContent }>> = {
+  en: () => import('./content/en'),
+  de: () => import('./content/de'),
+  fr: () => import('./content/fr'),
+  es: () => import('./content/es'),
+}
 
-export function getDocsContent(locale: string): DocsContent {
-  return docsMap[locale] || docsMap['en']
+const cache: Record<string, DocsContent> = {}
+
+export async function getDocsContent(locale: string): Promise<DocsContent> {
+  const key = loaders[locale] ? locale : 'en'
+  if (cache[key]) return cache[key]
+  const mod = await loaders[key]()
+  cache[key] = mod.default
+  return cache[key]
 }
