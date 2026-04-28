@@ -192,6 +192,316 @@ def checkout_branch(local_path: str, branch: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Story REPO-1 — non-Git-user save loop (status / commit / push / publish)
+# ---------------------------------------------------------------------------
+
+
+class GitOperationError(Exception):
+    """Raised by the save-loop helpers for any git failure that the
+    router should translate to a structured error response. Carries
+    a stable `kind` discriminator so the router knows whether a
+    failure is a 404 / 400 / 409 / 502.
+
+    `kind` is one of:
+      - 'not_a_repo'         the path is not a git repo (404)
+      - 'nothing_to_commit'  the index is clean (400)
+      - 'non_fast_forward'   the remote rejected the push (409)
+      - 'auth'               remote authentication failed (502)
+      - 'other'              everything else (500)
+    """
+
+    def __init__(self, kind: str, message: str):
+        super().__init__(message)
+        self.kind = kind
+
+
+def get_repo_status(local_path: str) -> dict:
+    """Snapshot of the working tree + tracking-branch divergence.
+
+    Returns a dict shaped for the API response:
+
+        {
+          "current_branch": str | None,
+          "ahead": int,
+          "behind": int,
+          "modified": [str, ...],
+          "staged":   [str, ...],
+          "untracked":[str, ...],
+          "deleted":  [str, ...],
+          "is_dirty": bool,
+        }
+
+    Non-existent or non-git paths yield a benign empty snapshot rather
+    than throwing — the router decides whether that is a 400.
+    """
+    from git import InvalidGitRepositoryError, Repo
+
+    empty = {
+        "current_branch": None,
+        "ahead": 0,
+        "behind": 0,
+        "modified": [],
+        "staged": [],
+        "untracked": [],
+        "deleted": [],
+        "is_dirty": False,
+    }
+    path = Path(local_path)
+    if not path.exists() or not (path / ".git").exists():
+        return empty
+
+    try:
+        repo = Repo(local_path)
+    except InvalidGitRepositoryError:
+        return empty
+
+    current_branch: str | None = None
+    if not repo.head.is_detached:
+        current_branch = repo.active_branch.name
+
+    ahead = 0
+    behind = 0
+    if current_branch is not None:
+        tracking = repo.active_branch.tracking_branch()
+        if tracking is not None:
+            try:
+                ahead = sum(
+                    1 for _ in repo.iter_commits(f"{tracking.name}..{current_branch}")
+                )
+                behind = sum(
+                    1 for _ in repo.iter_commits(f"{current_branch}..{tracking.name}")
+                )
+            except Exception:
+                pass
+
+    # `repo.index.diff(None)`     = working-tree-vs-index (unstaged edits + deletes)
+    # `repo.index.diff("HEAD")`   = index-vs-last-commit  (staged edits)
+    modified: list[str] = []
+    deleted: list[str] = []
+    for change in repo.index.diff(None):
+        path_str = change.a_path or change.b_path or ""
+        if change.change_type == "D":
+            deleted.append(path_str)
+        elif path_str:
+            modified.append(path_str)
+
+    staged: list[str] = []
+    try:
+        for change in repo.index.diff("HEAD"):
+            path_str = change.a_path or change.b_path or ""
+            if path_str and path_str not in staged:
+                staged.append(path_str)
+    except Exception:
+        # Empty repo (no HEAD yet) — index.diff("HEAD") raises.
+        pass
+
+    untracked = list(repo.untracked_files)
+
+    is_dirty = bool(modified or staged or untracked or deleted)
+
+    return {
+        "current_branch": current_branch,
+        "ahead": ahead,
+        "behind": behind,
+        "modified": sorted(modified),
+        "staged": sorted(staged),
+        "untracked": sorted(untracked),
+        "deleted": sorted(deleted),
+        "is_dirty": is_dirty,
+    }
+
+
+def commit_changes(
+    local_path: str,
+    message: str,
+    paths: list[str] | None,
+    author_name: str,
+    author_email: str,
+) -> dict:
+    """Stage `paths` (or every dirty path when None) and commit with
+    the given identity.
+
+    Identity is supplied PER-COMMAND (`-c user.email=… -c user.name=…`)
+    so concurrent commits by different users do not race on the
+    repository's `.git/config` file.
+
+    Raises `GitOperationError` with one of:
+      - 'not_a_repo'
+      - 'nothing_to_commit'
+      - 'other'
+    """
+    from git import GitCommandError, InvalidGitRepositoryError, Repo
+
+    path = Path(local_path)
+    if not path.exists() or not (path / ".git").exists():
+        raise GitOperationError("not_a_repo", "not a git repository")
+    try:
+        repo = Repo(local_path)
+    except InvalidGitRepositoryError:
+        raise GitOperationError("not_a_repo", "not a git repository")
+
+    if paths is None:
+        status = get_repo_status(local_path)
+        targets = (
+            list(status.get("modified") or [])
+            + list(status.get("untracked") or [])
+            + list(status.get("deleted") or [])
+            + list(status.get("staged") or [])
+        )
+    else:
+        targets = list(paths)
+
+    # `git add -A -- <paths…>` covers modified, untracked, and deleted
+    # in a single call. Empty list short-circuits to "nothing to stage".
+    if targets:
+        try:
+            repo.git.add("-A", "--", *targets)
+        except GitCommandError as e:
+            raise GitOperationError("other", f"git add failed: {e}")
+
+    try:
+        diff_to_head = list(repo.index.diff("HEAD"))
+        clean = not diff_to_head
+    except Exception:
+        # Empty repo: any staged entry counts as non-clean.
+        clean = not list(repo.index.entries)
+
+    if clean:
+        raise GitOperationError("nothing_to_commit", "no staged changes to commit")
+
+    try:
+        # Identity via env vars — no .git/config write, so concurrent
+        # commits by different users on the same repo can never race
+        # on the config file. Author AND committer are set so
+        # `git log --pretty=fuller` surfaces the real user (committer
+        # otherwise defaults to whatever `git config --global` says).
+        env = {
+            "GIT_AUTHOR_NAME": author_name,
+            "GIT_AUTHOR_EMAIL": author_email,
+            "GIT_COMMITTER_NAME": author_name,
+            "GIT_COMMITTER_EMAIL": author_email,
+        }
+        repo.git.update_environment(**env)
+        try:
+            repo.git.commit("-m", message)
+        finally:
+            # Drop the env so the same Repo instance doesn't carry the
+            # identity into unrelated subsequent commands.
+            for key in env:
+                repo.git.update_environment(**{key: None})
+        head_sha = repo.head.commit.hexsha
+    except GitCommandError as e:
+        if "nothing to commit" in str(e).lower():
+            raise GitOperationError("nothing_to_commit", "no staged changes to commit")
+        raise GitOperationError("other", f"git commit failed: {e}")
+
+    return {
+        "commit_hash": head_sha,
+        "message": message,
+        "files": sorted(targets),
+    }
+
+
+def push_branch(local_path: str, branch: str | None = None) -> dict:
+    """Push the given branch (or the current one) to its tracked
+    upstream. Returns `{branch, remote_ref, ahead_after}`.
+
+    Raises `GitOperationError` with one of:
+      - 'not_a_repo'
+      - 'non_fast_forward'
+      - 'auth'
+      - 'other'
+    """
+    from git import GitCommandError, InvalidGitRepositoryError, Repo
+
+    path = Path(local_path)
+    if not path.exists() or not (path / ".git").exists():
+        raise GitOperationError("not_a_repo", "not a git repository")
+    try:
+        repo = Repo(local_path)
+    except InvalidGitRepositoryError:
+        raise GitOperationError("not_a_repo", "not a git repository")
+
+    target_branch = branch
+    if target_branch is None:
+        if repo.head.is_detached:
+            raise GitOperationError("other", "HEAD is detached; checkout a branch first")
+        target_branch = repo.active_branch.name
+
+    try:
+        # Use `git push` directly so non-zero exit codes propagate as
+        # GitCommandError — the high-level `.push()` swallows them.
+        repo.git.push("origin", target_branch)
+        remote_ref = f"origin/{target_branch}"
+        ahead_after = 0
+        try:
+            tracking = repo.active_branch.tracking_branch()
+            if tracking is not None:
+                ahead_after = sum(
+                    1 for _ in repo.iter_commits(f"{tracking.name}..{target_branch}")
+                )
+        except Exception:
+            pass
+        return {
+            "branch": target_branch,
+            "remote_ref": remote_ref,
+            "ahead_after": ahead_after,
+        }
+    except GitCommandError as e:
+        msg = str(e).lower()
+        if (
+            "non-fast-forward" in msg
+            or "rejected" in msg
+            or "fetch first" in msg
+            or "updates were rejected" in msg
+        ):
+            raise GitOperationError("non_fast_forward", str(e))
+        if (
+            "authentication" in msg
+            or "permission denied" in msg
+            or "could not read username" in msg
+            or "support for password authentication was removed" in msg
+        ):
+            raise GitOperationError("auth", str(e))
+        raise GitOperationError("other", f"git push failed: {e}")
+
+
+def publish_changes(
+    local_path: str,
+    message: str,
+    paths: list[str] | None,
+    author_name: str,
+    author_email: str,
+) -> dict:
+    """Combined commit + push backing `POST /repos/{id}/publish`.
+
+    On full success returns:
+        {commit_hash, message, files, pushed: True, conflict: False, remote_ref}
+
+    On commit-succeeded-but-push-failed re-raises the push's
+    `GitOperationError` decorated with `commit_hash` + `committed_files`
+    so the router can include them in the 409 body — the local commit
+    stays in place so the user doesn't lose work.
+    """
+    commit_result = commit_changes(
+        local_path, message, paths, author_name, author_email
+    )
+    try:
+        push_result = push_branch(local_path)
+    except GitOperationError as e:
+        e.commit_hash = commit_result["commit_hash"]  # type: ignore[attr-defined]
+        e.committed_files = commit_result["files"]   # type: ignore[attr-defined]
+        raise
+
+    return {
+        **commit_result,
+        "pushed": True,
+        "conflict": False,
+        "remote_ref": push_result["remote_ref"],
+    }
+
+
+# ---------------------------------------------------------------------------
 # Project Members
 # ---------------------------------------------------------------------------
 

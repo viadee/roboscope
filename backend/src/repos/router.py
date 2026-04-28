@@ -16,26 +16,36 @@ from src.task_executor import TaskDispatchError, dispatch_task
 from src.database import get_db
 from src.repos.schemas import (
     BranchResponse,
+    CommitRequest,
+    CommitResponse,
     ProjectMemberCreate,
     ProjectMemberResponse,
     ProjectMemberUpdate,
+    PublishResponse,
+    PushResponse,
     RepoCreate,
     RepoResponse,
+    RepoStatusResponse,
     RepoTeamAssignRequest,
     RepoUpdate,
     SyncResponse,
 )
 from src.repos.service import (
+    GitOperationError,
     add_project_member,
     checkout_branch,
+    commit_changes,
     create_repository,
     delete_repository,
+    get_repo_status,
     get_repository,
     get_repository_by_name,
     list_branches,
     list_project_members,
     list_remote_branches,
     list_repositories,
+    publish_changes,
+    push_branch,
     remove_project_member,
     update_project_member_role,
     update_repository,
@@ -235,6 +245,147 @@ def sync_repo(
         repo.sync_error = f"Task dispatch failed: {e}"
         db.flush()
         return SyncResponse(status="error", message=f"Task dispatch failed: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Story REPO-1 — non-Git-user save loop (status / commit / push / publish)
+# ---------------------------------------------------------------------------
+
+
+def _gitop_to_http(e: GitOperationError) -> HTTPException:
+    """Map a service-layer `GitOperationError` to the right HTTP status."""
+    if e.kind == "not_a_repo":
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    if e.kind == "nothing_to_commit":
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    if e.kind == "non_fast_forward":
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    if e.kind == "auth":
+        return HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+    return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/{repo_id}/status", response_model=RepoStatusResponse)
+def get_status(
+    repo_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Snapshot of the working tree + tracking-branch divergence.
+
+    Polled by the Explorer to render the "Save N changes" badge.
+    Read-only — intentionally not behind `require_effective_role` so
+    every user can SEE the state; gating happens on the write paths.
+    """
+    repo = get_repository(db, repo_id)
+    if repo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+    if repo.repo_type == "local":
+        return RepoStatusResponse()
+    return RepoStatusResponse(**get_repo_status(repo.local_path))
+
+
+@router.post("/{repo_id}/commit", response_model=CommitResponse)
+def commit(
+    repo_id: int,
+    body: CommitRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_effective_role(Role.EDITOR)),
+):
+    """Stage `body.paths` (or all dirty paths) and commit with the
+    logged-in user's identity."""
+    repo = get_repository(db, repo_id)
+    if repo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+    if repo.repo_type == "local":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Local repositories have no remote — commit / push not supported.",
+        )
+    try:
+        result = commit_changes(
+            repo.local_path,
+            body.message,
+            body.paths,
+            current_user.username,
+            current_user.email,
+        )
+    except GitOperationError as e:
+        raise _gitop_to_http(e)
+    return CommitResponse(**result)
+
+
+@router.post("/{repo_id}/push", response_model=PushResponse)
+def push(
+    repo_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_effective_role(Role.EDITOR)),
+):
+    """Push the current branch to its tracked upstream."""
+    repo = get_repository(db, repo_id)
+    if repo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+    if repo.repo_type == "local":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Local repositories have no remote — commit / push not supported.",
+        )
+    try:
+        result = push_branch(repo.local_path)
+    except GitOperationError as e:
+        raise _gitop_to_http(e)
+    return PushResponse(**result)
+
+
+@router.post("/{repo_id}/publish", response_model=PublishResponse)
+def publish(
+    repo_id: int,
+    body: CommitRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_effective_role(Role.EDITOR)),
+):
+    """Combined commit + push — the typical "Save to repository" call.
+
+    On non-fast-forward push: returns HTTP 409 with the LOCAL commit
+    hash so the client can offer "Pull latest and retry" without
+    losing the just-made commit.
+    """
+    repo = get_repository(db, repo_id)
+    if repo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+    if repo.repo_type == "local":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Local repositories have no remote — commit / push not supported.",
+        )
+    try:
+        result = publish_changes(
+            repo.local_path,
+            body.message,
+            body.paths,
+            current_user.username,
+            current_user.email,
+        )
+    except GitOperationError as e:
+        # Commit succeeded but push failed → return 409 with the
+        # commit metadata so the user knows their work is safe
+        # locally.
+        commit_hash = getattr(e, "commit_hash", None)
+        committed_files = getattr(e, "committed_files", None)
+        if commit_hash is not None and e.kind == "non_fast_forward":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "commit_hash": commit_hash,
+                    "files": committed_files or [],
+                    "message": body.message,
+                    "pushed": False,
+                    "conflict": True,
+                    "reason": str(e),
+                },
+            )
+        raise _gitop_to_http(e)
+    return PublishResponse(**result)
 
 
 @router.get("/{repo_id}/branches", response_model=list[BranchResponse])

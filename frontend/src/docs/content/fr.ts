@@ -310,7 +310,7 @@ const fr: DocsContent = [
       },
       {
         id: 'sync-autosync',
-        title: 'Synchronisation et synchronisation automatique',
+        title: 'Synchronisation, enregistrement & branches',
         content: `
 <p>
   Les d\u00E9p\u00F4ts Git peuvent \u00EAtre synchronis\u00E9s pour r\u00E9cup\u00E9rer les derni\u00E8res modifications depuis le serveur distant\u00A0:
@@ -324,7 +324,7 @@ const fr: DocsContent = [
   synchronisation r\u00E9ussie. Si une synchronisation \u00E9choue (par exemple en cas de conflit
   de fusion), un badge d\u2019erreur appara\u00EEt \u00E0 c\u00F4t\u00E9 du nom du d\u00E9p\u00F4t.
 </p>`,
-        tip: 'La synchronisation automatique garantit que vous testez toujours le code le plus r\u00E9cent. Activez-la pour les flux CI/CD.'
+        tip: 'La synchronisation automatique garantit que vous testez toujours le code le plus r\u00E9cent. Note: Auto-Sync ne tire pas r\u00E9ellement aujourd\u2019hui \u2014 utilisez Sync explicitement et enregistrez avant.'
       },
       {
         id: 'branch-switching',

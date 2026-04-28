@@ -335,7 +335,7 @@ const es: DocsContent = [
   (por ejemplo, conflictos de fusi\u00F3n), aparece una insignia de error junto
   al nombre del repositorio.
 </p>`,
-        tip: 'La auto-sincronizaci\u00F3n asegura que siempre pruebe contra el c\u00F3digo m\u00E1s reciente. Act\u00EDvela para flujos de trabajo tipo CI/CD.'
+        tip: 'Importante: la casilla "Auto-Sync" hoy es solo un marcador de posici\u00F3n y no sincroniza en un horario. Use el bot\u00F3n "Sincronizar" expl\u00EDcito y guarde sus cambios antes con "Guardar N cambios" para evitar sobrescrituras.'
       },
       {
         id: 'branch-switching',

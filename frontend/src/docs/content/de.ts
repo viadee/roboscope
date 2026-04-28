@@ -269,7 +269,7 @@ const de: DocsContent = [
       },
       {
         id: 'repositories-sync',
-        title: 'Synchronisation & Auto-Sync',
+        title: 'Synchronisation, Speichern & Branches',
         content: `
 <p>
   Repositories k\u00F6nnen jederzeit manuell synchronisiert werden, um den
@@ -295,6 +295,38 @@ const de: DocsContent = [
   Die <strong>Auto-Sync</strong>-Checkbox auf jeder Projektkarte steuert, ob das
   Repository vor Testausf\u00FChrungen automatisch synchronisiert wird. Aktivieren Sie
   sie f\u00FCr CI/CD-Workflows, bei denen immer der neueste Code getestet werden soll.
+</p>
+<h4>Speichern: Änderungen ins Remote zurückschreiben</h4>
+<p>
+  Wenn Sie Dateien im Explorer bearbeiten, werden sie auf dem Server in den
+  Working Tree geschrieben &mdash; noch nicht committet, noch nicht gepusht.
+  Sobald es ungespeicherte Änderungen gibt, zeigt das Explorer-Dateipanel
+  einen farbigen <strong>{n} Änderungen speichern</strong>-Button.
+</p>
+<ol>
+  <li>Auf <strong>Änderungen speichern</strong> klicken.</li>
+  <li>Dateien auswählen, die Sie veröffentlichen möchten (Default: alle).</li>
+  <li>Eine Commit-Nachricht eintippen, die Ihre Änderung beschreibt.</li>
+  <li><strong>Speichern</strong> klicken. RoboScope committet mit Ihrer
+      Account-Identität (Benutzername + E-Mail werden Git-Author und
+      Committer) und pusht den Commit auf die konfigurierte Remote-Branch.</li>
+</ol>
+<p>
+  Hat in der Zwischenzeit jemand anderes gepusht und ist das Remote
+  vorgerückt, wechselt das Modal in einen Recovery-Zustand und bietet einen
+  <strong>Neueste ziehen und erneut versuchen</strong>-Button. Ihr lokaler
+  Commit bleibt erhalten &mdash; auf diesem Weg können Sie Arbeit nicht
+  verlieren; im schlimmsten Fall müssen Sie den Konflikt außerhalb von
+  RoboScope auflösen und mit einem Git-Client pushen.
+</p>
+<p>
+  <strong>Wichtiger Hinweis:</strong> Aktuell pullt die Auto-Sync-Checkbox
+  weder nach Zeitplan noch vor jedem Testlauf &mdash; sie speichert nur die
+  Präferenz für ein zukünftiges Feature. Verwenden Sie den expliziten
+  <strong>Sync</strong>-Button. Speichern Sie immer Ihre Änderungen via
+  <strong>Änderungen speichern</strong> bevor Sie auf <strong>Sync</strong>
+  klicken &mdash; sonst kann der Pull lokale Edits überschreiben oder mit
+  einem Merge-Fehler abbrechen.
 </p>`
       },
       {

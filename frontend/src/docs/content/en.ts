@@ -306,33 +306,64 @@ const en: DocsContent = [
       },
       {
         id: 'sync-autosync',
-        title: 'Sync & Auto-Sync',
+        title: 'Sync, Save & Branches',
         content: `
 <p>
-  Git repositories can be synchronized to pull the latest changes from the remote:
+  RoboScope speaks Git on your behalf — you don&rsquo;t need a Git client, but
+  understanding what each button does avoids surprises.
 </p>
+
+<h4>Pulling: getting the latest from the remote</h4>
 <ul>
-  <li><strong>Manual Sync</strong> &mdash; Click the <strong>Sync</strong> button on a repository row. This performs a <code>git pull</code> on the configured branch.</li>
-  <li><strong>Auto-Sync</strong> &mdash; Enable the auto-sync checkbox on a project card. When enabled, RoboScope will automatically pull changes before each test run.</li>
+  <li><strong>Manual Sync</strong> &mdash; Click the <strong>Sync</strong> button on a repository row. This performs a <code>git pull</code> on the configured branch and overwrites the working tree if there are no local changes blocking the merge.</li>
 </ul>
-<p>
-  The sync status is indicated by a timestamp showing the last successful sync. If a
-  sync fails (e.g., merge conflicts), an error badge appears next to the repository name.
+<p class="rs-callout">
+  <strong>Important:</strong> if you have unsaved file edits in the Explorer
+  when you click <strong>Sync</strong>, the pull may either be blocked (if it
+  conflicts with your edits) or silently overwrite them. Always
+  <strong>save your changes to the repository</strong> first &mdash; see below.
 </p>
-<h4>Branch Switching</h4>
+
+<h4>Saving: pushing your changes back to the remote</h4>
 <p>
-  Each Git project card displays a <strong>branch dropdown</strong> that lets you switch
-  between available branches. Select a different branch to check it out. This is useful
-  for testing feature branches or comparing results across branches.
+  When you edit files in the Explorer they are written to the working tree on
+  the server &mdash; not yet committed, not yet pushed. Whenever there are
+  unsaved changes against the repository, the Explorer&rsquo;s file panel shows
+  a coloured <strong>Save N changes</strong> button.
 </p>
-<h4>Auto-Sync Toggle</h4>
+<ol>
+  <li>Click <strong>Save N changes</strong>.</li>
+  <li>Tick the files you want to publish (default: all of them).</li>
+  <li>Type a one-line commit message describing what you changed.</li>
+  <li>Click <strong>Save</strong>. RoboScope commits with your account&rsquo;s
+      identity (your username + email become the git author / committer) and
+      pushes the commit to the configured remote branch.</li>
+</ol>
 <p>
-  The <strong>Auto-Sync</strong> checkbox on each project card controls whether the
-  repository is automatically synchronized before test runs. Toggle it on for CI/CD
-  workflows where you always want the latest code, or off when working on a fixed
-  revision.
+  If someone else pushed first and the remote moved on, the modal switches
+  into a recovery state and offers a <strong>Pull latest and retry</strong>
+  button. Your local commit stays in place &mdash; you cannot lose work this
+  way; in the worst case you have to resolve the conflict outside RoboScope
+  and push from a Git client.
+</p>
+
+<h4>Branch switching</h4>
+<p>
+  The branch dropdown on each project card lets you check out a different
+  branch. Useful for testing feature branches or comparing results across
+  branches. The dropdown does not pull &mdash; click <strong>Sync</strong>
+  afterwards if you want the latest commits on the new branch.
+</p>
+
+<h4>What about the &ldquo;Auto-Sync&rdquo; checkbox?</h4>
+<p>
+  The <strong>Auto-Sync</strong> toggle is a placeholder for a future
+  scheduled-pull feature. Today it only stores your preference; it does
+  <strong>not</strong> automatically pull on a schedule and it does
+  <strong>not</strong> pull before each test run. Use the explicit
+  <strong>Sync</strong> button when you want the latest changes.
 </p>`,
-        tip: 'Auto-sync ensures you always test against the latest code. Enable it for CI/CD-like workflows.'
+        tip: 'Always click "Save N changes" before "Sync" — pulling first can overwrite or refuse with a merge error if you have local edits.'
       },
       {
         id: 'library-check',

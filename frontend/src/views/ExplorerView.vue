@@ -17,7 +17,9 @@ import BaseModal from '@/components/ui/BaseModal.vue'
 import GenerateModal from '@/components/ai/GenerateModal.vue'
 import SpecEditor from '@/components/ai/SpecEditor.vue'
 import RobotEditor from '@/components/editor/RobotEditor.vue'
+import PublishModal from '@/components/repos/PublishModal.vue'
 import { useAuthStore } from '@/stores/auth.store'
+import { useRepoStatusStore } from '@/stores/repoStatus.store'
 import type { TreeNode } from '@/types/domain.types'
 
 // CodeMirror imports
@@ -113,6 +115,30 @@ const isLocalhost = computed(() =>
 
 const currentRepo = computed(() =>
   repos.repos.find(r => r.id === selectedRepoId.value)
+)
+
+// Story REPO-1 — track dirty state for the active repo to render
+// the "Save N changes" badge.
+const repoStatus = useRepoStatusStore()
+const publishOpen = ref(false)
+const dirtyCount = computed(() => {
+  const id = selectedRepoId.value
+  if (id == null) return 0
+  if (currentRepo.value?.repo_type !== 'git') return 0
+  return repoStatus.dirtyCount(id)
+})
+const currentStatus = computed(() => {
+  const id = selectedRepoId.value
+  return id != null ? repoStatus.get(id) : null
+})
+
+// Refresh the status whenever the active repo changes or a save / file
+// edit lands. Polls quietly: a single GET; the badge can lag the
+// server by ~5 s and the user won't notice.
+watch(
+  selectedRepoId,
+  (id) => { if (id != null) repoStatus.refresh(id) },
+  { immediate: true },
 )
 
 const assignedEnv = computed(() => {
@@ -475,6 +501,10 @@ async function handleSave() {
     try { await robotEditorRef.value?.saveSidecarIfDirty?.() } catch { /* noop */ }
     await explorer.saveFile(selectedRepoId.value, explorer.selectedFile.path, editorContent.value)
     isDirty.value = false
+    // Story REPO-1 — refresh the dirty-count badge after every save so
+    // the user sees the "Save N changes" indicator update without a
+    // page reload.
+    repoStatus.refresh(selectedRepoId.value)
   } finally {
     saving.value = false
   }
@@ -882,6 +912,16 @@ const flatNodes = computed(() => {
         <div class="tree-header">
           <strong>{{ t('explorer.files') }}</strong>
           <div class="tree-header-actions">
+            <!-- Story REPO-1: dirty-state badge → opens the publish modal -->
+            <button
+              v-if="dirtyCount > 0"
+              class="repo-save-btn"
+              data-testid="repo-save-btn"
+              :title="t('repos.publish.badgeTitle', { n: dirtyCount })"
+              @click="publishOpen = true"
+            >
+              💾 {{ t('repos.publish.badgeLabel', { n: dirtyCount }) }}
+            </button>
             <span class="text-muted text-sm" v-if="explorer.tree">
               {{ explorer.tree.test_count || 0 }} {{ t('explorer.tests') }}
             </span>
@@ -1230,6 +1270,14 @@ const flatNodes = computed(() => {
         <BaseButton v-if="!runOverlay.error" size="sm" @click="goToExecution">{{ t('explorer.runOverlay.goToExecution') }}</BaseButton>
       </template>
     </BaseModal>
+
+    <!-- Story REPO-1: Save-to-repository modal -->
+    <PublishModal
+      v-if="selectedRepoId !== null"
+      v-model="publishOpen"
+      :repo-id="selectedRepoId"
+      :status="currentStatus"
+    />
   </div>
 </template>
 
@@ -1312,6 +1360,26 @@ const flatNodes = computed(() => {
   background: var(--color-primary);
   color: white;
   border-color: var(--color-primary);
+}
+
+/* Story REPO-1 — "Save N changes" badge */
+.repo-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--color-accent, #D4883E);
+  background: rgba(212, 136, 62, 0.10);
+  color: var(--color-accent, #D4883E);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.repo-save-btn:hover {
+  background: var(--color-accent, #D4883E);
+  color: #fff;
 }
 
 .tree-loading {

@@ -71,6 +71,79 @@ class SyncResponse(BaseModel):
     task_id: str | None = None
 
 
+# ---------------------------------------------------------------------------
+# Story REPO-1 — non-Git-user save loop schemas
+# ---------------------------------------------------------------------------
+
+
+class RepoStatusResponse(BaseModel):
+    """Snapshot of a git repo's working-tree state.
+
+    Returned by `GET /repos/{id}/status`. Lists are repository-relative
+    paths. `current_branch` is null when the repo is in detached-HEAD
+    state. Non-git repos (`repo_type='local'`) return everything zeroed
+    out + `is_dirty=false`.
+    """
+
+    current_branch: str | None = None
+    ahead: int = 0
+    behind: int = 0
+    modified: list[str] = []
+    staged: list[str] = []
+    untracked: list[str] = []
+    deleted: list[str] = []
+    is_dirty: bool = False
+
+
+class CommitRequest(BaseModel):
+    """Body of `POST /repos/{id}/commit` and `POST /repos/{id}/publish`."""
+
+    message: str = Field(..., min_length=1, max_length=500)
+    # When `paths` is omitted, the service stages every dirty path it
+    # finds (modified + untracked + deleted). Pass an explicit list to
+    # commit a subset.
+    paths: list[str] | None = None
+
+
+class CommitResponse(BaseModel):
+    commit_hash: str
+    message: str
+    files: list[str]
+
+
+class PushResponse(BaseModel):
+    branch: str
+    remote_ref: str
+    ahead_after: int = 0
+
+
+class PublishResponse(BaseModel):
+    """Returned by the combined `POST /repos/{id}/publish` endpoint
+    on full success."""
+
+    commit_hash: str
+    message: str
+    files: list[str]
+    pushed: bool = True
+    conflict: bool = False
+    remote_ref: str
+
+
+class PublishConflictResponse(BaseModel):
+    """Returned with HTTP 409 when commit succeeded but push didn't.
+
+    The local commit STAYS — the user can resolve the conflict (e.g.
+    by hitting `/sync` and then `/push`) without losing their work.
+    """
+
+    commit_hash: str
+    message: str
+    files: list[str]
+    pushed: bool = False
+    conflict: bool = True
+    detail: str
+
+
 class ProjectMemberCreate(BaseModel):
     user_id: int
     role: Literal["viewer", "runner", "editor"] = "viewer"
