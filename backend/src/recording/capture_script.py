@@ -82,6 +82,15 @@ CAPTURE_SCRIPT: str = r"""
   }
 
   // ---- click / dblclick ---------------------------------------------------
+  // RECORDER-1B: stash the click timestamp so the post-navigation
+  // `maybeEmitNav("load")` in the *next* document can suppress its
+  // emission (the click already implies the navigation; recording both
+  // would replay as Click → page navigates → Go To explicit re-nav,
+  // wiping any state set by the click).
+  const CLICK_NAV_KEY = "__roboscopeLastClickAt";
+  function markClickForNavSuppress() {
+    try { sessionStorage.setItem(CLICK_NAV_KEY, String(Date.now())); } catch (e) { /* noop */ }
+  }
   document.addEventListener("click", (ev) => {
     send({
       kind: "click",
@@ -90,6 +99,7 @@ CAPTURE_SCRIPT: str = r"""
         ctrlKey: ev.ctrlKey, shiftKey: ev.shiftKey, altKey: ev.altKey,
       },
     });
+    markClickForNavSuppress();
   }, true);
 
   document.addEventListener("dblclick", (ev) => {
@@ -155,15 +165,49 @@ CAPTURE_SCRIPT: str = r"""
   }, true);
 
   // ---- navigation (SPA pushState + popstate + full loads) ---------------
+  // RECORDER-1B: window in which a `load` is treated as click-caused
+  // and skipped. Browsers schedule the new-document parse a few hundred
+  // ms after the click; 1500ms is generous enough to handle slow
+  // app-server round-trips without swallowing genuine user-typed URLs.
+  const CLICK_NAV_WINDOW_MS = 1500;
+
   function maybeEmitNav(source) {
     const now = location.href;
     if (now === lastNavUrl) return;
+    // Placeholder URLs that browsers / Playwright use as the "no real
+    // page yet" sentinel. A new context's first page starts here before
+    // the user (or test) navigates anywhere — recording it would surface
+    // a useless `Go To about:blank` as the test's very first step.
+    if (now === "about:blank" || now.startsWith("about:") || now.startsWith("chrome:") || now.startsWith("data:")) {
+      lastNavUrl = now;
+      return;
+    }
+    if (source === "load") {
+      // Suppress when the navigation is the consequence of a click that
+      // we already recorded — the click implies the navigation, and a
+      // Go To on top would re-navigate explicitly on replay (wiping
+      // state the click set).
+      try {
+        const ts = parseInt(sessionStorage.getItem(CLICK_NAV_KEY) || "0", 10);
+        if (ts && Date.now() - ts < CLICK_NAV_WINDOW_MS) {
+          sessionStorage.removeItem(CLICK_NAV_KEY);
+          lastNavUrl = now;
+          return;
+        }
+      } catch (e) { /* sessionStorage unavailable — emit anyway */ }
+    }
     lastNavUrl = now;
     send({ kind: "navigate", url: now, source });
   }
 
   // Full-document load — init script runs on EVERY new document, so firing
   // once here captures the address-bar navigation the user performed.
+  // We emit *synchronously* AND on the debounce tick: the synchronous
+  // call wins for fast back-to-back navigations (Playwright auto-wait
+  // could fire the next click before a 100ms timeout elapses, and the
+  // unfired timeout dies with the document); the timeout is the safety
+  // net for races where `location.href` settles after document-start.
+  maybeEmitNav("load");
   setTimeout(() => maybeEmitNav("load"), NAV_DEBOUNCE_MS);
 
   // SPA routing.

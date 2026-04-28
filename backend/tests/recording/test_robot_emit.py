@@ -96,13 +96,20 @@ class TestTargetedKeywords:
 
 class TestGlobalKeywords:
     def test_go_to_does_not_need_selector(self) -> None:
+        # RECORDER-1C: a `Go To` at index 0 is consumed as the initial-URL
+        # input to the New Browser/New Context/New Page bootstrap so the
+        # generated `.robot` is replayable through RF Browser without
+        # additional setup. Any subsequent Go Tos are kept verbatim.
         cmd = RecordedCommand(
             index=0,
             keyword="Go To",
             args={"url": "https://example.com"},
         )
         out = emit_robot(_flow([cmd]))
-        assert "Go To    https://example.com" in out
+        assert "New Browser    chromium" in out
+        assert "New Context" in out
+        assert "New Page    https://example.com" in out
+        assert "Go To" not in out  # the first Go To was folded into New Page
 
 
 class TestArgOrdering:
@@ -183,12 +190,15 @@ class TestMultiStepFlow:
             ],
         )
         out = emit_robot(flow)
-        # All five keywords + the test-case header are present, in order.
+        # The first Go To is consumed by the New Page bootstrap; the
+        # remaining four user actions follow in order.
         lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
         idx_test = lines.index("Login happy path")
-        steps = lines[idx_test + 1 : idx_test + 6]
-        assert steps[0].startswith("Go To")
-        assert steps[1].startswith("Type Text    [data-testid=\"email\"]")
-        assert steps[2].startswith("Type Text    [data-testid=\"password\"]")
-        assert steps[3].startswith("Click    [data-testid=\"login-btn\"]")
-        assert steps[4].startswith("Wait For Elements State    text=Welcome")
+        steps = lines[idx_test + 1 : idx_test + 8]
+        assert steps[0] == "New Browser    chromium    headless=${HEADLESS}"
+        assert steps[1] == "New Context"
+        assert steps[2] == "New Page    https://example.com/login"
+        assert steps[3].startswith("Type Text    [data-testid=\"email\"]")
+        assert steps[4].startswith("Type Text    [data-testid=\"password\"]")
+        assert steps[5].startswith("Click    [data-testid=\"login-btn\"]")
+        assert steps[6].startswith("Wait For Elements State    text=Welcome")

@@ -92,7 +92,9 @@ class TestSaveHappyPath:
         on_disk = Path(repo_with_tmpdir.local_path) / body["saved_path"]
         content = on_disk.read_text()
         assert "*** Test Cases ***" in content
-        assert "Go To    https://example.com" in content
+        # RECORDER-1C: the first Go To becomes the initial-URL input to
+        # the New Browser/New Context/New Page bootstrap.
+        assert "New Page    https://example.com" in content
         assert 'Click    [data-testid="submit"]' in content
 
         audits = (

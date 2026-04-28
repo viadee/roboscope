@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>RoboScope Recorder v2 — multipage fixture (B)</title>
+    <style>
+      body { font-family: -apple-system, Segoe UI, sans-serif; padding: 2rem; max-width: 640px; }
+      button {
+        font: inherit; padding: .5rem 1rem; margin: .25rem 0;
+        background: #2C9846; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+      }
+      .marker {
+        display: none; margin-top: 1rem; padding: .5rem; background: #fff7e6;
+        border: 1px solid #D4883E; border-radius: 4px;
+      }
+      .marker.shown { display: block; }
+    </style>
+  </head>
+  <body>
+    <h1 data-testid="page-b-heading">Page B</h1>
+    <p>You navigated here from Page A.</p>
+    <button data-testid="action-button" type="button"
+            onclick="document.getElementById('clicked-marker').classList.add('shown')">
+      Click me
+    </button>
+    <div id="clicked-marker" data-testid="clicked-marker" class="marker">
+      Button was clicked!
+    </div>
+  </body>
+</html>

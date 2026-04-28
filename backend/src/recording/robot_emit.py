@@ -210,9 +210,30 @@ def emit_robot(flow: RecordedFlow) -> str:
 
     if not flow.commands:
         lines.append("    No Operation")
-    else:
-        emit = _emit_desktop_command if is_desktop else _emit_command
+    elif is_desktop:
         for cmd in flow.commands:
-            lines.append(emit(cmd))
+            lines.append(_emit_desktop_command(cmd))
+    else:
+        # Web flows need an explicit Browser-library bootstrap before
+        # any Click / Go To can run. We synthesise it from the FIRST
+        # `Go To` we see (the captured initial-load) and drop that
+        # original Go To since `New Page <url>` already navigates.
+        first_goto_idx = next(
+            (i for i, c in enumerate(flow.commands)
+             if c.keyword == "Go To" and isinstance(c.args.get("url"), str)),
+            None,
+        )
+        initial_url = (
+            flow.commands[first_goto_idx].args["url"]
+            if first_goto_idx is not None
+            else "about:blank"
+        )
+        lines.append(f"    New Browser    chromium    headless=${{HEADLESS}}")
+        lines.append(f"    New Context")
+        lines.append(f"    New Page    {initial_url}")
+        for i, cmd in enumerate(flow.commands):
+            if i == first_goto_idx:
+                continue
+            lines.append(_emit_command(cmd))
 
     return "\n".join(lines) + "\n"
