@@ -32,13 +32,21 @@ async def lifespan(app: FastAPI):
     global _event_loop
     _event_loop = asyncio.get_running_loop()
 
-    # Startup — structured JSON logging
+    # Startup — structured JSON logging with request-id correlation
+    # (story LOGGING-1: `RequestIdFilter` adds `record.request_id`
+    # whenever an HTTP middleware is active in the current async
+    # context; pythonjsonlogger picks up custom record attributes
+    # automatically — no fmt-string entry needed, so background-task
+    # / startup logs stay clean of phantom request_id fields).
+    from src.logging_context import RequestIdFilter
+
     handler = logging.StreamHandler()
     formatter = JsonFormatter(
         fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
         rename_fields={"asctime": "timestamp", "levelname": "level", "name": "logger"},
     )
     handler.setFormatter(formatter)
+    handler.addFilter(RequestIdFilter())
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
     root_logger.addHandler(handler)
@@ -254,13 +262,24 @@ def create_app() -> FastAPI:
     from src.audit.middleware import AuditMiddleware
     app.add_middleware(AuditMiddleware)
 
-    # Request ID middleware — attaches a unique ID to each request for log correlation
+    # Request ID middleware — attaches a unique ID to each request for log correlation.
+    # Story LOGGING-1: also publishes the ID on the
+    # `request_id_var` ContextVar so the `RequestIdFilter` can stamp
+    # every log record emitted during this request.
+    from src.logging_context import request_id_var
+
     @app.middleware("http")
     async def add_request_id(request: Request, call_next):
         request_id = request.headers.get("X-Request-ID", uuid.uuid4().hex[:12])
-        # Store on request state so handlers can access it
         request.state.request_id = request_id
-        response = await call_next(request)
+        token = request_id_var.set(request_id)
+        try:
+            response = await call_next(request)
+        finally:
+            # Reset on the way out — uvicorn reuses worker tasks for
+            # keep-alive, so leaking the ContextVar would leak the id
+            # into the *next* request.
+            request_id_var.reset(token)
         response.headers["X-Request-ID"] = request_id
         return response
 
