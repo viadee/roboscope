@@ -21,6 +21,17 @@ export type StepType =
   | 'keyword' | 'assignment' | 'var' | 'for' | 'end' | 'if' | 'else_if' | 'else'
   | 'while' | 'try' | 'except' | 'finally' | 'break' | 'continue' | 'return' | 'comment'
 
+const STEP_TYPE_VALUES: ReadonlySet<StepType> = new Set<StepType>([
+  'keyword', 'assignment', 'var', 'for', 'end', 'if', 'else_if', 'else',
+  'while', 'try', 'except', 'finally', 'break', 'continue', 'return', 'comment',
+])
+
+/** Type guard for runtime-supplied step-type strings (e.g. drag-drop
+ *  payloads). Returns true only when `s` is a known StepType. */
+export function isStepType(s: string): s is StepType {
+  return STEP_TYPE_VALUES.has(s as StepType)
+}
+
 export interface RobotStep {
   type: StepType
   keyword: string

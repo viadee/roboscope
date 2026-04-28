@@ -466,7 +466,7 @@ function openResetPwDialog(user: User) {
 async function saveResetPassword() {
   resettingPw.value = true
   try {
-    await authApi.updateUser(resetPwUser.value.id, { password: resetPwValue.value } as any)
+    await authApi.updateUser(resetPwUser.value.id, { password: resetPwValue.value })
     showResetPwDialog.value = false
     toast.success(t('settings.toasts.passwordReset'), t('settings.toasts.passwordResetMsg', { name: resetPwUser.value.username }))
   } catch (e: any) {

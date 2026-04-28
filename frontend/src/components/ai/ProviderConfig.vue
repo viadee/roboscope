@@ -95,7 +95,7 @@ function openEditDialog(provider: AiProvider) {
   editingProvider.value = provider
   form.value = {
     name: provider.name,
-    provider_type: provider.provider_type as any,
+    provider_type: provider.provider_type,
     api_base_url: provider.api_base_url,
     api_key: null,
     model_name: provider.model_name,

@@ -40,7 +40,11 @@ export async function createUser(data: { email: string; username: string; passwo
   return response.data
 }
 
-export async function updateUser(id: number, data: Partial<User>): Promise<User> {
+/** Partial user-update including the optional `password` field accepted by
+ *  the backend's `UserUpdate` schema (admin password reset). */
+export type UserUpdatePayload = Partial<User> & { password?: string }
+
+export async function updateUser(id: number, data: UserUpdatePayload): Promise<User> {
   const response = await apiClient.patch<User>(`/auth/users/${id}`, data)
   return response.data
 }

@@ -7,6 +7,7 @@ import { useReposStore } from '@/stores/repos.store'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
 import { createRun } from '@/api/execution.api'
+import type { RunCreateRequest } from '@/types/api.types'
 import { checkLibraries } from '@/api/explorer.api'
 import { installPackage, buildDockerImage } from '@/api/environments.api'
 import { updateRepo } from '@/api/repos.api'
@@ -696,7 +697,7 @@ async function doRunRobot(node: TreeNode) {
   runOverlay.value = { show: true, fileName: node.name, runId: null, error: null }
   try {
     const defaultEnv = envs.environments.find(e => e.is_default)
-    const runPayload: Record<string, any> = {
+    const runPayload: RunCreateRequest = {
       repository_id: selectedRepoId.value,
       target_path: node.path,
     }
@@ -704,7 +705,7 @@ async function doRunRobot(node: TreeNode) {
       runPayload.environment_id = defaultEnv.id
       runPayload.runner_type = defaultEnv.default_runner_type
     }
-    const run = await createRun(runPayload as any)
+    const run = await createRun(runPayload)
     runOverlay.value.runId = run.id
   } catch (e: any) {
     runOverlay.value.error = e.response?.data?.detail || e.message

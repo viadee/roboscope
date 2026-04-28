@@ -28,6 +28,7 @@ import {
 import {
   applySelectorSwap,
   isCustomSelectorValue,
+  isStepType,
   robotFormToFlow,
   robotKeywordsToFlow,
   updateStepFromNode,
@@ -644,9 +645,9 @@ function makeStepFromDrag(event: DragEvent): RobotStep | null {
       exceptPattern: '', exceptVar: '', varScope: '', comment: '',
     }
   }
-  if (control) {
+  if (control && isStepType(control)) {
     return {
-      type: control as any, keyword: '', args: [], returnVars: [],
+      type: control, keyword: '', args: [], returnVars: [],
       condition: control === 'if' || control === 'while' ? '${condition}' : '',
       loopVar: control === 'for' ? '${item}' : '',
       loopFlavor: control === 'for' ? 'IN' : '',
