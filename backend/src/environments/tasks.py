@@ -537,7 +537,6 @@ def _broadcast_docker_build_log(env_id: int, line: str, done: bool = False) -> N
 def build_docker_image(env_id: int) -> dict:
     """Build a Docker image for an environment with all its packages."""
     import io
-    import json as _json
     import tarfile
 
     with get_sync_session() as session:
@@ -577,31 +576,9 @@ def build_docker_image(env_id: int) -> dict:
                 packages=pkg_specs,
             )
 
-            # Get Docker client (same fallback logic as docker_runner.py)
-            import docker
-
-            client = None
-            try:
-                client = docker.from_env()
-                client.ping()
-            except Exception:
-                base_url = None
-                try:
-                    out = subprocess.check_output(
-                        ["docker", "context", "inspect"], text=True, timeout=5,
-                    )
-                    ctx = _json.loads(out)
-                    if isinstance(ctx, list) and ctx:
-                        host = ctx[0].get("Endpoints", {}).get("docker", {}).get("Host", "")
-                        if host:
-                            base_url = host
-                except Exception:
-                    pass
-
-                if base_url:
-                    client = docker.DockerClient(base_url=base_url)
-                else:
-                    raise
+            # Story REFACTOR-1 — shared bootstrap helper.
+            from src.docker_client import get_docker_client
+            client = get_docker_client()
 
             # Build image from in-memory tarball
             dockerfile_bytes = dockerfile_content.encode("utf-8")

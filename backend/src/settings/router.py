@@ -1,9 +1,6 @@
 """Settings API endpoints (admin only)."""
 
-import json
 import logging
-import subprocess
-
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -44,40 +41,15 @@ def patch_settings(
     return update_settings(db, data.settings)
 
 
-def _get_docker_client():
-    """Create a Docker client using the same fallback logic as DockerRunner."""
-    import docker
-
-    try:
-        client = docker.from_env()
-        client.ping()
-        return client
-    except Exception:
-        base_url = None
-        try:
-            out = subprocess.check_output(
-                ["docker", "context", "inspect"], text=True, timeout=5,
-            )
-            ctx = json.loads(out)
-            if isinstance(ctx, list) and ctx:
-                host = ctx[0].get("Endpoints", {}).get("docker", {}).get("Host", "")
-                if host:
-                    base_url = host
-        except Exception:
-            pass
-
-        if base_url:
-            return docker.DockerClient(base_url=base_url)
-        raise
-
-
 @router.get("/docker-status")
 def get_docker_status(
     _current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     """Probe Docker daemon and return status info."""
+    # Story REFACTOR-1 — shared bootstrap helper.
+    from src.docker_client import get_docker_client
     try:
-        client = _get_docker_client()
+        client = get_docker_client()
         version_info = client.version()
 
         containers = client.containers.list()

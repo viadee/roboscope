@@ -6,16 +6,18 @@ from collections.abc import Callable
 from pathlib import Path
 
 from src.config import settings
+from src.docker_client import (
+    DockerNotAvailableError,  # re-exported for backwards-compat callers
+    get_docker_client,
+)
 from src.execution.runners.base import AbstractRunner, RunResult
 
 logger = logging.getLogger("roboscope.execution.docker")
 
-
-class DockerNotAvailableError(RuntimeError):
-    """Raised when Docker daemon is not reachable."""
-
-    def __init__(self) -> None:
-        super().__init__("DOCKER_NOT_AVAILABLE")
+# Backwards-compat: existing imports
+# `from src.execution.runners.docker_runner import DockerNotAvailableError`
+# keep working — the symbol lives in `src.docker_client` now (REFACTOR-1).
+__all__ = ["DockerNotAvailableError", "DockerImageNotFoundError", "DockerRunner"]
 
 
 class DockerImageNotFoundError(RuntimeError):
@@ -35,41 +37,13 @@ class DockerRunner(AbstractRunner):
         self._cancelled = False
 
     def _get_client(self):
-        """Lazy-load Docker client, resolving socket from Docker context if needed."""
+        """Lazy-load Docker client. Caches across calls on the same runner instance.
+
+        Story REFACTOR-1: bootstrap logic was moved to `src.docker_client`
+        — this is now a thin caching wrapper.
+        """
         if self._client is None:
-            import docker
-            try:
-                self._client = docker.from_env()
-                self._client.ping()
-            except Exception as orig_err:
-                # docker.from_env() fails when DOCKER_HOST is unset and the
-                # default /var/run/docker.sock doesn't exist (e.g. Rancher
-                # Desktop, Colima, Docker Desktop on macOS).  Fall back to the
-                # socket advertised by `docker context inspect`.
-                import json
-                import subprocess
-
-                base_url = None
-                try:
-                    out = subprocess.check_output(
-                        ["docker", "context", "inspect"], text=True, timeout=5,
-                    )
-                    ctx = json.loads(out)
-                    if isinstance(ctx, list) and ctx:
-                        host = ctx[0].get("Endpoints", {}).get("docker", {}).get("Host", "")
-                        if host:
-                            base_url = host
-                except Exception:
-                    pass
-
-                if base_url:
-                    try:
-                        self._client = docker.DockerClient(base_url=base_url)
-                        self._client.ping()
-                    except Exception:
-                        raise DockerNotAvailableError() from orig_err
-                else:
-                    raise DockerNotAvailableError() from orig_err
+            self._client = get_docker_client()
         return self._client
 
     def prepare(self, repo_path: str, target_path: str, env_config: dict | None = None) -> None:
