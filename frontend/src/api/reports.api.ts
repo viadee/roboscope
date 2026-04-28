@@ -27,7 +27,18 @@ export async function getReportZipBlobUrl(id: number): Promise<string> {
 
 export function getReportAssetUrl(reportId: number, filename: string): string {
   const baseUrl = apiClient.defaults.baseURL || '/api/v1'
-  return `${baseUrl}/reports/${reportId}/assets/${encodeURIComponent(filename)}`
+  // Story REPORT-1: the asset endpoint now requires auth. <img> tags
+  // can't carry a Bearer header, so append the access token as a query
+  // param — same scheme as /reports/{id}/html and /reports/{id}/zip.
+  let token: string | null = null
+  try {
+    token = localStorage.getItem('access_token')
+  } catch {
+    // localStorage unavailable (rare; some embedded contexts) — return
+    // the un-tokenised URL; the request will 401 as expected.
+  }
+  const url = `${baseUrl}/reports/${reportId}/assets/${encodeURIComponent(filename)}`
+  return token ? `${url}?token=${encodeURIComponent(token)}` : url
 }
 
 export async function getReportXmlData(id: number): Promise<XmlReportData> {

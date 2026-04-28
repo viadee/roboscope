@@ -53,8 +53,14 @@ def _authenticate_flexible(
     token: str | None,
     credentials: HTTPAuthorizationCredentials | None,
     db: Session,
-) -> User:
-    """Authenticate via query param token or Bearer header. Raises 401 if neither works."""
+) -> tuple[User, str]:
+    """Authenticate via query param token or Bearer header.
+
+    Returns the authenticated user *and* the raw JWT string — callers
+    that need to embed the token into served HTML (e.g. as an iframe
+    base href) can lift it from here without re-checking the request.
+    Raises 401 if neither auth scheme works.
+    """
     # Try query param token first (for iframe/download URLs)
     raw_token = token
     if not raw_token and credentials:
@@ -80,7 +86,7 @@ def _authenticate_flexible(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or inactive user",
             )
-        return user
+        return user, raw_token
     except (ValueError, KeyError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -359,7 +365,7 @@ def get_report_html(
     db: Session = Depends(get_db),
 ):
     """Serve the original Robot Framework HTML report with injected base tag."""
-    _authenticate_flexible(token, credentials, db)
+    _user, raw_token = _authenticate_flexible(token, credentials, db)
 
     report = get_report(db, report_id)
     if report is None:
@@ -381,8 +387,14 @@ def get_report_html(
     # Read and inject <base> tag so relative asset references resolve to the asset endpoint.
     # Also inject a script to fix fragment-only links (href="#...") which would otherwise
     # navigate to the base URL + fragment, causing 404 errors.
+    # Story REPORT-1: embed the JWT in the base href so asset requests
+    # made from inside the iframe-loaded HTML inherit auth via query
+    # param (RFC 3986 §5.2.2 — relative URLs without a query inherit
+    # the base's query).
     html_content = html_path.read_text(encoding="utf-8", errors="replace")
-    base_tag = f'<base href="/api/v1/reports/{report_id}/assets/">'
+    base_tag = (
+        f'<base href="/api/v1/reports/{report_id}/assets/?token={raw_token}">'
+    )
     fragment_fix_script = (
         "<script>"
         "document.addEventListener('click',function(e){"
@@ -410,17 +422,19 @@ def get_report_html(
 def get_report_asset(
     report_id: int,
     file_path: str,
+    token: str | None = Query(default=None),
     credentials: HTTPAuthorizationCredentials | None = Depends(optional_bearer),
     db: Session = Depends(get_db),
 ):
     """Serve a file from the report's output directory (screenshots, etc.).
 
-    Auth is optional — assets are scoped by report ID with path traversal protection.
-    When loaded from iframe'd HTML reports, requests arrive without auth headers.
-    Unauthenticated access is logged for audit purposes.
+    Story REPORT-1: requires authentication via either a `Bearer`
+    header *or* `?token=<jwt>` query param. Iframe-loaded HTML reports
+    inherit the token from `<base href>` (set by /html); SPA `<img>`
+    tags get it appended in `getReportAssetUrl` on the frontend.
+    Path-traversal guard remains layered on top of auth.
     """
-    if not credentials:
-        logger.info("Unauthenticated asset access: report=%d file=%s", report_id, file_path)
+    _authenticate_flexible(token, credentials, db)
     report = get_report(db, report_id)
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
