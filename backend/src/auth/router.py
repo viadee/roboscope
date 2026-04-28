@@ -35,6 +35,7 @@ def _record_failed_attempt(request: Request) -> None:
 from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
 from src.auth.schemas import (
+    ChangePasswordRequest,
     FirstLoginCompleteRequest,
     LoginRequest,
     MeResponse,
@@ -170,6 +171,7 @@ def get_me(
         default_team_id=teams[0].id if teams else None,
         effective_roles_by_repo=roles_by_repo,
         first_login_complete=bool(current_user.first_login_complete),
+        password_change_required=bool(current_user.password_change_required),
     )
 
 
@@ -184,6 +186,46 @@ def patch_first_login_complete(
     db.commit()
     db.refresh(current_user)
     return get_me(current_user=current_user, db=db)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password_endpoint(
+    data: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Story SECURITY-1: rotate the current user's password.
+
+    Used by the forced password-change modal when
+    `password_change_required=True` on the user row, but also a regular
+    self-service endpoint for any authenticated user. Always clears
+    the flag on success.
+    """
+    from src.auth.service import change_password
+
+    try:
+        change_password(
+            db, current_user, data.current_password, data.new_password,
+        )
+    except ValueError as e:
+        reason = str(e)
+        if reason == "wrong_current":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Current password is incorrect",
+            )
+        if reason == "too_short":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="New password must be at least 8 characters",
+            )
+        if reason == "same_as_current":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="New password must differ from the current one",
+            )
+        raise
+    db.commit()
 
 
 # --- User Management (Admin only) ---

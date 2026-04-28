@@ -77,10 +77,19 @@ class MeResponse(UserResponse):
     default_team_id: int | None = None
     effective_roles_by_repo: dict[int, Role] = {}
     first_login_complete: bool = False
+    # Story SECURITY-1
+    password_change_required: bool = False
 
 
 class FirstLoginCompleteRequest(BaseModel):
     value: bool = True
+
+
+class ChangePasswordRequest(BaseModel):
+    """Story SECURITY-1 — body of POST /auth/change-password."""
+
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 class UserUpdate(BaseModel):

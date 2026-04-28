@@ -22,6 +22,14 @@ export async function patchFirstLoginComplete(value: boolean): Promise<User> {
   return response.data
 }
 
+/** Story SECURITY-1 — rotate the current user's password. 204 on success. */
+export async function changePassword(data: {
+  current_password: string
+  new_password: string
+}): Promise<void> {
+  await apiClient.post('/auth/change-password', data)
+}
+
 export async function getUsers(): Promise<User[]> {
   const response = await apiClient.get<User[]>('/auth/users')
   return response.data

@@ -1,5 +1,6 @@
 """Authentication service: user creation, verification, JWT handling."""
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -12,6 +13,8 @@ from src.auth.constants import ERR_TOKEN_EXPIRED, ERR_TOKEN_INVALID, Role
 from src.auth.models import User
 from src.auth.schemas import RegisterRequest, TokenResponse, UserResponse
 from src.config import settings
+
+logger = logging.getLogger("roboscope.auth")
 
 
 def hash_password(password: str) -> str:
@@ -102,7 +105,38 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
     # Update last login
     user.last_login_at = datetime.now(timezone.utc)
     db.flush()
+    # Story SECURITY-1 — surface in the server log every time a
+    # password-change-required user authenticates so the operator can
+    # see the unfinished rotation in their log stream.
+    if user.password_change_required:
+        logger.warning(
+            "Login by user=%s with password_change_required=True — "
+            "operator must complete the rotation.",
+            user.email,
+        )
     return user
+
+
+def change_password(
+    db: Session, user: User, current_password: str, new_password: str,
+) -> None:
+    """Verify current password, set new one, clear the
+    `password_change_required` flag. Story SECURITY-1.
+
+    Raises:
+      `ValueError("wrong_current")` — current password mismatch (caller maps to 401).
+      `ValueError("too_short")`     — new password < 8 chars (422).
+      `ValueError("same_as_current")` — new password equals current (422).
+    """
+    if not verify_password(current_password, user.hashed_password):
+        raise ValueError("wrong_current")
+    if len(new_password) < 8:
+        raise ValueError("too_short")
+    if current_password == new_password:
+        raise ValueError("same_as_current")
+    user.hashed_password = hash_password(new_password)
+    user.password_change_required = False
+    db.flush()
 
 
 def update_user(db: Session, user: User, **kwargs) -> User:
@@ -126,15 +160,49 @@ def create_token_response(user: User) -> TokenResponse:
     )
 
 
+DEFAULT_ADMIN_EMAIL = "admin@roboscope.local"
+DEFAULT_ADMIN_PASSWORD = "admin123"
+
+
 def ensure_admin_exists(db: Session) -> None:
-    """Create a default admin user if no users exist."""
+    """Create a default admin user if no users exist.
+
+    Story SECURITY-1: the seed admin starts with
+    `password_change_required=True` so the frontend forces a rotation
+    before any other action.
+
+    Pessimistic upgrade for existing deployments: if an admin row
+    already exists *and* still verifies against the well-known default
+    password, flip the flag on so legacy installations also pick up
+    the forced-rotation modal on next login.
+    """
     result = db.execute(select(User).limit(1))
-    if result.scalar_one_or_none() is None:
+    first_user = result.scalar_one_or_none()
+    if first_user is None:
         admin = User(
-            email="admin@roboscope.local",
+            email=DEFAULT_ADMIN_EMAIL,
             username="admin",
-            hashed_password=hash_password("admin123"),
+            hashed_password=hash_password(DEFAULT_ADMIN_PASSWORD),
             role=Role.ADMIN,
+            password_change_required=True,
         )
         db.add(admin)
+        db.flush()
+        return
+
+    # Legacy upgrade: any user (most often the original seed admin)
+    # whose password still matches the well-known default gets the
+    # flag flipped on. Constant-time bcrypt verify, runs once per
+    # startup at most.
+    candidates = db.execute(
+        select(User).where(User.password_change_required.is_(False))
+    ).scalars().all()
+    flipped = 0
+    for user in candidates:
+        if user.hashed_password and verify_password(
+            DEFAULT_ADMIN_PASSWORD, user.hashed_password,
+        ):
+            user.password_change_required = True
+            flipped += 1
+    if flipped:
         db.flush()

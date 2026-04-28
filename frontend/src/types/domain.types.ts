@@ -18,6 +18,8 @@ export interface User {
   default_team_id?: number | null
   effective_roles_by_repo?: Record<string, Role>
   first_login_complete?: boolean
+  /** SECURITY-1 — set on the seed admin until they rotate the default password. */
+  password_change_required?: boolean
 }
 
 export interface TokenResponse {

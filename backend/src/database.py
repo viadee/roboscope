@@ -223,6 +223,13 @@ def _migrate_sqlite(conn) -> None:
         ))
         logger.info("Migration: added first_login_complete column to users")
 
+    # Story SECURITY-1: users.password_change_required
+    if "password_change_required" not in user_columns:
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN password_change_required BOOLEAN NOT NULL DEFAULT 0"
+        ))
+        logger.info("Migration: added password_change_required column to users")
+
     # Phase-4: repositories.team_id (nullable; FK enforced by Alembic migration, not here)
     result = conn.execute(text("PRAGMA table_info(repositories)"))
     repo_columns = {row[1] for row in result.fetchall()}
@@ -324,6 +331,17 @@ def _migrate_postgres(conn) -> None:
             "ALTER TABLE users ADD COLUMN first_login_complete BOOLEAN NOT NULL DEFAULT FALSE"
         ))
         logger.info("Migration: added first_login_complete column to users")
+
+    # Story SECURITY-1: users.password_change_required
+    result = conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'users' AND column_name = 'password_change_required'"
+    ))
+    if not result.fetchone():
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN password_change_required BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        logger.info("Migration: added password_change_required column to users")
 
     # Phase-4: repositories.team_id (nullable; FK enforced by Alembic migration, not here)
     result = conn.execute(text(

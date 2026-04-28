@@ -24,6 +24,11 @@ class User(Base, TimestampMixin):
     first_login_complete: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False, server_default=false()
     )
+    # Story SECURITY-1 — set on the seed admin so the frontend forces
+    # a password change before the user can do anything else.
+    password_change_required: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default=false()
+    )
 
 
 class IdentityProvider(Base, TimestampMixin):
