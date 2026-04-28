@@ -268,14 +268,39 @@ def create_app() -> FastAPI:
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
     # Health check
+    # Story ROBUSTNESS-1: deep health-check. The previous endpoint
+    # returned 200 unconditionally — Kubernetes / ECS livenessProbes
+    # would never see a hung-DB pod and never restart it. Now we run
+    # a `SELECT 1` roundtrip; on failure we return 503 with the
+    # `unhealthy` status so orchestrators flag the pod for restart.
     @app.get("/health")
     async def health_check():
-        return {
+        from fastapi import Response
+        from sqlalchemy import text as sql_text
+
+        from src.database import engine
+
+        body = {
             "status": "healthy",
             "version": settings.VERSION,
             "database": "sqlite" if settings.is_sqlite else "postgresql",
             "task_executor": "in-process",
         }
+        try:
+            with engine.connect() as conn:
+                conn.execute(sql_text("SELECT 1"))
+        except Exception as e:
+            return Response(
+                content=__import__("json").dumps({
+                    **body,
+                    "status": "unhealthy",
+                    "reason": "database_unreachable",
+                    "error": str(e)[:200],
+                }),
+                status_code=503,
+                media_type="application/json",
+            )
+        return body
 
     # WebSocket auth helper: validate JWT token from query parameter
     def _ws_authenticate(token: str | None) -> bool:

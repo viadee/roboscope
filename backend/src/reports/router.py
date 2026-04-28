@@ -159,15 +159,50 @@ def upload_archive(
             detail="File must be a .zip archive",
         )
 
-    # Read and validate ZIP (with size limit)
+    # Story ROBUSTNESS-1 — streaming upload-size guard. The previous
+    # implementation called `file.file.read()` *first* and only then
+    # checked `len(content) > MAX_UPLOAD_BYTES`. A hostile 10 GB POST
+    # therefore allocated 10 GB of process RAM before the 413 fired.
+    # Now: (a) reject up-front via Content-Length when the header is
+    # present and oversized, (b) read in 1 MiB chunks and abort the
+    # moment we cross the cap.
     MAX_UPLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
+    CHUNK_SIZE = 1024 * 1024              # 1 MiB
+
+    declared_length = request.headers.get("content-length")
+    if declared_length is not None:
+        try:
+            if int(declared_length) > MAX_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=(
+                        f"Declared Content-Length ({declared_length} bytes) "
+                        f"exceeds maximum {MAX_UPLOAD_BYTES} bytes."
+                    ),
+                )
+        except ValueError:
+            # Malformed header — let the streaming guard catch it.
+            pass
+
     try:
-        content = file.file.read()
-        if len(content) > MAX_UPLOAD_BYTES:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"File too large ({len(content)} bytes). Maximum is {MAX_UPLOAD_BYTES} bytes.",
-            )
+        buffer = io.BytesIO()
+        total = 0
+        while True:
+            chunk = file.file.read(CHUNK_SIZE)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=(
+                        f"Upload exceeded maximum {MAX_UPLOAD_BYTES} bytes "
+                        f"after {total} bytes received."
+                    ),
+                )
+            buffer.write(chunk)
+        content = buffer.getvalue()
+
         if not zipfile.is_zipfile(io.BytesIO(content)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
