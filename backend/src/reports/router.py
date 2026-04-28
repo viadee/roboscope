@@ -400,7 +400,7 @@ def get_report_html(
     db: Session = Depends(get_db),
 ):
     """Serve the original Robot Framework HTML report with injected base tag."""
-    _user, raw_token = _authenticate_flexible(token, credentials, db)
+    _user, _raw_token = _authenticate_flexible(token, credentials, db)
 
     report = get_report(db, report_id)
     if report is None:
@@ -422,13 +422,16 @@ def get_report_html(
     # Read and inject <base> tag so relative asset references resolve to the asset endpoint.
     # Also inject a script to fix fragment-only links (href="#...") which would otherwise
     # navigate to the base URL + fragment, causing 404 errors.
-    # Story REPORT-1: embed the JWT in the base href so asset requests
-    # made from inside the iframe-loaded HTML inherit auth via query
-    # param (RFC 3986 §5.2.2 — relative URLs without a query inherit
-    # the base's query).
+    # Story SECURITY-3: embed a purpose-built short-lived asset
+    # token (HMAC-signed, report-scoped, no user identity) instead
+    # of the user's JWT. RFC 3986 §5.2.2 — relative URLs without
+    # a query inherit the base's query, so `?at=…` propagates to
+    # every <img> / <link> the iframe-loaded HTML resolves.
+    from src.reports.asset_tokens import mint_asset_token
     html_content = html_path.read_text(encoding="utf-8", errors="replace")
+    asset_token = mint_asset_token(report_id)
     base_tag = (
-        f'<base href="/api/v1/reports/{report_id}/assets/?token={raw_token}">'
+        f'<base href="/api/v1/reports/{report_id}/assets/?at={asset_token}">'
     )
     fragment_fix_script = (
         "<script>"
@@ -458,18 +461,27 @@ def get_report_asset(
     report_id: int,
     file_path: str,
     token: str | None = Query(default=None),
+    at: str | None = Query(default=None),
     credentials: HTTPAuthorizationCredentials | None = Depends(optional_bearer),
     db: Session = Depends(get_db),
 ):
     """Serve a file from the report's output directory (screenshots, etc.).
 
-    Story REPORT-1: requires authentication via either a `Bearer`
-    header *or* `?token=<jwt>` query param. Iframe-loaded HTML reports
-    inherit the token from `<base href>` (set by /html); SPA `<img>`
-    tags get it appended in `getReportAssetUrl` on the frontend.
-    Path-traversal guard remains layered on top of auth.
+    Story REPORT-1: requires authentication.
+    Story SECURITY-3: accepts a purpose-built signed asset token
+    (`?at=…`) in addition to the legacy `Bearer` header / `?token=<jwt>`
+    JWT path. The asset token is short-lived (1 h) and scoped to
+    a single report so iframe URLs leaking out have a tiny blast
+    radius. Path-traversal guard remains layered on top of auth.
     """
-    _authenticate_flexible(token, credentials, db)
+    # Asset-token path: try first, since it's the cheapest check (no DB
+    # roundtrip, no user lookup) and is what iframe-loaded HTML uses.
+    from src.reports.asset_tokens import verify_asset_token
+    if at and verify_asset_token(at, report_id):
+        pass  # authenticated
+    else:
+        # Fall back to JWT or Bearer auth.
+        _authenticate_flexible(token, credentials, db)
     report = get_report(db, report_id)
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
