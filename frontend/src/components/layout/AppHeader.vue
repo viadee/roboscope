@@ -65,12 +65,13 @@ const isAdmin = computed(() => auth.user?.role === 'admin')
       </button>
     </div>
     <div class="header-right">
-      <div class="lang-switcher">
+      <div class="lang-switcher" role="group" :aria-label="t('a11y.languageSwitcher')">
         <button
           v-for="lang in languages"
           :key="lang"
           class="lang-btn"
           :class="{ active: locale === lang }"
+          :aria-pressed="locale === lang"
           @click="switchLanguage(lang)"
         >
           {{ lang.toUpperCase() }}
@@ -80,17 +81,20 @@ const isAdmin = computed(() => auth.user?.role === 'admin')
         class="notification-btn"
         :class="{ active: ui.notificationsEnabled }"
         :title="ui.notificationsEnabled ? t('notifications.enabled') : t('notifications.disabled')"
+        :aria-label="ui.notificationsEnabled ? t('notifications.enabled') : t('notifications.disabled')"
+        :aria-pressed="ui.notificationsEnabled"
         @click="ui.toggleNotifications()"
       >
-        <span v-if="ui.notificationsEnabled">&#128276;</span>
-        <span v-else>&#128277;</span>
+        <span v-if="ui.notificationsEnabled" aria-hidden="true">&#128276;</span>
+        <span v-else aria-hidden="true">&#128277;</span>
       </button>
       <button
         class="notification-btn tour-btn"
         :title="t('tour.startTutorial')"
+        :aria-label="t('tour.startTutorial')"
         @click="startTour()"
       >
-        &#127891;
+        <span aria-hidden="true">&#127891;</span>
       </button>
       <TeamSwitcher />
       <span class="header-user">{{ auth.user?.username }}</span>

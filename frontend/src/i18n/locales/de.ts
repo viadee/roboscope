@@ -37,6 +37,10 @@ export default {
     logout: 'Abmelden',
     menu: 'Menü',
   },
+  a11y: {
+    skipToMain: 'Zum Hauptinhalt springen',
+    languageSwitcher: 'Sprache',
+  },
   nav: {
     dashboard: 'Dashboard',
     repos: 'Projekte',
