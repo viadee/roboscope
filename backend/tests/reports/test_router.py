@@ -510,14 +510,18 @@ class TestReportAssetEndpoint:
         # matters is that we don't return /etc/passwd contents.
         assert resp.status_code in (403, 404)
 
-    def test_html_report_base_href_contains_token(
+    def test_html_report_base_href_contains_asset_token(
         self, client, admin_user, db_session, tmp_path,
     ):
-        """The injected `<base>` tag must include the access token so
+        """The injected `<base>` tag must include an asset token so
         iframe-loaded asset requests inherit auth via query param.
+
+        SECURITY-3 superseded REPORT-1's JWT-in-base-href: the token
+        is now a purpose-built `?at=…` (HMAC-signed, report-scoped,
+        no user identity) instead of the user's JWT. This test was
+        updated accordingly; the deeper end-to-end coverage lives in
+        `test_asset_tokens.py::TestHtmlEndpointUsesAssetToken`.
         """
-        # Set up a minimal HTML report on disk and point the Report row
-        # at it.
         out = tmp_path / "out"
         out.mkdir()
         html_path = out / "report.html"
@@ -538,4 +542,4 @@ class TestReportAssetEndpoint:
         )
         assert resp.status_code == 200
         body = resp.text
-        assert f'<base href="/api/v1/reports/{report.id}/assets/?token=' in body
+        assert f'<base href="/api/v1/reports/{report.id}/assets/?at=' in body
