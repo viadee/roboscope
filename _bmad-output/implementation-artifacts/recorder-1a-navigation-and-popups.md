@@ -44,3 +44,12 @@ The translator emits `Switch Page    NEW` (RF Browser's idiom for "focus the mos
 - Detecting tab focus switches between EXISTING pages. Playwright doesn't fire a tab-focus event we can hook reliably; replay correctness for "user switches back to original tab" is left for a follow-up.
 - Detecting page CLOSE events (closing a popup) — the `Switch Page` model treats sequence-of-opens as the source of truth, which works for the common popup → action → switch-back-implicit pattern.
 - Window-management keywords beyond `Switch Page    NEW` (e.g. `Switch Page    PREVIOUS`, `Close Page`).
+- Recording **events inside iframes** (ad iframes, embedded OAuth widgets, video players). RF Browser supports `frame=` selectors but the capture model would have to track frame ancestry per event; deferred to a separate story if real users hit the limit.
+
+## Follow-up fix (same story scope)
+
+> Er zieht leider auch alle Werbe-URLs etc., es darf nur die URL des Browsers verwendet werden.
+
+`add_init_script` runs the capture script in EVERY document the page hosts — including ad iframes, analytics widgets, embedded OAuth dialogs. Each one had its own `setTimeout(maybeEmitNav("load"))` firing for the iframe's URL, polluting the sidecar with `Go To <ad-url>`, `Go To <tracker-url>`, etc.
+
+**Patch:** the script now bails out at the very top with `if (window.top !== window) return;` (with a try/catch around the cross-origin access — accessing `window.top` from a cross-origin iframe throws SecurityError, which we treat the same as "we are in an iframe"). Top-frame only for ALL captured events: clicks, types, scrolls, drag/drop, navigation. The recording is now purely the user's main-window journey.

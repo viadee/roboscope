@@ -21,6 +21,16 @@ CAPTURE_SCRIPT: str = r"""
   if (window.__roboscopeCaptureInstalled) return;
   window.__roboscopeCaptureInstalled = true;
 
+  // RECORDER-1A v2: `add_init_script` runs in EVERY document — including
+  // every iframe (ads, embedded video players, OAuth widgets). Capturing
+  // events from those frames pollutes the recording with URLs and clicks
+  // the user never made. Restrict the entire capture to the top frame.
+  // (iframe support requires RF Browser's `frame=` selector dialect and
+  // is a separate story when the need arises.)
+  let isTopFrame = true;
+  try { isTopFrame = window.top === window; } catch (e) { /* cross-origin parent → treat as iframe */ isTopFrame = false; }
+  if (!isTopFrame) return;
+
   const MAX_TEXT = 60;
   const NAV_DEBOUNCE_MS = 100;
   // RECORDER-1A: start as empty so the first `maybeEmitNav("load")` call
