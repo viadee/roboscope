@@ -1,65 +1,91 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 viadee Unternehmensberatung AG.
+//
+// Walks an element + every ancestor up to (but not including) the
+// document, and emits a list of {tagName: [{attr: value}, ...]} entries
+// — one per level — that the XPath builder consumes.
+//
+// The returned shape, walked example for `<body><div class="d">
+// <span class="s" id="s1"></span></div></body>` with selectors
+// ['className','id']:
+//
+//   [
+//     { span: [ { className: ['s'] }, { id: 's1' } ] },
+//     { div:  [ { className: ['d'] } ] },
+//     { body: [] }
+//   ]
+//
+// Implementation: clean-room rewrite (RECORDER-LICENSE).
+//
 /* global Node */
 
-/* builder constructs an array of element and its parents
- Example
-     <body>
-       <div class="d">
-         <span class="s" id="s1">
-       </div>
-     </body>
-
-    [{"span": [{class: "s", {"id": "s1"}]},
-     {"div": [{class: "d"}]},
-     {"body": [{index: 0}]}]
-*/
 const builder = {
-  // find the position of the element
-  // return 0 if element does not have sibling tags
+  // Index of `element` among same-tag siblings under its parent. Used
+  // by callers that want a raw position when no other attribute
+  // disambiguates. Returns 0 when the element is the only sibling of
+  // its tag (no need for a positional [N] suffix). Returns the 1-based
+  // ordinal otherwise.
   _getIndex(element) {
-    let found = false;
-    let count = 0;
-    let index = 0;
-    const siblings = element.parentNode.childNodes;
-
+    const siblings = element.parentNode ? element.parentNode.childNodes : [];
+    let totalSameTag = 0;
+    let position = 0;
+    let foundSelf = false;
     for (let i = 0; i < siblings.length; i++) {
-      if (siblings[i] === element) { found = true; }
-      if ((siblings[i].nodeType === Node.ELEMENT_NODE) && (siblings[i].tagName === element.tagName)) {
-        count += 1;
-        index = !found ? index + 1 : index;
+      const s = siblings[i];
+      if (s === element) foundSelf = true;
+      if (s && s.nodeType === Node.ELEMENT_NODE && s.tagName === element.tagName) {
+        totalSameTag++;
+        if (!foundSelf) position++;
       }
     }
-    return count > 1 ? index + 1 : 0;
+    if (totalSameTag <= 1) return 0;
+    return position + 1;
   },
 
-  // construct a prioritized non empty array of {key, value} object
-  // key is the attribute type, value contains int for index, [] for className, string for others
+  // Pull every requested selector off `element` and return them as a
+  // compact list (skipping selectors that the element doesn't carry).
+  // Special selectors:
+  //   - 'className' splits the class list on whitespace and ALWAYS
+  //     emits an entry (even an empty array). The XPath layer's
+  //     subpath helper guards against zero-length lists itself.
+  //   - 'index' is reserved for sibling-index disambiguation; the XPath
+  //     builder synthesises it on demand, so we always return 1 here
+  //     (preserves the original public API surface).
   _buildAttributes(element, selectors) {
-    const array = selectors.map((sel) => {
-      let attr;
+    const out = [];
+    for (const sel of selectors) {
       if (sel === 'className') {
-        attr = element.className.length > 0 ? element.className.split(' ') : [];
-      } else if (sel === 'index') {
-        attr = 1;
-        // TODO: why is this commented?
-        // attr = this._getIndex(element);
-      } else { // name, id, for, href, title
-        attr = element.getAttribute(sel);
+        const cls = (element.className || '').toString();
+        const parts = cls.length > 0 ? cls.split(' ').filter(Boolean) : [];
+        out.push({ className: parts });
+        continue;
       }
-      // [] is required to template string as key
-      return attr ? { [`${sel}`]: attr } : null;
-    });
-    return array.filter(n => n);
+      if (sel === 'index') {
+        out.push({ index: 1 });
+        continue;
+      }
+      // Plain HTML / ARIA attributes (id, name, for, href, title, …).
+      const value = element.getAttribute ? element.getAttribute(sel) : null;
+      if (value !== null && value !== undefined && value !== '') {
+        out.push({ [sel]: value });
+      }
+    }
+    return out;
   },
 
-  // traverse up the document tree to construct an array containing the element attributes
-  build(element, attributesArray, pathList) {
-    if (!element) return pathList;
-    if (element.nodeType === Node.DOCUMENT_NODE) return pathList;
-
-    const array = this._buildAttributes(element, attributesArray);
-    pathList.push({ [`${element.tagName.toLowerCase()}`]: array });
-    return this.build(element.parentNode, attributesArray, pathList);
-  }
+  // Iteratively climb the tree so deep DOMs don't blow the stack. The
+  // accumulator-style `acc` parameter is preserved from the original
+  // public API even though we no longer recurse.
+  build(element, selectors, acc) {
+    let cur = element;
+    while (cur && cur.nodeType !== Node.DOCUMENT_NODE) {
+      const tag = (cur.tagName || '').toLowerCase();
+      const attrs = this._buildAttributes(cur, selectors);
+      acc.push({ [tag]: attrs });
+      cur = cur.parentNode;
+    }
+    return acc;
+  },
 };
 
 if (typeof exports !== 'undefined') exports.builder = builder;

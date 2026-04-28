@@ -2,8 +2,8 @@
   "name": "roboscope-recorder",
   "version": "0.8.0",
   "description": "Record browser interactions and generate Robot Framework test scripts — with optional RoboScope integration",
-  "author": "@xylix",
-  "license": "GPL-3.0",
+  "author": "viadee Unternehmensberatung AG",
+  "license": "Apache-2.0",
   "main": "src.background.js",
   "directories": {
     "test": "test"

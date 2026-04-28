@@ -8,7 +8,7 @@ Web-based Robot Framework test management tool: Git integration, GUI execution, 
 backend/   FastAPI (Python 3.12+) — ~5800 LOC, domain-driven modules
 frontend/  Vue 3 + TS + Vite + Pinia — ~5500 LOC, 12 views, 10 stores
 e2e/       Playwright — ~1400 LOC, 13 specs, 217 tests green
-extension/ Chrome Recorder (GPL-3.0, arm's-length boundary, HTTP only)
+extension/ Chrome Recorder (Apache-2.0 since RECORDER-LICENSE; HTTP only)
 docker/    Dockerfiles (backend, frontend, playwright)
 _bmad/     BMAD Method v6 install (bmm + core)
 ```
