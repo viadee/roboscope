@@ -2,10 +2,18 @@
  * Story EDITOR-2 — verifies the composable that combines static
  * RF_KEYWORD_SIGNATURES with the dynamic explorer-store cache.
  */
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
+
+vi.mock('@/api/ai.api', () => ({
+  searchKeywords: vi.fn(),
+}))
+
+import { searchKeywords } from '@/api/ai.api'
 import { useExplorerStore } from '@/stores/explorer.store'
 import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
+
+const mockedSearch = searchKeywords as unknown as ReturnType<typeof vi.fn>
 
 describe('useKeywordSignatures', () => {
   beforeEach(() => {
@@ -106,6 +114,52 @@ describe('useKeywordSignatures', () => {
       const { getKeywordInfo } = useKeywordSignatures()
       const info = getKeywordInfo('GET ELEMENT BY XPATH')
       expect(info!.display).toBe('Get Element By XPath')
+    })
+  })
+
+  describe('fetchKeywordInfo (lazy doc lookup for BuiltIn)', () => {
+    beforeEach(() => mockedSearch.mockReset())
+
+    it('calls searchKeywords with the keyword name + repoId', async () => {
+      mockedSearch.mockResolvedValue({
+        results: [{
+          name: 'Evaluate', library: 'BuiltIn',
+          doc: 'Evaluates the given expression in Python.',
+          args: ['expression', 'modules=None', 'namespace=None'],
+        }],
+      })
+      const { fetchKeywordInfo } = useKeywordSignatures()
+      const info = await fetchKeywordInfo('Evaluate', 7)
+      expect(mockedSearch).toHaveBeenCalledWith('Evaluate', 7)
+      expect(info!.library).toBe('BuiltIn')
+      expect(info!.doc).toContain('Evaluates the given expression')
+    })
+
+    it('caches the result into explorer.keywords for subsequent sync reads', async () => {
+      mockedSearch.mockResolvedValue({
+        results: [{
+          name: 'Log', library: 'BuiltIn', doc: 'Logs a message.', args: ['message'],
+        }],
+      })
+      const explorer = useExplorerStore()
+      const { fetchKeywordInfo, getKeywordInfo } = useKeywordSignatures()
+      await fetchKeywordInfo('Log', 1)
+      expect(explorer.keywords.some((k) => k.name === 'Log')).toBe(true)
+      // Subsequent sync read picks up the doc.
+      expect(getKeywordInfo('Log')!.doc).toBe('Logs a message.')
+    })
+
+    it('falls back to the static info when the API returns no matches', async () => {
+      mockedSearch.mockResolvedValue({ results: [] })
+      const { fetchKeywordInfo } = useKeywordSignatures()
+      const info = await fetchKeywordInfo('Log', 1)
+      expect(info?.library).toBe('BuiltIn')
+      expect(info?.args.length).toBeGreaterThan(0)
+    })
+
+    it('returns null when the keyword name is empty', async () => {
+      const { fetchKeywordInfo } = useKeywordSignatures()
+      expect(await fetchKeywordInfo('', 1)).toBeNull()
     })
   })
 })

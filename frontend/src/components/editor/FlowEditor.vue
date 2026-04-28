@@ -1152,6 +1152,7 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
     <KeywordDocModal
       v-model="docModalOpen"
       :keyword="docModalKeyword"
+      :repo-id="props.repoId"
     />
   </div>
 </template>

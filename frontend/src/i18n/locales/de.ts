@@ -1170,6 +1170,7 @@ export default {
       argsHeader: 'Argumente',
       noDoc: 'Keine Dokumentation verfügbar.',
       button: 'Dokumentation anzeigen',
+      loading: 'Dokumentation wird geladen…',
     },
     argTypes: {
       text: 'Text',

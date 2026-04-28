@@ -193,10 +193,11 @@ describe('getArgLabel', () => {
     expect(getArgLabel(specs, 1, t)).toBe('button')
   })
 
-  it('returns the localised "extra positional" for varargs entries and beyond', () => {
-    expect(getArgLabel(specs, 2, t)).toBe('extra positional')
-    expect(getArgLabel(specs, 3, t)).toBe('extra positional')
-    expect(getArgLabel(specs, 99, t)).toBe('extra positional')
+  it('numbers varargs entries from 1 inside the varargs group', () => {
+    // specs[2] is the *modifiers vararg → first vararg slot is "1"
+    expect(getArgLabel(specs, 2, t)).toBe('1')
+    expect(getArgLabel(specs, 3, t)).toBe('2')
+    expect(getArgLabel(specs, 99, t)).toBe(String(99 - 2 + 1)) // 98
   })
 
   it('falls back to "arg N" for null specs', () => {

@@ -2,12 +2,13 @@
 /**
  * Story EDITOR-7 — modal that shows the documentation for a keyword.
  *
- * Source: `useKeywordSignatures().getKeywordInfo(name)`. For dynamic-
- * library introspection (e.g. Browser, Collections, …) the doc string
- * is the libdoc summary. For static `RF_KEYWORD_SIGNATURES` fallback
- * keywords the doc is empty and we render a "no documentation" hint.
+ * Source: `useKeywordSignatures().getKeywordInfo(name)` for the
+ * synchronous lookup. When the cached entry has no doc string (most
+ * BuiltIn keywords land here because the wildcard preload skips them),
+ * we lazy-load via `fetchKeywordInfo()` so the user gets the libdoc
+ * summary without re-opening the modal.
  */
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
@@ -16,6 +17,7 @@ import { parseArgSignature } from '@/utils/robotKeywordSignatures'
 const props = defineProps<{
   modelValue: boolean
   keyword: string
+  repoId?: number
 }>()
 
 defineEmits<{
@@ -23,9 +25,29 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
-const { getKeywordInfo } = useKeywordSignatures()
+const { getKeywordInfo, fetchKeywordInfo } = useKeywordSignatures()
 
-const info = computed(() => getKeywordInfo(props.keyword))
+const fetchedInfo = ref<ReturnType<typeof getKeywordInfo>>(null)
+const fetching = ref(false)
+
+const info = computed(() => fetchedInfo.value ?? getKeywordInfo(props.keyword))
+
+async function refreshIfNeeded() {
+  fetchedInfo.value = null
+  if (!props.modelValue || !props.keyword) return
+  const cached = getKeywordInfo(props.keyword)
+  // Skip the network call when we already have a doc string.
+  if (cached?.doc && cached.doc.trim().length > 0) return
+  fetching.value = true
+  try {
+    const fresh = await fetchKeywordInfo(props.keyword, props.repoId)
+    if (fresh) fetchedInfo.value = fresh
+  } finally {
+    fetching.value = false
+  }
+}
+
+watch(() => [props.modelValue, props.keyword], refreshIfNeeded, { immediate: true })
 
 const parsedArgs = computed(() => {
   if (!info.value) return []
@@ -66,6 +88,7 @@ function formatArg(parsed: ReturnType<typeof parseArgSignature>): string {
 
       <div class="kw-doc-body">
         <pre v-if="info.doc.trim().length > 0">{{ info.doc }}</pre>
+        <p v-else-if="fetching" class="kw-doc-empty">{{ t('flowEditor.docModal.loading') }}</p>
         <p v-else class="kw-doc-empty">{{ t('flowEditor.docModal.noDoc') }}</p>
       </div>
     </div>

@@ -346,17 +346,25 @@ export function getArgLabel(
   const fallback = () => t('flowEditor.argLabels.fallback', { n: index + 1 })
   if (!argSpecs || argSpecs.length === 0) return fallback()
 
+  // Find the position of `*args` / `**kwargs` in the signature so we can
+  // number entries inside the varargs group as "1", "2", "3" — much
+  // friendlier than repeating "extra positional" forever.
+  const varargsIdx = argSpecs.findIndex((s) => s.kind === 'varargs')
+
   const spec = argSpecs[index]
   if (spec) {
-    if (spec.kind === 'varargs') return t('flowEditor.argLabels.extraPositional')
+    if (spec.kind === 'varargs') return '1'
     if (spec.kind === 'kwargs') return t('flowEditor.argLabels.extraNamed')
     if (spec.name) return spec.name
     return fallback()
   }
 
-  // Past the declared signature — propagate varargs / kwargs if present.
+  // Past the declared signature — number from the start of varargs if
+  // present, otherwise fall back to the generic placeholder.
   const last = argSpecs[argSpecs.length - 1]
-  if (last?.kind === 'varargs') return t('flowEditor.argLabels.extraPositional')
+  if (varargsIdx >= 0 && last?.kind === 'varargs') {
+    return String(index - varargsIdx + 1)
+  }
   if (last?.kind === 'kwargs') return t('flowEditor.argLabels.extraNamed')
   return fallback()
 }

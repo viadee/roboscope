@@ -159,8 +159,10 @@ describe('KeywordNode parameter-name chips (Story EDITOR-2)', () => {
     const prefixes = w.findAll('[data-testid="arg-name-prefix"]')
     expect(prefixes).toHaveLength(3)
     expect(prefixes[0].text()).toContain('selector')
-    expect(prefixes[1].text()).toContain('extra positional')
-    expect(prefixes[2].text()).toContain('extra positional')
+    // EDITOR-3 + later: vararg slots are now numbered "1", "2", "3" within
+    // the vararg group rather than repeating "extra positional".
+    expect(prefixes[1].text()).toContain('1')
+    expect(prefixes[2].text()).toContain('2')
   })
 })
 

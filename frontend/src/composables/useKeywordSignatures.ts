@@ -16,6 +16,7 @@
  */
 import { computed } from 'vue'
 import { useExplorerStore } from '@/stores/explorer.store'
+import { searchKeywords } from '@/api/ai.api'
 import {
   RF_KEYWORD_SIGNATURES,
   parseArgSignature,
@@ -77,5 +78,48 @@ export function useKeywordSignatures() {
     }
   }
 
-  return { argsByName, getArgs, getParsedArgs, getKeywordInfo }
+  /**
+   * Story EDITOR-7 follow-up — async fetch of full keyword info
+   * (including the doc string) for keywords that aren't yet in the
+   * explorer cache. The wildcard `searchKeywords('*')` call that
+   * `KeywordPalette` runs at mount time SKIPS BuiltIn (the backend
+   * lists only third-party libraries to keep the response size sane),
+   * so static-fallback BuiltIn keywords land in the modal without a
+   * doc. A targeted `searchKeywords(name, repoId)` does return the
+   * BuiltIn match, so we lazy-load on demand and fold the result into
+   * `explorer.keywords` for caching.
+   */
+  async function fetchKeywordInfo(
+    keywordName: string,
+    repoId?: number,
+  ): Promise<{ display: string; library: string; doc: string; args: string[] } | null> {
+    if (!keywordName) return null
+    try {
+      const response = await searchKeywords(keywordName, repoId)
+      const lower = keywordName.toLowerCase()
+      const hit = response.results.find((r) => r.name.toLowerCase() === lower)
+        ?? response.results[0]
+      if (!hit) return getKeywordInfo(keywordName)
+      // Cache it so subsequent reads are synchronous.
+      const exists = explorer.keywords.some((k) => k.name.toLowerCase() === hit.name.toLowerCase())
+      if (!exists) {
+        explorer.keywords.push({
+          name: hit.name,
+          library: hit.library || '',
+          doc: hit.doc || '',
+          args: hit.args || [],
+        })
+      }
+      return {
+        display: hit.name,
+        library: hit.library || 'BuiltIn',
+        doc: hit.doc || '',
+        args: hit.args ?? getArgs(keywordName) ?? [],
+      }
+    } catch {
+      return getKeywordInfo(keywordName)
+    }
+  }
+
+  return { argsByName, getArgs, getParsedArgs, getKeywordInfo, fetchKeywordInfo }
 }
