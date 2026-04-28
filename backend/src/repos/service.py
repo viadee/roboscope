@@ -1,7 +1,7 @@
 """Repository management service: Git operations, CRUD."""
 
 import shutil
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy import select
@@ -499,6 +499,63 @@ def publish_changes(
         "conflict": False,
         "remote_ref": push_result["remote_ref"],
     }
+
+
+# ---------------------------------------------------------------------------
+# Story REPO-2 — auto-sync scheduler
+# ---------------------------------------------------------------------------
+
+
+def due_repos(db: Session, now: datetime | None = None) -> list[Repository]:
+    """Return every git repo whose auto-sync is overdue.
+
+    A repo is "due" when ALL of the following hold:
+      - `repo_type == 'git'` (local repos have nothing to pull)
+      - `git_url` is set (defensive: a repo with auto_sync=True but
+        no URL would crash the dispatch task)
+      - `auto_sync == True`
+      - `sync_status != 'syncing'` (a previous sync still running →
+        skip this tick instead of dispatching a duplicate)
+      - `last_synced_at IS NULL` (never synced) OR
+        `last_synced_at < now - sync_interval_minutes`
+
+    The interval comparison happens in Python because SQLite's
+    `datetime + interval` story is portability-hostile and the
+    candidate set (auto_sync=True repos) is tiny in practice.
+
+    `now` defaults to `datetime.now(UTC)`.
+    """
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    candidates = db.execute(
+        select(Repository).where(
+            Repository.repo_type == "git",
+            Repository.auto_sync.is_(True),
+            Repository.git_url.is_not(None),
+        )
+    ).scalars().all()
+
+    out: list[Repository] = []
+    for repo in candidates:
+        if repo.sync_status == "syncing":
+            continue
+        if repo.last_synced_at is None:
+            out.append(repo)
+            continue
+        # Review fix M2 — normalise BOTH sides to aware-UTC in one
+        # shot rather than dispatching on partial branches. Today
+        # SQLite + plain `Mapped[datetime]` give us naive values back;
+        # if the column is ever flipped to `DateTime(timezone=True)`
+        # for Postgres, this code keeps working without an audit.
+        last = repo.last_synced_at
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        now_aware = now if now.tzinfo is not None else now.replace(tzinfo=timezone.utc)
+        boundary = last + timedelta(minutes=repo.sync_interval_minutes)
+        if now_aware >= boundary:
+            out.append(repo)
+    return out
 
 
 # ---------------------------------------------------------------------------

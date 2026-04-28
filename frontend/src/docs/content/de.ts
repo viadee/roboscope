@@ -320,8 +320,12 @@ const de: DocsContent = [
   RoboScope auflösen und mit einem Git-Client pushen.
 </p>
 <p>
-  <strong>Wichtiger Hinweis:</strong> Aktuell pullt die Auto-Sync-Checkbox
-  weder nach Zeitplan noch vor jedem Testlauf &mdash; sie speichert nur die
+  <strong>Wichtiger Hinweis:</strong> Auto-Sync zieht jetzt im Hintergrund
+  alle <code>sync_interval_minutes</code> (Standard 15 min) per <code>git pull</code>.
+  Der Scheduler tickt alle 5 min, sehr kurze Intervalle werden also auf
+  5 min aufgerundet. Repos mit laufender Synchronisation werden für
+  diesen Tick übersprungen. Auto-Sync zieht <strong>nicht</strong> direkt
+  vor einem Testlauf &mdash; sie speichert nur die
   Präferenz für ein zukünftiges Feature. Verwenden Sie den expliziten
   <strong>Sync</strong>-Button. Speichern Sie immer Ihre Änderungen via
   <strong>Änderungen speichern</strong> bevor Sie auf <strong>Sync</strong>

@@ -324,7 +324,7 @@ const fr: DocsContent = [
   synchronisation r\u00E9ussie. Si une synchronisation \u00E9choue (par exemple en cas de conflit
   de fusion), un badge d\u2019erreur appara\u00EEt \u00E0 c\u00F4t\u00E9 du nom du d\u00E9p\u00F4t.
 </p>`,
-        tip: 'La synchronisation automatique garantit que vous testez toujours le code le plus r\u00E9cent. Note: Auto-Sync ne tire pas r\u00E9ellement aujourd\u2019hui \u2014 utilisez Sync explicitement et enregistrez avant.'
+        tip: 'La synchronisation automatique garantit que vous testez toujours le code le plus r\u00E9cent. Auto-Sync ex\u00E9cute maintenant un git pull en arri\u00E8re-plan toutes les sync_interval_minutes (15 min par d\u00E9faut), via un planificateur qui tique toutes les 5 min.'
       },
       {
         id: 'branch-switching',

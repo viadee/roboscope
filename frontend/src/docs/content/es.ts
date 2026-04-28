@@ -335,7 +335,7 @@ const es: DocsContent = [
   (por ejemplo, conflictos de fusi\u00F3n), aparece una insignia de error junto
   al nombre del repositorio.
 </p>`,
-        tip: 'Importante: la casilla "Auto-Sync" hoy es solo un marcador de posici\u00F3n y no sincroniza en un horario. Use el bot\u00F3n "Sincronizar" expl\u00EDcito y guarde sus cambios antes con "Guardar N cambios" para evitar sobrescrituras.'
+        tip: 'Importante: Auto-Sync ahora ejecuta un git pull en segundo plano cada sync_interval_minutes (15 min por defecto). El planificador se activa cada 5 min, los intervalos cortos se redondean a 5 min. Use el bot\u00F3n "Sincronizar" expl\u00EDcito y guarde sus cambios antes con "Guardar N cambios" para evitar sobrescrituras.'
       },
       {
         id: 'branch-switching',

@@ -355,13 +355,21 @@ const en: DocsContent = [
   afterwards if you want the latest commits on the new branch.
 </p>
 
-<h4>What about the &ldquo;Auto-Sync&rdquo; checkbox?</h4>
+<h4>Auto-Sync (background pull)</h4>
 <p>
-  The <strong>Auto-Sync</strong> toggle is a placeholder for a future
-  scheduled-pull feature. Today it only stores your preference; it does
-  <strong>not</strong> automatically pull on a schedule and it does
-  <strong>not</strong> pull before each test run. Use the explicit
-  <strong>Sync</strong> button when you want the latest changes.
+  The <strong>Auto-Sync</strong> toggle on a project card runs a
+  <code>git pull</code> in the background every
+  <code>sync_interval_minutes</code> (default 15&nbsp;min). The scheduler
+  ticks every 5&nbsp;min, so very short intervals are effectively
+  rounded up to 5&nbsp;min. Auto-Sync skips repos that already have a
+  sync in flight, so two ticks can&rsquo;t pile on each other.
+</p>
+<p>
+  Auto-Sync does <strong>not</strong> pull right before a test run —
+  if you need <em>guaranteed</em> latest before a specific run, hit the
+  explicit <strong>Sync</strong> button first. And the same caveat as
+  above applies: always <strong>Save</strong> your changes before
+  pulling so a freshly-pulled remote can&rsquo;t overwrite local edits.
 </p>`,
         tip: 'Always click "Save N changes" before "Sync" — pulling first can overwrite or refuse with a merge error if you have local edits.'
       },

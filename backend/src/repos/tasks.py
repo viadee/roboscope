@@ -10,7 +10,8 @@ import src.auth.models  # noqa: F401 — defines 'users' table
 
 from src.database import get_sync_session
 from src.repos.models import Repository
-from src.repos.service import clone_repository, sync_repository
+from src.repos.service import clone_repository, due_repos, sync_repository
+from src.task_executor import TaskDispatchError, dispatch_task
 
 logger = logging.getLogger("roboscope.repos.tasks")
 
@@ -118,3 +119,58 @@ def sync_repo(repo_id: int, max_retries: int = 3) -> dict:
         repo.sync_error = str(last_exc)[:500]
         session.commit()
         return {"status": "error", "message": str(last_exc)}
+
+
+def auto_sync_due_repos() -> dict:
+    """Story REPO-2 — APScheduler entry point.
+
+    Polls every 5 min (registered in `main.py` lifespan), finds every
+    repo whose `auto_sync` checkbox is on and `last_synced_at` is older
+    than its configured `sync_interval_minutes`, and dispatches one
+    `sync_repo` task per due repo. Returns a summary dict (handy for
+    logs / future status surface).
+
+    Important: this function runs *inside* the APScheduler thread, so
+    it MUST NOT raise — uncaught exceptions would propagate and the
+    scheduler logs them as ERROR + may suspend the job. We catch and
+    log instead.
+    """
+    from datetime import datetime, timezone
+    now_utc = datetime.now(timezone.utc)
+
+    dispatched: list[int] = []
+    skipped: int = 0
+    try:
+        with get_sync_session() as session:
+            due = due_repos(session, now=now_utc)
+            for repo in due:
+                # Review fix M1 — flip status to `syncing` synchronously
+                # at dispatch time so the next tick (and any concurrent
+                # manual-sync click) sees the in-flight state and skips
+                # this repo. The actual `sync_repo` task overwrites the
+                # field on completion / failure, so we never strand a
+                # repo as `syncing` even if dispatch raises.
+                repo.sync_status = "syncing"
+                session.commit()
+                try:
+                    dispatch_task(sync_repo, repo.id)
+                    dispatched.append(repo.id)
+                except TaskDispatchError as e:
+                    logger.warning(
+                        "auto-sync: dispatch failed for repo %d (%s): %s",
+                        repo.id, repo.name, e,
+                    )
+                    # Roll the optimistic flag back so the next tick can
+                    # try again instead of silently skipping forever.
+                    repo.sync_status = "idle"
+                    session.commit()
+                    skipped += 1
+        if dispatched or skipped:
+            logger.info(
+                "auto-sync: dispatched %d, skipped %d (queue busy)",
+                len(dispatched), skipped,
+            )
+    except Exception:
+        logger.exception("auto-sync tick crashed; will retry next 5min interval")
+        return {"dispatched": dispatched, "skipped": skipped, "error": True}
+    return {"dispatched": dispatched, "skipped": skipped}

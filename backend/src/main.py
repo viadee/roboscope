@@ -175,10 +175,31 @@ async def lifespan(app: FastAPI):
         name="Phase 4 retention cleanup (hourly)",
         replace_existing=True,
     )
+    # Story REPO-2: auto-sync scheduler. Every 5 min, find repos
+    # whose `auto_sync=True` and `last_synced_at < now - sync_interval_minutes`,
+    # dispatch a sync_repo task for each. The 5-min heartbeat is the
+    # finest granularity worth the wake-up cost; per-repo
+    # sync_interval_minutes is the actual cadence the user controls.
+    from src.repos.tasks import auto_sync_due_repos
+    _scheduler.add_job(
+        auto_sync_due_repos,
+        trigger=IntervalTrigger(minutes=5),
+        id="repo_auto_sync",
+        name="Repository auto-sync (every 5 min)",
+        replace_existing=True,
+        # Review fix S3 — APScheduler defaults are tight: a single
+        # delayed wake-up (e.g. behind a slow retention sweep) can drop
+        # the tick. `coalesce=True` collapses multiple missed runs into
+        # one; `misfire_grace_time=60` gives the scheduler a minute to
+        # catch up before declaring the run lost.
+        coalesce=True,
+        misfire_grace_time=60,
+    )
     _scheduler.start()
     logger.info(
         "Scheduler started: retention (every 24h), OIDC discovery refresh "
-        "(every 24h, first run deferred), Phase 4 cleanup (every 1h)"
+        "(every 24h, first run deferred), Phase 4 cleanup (every 1h), "
+        "repo auto-sync (every 5m)"
     )
 
     logger.info("RoboScope started successfully")
