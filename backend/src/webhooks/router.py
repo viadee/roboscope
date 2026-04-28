@@ -322,10 +322,26 @@ def git_webhook_inbound(
     db.add(run)
     db.commit()
 
-    # Dispatch to background executor
+    # Dispatch to background executor.
+    # Story REPO-4: for git repos, pre-dispatch a sync so the run uses
+    # the freshly pushed commit, not the on-disk state. The task
+    # executor runs with `max_workers=1`, so submitting the sync first
+    # guarantees it finishes before the run starts. A failure to
+    # dispatch the sync is logged but does NOT abort the run.
     try:
-        from src.task_executor import dispatch_task
+        from src.task_executor import TaskDispatchError, dispatch_task
         from src.execution.tasks import execute_test_run
+        from src.repos.tasks import sync_repo
+
+        if repo.repo_type == "git" and repo.git_url:
+            try:
+                dispatch_task(sync_repo, repo.id)
+            except TaskDispatchError as e:
+                logger.warning(
+                    "Webhook: pre-run sync dispatch failed for repo %d (%s): %s — "
+                    "run will use on-disk state",
+                    repo.id, repo.name, e,
+                )
 
         result = dispatch_task(execute_test_run, run.id)
         run.task_id = result.id

@@ -257,3 +257,136 @@ class TestGitWebhookInbound:
 
         assert resp.status_code == 200
         assert resp.json()["status"] == "triggered"
+
+    # -----------------------------------------------------------------
+    # Story REPO-4 — webhook pre-syncs the repo before triggering the run
+    # -----------------------------------------------------------------
+
+    def test_webhook_dispatches_sync_before_run(
+        self, client, db_session, admin_user,
+    ):
+        """The webhook must dispatch sync_repo BEFORE execute_test_run.
+        The task executor uses max_workers=1 so dispatch order = run order.
+        """
+        from src.repos.models import Repository
+        from src.repos.tasks import sync_repo
+        from src.execution.tasks import execute_test_run
+
+        repo = Repository(
+            name="Sync First",
+            repo_type="git",
+            git_url="https://github.com/test/sync-first.git",
+            local_path="/tmp/sync-first",
+            default_branch="main",
+            created_by=admin_user.id,
+        )
+        db_session.add(repo)
+        db_session.flush()
+
+        called: list = []
+
+        def record(fn, *args, **kwargs):
+            called.append(fn)
+            return MagicMock(id=f"task-{len(called)}")
+
+        with patch("src.task_executor.dispatch_task", side_effect=record):
+            resp = client.post(
+                "/api/v1/webhooks/git",
+                json={
+                    "ref": "refs/heads/main",
+                    "repository": {
+                        "clone_url": "https://github.com/test/sync-first.git",
+                    },
+                },
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "triggered"
+        # Order matters: sync_repo first, execute_test_run second.
+        assert called == [sync_repo, execute_test_run]
+
+    def test_webhook_skips_sync_for_local_repo(
+        self, client, db_session, admin_user,
+    ):
+        """Local repos have no upstream — no pre-sync, just dispatch the run."""
+        from src.repos.models import Repository
+        from src.execution.tasks import execute_test_run
+
+        # `repo_type='local'` shouldn't normally match a webhook payload
+        # (no git_url to compare against), but if a user mis-configured
+        # one with a URL we should still skip the sync.
+        repo = Repository(
+            name="Local Lookalike",
+            repo_type="local",
+            git_url="https://github.com/test/local.git",  # mis-configured
+            local_path="/tmp/local-lookalike",
+            default_branch="main",
+            created_by=admin_user.id,
+        )
+        db_session.add(repo)
+        db_session.flush()
+
+        called: list = []
+
+        def record(fn, *args, **kwargs):
+            called.append(fn)
+            return MagicMock(id=f"task-{len(called)}")
+
+        with patch("src.task_executor.dispatch_task", side_effect=record):
+            resp = client.post(
+                "/api/v1/webhooks/git",
+                json={
+                    "ref": "refs/heads/main",
+                    "repository": {
+                        "clone_url": "https://github.com/test/local.git",
+                    },
+                },
+            )
+
+        assert resp.status_code == 200
+        assert called == [execute_test_run]
+
+    def test_webhook_run_proceeds_when_sync_dispatch_fails(
+        self, client, db_session, admin_user,
+    ):
+        """A TaskDispatchError on the sync must NOT abort the run."""
+        from src.repos.models import Repository
+        from src.repos.tasks import sync_repo
+        from src.execution.tasks import execute_test_run
+        from src.task_executor import TaskDispatchError
+
+        repo = Repository(
+            name="Sync Fails",
+            repo_type="git",
+            git_url="https://github.com/test/sync-fails.git",
+            local_path="/tmp/sync-fails",
+            default_branch="main",
+            created_by=admin_user.id,
+        )
+        db_session.add(repo)
+        db_session.flush()
+
+        attempts: list = []
+
+        def record(fn, *args, **kwargs):
+            attempts.append(fn)
+            if fn is sync_repo:
+                raise TaskDispatchError("queue saturated")
+            return MagicMock(id=f"task-{len(attempts)}")
+
+        with patch("src.task_executor.dispatch_task", side_effect=record):
+            resp = client.post(
+                "/api/v1/webhooks/git",
+                json={
+                    "ref": "refs/heads/main",
+                    "repository": {
+                        "clone_url": "https://github.com/test/sync-fails.git",
+                    },
+                },
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "triggered"
+        # Both were attempted; the run dispatch succeeded after the sync
+        # dispatch raised.
+        assert attempts == [sync_repo, execute_test_run]
