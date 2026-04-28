@@ -342,6 +342,20 @@ const fr: DocsContent = [
   La case <strong>Auto-Sync</strong> sur chaque carte de projet contr\u00F4le si le d\u00E9p\u00F4t
   est automatiquement synchronis\u00E9 avant les ex\u00E9cutions de tests. Activez-la pour les
   flux CI/CD o\u00F9 vous souhaitez toujours tester le code le plus r\u00E9cent.
+</p>
+<h4>Synchro avant ex\u00E9cution</h4>
+<p>
+  Activez <strong>Synchro avant ex\u00E9cution</strong> sur un d\u00E9p\u00F4t lorsque
+  chaque ex\u00E9cution doit utiliser le tout dernier commit. RoboScope effectue un
+  <code>git pull</code> synchrone juste avant le d\u00E9marrage du runner, avec un
+  timeout de 60&nbsp;s. Cette option est d\u00E9sactiv\u00E9e par d\u00E9faut et ajoute
+  quelques secondes par ex\u00E9cution&nbsp;; elle se combine avec Auto-Sync &mdash;
+  vous pouvez activer l&rsquo;une, l&rsquo;autre, les deux ou aucune.
+</p>
+<p>
+  Si le pull \u00E9choue (r\u00E9seau, conflit, timeout), l&rsquo;ex\u00E9cution
+  d\u00E9marre tout de m\u00EAme avec l&rsquo;\u00E9tat sur le disque. L&rsquo;erreur
+  est logu\u00E9e et le prochain Auto-Sync r\u00E9essaiera.
 </p>`
       },
       {

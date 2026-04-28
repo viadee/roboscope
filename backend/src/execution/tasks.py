@@ -276,6 +276,25 @@ def execute_test_run(run_id: int) -> dict:
                 _broadcast_run_status(run_id, RunStatus.ERROR)
                 return {"status": "error", "message": "Repository not found"}
 
+            # Story REPO-3 — best-effort pre-run sync. Never raises;
+            # on failure the run continues with whatever's on disk.
+            # The helper itself flips `sync_status` (see review fix M2)
+            # so the REPO-2 auto-sync scheduler can't race us.
+            from src.repos.service import sync_for_run
+            pre_status, pre_detail = sync_for_run(repo, session)
+            if pre_status == "ok":
+                logger.info(
+                    "pre-run sync for repo %d (%s): %s",
+                    repo.id, repo.name, pre_detail,
+                )
+                repo.last_synced_at = datetime.now(timezone.utc)
+                session.commit()
+            elif pre_status in ("error", "timeout"):
+                logger.warning(
+                    "pre-run sync %s for repo %d (%s): %s — running with on-disk state",
+                    pre_status, repo.id, repo.name, pre_detail,
+                )
+
             runner.prepare(repo.local_path, run.target_path, env_config)
 
             # Parse variables

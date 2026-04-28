@@ -24,6 +24,7 @@ class Repository(Base, TimestampMixin):
     last_synced_at: Mapped[datetime | None] = mapped_column(default=None)
     auto_sync: Mapped[bool] = mapped_column(Boolean, default=True)
     sync_interval_minutes: Mapped[int] = mapped_column(Integer, default=15)
+    pre_run_sync: Mapped[bool] = mapped_column(Boolean, default=False)
     sync_status: Mapped[str | None] = mapped_column(String(20), nullable=True, default="idle")
     sync_error: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))

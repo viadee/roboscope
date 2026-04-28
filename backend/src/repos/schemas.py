@@ -14,6 +14,7 @@ class RepoCreate(BaseModel):
     default_branch: str = Field(default="main", max_length=100)
     auto_sync: bool = True
     sync_interval_minutes: int = Field(default=15, ge=1, le=1440)
+    pre_run_sync: bool = False
     environment_id: int | None = None
 
     @model_validator(mode="after")
@@ -30,6 +31,7 @@ class RepoUpdate(BaseModel):
     default_branch: str | None = None
     auto_sync: bool | None = None
     sync_interval_minutes: int | None = None
+    pre_run_sync: bool | None = None
     environment_id: int | None = None
 
 
@@ -43,6 +45,7 @@ class RepoResponse(BaseModel):
     last_synced_at: datetime | None = None
     auto_sync: bool
     sync_interval_minutes: int
+    pre_run_sync: bool = False
     sync_status: str | None = "idle"
     sync_error: str | None = None
     created_by: int

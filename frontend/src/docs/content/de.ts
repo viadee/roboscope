@@ -324,13 +324,24 @@ const de: DocsContent = [
   alle <code>sync_interval_minutes</code> (Standard 15 min) per <code>git pull</code>.
   Der Scheduler tickt alle 5 min, sehr kurze Intervalle werden also auf
   5 min aufgerundet. Repos mit laufender Synchronisation werden für
-  diesen Tick übersprungen. Auto-Sync zieht <strong>nicht</strong> direkt
-  vor einem Testlauf &mdash; sie speichert nur die
-  Präferenz für ein zukünftiges Feature. Verwenden Sie den expliziten
-  <strong>Sync</strong>-Button. Speichern Sie immer Ihre Änderungen via
+  diesen Tick übersprungen. Speichern Sie immer Ihre Änderungen via
   <strong>Änderungen speichern</strong> bevor Sie auf <strong>Sync</strong>
   klicken &mdash; sonst kann der Pull lokale Edits überschreiben oder mit
   einem Merge-Fehler abbrechen.
+</p>
+<h4>Pre-Run-Sync (Pull vor jedem Lauf)</h4>
+<p>
+  Aktivieren Sie <strong>Pre-Run-Sync</strong> auf einem Repository,
+  wenn jeder Testlauf den allerneuesten Commit verwenden muss. RoboScope
+  führt synchron einen <code>git pull</code> direkt vor dem Start des
+  Runners aus, mit 60&nbsp;s Timeout. Pre-Run-Sync ist standardmäßig
+  deaktiviert und kostet ein paar Sekunden pro Lauf; er ist unabhängig
+  von Auto-Sync &mdash; Sie können beide, einen oder keinen aktivieren.
+</p>
+<p>
+  Schlägt der Pull fehl (Netzwerkfehler, Konflikt, Timeout), startet der
+  Lauf trotzdem mit dem Stand auf der Platte. Der Fehler wird geloggt,
+  und der nächste Auto-Sync-Tick versucht es erneut.
 </p>`
       },
       {

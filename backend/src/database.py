@@ -162,6 +162,11 @@ def _migrate_sqlite(conn) -> None:
         conn.execute(text("ALTER TABLE repositories ADD COLUMN sync_error TEXT"))
         logger.info("Migration: added sync_error column")
 
+    # Story REPO-3: pre-run sync flag
+    if "pre_run_sync" not in columns:
+        conn.execute(text("ALTER TABLE repositories ADD COLUMN pre_run_sync BOOLEAN DEFAULT 0"))
+        logger.info("Migration: added pre_run_sync column to repositories")
+
     # Re-read columns after possible changes
     result = conn.execute(text("PRAGMA table_info(repositories)"))
     columns = {row[1]: row for row in result.fetchall()}
@@ -328,6 +333,17 @@ def _migrate_postgres(conn) -> None:
     if not result.fetchone():
         conn.execute(text("ALTER TABLE repositories ADD COLUMN team_id INTEGER"))
         logger.info("Migration: added team_id column to repositories")
+
+    # Story REPO-3: pre-run sync flag
+    result = conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'repositories' AND column_name = 'pre_run_sync'"
+    ))
+    if not result.fetchone():
+        conn.execute(text(
+            "ALTER TABLE repositories ADD COLUMN pre_run_sync BOOLEAN DEFAULT FALSE"
+        ))
+        logger.info("Migration: added pre_run_sync column to repositories")
 
 
 def drop_tables() -> None:

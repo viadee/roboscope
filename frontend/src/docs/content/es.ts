@@ -351,8 +351,23 @@ const es: DocsContent = [
 <h4>Casilla de Auto-Sync</h4>
 <p>
   La casilla <strong>Auto-Sync</strong> en cada tarjeta de proyecto controla si el
-  repositorio se sincroniza autom\u00E1ticamente antes de las ejecuciones de pruebas.
-  Act\u00EDvela para flujos CI/CD donde siempre quiera probar el c\u00F3digo m\u00E1s reciente.
+  repositorio se sincroniza en segundo plano cada <code>sync_interval_minutes</code>
+  (15 min por defecto). Act\u00EDvela para flujos CI/CD donde siempre quiera probar
+  el c\u00F3digo m\u00E1s reciente.
+</p>
+<h4>Sincronizar antes de ejecutar</h4>
+<p>
+  Active <strong>Sincronizar antes de ejecutar</strong> en un repositorio cuando
+  cada ejecuci\u00F3n de pruebas deba usar el commit m\u00E1s reciente. RoboScope
+  ejecuta un <code>git pull</code> s\u00EDncrono justo antes de que arranque el
+  runner, con un timeout de 60&nbsp;s. La opci\u00F3n est\u00E1 desactivada por
+  defecto y a\u00F1ade unos segundos por ejecuci\u00F3n; se combina con Auto-Sync
+  &mdash; puede activar ambos, uno o ninguno.
+</p>
+<p>
+  Si el pull falla (red, conflicto, timeout), la ejecuci\u00F3n arranca igualmente
+  con lo que haya en disco. El fallo se registra y el siguiente Auto-Sync lo
+  reintentar\u00E1.
 </p>`
       },
       {

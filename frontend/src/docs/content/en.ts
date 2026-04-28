@@ -364,12 +364,20 @@ const en: DocsContent = [
   rounded up to 5&nbsp;min. Auto-Sync skips repos that already have a
   sync in flight, so two ticks can&rsquo;t pile on each other.
 </p>
+<h4>Pre-run sync (always pull before each run)</h4>
 <p>
-  Auto-Sync does <strong>not</strong> pull right before a test run —
-  if you need <em>guaranteed</em> latest before a specific run, hit the
-  explicit <strong>Sync</strong> button first. And the same caveat as
-  above applies: always <strong>Save</strong> your changes before
-  pulling so a freshly-pulled remote can&rsquo;t overwrite local edits.
+  Enable <strong>Pre-run sync</strong> on a repository when every test
+  run must use the very latest commit. RoboScope will <code>git pull</code>
+  synchronously right before the runner starts, with a 60&nbsp;s timeout.
+  Pre-run sync is opt-in (off by default) and adds a few seconds per run;
+  it composes with Auto-Sync — you can have either, both, or neither.
+</p>
+<p>
+  If the pull fails (network error, merge conflict, timeout), the run
+  still starts with whatever is on disk. The pull failure is logged and
+  the next scheduled Auto-Sync will retry. The same caveat as above
+  applies: always <strong>Save</strong> your changes before pulling so
+  a freshly-pulled remote can&rsquo;t overwrite local edits.
 </p>`,
         tip: 'Always click "Save N changes" before "Sync" — pulling first can overwrite or refuse with a merge error if you have local edits.'
       },

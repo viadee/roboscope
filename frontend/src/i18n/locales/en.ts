@@ -114,6 +114,8 @@ export default {
     lastSync: 'Last Sync:',
     autoSync: 'Auto-Sync:',
     autoSyncYes: 'Yes (every {minutes} min.)',
+    preRunSync: 'Pre-run sync:',
+    preRunSyncHelp: 'Always pulls the latest commit before running tests in this repository — adds a few seconds per run.',
     syncError: 'Sync Error:',
     syncing: 'Syncing...',
     path: 'Path:',

@@ -559,6 +559,103 @@ def due_repos(db: Session, now: datetime | None = None) -> list[Repository]:
 
 
 # ---------------------------------------------------------------------------
+# Story REPO-3 — pre-run sync (best-effort pull right before each run)
+# ---------------------------------------------------------------------------
+
+
+def sync_for_run(
+    repo: Repository,
+    session: Session | None = None,
+    timeout_seconds: int = 60,
+) -> tuple[str, str | None]:
+    """Pull `origin/<default_branch>` synchronously *before* a test run.
+
+    Returns a `(status, detail)` tuple — the caller logs / decides
+    whether to update `last_synced_at`. **Never raises**: a pre-run
+    sync failure must not abort the run; the runner falls through with
+    whatever's on disk.
+
+    When `session` is provided, the helper flips `repo.sync_status` to
+    `'syncing'` *before* the pull and to `'success'` / `'error'` after
+    (review fix M2). This blocks the REPO-2 scheduler from racing a
+    second `git pull` on the same working copy. When `session` is
+    `None` (e.g. from unit tests that just want to exercise the return
+    contract), the status writes are skipped.
+
+    Possible status values:
+      - `"skipped"` — feature off, repo not git, or another sync in flight.
+        `detail` carries the reason for ops.
+      - `"ok"`     — pull succeeded; `detail` is the short message from
+        `sync_repository()` (e.g. `"synced to abc12345"`).
+      - `"error"`  — git surfaced a recoverable error (auth, ref not
+        found, dirty tree, …). `detail` is the message.
+      - `"timeout"` — the pull exceeded `timeout_seconds`. `detail` is
+        the timeout in seconds. The pull thread is leaked (it will
+        eventually finish in the background); see story risk notes.
+    """
+    if repo.repo_type != "git" or not repo.pre_run_sync:
+        return ("skipped", "pre_run_sync disabled")
+    if repo.sync_status == "syncing":
+        # AC5 — don't race a manual / scheduled sync.
+        return ("skipped", "another sync in progress")
+    if not repo.git_url:
+        return ("skipped", "no git url")
+
+    import concurrent.futures
+
+    # Review fix M2 — flip sync_status synchronously *before* dispatching
+    # so the auto-sync scheduler's `due_repos()` filter sees the in-flight
+    # state. Skip the write if the caller didn't pass a session (unit-test
+    # mode).
+    if session is not None:
+        repo.sync_status = "syncing"
+        session.commit()
+
+    # Review fix M1 — explicit pool + `shutdown(wait=False)` in `finally`.
+    # The naive `with ThreadPoolExecutor(...) as pool:` form blocks on
+    # __exit__ → shutdown(wait=True), which negates the wall-clock timeout
+    # we just imposed.
+    pool = concurrent.futures.ThreadPoolExecutor(
+        max_workers=1, thread_name_prefix="pre-run-sync"
+    )
+    msg: str | None = None
+    status: str
+    detail: str | None
+    try:
+        future = pool.submit(
+            sync_repository, repo.local_path, repo.default_branch
+        )
+        try:
+            msg = future.result(timeout=timeout_seconds)
+        except concurrent.futures.TimeoutError:
+            status, detail = "timeout", f"{timeout_seconds}s"
+        except Exception as exc:  # defensive — sync_repository swallows GitCommandError already
+            status, detail = "error", str(exc)[:200]
+        else:
+            # `sync_repository` returns "error: ..." for git failures.
+            if isinstance(msg, str) and msg.startswith("error"):
+                status, detail = "error", msg.removeprefix("error:").strip()
+            else:
+                status, detail = "ok", msg
+    finally:
+        pool.shutdown(wait=False)
+
+    if session is not None:
+        if status == "ok":
+            repo.sync_status = "success"
+            repo.sync_error = None
+        else:
+            # error / timeout — surface on the repo card so the user knows
+            # the most recent pull failed. The run itself still proceeds
+            # with whatever's on disk.
+            repo.sync_status = "error"
+            repo.sync_error = (detail or status)[:500]
+        session.commit()
+
+    return (status, detail)
+
+
+# ---------------------------------------------------------------------------
 # Project Members
 # ---------------------------------------------------------------------------
 

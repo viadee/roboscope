@@ -163,6 +163,15 @@ async function toggleAutoSync(repoId: number, enabled: boolean) {
   }
 }
 
+async function togglePreRunSync(repoId: number, enabled: boolean) {
+  try {
+    await repos.updateRepo(repoId, { pre_run_sync: enabled } as any)
+  } catch {
+    toast.error(t('common.error'))
+    await repos.fetchRepos() // revert
+  }
+}
+
 function openAddDialog() {
   newRepo.value = { name: '', repo_type: 'local', git_url: '', local_path: '', default_branch: 'main', environment_id: getDefaultEnvId() }
   showAddDialog.value = true
@@ -564,6 +573,20 @@ async function removeMember(member: ProjectMember) {
               <span v-else class="text-sm text-muted">{{ t('common.no') }}</span>
             </label>
             <span v-else>{{ repo.auto_sync ? t('repos.autoSyncYes', { minutes: repo.sync_interval_minutes }) : t('common.no') }}</span>
+          </div>
+          <div v-if="repo.repo_type === 'git'" class="detail-row">
+            <span :title="t('repos.preRunSyncHelp')">{{ t('repos.preRunSync') }}</span>
+            <label v-if="auth.hasMinRole('editor')" class="auto-sync-toggle">
+              <input
+                type="checkbox"
+                :checked="repo.pre_run_sync"
+                @change="togglePreRunSync(repo.id, ($event.target as HTMLInputElement).checked)"
+              />
+              <span class="text-sm" :class="{ 'text-muted': !repo.pre_run_sync }">
+                {{ repo.pre_run_sync ? t('common.yes') : t('common.no') }}
+              </span>
+            </label>
+            <span v-else>{{ repo.pre_run_sync ? t('common.yes') : t('common.no') }}</span>
           </div>
           <div class="detail-row">
             <span>{{ t('repos.defaultEnv') }}</span>

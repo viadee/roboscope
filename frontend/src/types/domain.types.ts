@@ -37,6 +37,7 @@ export interface Repository {
   last_synced_at: string | null
   auto_sync: boolean
   sync_interval_minutes: number
+  pre_run_sync: boolean
   sync_status: string | null
   sync_error: string | null
   created_by: number
