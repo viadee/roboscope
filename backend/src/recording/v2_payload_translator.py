@@ -55,6 +55,7 @@ _KIND_TO_KEYWORD: dict[str, str] = {
     "scroll": "Scroll To Element",
     "drag_drop": "Drag And Drop",  # custom two-target shape, handled separately
     "navigate": "Go To",
+    "switch_page": "Switch Page",
 }
 
 
@@ -108,6 +109,24 @@ def translate_payload(
             index=index,
             keyword="Go To",
             args={"url": url},
+            selector_candidates=[],
+            active_candidate_index=0,
+        )
+
+    if kind == "switch_page":
+        # RECORDER-1A: emitted by the recorder task when the context
+        # acquires a new page (popup, target=_blank link, programmatic
+        # window.open). The `NEW` token tells RF Browser to focus the
+        # most recently opened page; the URL — when present — is
+        # surfaced in args for replay debugging.
+        url = payload.get("url")
+        args: dict[str, Any] = {"page": "NEW"}
+        if isinstance(url, str) and url and not url.startswith("about:"):
+            args["url"] = url
+        return RecordedCommand(
+            index=index,
+            keyword="Switch Page",
+            args=args,
             selector_candidates=[],
             active_candidate_index=0,
         )

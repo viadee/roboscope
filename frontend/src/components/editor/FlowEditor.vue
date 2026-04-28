@@ -198,6 +198,15 @@ onMounted(() => {
 })
 
 function onNodeClick(event: { node: Node }) {
+  // EDITOR-13: terminal Start / End nodes carry only `{label}` in
+  // their data — no `step` / `stepType` / `argSpecs`. The detail panel
+  // template would dereference `stepType.toUpperCase()` and unmount on
+  // the resulting TypeError ("blank page"). Skip them entirely; they
+  // are never editable.
+  if (event.node.type === 'start' || event.node.type === 'end') {
+    selectedNode.value = null
+    return
+  }
   selectedNode.value = event.node
 }
 function onPaneClick() {

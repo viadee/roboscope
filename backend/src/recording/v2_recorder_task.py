@@ -144,6 +144,32 @@ async def _recorder_loop(
         # Register the binding — scripts call window.__roboscopeCapture(payload).
         await context.expose_binding("__roboscopeCapture", on_capture)
 
+        # RECORDER-1A: emit a `Switch Page    NEW` command whenever the
+        # context acquires a new page (popup, target=_blank link,
+        # `window.open`). The first page (created explicitly below) is
+        # skipped — we don't want to record a Switch right after the
+        # initial Go To.
+        seen_first_page = {"value": False}
+
+        async def _on_new_page(new_page: Any) -> None:
+            if not seen_first_page["value"]:
+                seen_first_page["value"] = True
+                return
+            try:
+                # Wait briefly for the popup to start loading so the URL
+                # we capture is meaningful (it usually starts as
+                # about:blank and then navigates).
+                try:
+                    await new_page.wait_for_load_state("domcontentloaded", timeout=2000)
+                except Exception:
+                    pass
+                url = new_page.url if hasattr(new_page, "url") else None
+                await on_capture(None, {"kind": "switch_page", "url": url or ""})
+            except Exception:
+                logger.exception("v2 recorder: switch_page handler failed")
+
+        context.on("page", lambda p: asyncio.create_task(_on_new_page(p)))
+
         page = await context.new_page()
         if target_url:
             try:

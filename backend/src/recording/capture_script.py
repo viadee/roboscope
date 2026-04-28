@@ -23,7 +23,13 @@ CAPTURE_SCRIPT: str = r"""
 
   const MAX_TEXT = 60;
   const NAV_DEBOUNCE_MS = 100;
-  let lastNavUrl = location.href;
+  // RECORDER-1A: start as empty so the first `maybeEmitNav("load")` call
+  // ALWAYS emits — the init script re-runs on every new document, so a
+  // full-page navigation (link click, address-bar entry, popup open)
+  // gets a fresh script with `lastNavUrl=""`. Comparing against
+  // `location.href` would silently skip the emission, which is exactly
+  // the bug we're fixing.
+  let lastNavUrl = "";
 
   function send(payload) {
     try {

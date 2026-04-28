@@ -37,6 +37,35 @@ class TestNavigate:
         assert translate_payload({"kind": "navigate", "url": 42}, 0) is None
 
 
+class TestSwitchPage:
+    """RECORDER-1A: page-switch emission when a popup / new tab opens."""
+
+    def test_switch_page_with_url(self) -> None:
+        cmd = translate_payload(
+            {"kind": "switch_page", "url": "https://popup.example.com"}, 5
+        )
+        assert cmd is not None
+        assert cmd.keyword == "Switch Page"
+        assert cmd.args["page"] == "NEW"
+        assert cmd.args["url"] == "https://popup.example.com"
+        assert cmd.selector_candidates == []
+
+    def test_switch_page_without_url(self) -> None:
+        cmd = translate_payload({"kind": "switch_page"}, 5)
+        assert cmd is not None
+        assert cmd.keyword == "Switch Page"
+        assert cmd.args == {"page": "NEW"}
+
+    def test_switch_page_skips_about_blank_url(self) -> None:
+        # Popups often start at `about:blank` before navigating; the URL
+        # we keep should be the post-navigation one. The recorder emits
+        # the switch with whatever URL it sees at the moment, but we
+        # filter out about:* so the recorded test doesn't carry it.
+        cmd = translate_payload({"kind": "switch_page", "url": "about:blank"}, 5)
+        assert cmd is not None
+        assert "url" not in cmd.args
+
+
 class TestClick:
     def test_click_with_testid_gets_selector(self) -> None:
         cmd = translate_payload(
