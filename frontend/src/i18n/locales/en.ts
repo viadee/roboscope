@@ -21,6 +21,7 @@ export default {
     remove: 'Remove',
     clone: 'Clone',
     retry: 'Retry',
+    dismiss: 'Dismiss',
     start: 'Start',
     id: 'ID',
     status: 'Status',
@@ -61,9 +62,9 @@ export default {
     password: 'Password',
     loginFailed: 'Login failed',
     hint: "Default: admin{'@'}roboscope.local / admin123",
-    forcePwChange: {
-      title: 'Change your default password',
-      intro: 'You are still using the seed admin password. RoboScope requires you to set a new one before you can continue.',
+    pwChange: {
+      title: 'Change password',
+      intro: 'Set a new password for your account.',
       current: 'Current password',
       newPw: 'New password',
       confirm: 'Confirm new password',
@@ -73,6 +74,10 @@ export default {
       sameAsCurrent: 'New password must differ from the current one.',
       wrongCurrent: 'Current password is incorrect.',
       invalid: 'New password is not acceptable.',
+    },
+    defaultPwBanner: {
+      message: 'You are still using the default admin password. Consider rotating it before exposing this instance.',
+      action: 'Change password',
     },
     features: {
       explorer: 'Test Explorer & Editor',

@@ -21,6 +21,7 @@ export default {
     remove: 'Retirer',
     clone: 'Cloner',
     retry: 'Réessayer',
+    dismiss: 'Masquer',
     start: 'Démarrer',
     id: 'ID',
     status: 'Statut',
@@ -61,9 +62,9 @@ export default {
     password: 'Mot de passe',
     loginFailed: 'Échec de la connexion',
     hint: "Par défaut : admin{'@'}roboscope.local / admin123",
-    forcePwChange: {
-      title: 'Changer le mot de passe par défaut',
-      intro: 'Vous utilisez encore le mot de passe d’administrateur par défaut. RoboScope exige que vous en définissiez un nouveau avant de continuer.',
+    pwChange: {
+      title: 'Changer le mot de passe',
+      intro: 'Définissez un nouveau mot de passe pour votre compte.',
       current: 'Mot de passe actuel',
       newPw: 'Nouveau mot de passe',
       confirm: 'Confirmer le nouveau mot de passe',
@@ -73,6 +74,10 @@ export default {
       sameAsCurrent: 'Le nouveau mot de passe doit être différent du précédent.',
       wrongCurrent: 'Le mot de passe actuel est incorrect.',
       invalid: 'Le nouveau mot de passe n’est pas accepté.',
+    },
+    defaultPwBanner: {
+      message: 'Vous utilisez encore le mot de passe d’administrateur par défaut. Pensez à le changer avant d’exposer cette instance.',
+      action: 'Changer le mot de passe',
     },
     features: {
       explorer: 'Explorateur de tests & éditeur',

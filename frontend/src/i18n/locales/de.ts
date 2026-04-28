@@ -21,6 +21,7 @@ export default {
     remove: 'Entfernen',
     clone: 'Klonen',
     retry: 'Retry',
+    dismiss: 'Schließen',
     start: 'Starten',
     id: 'ID',
     status: 'Status',
@@ -61,9 +62,9 @@ export default {
     password: 'Passwort',
     loginFailed: 'Anmeldung fehlgeschlagen',
     hint: "Standard: admin{'@'}roboscope.local / admin123",
-    forcePwChange: {
-      title: 'Standardpasswort ändern',
-      intro: 'Sie verwenden noch das ausgelieferte Admin-Passwort. RoboScope verlangt vor dem Weiterarbeiten ein neues Passwort.',
+    pwChange: {
+      title: 'Passwort ändern',
+      intro: 'Vergeben Sie ein neues Passwort für Ihr Konto.',
       current: 'Aktuelles Passwort',
       newPw: 'Neues Passwort',
       confirm: 'Neues Passwort bestätigen',
@@ -73,6 +74,10 @@ export default {
       sameAsCurrent: 'Das neue Passwort muss vom aktuellen abweichen.',
       wrongCurrent: 'Das aktuelle Passwort ist falsch.',
       invalid: 'Das neue Passwort ist nicht zulässig.',
+    },
+    defaultPwBanner: {
+      message: 'Sie verwenden noch das Standard-Admin-Passwort. Vor dem Veröffentlichen der Instanz sollten Sie es ändern.',
+      action: 'Passwort ändern',
     },
     features: {
       explorer: 'Test-Explorer & Editor',

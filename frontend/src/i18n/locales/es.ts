@@ -21,6 +21,7 @@ export default {
     remove: 'Eliminar',
     clone: 'Clonar',
     retry: 'Reintentar',
+    dismiss: 'Descartar',
     start: 'Iniciar',
     id: 'ID',
     status: 'Estado',
@@ -61,9 +62,9 @@ export default {
     password: 'Contraseña',
     loginFailed: 'Error de inicio de sesión',
     hint: "Por defecto: admin{'@'}roboscope.local / admin123",
-    forcePwChange: {
-      title: 'Cambie la contraseña por defecto',
-      intro: 'Sigue usando la contraseña de administrador por defecto. RoboScope requiere que la cambie antes de continuar.',
+    pwChange: {
+      title: 'Cambiar contraseña',
+      intro: 'Defina una nueva contraseña para su cuenta.',
       current: 'Contraseña actual',
       newPw: 'Nueva contraseña',
       confirm: 'Confirmar nueva contraseña',
@@ -73,6 +74,10 @@ export default {
       sameAsCurrent: 'La nueva contraseña debe ser distinta de la actual.',
       wrongCurrent: 'La contraseña actual es incorrecta.',
       invalid: 'La nueva contraseña no es aceptable.',
+    },
+    defaultPwBanner: {
+      message: 'Sigue usando la contraseña de administrador por defecto. Considere cambiarla antes de exponer esta instancia.',
+      action: 'Cambiar contraseña',
     },
     features: {
       explorer: 'Explorador de pruebas y editor',

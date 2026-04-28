@@ -6,15 +6,20 @@ import { useAuthStore } from '@/stores/auth.store'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 
-const { t } = useI18n()
-const auth = useAuthStore()
+// Story SECURITY-1 (revised): this modal is OPT-IN. The user opens it
+// from the default-password banner (or, in the future, a profile menu).
+// It is NOT forced by `password_change_required`.
+
+const props = defineProps<{ modelValue: boolean }>()
+const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 
 const open = computed({
-  get: () => !!auth.user?.password_change_required,
-  // Story SECURITY-1: this modal is *not* dismissable from the UI.
-  // The flag clears only after a successful password change.
-  set: () => {},
+  get: () => props.modelValue,
+  set: (v: boolean) => emit('update:modelValue', v),
 })
+
+const { t } = useI18n()
+const auth = useAuthStore()
 
 const currentPassword = ref('')
 const newPassword = ref('')
@@ -30,10 +35,17 @@ const canSubmit = computed(
     !submitting.value,
 )
 
+function reset() {
+  currentPassword.value = ''
+  newPassword.value = ''
+  confirmPassword.value = ''
+  error.value = null
+}
+
 async function submit() {
   if (!canSubmit.value) return
   if (newPassword.value === currentPassword.value) {
-    error.value = t('auth.forcePwChange.sameAsCurrent')
+    error.value = t('auth.pwChange.sameAsCurrent')
     return
   }
   submitting.value = true
@@ -43,17 +55,14 @@ async function submit() {
       current_password: currentPassword.value,
       new_password: newPassword.value,
     })
-    // Re-fetch /me so password_change_required clears in the store and
-    // the modal closes via the computed `open`.
     await auth.fetchCurrentUser()
-    currentPassword.value = ''
-    newPassword.value = ''
-    confirmPassword.value = ''
+    reset()
+    open.value = false
   } catch (e: any) {
     if (e?.response?.status === 401) {
-      error.value = t('auth.forcePwChange.wrongCurrent')
+      error.value = t('auth.pwChange.wrongCurrent')
     } else if (e?.response?.status === 422) {
-      error.value = e?.response?.data?.detail || t('auth.forcePwChange.invalid')
+      error.value = e?.response?.data?.detail || t('auth.pwChange.invalid')
     } else {
       error.value = t('common.error')
     }
@@ -61,16 +70,19 @@ async function submit() {
     submitting.value = false
   }
 }
+
+function cancel() {
+  reset()
+  open.value = false
+}
 </script>
 
 <template>
-  <BaseModal v-model="open" :title="t('auth.forcePwChange.title')" size="sm">
-    <p class="intro">
-      {{ t('auth.forcePwChange.intro') }}
-    </p>
+  <BaseModal v-model="open" :title="t('auth.pwChange.title')" size="sm">
+    <p class="intro">{{ t('auth.pwChange.intro') }}</p>
     <form class="pw-form" @submit.prevent="submit">
       <label>
-        {{ t('auth.forcePwChange.current') }}
+        {{ t('auth.pwChange.current') }}
         <input
           v-model="currentPassword"
           type="password"
@@ -79,7 +91,7 @@ async function submit() {
         />
       </label>
       <label>
-        {{ t('auth.forcePwChange.newPw') }}
+        {{ t('auth.pwChange.newPw') }}
         <input
           v-model="newPassword"
           type="password"
@@ -87,10 +99,10 @@ async function submit() {
           minlength="8"
           required
         />
-        <small>{{ t('auth.forcePwChange.minLength') }}</small>
+        <small>{{ t('auth.pwChange.minLength') }}</small>
       </label>
       <label>
-        {{ t('auth.forcePwChange.confirm') }}
+        {{ t('auth.pwChange.confirm') }}
         <input
           v-model="confirmPassword"
           type="password"
@@ -101,14 +113,17 @@ async function submit() {
           v-if="confirmPassword.length > 0 && confirmPassword !== newPassword"
           class="mismatch"
         >
-          {{ t('auth.forcePwChange.mismatch') }}
+          {{ t('auth.pwChange.mismatch') }}
         </small>
       </label>
       <div v-if="error" class="error">{{ error }}</div>
     </form>
     <template #footer>
+      <BaseButton variant="secondary" @click="cancel">
+        {{ t('common.cancel') }}
+      </BaseButton>
       <BaseButton variant="primary" :disabled="!canSubmit" @click="submit">
-        {{ submitting ? t('common.loading') : t('auth.forcePwChange.submit') }}
+        {{ submitting ? t('common.loading') : t('auth.pwChange.submit') }}
       </BaseButton>
     </template>
   </BaseModal>

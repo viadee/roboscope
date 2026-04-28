@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import BaseToast from '@/components/ui/BaseToast.vue'
-import ForcePasswordChangeModal from '@/components/auth/ForcePasswordChangeModal.vue'
+import DefaultPasswordBanner from '@/components/auth/DefaultPasswordBanner.vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useWebSocket } from '@/composables/useWebSocket'
@@ -41,6 +41,7 @@ onUnmounted(() => {
     <AppSidebar />
     <div class="main-area">
       <AppHeader />
+      <DefaultPasswordBanner />
       <main class="main-content">
         <slot />
       </main>
@@ -52,9 +53,6 @@ onUnmounted(() => {
         <router-link to="/imprint">{{ t('imprint.title') }}</router-link>
       </footer>
     </div>
-
-    <!-- Story SECURITY-1: forced password rotation for users still on the seed default -->
-    <ForcePasswordChangeModal />
 
     <!-- Toast Notifications -->
     <div class="toast-container">

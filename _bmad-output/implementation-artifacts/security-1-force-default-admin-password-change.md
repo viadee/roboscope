@@ -1,6 +1,39 @@
 # Story SECURITY-1: Force the seed admin to change the default password on first login
 
-Status: done
+Status: done — revised after user feedback (no more forced modal)
+
+## Post-merge revision (2026-04-28)
+
+User feedback: *"in vielen lokalen fällen ist es irrelevant. nimm
+diesen force change raus, und zeig das nur irgendwo an (nicht als
+fehler, eher als gelber hinweis)"*
+
+The blocking modal was the wrong shape — it makes a single-user
+local install feel broken. Walked back to a non-blocking yellow
+banner.
+
+**What stayed (backend):**
+- `User.password_change_required` column + migration.
+- `ensure_admin_exists` still sets the flag on fresh and legacy admins.
+- Login still emits a WARNING to `roboscope.auth` so the operator
+  sees the unfinished rotation in their log stream.
+- `POST /auth/change-password` endpoint is still there — useful as a
+  general self-service feature, not just for forced rotation.
+
+**What changed (frontend):**
+- `ForcePasswordChangeModal.vue` → renamed to `ChangePasswordModal.vue`
+  and made *opt-in* (caller controls `v-model`).
+- New `DefaultPasswordBanner.vue` shown at the top of the app layout
+  when the flag is true. Yellow, dismissable per-session via
+  `sessionStorage`. Click → opens the (now opt-in) modal.
+- i18n keys renamed: `auth.forcePwChange.*` → `auth.pwChange.*`;
+  added `auth.defaultPwBanner.*` for the new banner.
+- Mounted `DefaultPasswordBanner` between `AppHeader` and the main
+  content slot in `DefaultLayout.vue`. Removed the old layout-level
+  forced modal mount.
+
+The 12 backend tests stay green — the API surface and DB behaviour
+didn't change.
 
 Epic: SECURITY — backlog from CLAUDE.md "Known open issues"
 Story Key: `security-1-force-default-admin-password-change`
