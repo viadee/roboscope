@@ -6,6 +6,18 @@ import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
 import { getProjectKeywords, type ProjectKeyword } from '@/api/explorer.api'
 import type { StepType, RobotStep } from './flowConverter'
 
+// Story TYPE-2: discriminated union for the palette categories.
+// Two shapes flow through `allCategories`:
+//   - keyword categories (BuiltIn, project libs, dynamic libs)
+//   - the control category (IF / FOR / VAR …)
+// Tagging by which key is present lets TS narrow inside the
+// `'keywords' in cat` / `'items' in cat` template branches without
+// `as any`.
+type ControlItem = { label: string; type: StepType }
+type KeywordCategory = { name: string; keywords: string[] }
+type ControlCategory = { name: string; items: ControlItem[] }
+type PaletteCategory = KeywordCategory | ControlCategory
+
 const props = defineProps<{
   repoId?: number
 }>()
@@ -129,7 +141,7 @@ function addSelectedKeyword() {
 }
 
 // Built-in keyword categories
-const categories = [
+const categories: PaletteCategory[] = [
   {
     name: 'BuiltIn',
     keywords: [
@@ -168,24 +180,24 @@ const categories = [
   {
     name: 'Control',
     items: [
-      { label: 'IF / ELSE', type: 'if' as StepType },
-      { label: 'ELSE IF', type: 'else_if' as StepType },
-      { label: 'ELSE', type: 'else' as StepType },
-      { label: 'FOR Loop', type: 'for' as StepType },
-      { label: 'WHILE Loop', type: 'while' as StepType },
-      { label: 'TRY / EXCEPT', type: 'try' as StepType },
-      { label: 'VAR', type: 'var' as StepType },
-      { label: 'RETURN', type: 'return' as StepType },
-      { label: 'BREAK', type: 'break' as StepType },
-      { label: 'CONTINUE', type: 'continue' as StepType },
-      { label: 'Comment', type: 'comment' as StepType },
+      { label: 'IF / ELSE', type: 'if' },
+      { label: 'ELSE IF', type: 'else_if' },
+      { label: 'ELSE', type: 'else' },
+      { label: 'FOR Loop', type: 'for' },
+      { label: 'WHILE Loop', type: 'while' },
+      { label: 'TRY / EXCEPT', type: 'try' },
+      { label: 'VAR', type: 'var' },
+      { label: 'RETURN', type: 'return' },
+      { label: 'BREAK', type: 'break' },
+      { label: 'CONTINUE', type: 'continue' },
+      { label: 'Comment', type: 'comment' },
     ],
   },
 ]
 
 // Build categories: project keywords + dynamic (from rf-mcp) + static fallbacks + control
 const allCategories = computed(() => {
-  const cats: typeof categories = []
+  const cats: PaletteCategory[] = []
 
   // Project keywords from .robot/.resource files (grouped by file)
   if (projectKeywords.value.length > 0) {
@@ -196,7 +208,7 @@ const allCategories = computed(() => {
       byFile.get(file)!.push(kw.name)
     }
     for (const [file, names] of byFile) {
-      cats.push({ name: `Project: ${file}`, keywords: names } as any)
+      cats.push({ name: `Project: ${file}`, keywords: names })
     }
   }
 
@@ -205,7 +217,7 @@ const allCategories = computed(() => {
     cats.push({
       name: lib,
       keywords: keywords.map(kw => kw.name),
-    } as any)
+    })
   }
 
   // If no dynamic keywords loaded, use static fallbacks
@@ -220,22 +232,19 @@ const allCategories = computed(() => {
   return cats
 })
 
-const filteredCategories = computed(() => {
+const filteredCategories = computed<PaletteCategory[]>(() => {
   const q = searchQuery.value.toLowerCase()
   if (!q) return allCategories.value
   return allCategories.value
-    .map(cat => {
-      if ('keywords' in cat && cat.keywords) {
-        const kws = cat.keywords.filter((kw: string) => kw.toLowerCase().includes(q))
+    .map((cat): PaletteCategory | null => {
+      if ('keywords' in cat) {
+        const kws = cat.keywords.filter(kw => kw.toLowerCase().includes(q))
         return kws.length ? { ...cat, keywords: kws } : null
       }
-      if ('items' in cat && cat.items) {
-        const items = cat.items.filter((it: { label: string }) => it.label.toLowerCase().includes(q))
-        return items.length ? { ...cat, items } : null
-      }
-      return null
+      const items = cat.items.filter(it => it.label.toLowerCase().includes(q))
+      return items.length ? { ...cat, items } : null
     })
-    .filter(Boolean)
+    .filter((cat): cat is PaletteCategory => cat !== null)
 })
 
 function makeStep(type: StepType = 'keyword'): RobotStep {
@@ -304,20 +313,20 @@ function onControlDragStart(event: DragEvent, type: StepType) {
       <button class="palette-add-btn" @click="addSelectedKeyword">+</button>
     </div>
     <div class="palette-categories">
-      <div v-for="cat in filteredCategories" :key="cat!.name" class="palette-category">
-        <div class="category-header" @click="toggleCategory(cat!.name)">
-          <span class="collapse-icon">{{ isCategoryOpen(cat!.name) ? '\u25BC' : '\u25B6' }}</span>
-          <span class="category-name">{{ cat!.name }}</span>
+      <div v-for="cat in filteredCategories" :key="cat.name" class="palette-category">
+        <div class="category-header" @click="toggleCategory(cat.name)">
+          <span class="collapse-icon">{{ isCategoryOpen(cat.name) ? '\u25BC' : '\u25B6' }}</span>
+          <span class="category-name">{{ cat.name }}</span>
           <span class="category-count">
-            {{ 'keywords' in cat! ? (cat as any).keywords?.length : (cat as any).items?.length }}
+            {{ 'keywords' in cat ? cat.keywords.length : cat.items.length }}
           </span>
         </div>
 
-        <template v-if="isCategoryOpen(cat!.name)">
+        <template v-if="isCategoryOpen(cat.name)">
           <!-- Keyword items -->
-          <template v-if="'keywords' in cat!">
+          <template v-if="'keywords' in cat">
             <div
-              v-for="kw in (cat as any).keywords"
+              v-for="kw in cat.keywords"
               :key="kw"
               :class="['palette-item', 'palette-item-keyword', { selected: isSelected(kw) }]"
               draggable="true"
@@ -334,9 +343,9 @@ function onControlDragStart(event: DragEvent, type: StepType) {
           </template>
 
           <!-- Control items -->
-          <template v-if="'items' in cat!">
+          <template v-if="'items' in cat">
             <div
-              v-for="item in (cat as any).items"
+              v-for="item in cat.items"
               :key="item.label"
               :class="['palette-item', 'palette-item-control', { selected: isSelected(item.label) }]"
               draggable="true"
