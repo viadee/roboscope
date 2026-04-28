@@ -3,7 +3,7 @@ import { ref, reactive, watch, computed, nextTick, onMounted, onUnmounted, shall
 import { useI18n } from 'vue-i18n'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import FlowEditor from '@/components/editor/FlowEditor.vue'
-import { robotLanguage } from '@/utils/robotLanguage'
+import { robotLanguage, robotHighlightStyle } from '@/utils/robotLanguage'
 import { RF_KEYWORD_SIGNATURES } from '@/utils/robotKeywordSignatures'
 import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
 import { loadSidecar, saveSidecar } from '@/composables/useRecordingSidecar'
@@ -754,6 +754,9 @@ function initCodeEditor() {
       highlightSpecialChars(),
       history(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
+      // Story EDITOR-11 — RoboScope-branded highlight style; falls back
+      // to the CodeMirror default for tags we don't override.
+      syntaxHighlighting(robotHighlightStyle, { fallback: true }),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       new LanguageSupport(robotLanguage()),
       EditorView.updateListener.of((update) => {
