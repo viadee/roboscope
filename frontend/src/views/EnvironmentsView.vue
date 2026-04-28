@@ -73,8 +73,8 @@ async function addEnvironment() {
       extra_index_url: newEnv.value.extra_index_url || undefined,
     })
     toast.success(t('environments.toasts.created'))
-    if ((env as any).python_version_warning) {
-      toast.warning(t('environments.toasts.pythonVersionWarning'), (env as any).python_version_warning)
+    if (env.python_version_warning) {
+      toast.warning(t('environments.toasts.pythonVersionWarning'), env.python_version_warning)
     }
     showAddDialog.value = false
     newEnv.value = { name: defaultEnvName(), python_version: '3.12', docker_image: '', description: '', index_url: '', extra_index_url: '' }
@@ -284,7 +284,7 @@ async function updateEnvField(envId: number, field: string, value: string | numb
     await envsApi.updateEnvironment(envId, { [field]: value })
     const idx = envs.environments.findIndex(e => e.id === envId)
     if (idx !== -1) {
-      ;(envs.environments[idx] as any)[field] = value
+      Object.assign(envs.environments[idx], { [field]: value })
     }
   } catch (e: any) {
     toast.error(t('common.error'), e.response?.data?.detail || t('common.error'))

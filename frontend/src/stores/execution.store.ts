@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as executionApi from '@/api/execution.api'
-import type { ExecutionRun, Schedule, RunListResponse } from '@/types/domain.types'
+import type { ExecutionRun, Schedule, RunListResponse, RunStatus } from '@/types/domain.types'
 import type { RunCreateRequest, ScheduleCreateRequest } from '@/types/api.types'
 
 export const useExecutionStore = defineStore('execution', () => {
@@ -72,11 +72,11 @@ export const useExecutionStore = defineStore('execution', () => {
     return activeRun.value
   }
 
-  async function updateRunFromWs(runId: number, status: string) {
+  async function updateRunFromWs(runId: number, status: RunStatus) {
     const idx = runs.value.findIndex((r) => r.id === runId)
     if (idx >= 0) {
       // Immediate status update for responsive UI
-      runs.value[idx] = { ...runs.value[idx], status: status as any }
+      runs.value[idx] = { ...runs.value[idx], status }
     }
     // Reload full data for terminal statuses
     const terminal = ['passed', 'failed', 'error', 'cancelled', 'timeout']

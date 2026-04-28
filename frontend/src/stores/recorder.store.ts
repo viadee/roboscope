@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { RecordingSession, RecordingEvent } from '@/types/domain.types'
+import type { RecordingSession, RecordingStatus, RecordingEvent } from '@/types/domain.types'
 import type { RecordingCreateRequest } from '@/types/api.types'
 import * as recorderApi from '@/api/recorder.api'
 
@@ -122,9 +122,9 @@ export const useRecorderStore = defineStore('recorder', () => {
   }
 
   // WebSocket handlers
-  function handleRecordingStatusChanged(recordingId: number, status: string) {
+  function handleRecordingStatusChanged(recordingId: number, status: RecordingStatus) {
     if (activeSession.value?.id === recordingId) {
-      activeSession.value = { ...activeSession.value, status: status as any }
+      activeSession.value = { ...activeSession.value, status }
       if (status === 'completed') {
         fetchGeneratedRobot()
       }

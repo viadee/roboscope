@@ -191,7 +191,7 @@ async function autoAssignEnvironmentAndPreload(repoId: number) {
   if (!repo.environment_id && envs.environments.length > 0) {
     const env = envs.environments.find(e => e.name.toLowerCase() === 'default') || envs.environments[0]
     try {
-      const updated = await updateRepo(repoId, { environment_id: env.id } as any)
+      const updated = await updateRepo(repoId, { environment_id: env.id })
       // Update local repo object
       const idx = repos.repos.findIndex(r => r.id === repoId)
       if (idx >= 0) repos.repos[idx] = { ...repos.repos[idx], ...updated }

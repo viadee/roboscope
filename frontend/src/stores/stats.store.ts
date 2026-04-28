@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as statsApi from '@/api/stats.api'
-import type { AnalysisReport, FlakyTest, KpiMeta, OverviewKpi, SuccessRatePoint, TrendPoint } from '@/types/domain.types'
+import type { AnalysisReport, AnalysisStatus, FlakyTest, KpiMeta, OverviewKpi, SuccessRatePoint, TrendPoint } from '@/types/domain.types'
 
 export const useStatsStore = defineStore('stats', () => {
   const overview = ref<OverviewKpi | null>(null)
@@ -122,13 +122,13 @@ export const useStatsStore = defineStore('stats', () => {
     }
   }
 
-  function updateAnalysisFromWs(id: number, status: string, progress: number) {
+  function updateAnalysisFromWs(id: number, status: AnalysisStatus, progress: number) {
     const idx = analyses.value.findIndex(a => a.id === id)
     if (idx >= 0) {
-      analyses.value[idx] = { ...analyses.value[idx], status: status as any, progress }
+      analyses.value[idx] = { ...analyses.value[idx], status, progress }
     }
     if (currentAnalysis.value?.id === id) {
-      currentAnalysis.value = { ...currentAnalysis.value, status: status as any, progress }
+      currentAnalysis.value = { ...currentAnalysis.value, status, progress }
     }
   }
 

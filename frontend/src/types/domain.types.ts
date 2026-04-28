@@ -171,13 +171,20 @@ export interface Environment {
   python_version_warning: string | null
 }
 
+export type PackageInstallStatus =
+  | 'pending'
+  | 'installing'
+  | 'initializing'
+  | 'installed'
+  | 'failed'
+
 export interface EnvironmentPackage {
   id: number
   environment_id: number
   package_name: string
   version: string | null
   installed_version: string | null
-  install_status: 'pending' | 'installing' | 'initializing' | 'installed' | 'failed'
+  install_status: PackageInstallStatus
   install_error: string | null
   needs_rfbrowser_init?: boolean
   rfbrowser_status?: 'ok' | 'needed' | null
@@ -328,10 +335,12 @@ export interface DockerStatus {
 
 // --- Analysis types ---
 
+export type AnalysisStatus = 'pending' | 'running' | 'completed' | 'error'
+
 export interface AnalysisReport {
   id: number
   repository_id: number | null
-  status: 'pending' | 'running' | 'completed' | 'error'
+  status: AnalysisStatus
   selected_kpis: string[]
   date_from: string | null
   date_to: string | null

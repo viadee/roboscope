@@ -156,7 +156,7 @@ async function switchBranch(repoId: number, branch: string) {
 
 async function toggleAutoSync(repoId: number, enabled: boolean) {
   try {
-    await repos.updateRepo(repoId, { auto_sync: enabled } as any)
+    await repos.updateRepo(repoId, { auto_sync: enabled })
   } catch {
     toast.error(t('common.error'))
     await repos.fetchRepos() // revert
@@ -165,7 +165,7 @@ async function toggleAutoSync(repoId: number, enabled: boolean) {
 
 async function togglePreRunSync(repoId: number, enabled: boolean) {
   try {
-    await repos.updateRepo(repoId, { pre_run_sync: enabled } as any)
+    await repos.updateRepo(repoId, { pre_run_sync: enabled })
   } catch {
     toast.error(t('common.error'))
     await repos.fetchRepos() // revert
@@ -383,7 +383,7 @@ async function setupDefaultFromLibCheck() {
 
 async function changeRepoEnv(repoId: number, envId: number | null) {
   try {
-    await repos.updateRepo(repoId, { environment_id: envId } as any)
+    await repos.updateRepo(repoId, { environment_id: envId })
   } catch {
     toast.error(t('common.error'))
   }
