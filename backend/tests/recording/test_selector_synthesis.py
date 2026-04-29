@@ -123,6 +123,52 @@ class TestCssStrategy:
         css = [c for c in cands if c.strategy == "css" and c.value.startswith("#")]
         assert css == []
 
+    def test_short_css_in_js_hash_class_dropped(self) -> None:
+        """Real heise.de class `jw8mI` (5 chars, letter-digit-letter
+        sandwich, no separators) is a CSS-in-JS hash. Old heuristic
+        only flagged length>=20; this one catches the short form too."""
+        cands = synthesise_selectors(
+            _snap(attributes={"class": "jw8mI"})
+        )
+        # Default _snap tag is "button" → class-based css would be
+        # `button.jw8mI`. With the autogen filter it's gone.
+        assert not any(
+            c.strategy == "css" and "jw8mI" in c.value for c in cands
+        )
+
+    def test_emotion_css_hash_class_dropped(self) -> None:
+        """Emotion-style `css-1abc23` autogen prefix is a known
+        unstable selector. Letter-digit-letter sandwich check catches
+        it via the `s-1a` substring."""
+        cands = synthesise_selectors(
+            _snap(attributes={"class": "css-1abc23"})
+        )
+        assert not any(
+            c.strategy == "css" and "css-1abc23" in c.value for c in cands
+        )
+
+    def test_css_modules_hash_suffix_class_dropped(self) -> None:
+        """CSS-modules-style `Header__qKw7P` carries a hash suffix
+        after `__` — pinned to `_CSS_MODULES_HASH_SUFFIX`."""
+        cands = synthesise_selectors(
+            _snap(attributes={"class": "Header_link__qKw7P"})
+        )
+        assert not any(
+            c.strategy == "css" and "Header_link__qKw7P" in c.value for c in cands
+        )
+
+    def test_human_named_class_with_trailing_digit_kept(self) -> None:
+        """Negative case — `btn1`, `step3`, `h2` are human-readable
+        names, not hashes. Letter-digit-letter sandwich requires the
+        digit to be in the middle of an alphabetic span; trailing
+        digits don't trigger."""
+        cands = synthesise_selectors(
+            _snap(attributes={"class": "btn1 step3"})
+        )
+        # Default tag is button → expect `button.btn1.step3` to emit.
+        css = [c for c in cands if c.strategy == "css" and c.value.startswith("button.")]
+        assert css, "human-named classes with trailing digits must NOT be filtered"
+
     def test_class_selector_penalised_per_extra_class(self) -> None:
         cands = synthesise_selectors(
             _snap(attributes={"class": "btn btn-primary btn-large"})
