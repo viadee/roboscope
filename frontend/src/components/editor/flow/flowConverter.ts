@@ -219,6 +219,21 @@ const FRAME_PAD_X = 30
 const FRAME_PAD_TOP = 12
 const FRAME_PAD_BOTTOM = 16
 
+// Deep-clone the parts of a RobotStep that the detail-panel inputs
+// can mutate (the array fields). A shallow `{ ...step }` would leave
+// every array as a shared reference between the node's data and the
+// form, and v-model writes inside the panel would mutate the form
+// directly — fired the deep `props.form` watcher and reset selection
+// on every keystroke (closing the panel mid-edit).
+function cloneStep(step: RobotStep): RobotStep {
+  return {
+    ...step,
+    args: [...step.args],
+    returnVars: [...step.returnVars],
+    loopValues: [...step.loopValues],
+  }
+}
+
 // --- Node height estimation ---
 
 const START_END_HEIGHT = 32
@@ -371,7 +386,15 @@ export function stepsToFlow(
       data: {
         label,
         stepType: step.type,
-        step: { ...step },
+        // Deep-clone the step's arrays so v-model edits inside the
+        // detail panel don't mutate the form's arrays directly. The
+        // shallow spread `{ ...step }` previously left `args` /
+        // `returnVars` / `loopValues` as SHARED REFERENCES, so each
+        // keystroke fired the deep watcher on `props.form` — which
+        // reset `selectedNode` and tore down the panel mid-edit.
+        // `updateStepFromNode` replaces the form's arrays on blur via
+        // `Object.assign`, so the round-trip still lands.
+        step: cloneStep(step),
         section,
         sectionIndex,
         stepIndex: i,
