@@ -479,8 +479,36 @@ const addArgOptions = computed<AddArgOption[]>(() => {
   return out
 })
 
+// Trigger ref + computed popover position. Story EDITOR-9 originally
+// rendered the picker as a regular descendant of the detail panel,
+// but that panel has `overflow-y: auto`, which clips the popover so
+// the user has to scroll inside the panel just to read the options.
+// We Teleport the popover to <body> and pin it to the trigger button
+// via getBoundingClientRect() so it floats over the canvas instead.
+const addArgTriggerRef = ref<HTMLElement | null>(null)
+const addArgPickerStyle = ref<{ top: string; left: string; minWidth: string }>({
+  top: '0px',
+  left: '0px',
+  minWidth: '200px',
+})
+
+function recomputeAddArgPickerPosition() {
+  const trigger = addArgTriggerRef.value
+  if (!trigger) return
+  const rect = trigger.getBoundingClientRect()
+  addArgPickerStyle.value = {
+    top: `${rect.bottom + 4}px`,
+    left: `${rect.left}px`,
+    minWidth: `${Math.max(rect.width, 200)}px`,
+  }
+}
+
 function toggleAddArgPicker() {
   addArgPickerOpen.value = !addArgPickerOpen.value
+  if (addArgPickerOpen.value) {
+    // Position before the popover paints so it never flashes at (0,0).
+    nextTick(recomputeAddArgPickerPosition)
+  }
 }
 
 function pickAddArg(opt: AddArgOption) {
@@ -514,17 +542,35 @@ let addArgDocListenerBound = false
 function onAddArgDocClick(e: MouseEvent) {
   const t = e.target
   if (!(t instanceof Element)) return
-  if (t.closest('.flow-add-arg-wrap')) return
+  // The popover is Teleported to <body>, so a "click inside the
+  // wrapper" check no longer covers option clicks. Allow either the
+  // wrapper (the trigger) OR the popover itself — both are part of
+  // the picker UX, just no longer the same DOM subtree.
+  if (t.closest('.flow-add-arg-wrap, .flow-add-arg-popover')) return
   addArgPickerOpen.value = false
+}
+// Keep the popover pinned to the trigger when the surrounding scroll
+// container or window changes shape. Without this the user would see
+// the popover detach from the button as soon as they scroll.
+function onAddArgRecomputeEvent() {
+  if (!addArgPickerOpen.value) return
+  recomputeAddArgPickerPosition()
 }
 function bindAddArgDocClick() {
   if (addArgDocListenerBound) return
   document.addEventListener('click', onAddArgDocClick)
+  // `capture: true` so we catch scrolls inside the detail panel
+  // (which has `overflow-y: auto`) — those bubble through capture
+  // phase but not the bubble phase.
+  window.addEventListener('scroll', onAddArgRecomputeEvent, true)
+  window.addEventListener('resize', onAddArgRecomputeEvent)
   addArgDocListenerBound = true
 }
 function unbindAddArgDocClick() {
   if (!addArgDocListenerBound) return
   document.removeEventListener('click', onAddArgDocClick)
+  window.removeEventListener('scroll', onAddArgRecomputeEvent, true)
+  window.removeEventListener('resize', onAddArgRecomputeEvent)
   addArgDocListenerBound = false
 }
 watch(addArgPickerOpen, (open) => {
@@ -1089,17 +1135,23 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
           </div>
           <!-- Story EDITOR-9: "+ Add argument" → small picker of unused
                named parameters; "Custom value" appends an empty positional
-               slot for keywords with no signature. -->
-          <div class="flow-add-arg-wrap">
+               slot for keywords with no signature.
+               The popover is Teleported to <body> with computed fixed
+               positioning so the detail panel's `overflow-y: auto` can't
+               clip it (it would otherwise force the user to scroll
+               inside the panel just to read the options). -->
+          <div ref="addArgTriggerRef" class="flow-add-arg-wrap">
             <button class="flow-btn-add" type="button" @click="toggleAddArgPicker">
               + {{ t('flowEditor.addArg') }}
               <span v-if="addArgOptions.length > 0" class="flow-add-arg-caret">▾</span>
             </button>
+            <Teleport to="body">
             <div
               v-if="addArgPickerOpen"
               class="flow-add-arg-popover"
               role="listbox"
               data-testid="add-arg-popover"
+              :style="addArgPickerStyle"
             >
               <div v-if="addArgOptions.length === 0" class="flow-add-arg-empty">
                 {{ t('flowEditor.addArgPicker.noUnused') }}
@@ -1129,6 +1181,7 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
                 {{ t('flowEditor.addArgPicker.custom') }}
               </button>
             </div>
+            </Teleport>
           </div>
         </div>
 
@@ -1468,10 +1521,11 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   opacity: 0.7;
 }
 .flow-add-arg-popover {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 200px;
+  /* Teleported to <body> and pinned to the trigger via inline
+     `top` / `left` (set in the script). Positioned `fixed` so the
+     detail panel's `overflow-y: auto` can't clip it.
+     `min-width` is also set inline to mirror the trigger width. */
+  position: fixed;
   max-width: 280px;
   background: #fff;
   border: 1px solid var(--color-border, #e2e8f0);
