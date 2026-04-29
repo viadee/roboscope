@@ -24,7 +24,11 @@ from __future__ import annotations
 
 from src.recording.robot_emit import _emit_command, _iframe_locator_from_url
 from src.recording.selector_schema import RecordedCommand, SelectorCandidate
-from src.recording.v2_payload_translator import _frame_url_from_payload, translate_payload
+from src.recording.v2_payload_translator import (
+    _frame_url_from_payload,
+    _is_ad_iframe,
+    translate_payload,
+)
 
 
 # ─── _frame_url_from_payload ─────────────────────────────────────────────
@@ -174,3 +178,83 @@ def test_emit_iframe_click_falls_back_to_inner_when_url_unparseable() -> None:
     )
     assert "iframe[" not in line
     assert "button.x" in line
+
+
+# ─── _is_ad_iframe — noise suppression ──────────────────────────────────
+
+
+def test_ad_iframe_doubleclick_is_filtered() -> None:
+    assert _is_ad_iframe("https://pagead2.googlesyndication.com/pagead/js")
+    assert _is_ad_iframe("https://googleads.g.doubleclick.net/pagead/ads")
+
+
+def test_ad_iframe_taboola_outbrain_filtered() -> None:
+    assert _is_ad_iframe("https://cdn.taboola.com/libtrc/widget.html")
+    assert _is_ad_iframe("https://widgets.outbrain.com/widget")
+
+
+def test_consent_banner_NOT_filtered() -> None:
+    """Sourcepoint / OneTrust / Cookiebot consent iframes MUST pass
+    through — the whole reason iframe capture exists."""
+    assert not _is_ad_iframe("https://message-eu.sp-prod.net/index.html")
+    assert not _is_ad_iframe("https://cdn.cookielaw.org/consent/abc")
+    assert not _is_ad_iframe("https://consent.cookieinformation.com/")
+
+
+def test_legitimate_third_party_widgets_NOT_filtered() -> None:
+    """Payment iframes, OAuth widgets, recaptcha etc. host genuine
+    user interactions — must not be in the deny-list."""
+    assert not _is_ad_iframe("https://js.stripe.com/v3/elements")
+    assert not _is_ad_iframe("https://www.google.com/recaptcha/api2/anchor")
+    assert not _is_ad_iframe(
+        "https://accounts.google.com/o/oauth2/iframe"
+    )
+
+
+def test_top_frame_url_passthrough_when_in_deny_list_substring() -> None:
+    """Substring match shouldn't accidentally hit a top-frame URL —
+    the caller (translate_payload) only invokes _is_ad_iframe with
+    iframe URLs (via _frame_url_from_payload). Sanity: the function
+    itself is purely string-based and would falsely flag e.g.
+    `https://blog.doubleclick.net/` if the user actually loaded that
+    page top-level. Acceptable trade-off — translate_payload's
+    is_top_frame guard prevents this in practice."""
+    # Just documenting: substring match on an ad-host top-level URL
+    # WOULD match. Leave as-is; it's only invoked for iframes.
+    assert _is_ad_iframe("https://blog.doubleclick.net/")
+
+
+def test_translate_drops_event_from_ad_iframe() -> None:
+    """End-to-end: a click in a doubleclick iframe maps to None, no
+    command lands in the live view."""
+    payload = {
+        "kind": "click",
+        "is_top_frame": False,
+        "frame_url": "https://googleads.g.doubleclick.net/banner",
+        "element": {
+            "tag": "a",
+            "attributes": {"href": "https://advertiser.example/"},
+            "ancestors": [],
+        },
+        "modifiers": {},
+    }
+    assert translate_payload(payload, index=0) is None
+
+
+def test_translate_keeps_event_from_consent_iframe() -> None:
+    """Smoke check the deny-list isn't over-broad — the original
+    bug report (Sourcepoint cookie banner) still translates."""
+    payload = {
+        "kind": "click",
+        "is_top_frame": False,
+        "frame_url": "https://message-eu.sp-prod.net/i?id=xxx",
+        "element": {
+            "tag": "button",
+            "attributes": {"id": "alle_akzeptieren"},
+            "ancestors": [],
+        },
+        "modifiers": {},
+    }
+    cmd = translate_payload(payload, index=0)
+    assert cmd is not None
+    assert cmd.frame_url == "https://message-eu.sp-prod.net/i?id=xxx"

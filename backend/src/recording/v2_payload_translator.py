@@ -44,6 +44,71 @@ def _candidates_for(el: ElementSnapshot | None) -> list[SelectorCandidate]:
     return synthesise_selectors(el)
 
 
+# RECORDER-FRAMES-DENY — well-known ad / tracker / analytics iframe
+# hosts that fire spurious clicks the user never made. Cross-origin
+# iframe capture (story RECORDER-FRAMES) is intentionally permissive
+# so consent banners (Sourcepoint / OneTrust / TCF) get captured;
+# this deny-list claws back the noise from networks that aren't
+# user-interactive at all.
+#
+# Match policy: SUBSTRING on the parsed host. Conservative on purpose
+# — every entry must be a network that's PURELY ad/tracker, never
+# hosting user-meaningful widgets. Excluded by design:
+#   - googletagmanager.com (sometimes loads legit widgets)
+#   - google.com / gstatic.com (reCAPTCHA, OAuth)
+#   - facebook.com (FB login widget, social plugins)
+#   - stripe.com / paypal.com (payment iframes — user interacts with them)
+#
+# When in doubt, leave the host OUT of this list — the user sees the
+# captured row in the live view (with the iframe-host chip from
+# c1b0feb) and can delete it before saving. False-positive
+# suppression is harder to recover from than false-positive capture.
+_AD_IFRAME_HOST_SUBSTRINGS: frozenset[str] = frozenset({
+    # Google ad networks
+    "doubleclick.net",
+    "googlesyndication.com",
+    "2mdn.net",
+    "googleadservices.com",
+    # Major ad exchanges / DSPs
+    "adnxs.com",       # AppNexus / Xandr
+    "pubmatic.com",
+    "rubiconproject.com",
+    "openx.net",
+    "adsrvr.org",      # The Trade Desk
+    "criteo.com",
+    "criteo.net",
+    "amazon-adsystem.com",
+    "yieldlab.com",
+    "yieldmo.com",
+    # Recommendation / native-ad widgets (no user-meaningful interaction)
+    "taboola.com",
+    "outbrain.com",
+    # Analytics / measurement
+    "scorecardresearch.com",
+    "chartbeat.com",
+    "quantserve.com",
+    "moatads.com",
+})
+
+
+def _is_ad_iframe(frame_url: str) -> bool:
+    """True if `frame_url`'s host is in the ad/tracker deny-list.
+
+    Substring match against `urlparse(frame_url).netloc.lower()`. The
+    host comparison handles the typical sub-domain pattern of ad
+    networks (`pagead2.googlesyndication.com`, `cdn.taboola.com`)
+    without enumerating every CDN flavour.
+    """
+    from urllib.parse import urlparse
+    try:
+        host = urlparse(frame_url).netloc.lower()
+    except Exception:
+        return False
+    if not host:
+        return False
+    return any(needle in host for needle in _AD_IFRAME_HOST_SUBSTRINGS)
+
+
 def _frame_url_from_payload(payload: dict[str, Any]) -> str | None:
     """Extract the originating frame URL when the event came from an
     iframe. Top-frame events return None — the emitter omits the
@@ -83,12 +148,28 @@ def translate_payload(
 ) -> RecordedCommand | None:
     """Return a `RecordedCommand` for the given JS payload, or None if the
     payload is not convertible (e.g. unknown kind). Never raises.
+
+    Returns None and logs a `recording.iframe.suppressed` line when the
+    event came from a known ad/tracker iframe (`_AD_IFRAME_HOST_SUBSTRINGS`).
+    The capture script runs in every frame for cookie-banner support;
+    this is the noise filter that keeps doubleclick / criteo / taboola
+    impressions from polluting the recording.
     """
     kind = payload.get("kind")
     if not isinstance(kind, str):
         return None
 
     frame_url = _frame_url_from_payload(payload)
+    if frame_url is not None and _is_ad_iframe(frame_url):
+        # Logged at debug; the live view never sees this command, so
+        # the user has no UI signal — that's intentional, the noise
+        # would defeat the point.
+        import logging
+        logging.getLogger("roboscope.recording").debug(
+            "recording.iframe.suppressed kind=%s frame=%s",
+            kind, frame_url,
+        )
+        return None
 
     # Custom action emitted by the context-menu overlay (Story W.5).
     if kind == "custom_action":
