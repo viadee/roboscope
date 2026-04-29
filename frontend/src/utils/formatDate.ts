@@ -1,12 +1,30 @@
+/**
+ * Parse an ISO-ish datetime string from the backend.
+ *
+ * Why not just `new Date(s)`: SQLAlchemy on SQLite drops `tzinfo` on
+ * round-trip, so the API returns timestamps like `2026-04-29T07:58:04`
+ * — same wall-clock as UTC but WITHOUT a `Z` or offset suffix. JS
+ * `new Date(naiveIso)` interprets that as **local time**, not UTC, so
+ * a sync that just happened renders as "vor 2 Std" for a user in CEST.
+ *
+ * We detect the "no zone marker" case and append `Z` so naive strings
+ * are treated as UTC. ISO strings that already carry `Z` or an
+ * `+HH:MM` / `-HH:MM` offset pass through unchanged.
+ */
+function parseBackendDate(s: string): Date {
+  const hasZone = /[Zz]$/.test(s) || /[+-]\d{2}:?\d{2}$/.test(s)
+  return new Date(hasZone ? s : `${s}Z`)
+}
+
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-'
-  const d = new Date(dateStr)
+  const d = parseBackendDate(dateStr)
   return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 export function formatDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '-'
-  const d = new Date(dateStr)
+  const d = parseBackendDate(dateStr)
   return d.toLocaleDateString('de-DE', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
@@ -15,7 +33,7 @@ export function formatDateTime(dateStr: string | null | undefined): string {
 
 export function formatTimeAgo(dateStr: string | null | undefined): string {
   if (!dateStr) return '-'
-  const d = new Date(dateStr)
+  const d = parseBackendDate(dateStr)
   const now = new Date()
   const diff = now.getTime() - d.getTime()
   const seconds = Math.floor(diff / 1000)

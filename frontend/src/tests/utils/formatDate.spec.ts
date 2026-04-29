@@ -101,4 +101,19 @@ describe('formatTimeAgo', () => {
     // Should fall back to formatDate (de-DE date format)
     expect(result).toMatch(/\d{2}\.\d{2}\.\d{4}/)
   })
+
+  it('treats a naive backend ISO string as UTC, not local time', () => {
+    // Backend stores `last_synced_at` via `datetime.now(timezone.utc)`
+    // but SQLAlchemy on SQLite drops `tzinfo` on round-trip, so the
+    // API ships e.g. `2026-04-29T07:58:04` with no `Z`. JS `new Date`
+    // would parse that as local time and a user in CEST would see a
+    // sync that just happened render as "vor 2 Std." Regression
+    // guard for that bug. We pass a naive ISO string formatted
+    // exactly as the backend serializes it (no Z, no offset) and
+    // expect "gerade eben" for a sync that just happened.
+    const nowUtc = new Date()
+    // strip the trailing `Z` to simulate the backend's naive format
+    const naive = nowUtc.toISOString().replace(/Z$/, '')
+    expect(formatTimeAgo(naive)).toBe('gerade eben')
+  })
 })
