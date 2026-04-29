@@ -188,6 +188,15 @@ class TestAuditMiddlewareHelpers:
         assert _get_resource_type("/api/v1/webhooks/tokens") == "api_token"
         assert _get_resource_type("/api/v1/webhooks/hooks") == "webhook"
         assert _get_resource_type("/api/v1/auth/users") == "user"
+        assert _get_resource_type("/api/v1/auth/users/42") == "user"
+        # Self-service auth routes audit as `user` (story SECURITY-1
+        # added /auth/change-password; /auth/me/first-login-complete
+        # was previously unmapped). Both resolve via the
+        # `/api/v1/auth/` catch-all that comes AFTER /auth/users.
+        assert _get_resource_type("/api/v1/auth/change-password") == "user"
+        assert _get_resource_type("/api/v1/auth/me/first-login-complete") == "user"
+        # /auth/login still wins via its earlier specific entry.
+        assert _get_resource_type("/api/v1/auth/login") == "auth"
 
     def test_resource_id_extraction(self):
         from src.audit.middleware import _extract_resource_id
