@@ -36,9 +36,54 @@ from src.recording.v2_command_queue import (
     finalize_session,
     tear_down_session,
 )
+from src.recording.selector_schema import RecordedCommand, SelectorCandidate
+from src.recording.selector_verification import verify_candidates
 from src.recording.v2_payload_translator import translate_payload
 
 logger = logging.getLogger("roboscope.recording.v2_recorder")
+
+
+async def _verify_command_candidates(
+    cmd: RecordedCommand,
+    page: Any,
+) -> RecordedCommand:
+    """Run `verify_candidates` against the live page, return an
+    enriched copy with `verified_unique` flags populated.
+
+    Extracted out of `on_capture` so a unit test can exercise it
+    against a fake `page` without mounting Playwright. `page` only
+    needs `.locator(value).count()` returning an awaitable int.
+
+    Returns the original command unchanged when there are no
+    candidates to verify (e.g. `Go To` / `Switch Page` / payloads
+    with an unknown element).
+    """
+    if not cmd.selector_candidates or page is None:
+        return cmd
+
+    async def _count(c: SelectorCandidate) -> int:
+        try:
+            return int(await page.locator(c.value).count())
+        except Exception:
+            # Invalid selector syntax (some xpath / pw_locator exotica)
+            # — treat as "no match" so it gets dropped, not silently
+            # passed through unverified.
+            return 0
+
+    verified = await verify_candidates(cmd.selector_candidates, _count)
+    # After re-sorting, index 0 is the best (verified > non-verified, then
+    # quality_score desc). The original active index is meaningless now —
+    # it referred to a position in the unsorted/un-pruned list. Resetting
+    # to 0 also keeps the RecordedCommand validator happy when verify
+    # dropped enough candidates that the old index would be out of range.
+    return RecordedCommand(
+        index=cmd.index,
+        keyword=cmd.keyword,
+        args=cmd.args,
+        selector_candidates=verified,
+        active_candidate_index=0,
+        element_fingerprint=cmd.element_fingerprint,
+    )
 
 # Per-session stop signal. The DELETE endpoint sets this; the recorder
 # loop polls it every heartbeat.
@@ -116,7 +161,7 @@ async def _recorder_loop(
     command_index = 0
     index_lock = threading.Lock()
 
-    async def on_capture(source: Any, payload: dict[str, Any]) -> None:  # noqa: ARG001
+    async def on_capture(source: Any, payload: dict[str, Any]) -> None:
         nonlocal command_index
         try:
             with index_lock:
@@ -125,6 +170,13 @@ async def _recorder_loop(
             cmd = translate_payload(payload or {}, idx)
             if cmd is None:
                 return
+            # Story S.3 wire-up — verify candidate uniqueness against the
+            # live page before the command lands in the SSE stream. The
+            # helper sorts by `(verified_unique desc, quality_score desc)`,
+            # so the picker's first option is the best verified candidate
+            # (or the best unverified one if no candidate is unique).
+            page = getattr(source, "page", None)
+            cmd = await _verify_command_candidates(cmd, page)
             enqueue_command(session_id, cmd)
         except Exception:
             # Must NEVER raise — the binding handler runs on the Playwright
