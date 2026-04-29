@@ -59,7 +59,11 @@ async function submit(approve: boolean) {
       await auth.fetchCurrentUser()
       router.push(body.return_to || '/dashboard')
     } else {
-      ui.toast?.(t('welcome.toast.signInCancelled'))
+      // The UI store exposes typed toast helpers (info/error/etc.),
+      // not a generic `toast(...)`. The previous `ui.toast?.(...)`
+      // optional-chained a method that doesn't exist → toast was
+      // silently swallowed.
+      ui.info(t('welcome.toast.signInCancelled'), '')
       router.push('/login')
     }
   } catch (e: any) {
@@ -67,7 +71,7 @@ async function submit(approve: boolean) {
       typeof e?.response?.data?.detail === 'string'
         ? e.response.data.detail
         : e?.response?.data?.detail?.message ?? t('common.error')
-    ui.toast?.(msg)
+    ui.error(t('common.error'), msg)
     router.push('/login')
   } finally {
     loading.value = false
