@@ -2,9 +2,118 @@
 
 ## [Unreleased]
 
-Work in progress on `feat/recorder-and-bmad` branch. Highlights from
-the loop session of 2026-04-28/29 (24 stories shipped on top of the
-Phase-4 SSO/Teams + Recorder + BMAD foundation):
+Work in progress on `feat/recorder-and-bmad` branch.
+
+### Fixes — User-reported papercuts (loop session 2026-04-29)
+
+#### Timezone display ("vor 2 Std." right after a sync)
+- **Frontend `parseBackendDate`** — naive ISO strings (no `Z` / no
+  offset) are now treated as UTC. Was: JS parsed `2026-04-29T07:58:04`
+  as local time, so a CEST user saw a fresh sync as 2 hours old.
+  Applied at four `now − parsed` sites: `formatTimeAgo`,
+  `useBypassStatus.remainingMinutes`,
+  `IdpProviderListView.formatRelative`, `StatsView.stalenessText`.
+- **Backend `UtcJSONResponse`** — wired as FastAPI's
+  `default_response_class`, post-processes outgoing JSON so naive
+  datetime literals always carry `Z` on the wire. Belt-and-suspenders
+  for the frontend fix; either layer alone closes the bug, both layers
+  protect future endpoints.
+
+#### FlowEditor papercuts
+- **Detail panel closed mid-keystroke** — `stepsToFlow`'s
+  `step: { ...step }` left `args` / `returnVars` / `loopValues` as
+  shared array references with the form. v-model writes during typing
+  fired the deep `props.form` watcher and reset selection. Fix: deep-
+  clone the step's array fields in a new `cloneStep()` helper. Form is
+  updated on blur via `Object.assign` as before.
+- **Add-arg picker clipped by panel scroll** — popover Teleported to
+  `<body>` with `position: fixed` and a bounding-rect-derived inline
+  style; outside-click handler updated to allow clicks inside the
+  popover (Teleport breaks the wrapper-subtree check).
+- **Bool checkbox dropped `name=` prefix on toggle** — toggling
+  `force=True` overwrote the slot with bare `True`, so on re-render
+  `specForSlot` fell back to a different positional spec and the
+  checkbox vanished. Fix: regex strips the `name=` prefix in both
+  `isBoolChecked` and `onBoolToggle`; signature default is consulted
+  for empty value-half (`force=`) slots; `pickAddArg` pre-fills the
+  default so freshly-added named args are valid `.robot`.
+- **Bool↔text input toggle** — small `{}` button next to any typed
+  control (bool/select/number/duration) flips into free-text input
+  for that slot, so users can enter `${HEADLESS}` on a bool slot.
+  Reverts via the same button (icon flips to `⌨`). Auto-text mode
+  still triggered when value-half is a Robot variable reference;
+  detection now strips the `name=` prefix so `headless=${HEADLESS}`
+  is correctly recognised as variable-bearing.
+- **Move up/down lost selection** — selection was pinned to the OLD
+  position-id which after the swap pointed at the SWAPPED step.
+  `rebuildAndReselect(targetId?)` now accepts an explicit override;
+  `moveStepUp/Down` pass the moved step's NEW slot id so the user can
+  press Up repeatedly to walk a step to the top.
+- **Drag-arm hold delay** — keyword/control node drag handles only
+  flip `draggable=true` after a 200 ms hold. Brief misclicks no
+  longer start a reorder. Visual highlight (blue/amber) while armed.
+- **Drop-zone math respects node heights** — `findInsertIndex` and
+  `getDropIndicatorY` now use each node's midpoint and actual gap
+  geometry via `estimateNodeHeight()`. Was top-edge-only, so the
+  insertion point felt like a fixed grid; tall arg-heavy nodes
+  pushed the boundary to wrong place.
+
+#### Recorder
+- **`New Page    <url>    wait_until=domcontentloaded`** — was the
+  Playwright default `wait_until="load"` which on real-world pages
+  (heise.de etc.) waited for every ad/tracker subresource and timed
+  out at 10 s even though the page was visually loaded. Run 32
+  reproduced this exactly. Both emitters (`generator.py`,
+  `robot_emit.py`) now write the explicit `wait_until=`.
+- **`${HEADLESS}` is now defined** — recorder emits a
+  `*** Variables ***` block with `${HEADLESS}    false` so Robot
+  Framework doesn't refuse the test with "Variable not found." The
+  reference itself was already there (so users could flip head/headless
+  without editing the body); the block defining it was missing.
+
+#### Repository management
+- **`name` optional on Git repos** — derived from the Git URL
+  basename when omitted (`viadee/roboscope.git` → `roboscope`,
+  `git@host:owner/repo.git` → `repo`). Local repos still require an
+  explicit name. Validator handles HTTPS, SSH-shorthand, and
+  filesystem-unsafe basenames (collapsed to `-`).
+
+### Security hardening
+- **XXE / billion-laughs on `output.xml`** — switched
+  `src/reports/parser.py` and `src/recording/heal/heal_report.py`
+  to `defusedxml.ElementTree`. Robot's `output.xml` is built from
+  user-authored `.robot` tests, so external-entity payloads in the
+  XML could exfiltrate files or DoS the parser. Custom exception
+  bridging (`ValueError → ET.ParseError`) keeps existing callers
+  working.
+- **Windows authenticated-RCE on Open-In-Editor** —
+  `subprocess.Popen(["start", "", target], shell=True)` interpreted
+  shell metacharacters in the target path. EDITOR-rights user could
+  create a file named `foo&calc.exe.txt` and trigger backend-host
+  command execution. Fix: `os.startfile(target)` (Windows
+  ShellExecuteW directly, no cmd.exe).
+- **Production asserts compiled out under `python -O`** —
+  4 `assert db is not None` mypy-hint asserts in `retention_cleanup.py`
+  replaced with `if db is None: db = SessionLocal()` so flow-typing
+  narrows naturally and behaviour survives `-O`.
+
+### Type-strict cleanups
+- **mypy `--strict` clean on `roboscope-rfheal/src/`** — caught a
+  latent `@library(scope="TEST SUITE", ...)` bug: Robot's typing
+  stubs declare scope as `Literal['GLOBAL','SUITE','TEST','TASK']`,
+  the legacy "TEST SUITE" alias would break with a future RF release.
+  Switched to `SUITE`. Same fix mirrored in the in-tree
+  `src/recording/heal/library.py`.
+- **Real-bug filter on backend `mypy --strict`** —
+  `_broadcast_docker_build_log` was the lone helper missing the
+  `_event_loop.is_running()` guard (every other broadcast helper had
+  it). `oidc_discovery.py` lacked null narrowing on `jwks_data` and
+  emitted `str` where `Literal["passed","failed"]` was expected.
+  Variable-shadow `browser_pkg = ....scalars().all()` rebound to
+  `Sequence | None` cleaned up.
+
+Highlights from the prior loop session of 2026-04-28/29 (24 stories
+on top of the Phase-4 SSO/Teams + Recorder + BMAD foundation):
 
 ### Features
 - **REPO save loop for non-Git users** (REPO-1) — `GET /repos/{id}/status`,

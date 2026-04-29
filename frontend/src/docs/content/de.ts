@@ -623,40 +623,50 @@ const de: DocsContent = [
         tip: 'Der In-App-Recorder funktioniert ohne Browser-Erweiterung. Die Chrome-Erweiterung ist n\u00FCtzlich, wenn Sie in einem Browser aufnehmen m\u00F6chten, in dem Sie bereits angemeldet sind.'
       },
       {
-        id: 'recorder-in-app',
-        title: 'In-App-Aufnahme (Geplant)',
+        id: 'recorder-anatomy',
+        title: 'Aufbau der generierten .robot-Datei',
         content: `
 <p>
-  <em>Dieses Feature ist in Entwicklung.</em> Wenn es fertig ist, kann RoboScope einen
-  <strong>sichtbaren Playwright-Browser</strong> direkt aus der Explorer-Ansicht \u00F6ffnen.
-  Das Backend startet den Browser \u00FCber rf-mcp, erfasst Ihre Interaktionen serverseitig
-  und streamt die Ereignisse \u00FCber WebSocket zur\u00FCck zum Recorder-Panel &mdash; keine
-  Browser-Erweiterung erforderlich.
+  Web-Aufnahmen werden zu einer eigenst\u00E4ndigen <code>.robot</code>-Datei mit einem
+  <strong>Variables-Block</strong> f\u00FCr den Headless-Schalter und einem Browser-Library-
+  Bootstrap, der f\u00FCr reale Webseiten optimiert ist.
 </p>
-<h4>So wird es funktionieren</h4>
-<ol>
-  <li><strong>Aufnehmen</strong> im Explorer klicken &rarr; Backend \u00F6ffnet ein Playwright-Browserfenster</li>
-  <li>Mit der Zielanwendung in diesem Fenster interagieren</li>
-  <li>Jede Aktion wird von Playwright erfasst und in Echtzeit zum Recorder-Panel gestreamt</li>
-  <li><strong>Stopp</strong> klicken &rarr; RoboScope generiert eine <code>.robot</code>-Datei</li>
-  <li>Test \u00FCberpr\u00FCfen, bearbeiten und im Projekt speichern</li>
-</ol>
-<h4>Recorder-Panel</h4>
+<pre><code>*** Settings ***
+Library           Browser
+
+*** Variables ***
+\${HEADLESS}       false
+
+*** Test Cases ***
+Recording 21
+    New Browser    chromium    headless=\${HEADLESS}
+    New Context
+    New Page    https://example.com    wait_until=domcontentloaded
+    Click    text=Anmelden
+    ...</code></pre>
+<h4>Warum <code>\${HEADLESS}</code> als Variable</h4>
 <p>
-  Das Panel am unteren Rand des Explorers unterst\u00FCtzt bereits die Anzeige von Live-Events.
-  W\u00E4hrend der Aufnahme zeigt es:
+  So kann zwischen sichtbarem und Headless-Modus gewechselt werden, ohne den Test
+  selbst anzufassen \u2014 einfach beim Aufruf \u00FCberschreiben:
+  <code>robot --variable HEADLESS:true tests/&lt;datei&gt;.robot</code>. Default ist
+  <code>false</code> (sichtbarer Browser), passend zum interaktiven Aufnahmekontext.
 </p>
-<ul>
-  <li><strong>Navigate</strong> &mdash; Seitennavigationen mit URL</li>
-  <li><strong>Click</strong> &mdash; Element-Klicks mit Selektor</li>
-  <li><strong>Fill Text</strong> &mdash; Texteingaben mit Selektor und Wert</li>
-  <li><strong>Fill Secret</strong> &mdash; Passwortfelder (Wert maskiert)</li>
-  <li><strong>Select</strong> &mdash; Dropdown-Auswahlen</li>
-  <li><strong>Check</strong> &mdash; Checkbox-Umschaltungen</li>
-</ul>
+<h4>Warum <code>wait_until=domcontentloaded</code></h4>
 <p>
-  Nach dem Stoppen erscheint der generierte <code>.robot</code>-Code in einem dunklen Vorschaublock
-  mit entweder <strong>Browser</strong>- (Playwright) oder <strong>SeleniumLibrary</strong>-Keywords.
+  Playwrights Default <code>wait_until="load"</code> wartet auf jede Subressource
+  (Werbung, Tracker, sp\u00E4t geladene <code>&lt;script&gt;</code>-Tags). Auf realen
+  Seiten passiert das oft nicht innerhalb der 10 s Browser-Library-Timeout \u2014 der
+  Test schl\u00E4gt fehl, obwohl die Seite optisch fertig ist.
+  <code>domcontentloaded</code> reicht: das DOM ist geparst, jeder folgende Click /
+  Type Text / Scroll To Element findet sein Ziel.
+</p>
+<h4>Bearbeiten im visuellen Editor</h4>
+<p>
+  Im Detail-Panel des Flow-Editors gibt es neben jedem typisierten Eingabefeld
+  (Checkbox / Zahl / Auswahl) einen kleinen <code>{}</code>-Button, der den Slot
+  in eine Texteingabe umschaltet \u2014 n\u00FCtzlich, um eine Variable wie
+  <code>\${HEADLESS}</code> in einem Bool-Parameter zu setzen oder Werte einzugeben,
+  die der Recorder nicht erkennen konnte.
 </p>`
       },
       {

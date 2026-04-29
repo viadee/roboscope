@@ -659,40 +659,50 @@ const es: DocsContent = [
         tip: 'El grabador integrado funciona sin extensi\u00F3n del navegador. La extensi\u00F3n de Chrome es \u00FAtil para grabar en un navegador donde ya ha iniciado sesi\u00F3n.'
       },
       {
-        id: 'recorder-in-app',
-        title: 'Grabaci\u00F3n integrada (Planificado)',
+        id: 'recorder-anatomy',
+        title: 'Anatom\u00EDa del archivo .robot generado',
         content: `
 <p>
-  <em>Esta funcionalidad est\u00E1 en desarrollo.</em> Cuando est\u00E9 completa, RoboScope podr\u00E1
-  abrir un <strong>navegador Playwright visible</strong> directamente desde la vista Explorer.
-  El backend lanza el navegador a trav\u00E9s de rf-mcp, captura sus interacciones en el servidor
-  y transmite los eventos al panel de grabaci\u00F3n a trav\u00E9s de WebSocket &mdash; sin necesidad
-  de extensi\u00F3n del navegador.
+  Las grabaciones web se convierten en un archivo <code>.robot</code> autocontenido con
+  un <strong>bloque Variables</strong> para el modo visible/headless y un bootstrap de
+  Browser-library calibrado para p\u00E1ginas reales.
 </p>
-<h4>C\u00F3mo funcionar\u00E1</h4>
-<ol>
-  <li>Hacer clic en <strong>Grabar</strong> en el Explorer &rarr; el backend abre una ventana de Playwright</li>
-  <li>Interactuar con la aplicaci\u00F3n objetivo en esa ventana</li>
-  <li>Cada acci\u00F3n es capturada por Playwright y transmitida en tiempo real al panel</li>
-  <li>Hacer clic en <strong>Detener</strong> &rarr; RoboScope genera un archivo <code>.robot</code></li>
-  <li>Revisar, editar y guardar la prueba en su proyecto</li>
-</ol>
-<h4>Panel de grabaci\u00F3n</h4>
+<pre><code>*** Settings ***
+Library           Browser
+
+*** Variables ***
+\${HEADLESS}       false
+
+*** Test Cases ***
+Recording 21
+    New Browser    chromium    headless=\${HEADLESS}
+    New Context
+    New Page    https://example.com    wait_until=domcontentloaded
+    Click    text=Iniciar sesi\u00F3n
+    ...</code></pre>
+<h4>Por qu\u00E9 <code>\${HEADLESS}</code> como variable</h4>
 <p>
-  El panel en la parte inferior del Explorer ya soporta la visualizaci\u00F3n de eventos en vivo.
-  Durante la grabaci\u00F3n muestra:
+  Permite alternar entre visible y headless sin tocar el cuerpo del test \u2014 basta con
+  sobrescribir al invocar:
+  <code>robot --variable HEADLESS:true tests/&lt;archivo&gt;.robot</code>. El valor
+  por defecto <code>false</code> (navegador visible) refleja el contexto interactivo
+  de grabaci\u00F3n.
 </p>
-<ul>
-  <li><strong>Navigate</strong> &mdash; Navegaciones de p\u00E1gina con URL</li>
-  <li><strong>Click</strong> &mdash; Clics en elementos con selector</li>
-  <li><strong>Fill Text</strong> &mdash; Entrada de texto con selector y valor</li>
-  <li><strong>Fill Secret</strong> &mdash; Campos de contrase\u00F1a (valor oculto)</li>
-  <li><strong>Select</strong> &mdash; Selecciones en men\u00FAs desplegables</li>
-  <li><strong>Check</strong> &mdash; Alternar casillas de verificaci\u00F3n</li>
-</ul>
+<h4>Por qu\u00E9 <code>wait_until=domcontentloaded</code></h4>
 <p>
-  Despu\u00E9s de detener, el c\u00F3digo <code>.robot</code> generado aparece en un bloque de vista previa oscuro
-  usando keywords de <strong>Browser</strong> (Playwright) o <strong>SeleniumLibrary</strong>.
+  El default de Playwright <code>wait_until="load"</code> espera por cada subrecurso
+  (anuncios, trackers, etiquetas <code>&lt;script&gt;</code> tard\u00EDas). En p\u00E1ginas
+  reales eso a menudo no ocurre dentro del timeout de 10 s \u2014 el test falla aunque
+  la p\u00E1gina est\u00E9 visiblemente cargada.
+  <code>domcontentloaded</code> es suficiente: el DOM est\u00E1 analizado, cualquier
+  Click / Type Text / Scroll To Element posterior encuentra su objetivo.
+</p>
+<h4>Edici\u00F3n en el editor visual</h4>
+<p>
+  En el panel de detalles del Flow Editor, un peque\u00F1o bot\u00F3n <code>{}</code> junto a
+  cualquier entrada tipada (casilla / n\u00FAmero / lista) cambia el slot a entrada de
+  texto libre \u2014 \u00FAtil para introducir una variable como <code>\${HEADLESS}</code>
+  en un par\u00E1metro booleano, o valores que el recorder no haya podido inferir.
 </p>`
       },
       {

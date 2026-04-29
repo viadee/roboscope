@@ -658,40 +658,49 @@ const en: DocsContent = [
         tip: 'The in-app recorder works without any browser extension. The Chrome extension is useful when you need to record in a browser where you are already logged in.'
       },
       {
-        id: 'recorder-in-app',
-        title: 'In-App Recording (Planned)',
+        id: 'recorder-anatomy',
+        title: 'Generated .robot anatomy',
         content: `
 <p>
-  <em>This feature is under development.</em> When complete, RoboScope will be able to
-  open a <strong>headed Playwright browser</strong> directly from the Explorer view.
-  The backend launches the browser via rf-mcp, captures your interactions server-side,
-  and streams the events back to the Recorder Panel via WebSocket &mdash; no browser
-  extension required.
+  Web recordings turn into a self-contained <code>.robot</code> file with a
+  <strong>variables block</strong> for the head/headless toggle plus a Browser-library
+  bootstrap that's tuned for real-world pages.
 </p>
-<h4>How it will work</h4>
-<ol>
-  <li>Click <strong>Record</strong> in the Explorer &rarr; backend opens a Playwright browser window</li>
-  <li>Interact with the target application in that window</li>
-  <li>Each action is captured by Playwright and streamed to the Recorder Panel in real time</li>
-  <li>Click <strong>Stop</strong> &rarr; RoboScope generates a <code>.robot</code> file</li>
-  <li>Review, edit, and save the test into your project</li>
-</ol>
-<h4>Recorder Panel</h4>
+<pre><code>*** Settings ***
+Library           Browser
+
+*** Variables ***
+\${HEADLESS}       false
+
+*** Test Cases ***
+Recording 21
+    New Browser    chromium    headless=\${HEADLESS}
+    New Context
+    New Page    https://example.com    wait_until=domcontentloaded
+    Click    text=Sign in
+    ...</code></pre>
+<h4>Why <code>\${HEADLESS}</code> is a variable, not a literal</h4>
 <p>
-  The panel at the bottom of the Explorer already supports displaying live events.
-  During recording it shows:
+  You can flip head/headless without editing the test body — just override on the
+  command line: <code>robot --variable HEADLESS:true tests/&lt;file&gt;.robot</code>. The
+  default is <code>false</code> (visible browser) so re-running a recorded test
+  matches the original interactive context.
 </p>
-<ul>
-  <li><strong>Navigate</strong> &mdash; Page navigations with URL</li>
-  <li><strong>Click</strong> &mdash; Element clicks with selector</li>
-  <li><strong>Fill Text</strong> &mdash; Text input with selector and value</li>
-  <li><strong>Fill Secret</strong> &mdash; Password fields (value masked)</li>
-  <li><strong>Select</strong> &mdash; Dropdown selections</li>
-  <li><strong>Check</strong> &mdash; Checkbox toggles</li>
-</ul>
+<h4>Why <code>wait_until=domcontentloaded</code></h4>
 <p>
-  After stopping, the generated <code>.robot</code> code appears in a dark preview block
-  using either <strong>Browser</strong> (Playwright) or <strong>SeleniumLibrary</strong> keywords.
+  Playwright's default <code>wait_until="load"</code> waits for every subresource
+  (ads, trackers, late <code>&lt;script&gt;</code> tags) to settle. On real-world
+  pages that often never happens within the Browser-library 10s timeout, so the
+  test fails even though the page is visibly loaded.
+  <code>domcontentloaded</code> is enough: the DOM is parsed and any subsequent
+  Click/Type Text/Scroll To Element finds its target.
+</p>
+<h4>Editing the file in the visual editor</h4>
+<p>
+  In the Flow editor's detail panel, a small <code>{}</code> button next to a typed
+  input (checkbox / number / select) flips the slot into a free-text input — useful
+  for entering a variable like <code>\${HEADLESS}</code> on a bool parameter, or for
+  values the recorder couldn't infer.
 </p>`
       },
       {

@@ -640,40 +640,50 @@ const fr: DocsContent = [
         tip: 'L\u2019enregistreur int\u00E9gr\u00E9 fonctionne sans extension. L\u2019extension Chrome est utile pour enregistrer dans un navigateur o\u00F9 vous \u00EAtes d\u00E9j\u00E0 connect\u00E9.'
       },
       {
-        id: 'recorder-in-app',
-        title: 'Enregistrement int\u00E9gr\u00E9 (Pr\u00E9vu)',
+        id: 'recorder-anatomy',
+        title: 'Anatomie du fichier .robot g\u00E9n\u00E9r\u00E9',
         content: `
 <p>
-  <em>Cette fonctionnalit\u00E9 est en cours de d\u00E9veloppement.</em> Une fois termin\u00E9e, RoboScope
-  pourra ouvrir un <strong>navigateur Playwright visible</strong> directement depuis la vue Explorer.
-  Le backend lance le navigateur via rf-mcp, capture vos interactions c\u00F4t\u00E9 serveur
-  et diffuse les \u00E9v\u00E9nements vers le panneau d\u2019enregistrement via WebSocket &mdash; aucune
-  extension de navigateur requise.
+  Les enregistrements web deviennent un fichier <code>.robot</code> autonome avec un
+  <strong>bloc Variables</strong> pour le mode visible/headless plus un bootstrap
+  Browser-library calibr\u00E9 pour les pages r\u00E9elles.
 </p>
-<h4>Comment \u00E7a fonctionnera</h4>
-<ol>
-  <li>Cliquer sur <strong>Enregistrer</strong> dans l\u2019Explorer &rarr; le backend ouvre une fen\u00EAtre Playwright</li>
-  <li>Interagir avec l\u2019application cible dans cette fen\u00EAtre</li>
-  <li>Chaque action est captur\u00E9e par Playwright et diffus\u00E9e en temps r\u00E9el vers le panneau</li>
-  <li>Cliquer sur <strong>Arr\u00EAter</strong> &rarr; RoboScope g\u00E9n\u00E8re un fichier <code>.robot</code></li>
-  <li>V\u00E9rifier, modifier et sauvegarder le test dans votre projet</li>
-</ol>
-<h4>Panneau d\u2019enregistrement</h4>
+<pre><code>*** Settings ***
+Library           Browser
+
+*** Variables ***
+\${HEADLESS}       false
+
+*** Test Cases ***
+Recording 21
+    New Browser    chromium    headless=\${HEADLESS}
+    New Context
+    New Page    https://example.com    wait_until=domcontentloaded
+    Click    text=Se connecter
+    ...</code></pre>
+<h4>Pourquoi <code>\${HEADLESS}</code> en variable</h4>
 <p>
-  Le panneau en bas de l\u2019Explorer prend d\u00E9j\u00E0 en charge l\u2019affichage des \u00E9v\u00E9nements en direct.
-  Pendant l\u2019enregistrement, il affiche\u00A0:
+  Cela permet de basculer entre visible et headless sans toucher au corps du test
+  \u2014 il suffit de surcharger \u00E0 l\u2019invocation\u00A0:
+  <code>robot --variable HEADLESS:true tests/&lt;fichier&gt;.robot</code>. La valeur
+  par d\u00E9faut <code>false</code> (navigateur visible) refl\u00E8te le contexte interactif
+  d\u2019enregistrement.
 </p>
-<ul>
-  <li><strong>Navigate</strong> &mdash; Navigations de page avec URL</li>
-  <li><strong>Click</strong> &mdash; Clics sur les \u00E9l\u00E9ments avec s\u00E9lecteur</li>
-  <li><strong>Fill Text</strong> &mdash; Saisie de texte avec s\u00E9lecteur et valeur</li>
-  <li><strong>Fill Secret</strong> &mdash; Champs de mot de passe (valeur masqu\u00E9e)</li>
-  <li><strong>Select</strong> &mdash; S\u00E9lections dans les menus d\u00E9roulants</li>
-  <li><strong>Check</strong> &mdash; Basculements de cases \u00E0 cocher</li>
-</ul>
+<h4>Pourquoi <code>wait_until=domcontentloaded</code></h4>
 <p>
-  Apr\u00E8s l\u2019arr\u00EAt, le code <code>.robot</code> g\u00E9n\u00E9r\u00E9 appara\u00EEt dans un bloc de pr\u00E9visualisation sombre
-  utilisant les keywords <strong>Browser</strong> (Playwright) ou <strong>SeleniumLibrary</strong>.
+  Le d\u00E9faut Playwright <code>wait_until="load"</code> attend chaque sous-ressource
+  (publicit\u00E9s, traceurs, balises <code>&lt;script&gt;</code> tardives). Sur les
+  pages r\u00E9elles, cela d\u00E9passe souvent le timeout de 10\u00A0s \u2014 le test \u00E9choue alors
+  m\u00EAme que la page est visiblement charg\u00E9e.
+  <code>domcontentloaded</code> suffit\u00A0: le DOM est analys\u00E9, tout Click /
+  Type Text / Scroll To Element suivant trouve sa cible.
+</p>
+<h4>\u00C9dition dans l\u2019\u00E9diteur visuel</h4>
+<p>
+  Dans le panneau de d\u00E9tails du Flow Editor, un petit bouton <code>{}</code> \u00E0
+  c\u00F4t\u00E9 de toute entr\u00E9e typ\u00E9e (case / nombre / liste) bascule le slot en champ
+  texte libre \u2014 utile pour saisir une variable comme <code>\${HEADLESS}</code>
+  sur un param\u00E8tre bool\u00E9en, ou des valeurs que le recorder n\u2019a pas pu d\u00E9duire.
 </p>`
       },
       {
