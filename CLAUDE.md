@@ -97,9 +97,9 @@ Open:
 - **Phase 6 — Quality**: saved run templates; Jira plugin; Helm chart.
 - **Polish**: general UI refinements (loaders, error/empty states).
 
-Known open issues (tracked in `issues/`): unauthenticated `/reports/{id}/assets/`, JWT in download URL, missing upload size limits, default-credentials probe on login (banner-only, force-change walked back), a11y gaps, duplicated Docker client code. Long-tail: 65 `: any` annotations remain (mostly `catch (e: any)` idioms; zero actual `as any` casts).
+Known open issues: a11y gaps (broad — keyboard nav, ARIA labels, focus traps in modals); long-tail of 65 `: any` annotations remain (mostly `catch (e: any)` idioms; zero `as any` casts).
 
-Already addressed (kept here for history): docs lazy-loaded per locale (PERF-1, route also dynamic-imported), JSON logging via `pythonjsonlogger.JsonFormatter` in `main.py`, deep `/health` check (DB SELECT 1 + 503 on outage, regression-tested), backend datetime UTC normalization (`UtcJSONResponse` + frontend `parseBackendDate`), XXE hardening on `output.xml` parsing (`defusedxml`), Windows shell-injection in Open-In-Editor (`os.startfile`).
+Already addressed (kept for history so future audits don't re-discover them): `/reports/{id}/assets/` requires `?at=<HMAC token>` OR JWT (REPORT-1 + SECURITY-3); upload-size limits stream-checked at 500MB with Content-Length pre-check (ROBUSTNESS-1); JWT-in-URL replaced by short-lived asset tokens (SECURITY-3); docs lazy-loaded per locale + lazy route (PERF-1); JSON logging via `pythonjsonlogger.JsonFormatter` in `main.py`; deep `/health` check (DB SELECT 1 + 503 on outage, regression-tested); backend datetime UTC normalization (`UtcJSONResponse` + frontend `parseBackendDate`); XXE hardening on `output.xml` parsing (`defusedxml`); Windows shell-injection in Open-In-Editor (`os.startfile` instead of `cmd /c start` with shell=True); Docker client consolidation (REFACTOR-1 — single `src/docker_client.py`); default-credentials probe is banner-only (force-change walked back per user feedback).
 
 Test gaps (highest risk): SubprocessRunner / DockerRunner, `execute_test_run()`, AI LLM client + encryption, WebSocket manager, TaskExecutor, several AI + Report router endpoints.
 
