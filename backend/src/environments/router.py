@@ -570,13 +570,16 @@ def run_rfbrowser_init(
 
     from src.environments.tasks import _is_browser_package
     # Find the browser package record
-    browser_pkg = db.execute(
+    installed_packages = db.execute(
         select(EnvironmentPackage).where(
             EnvironmentPackage.environment_id == env_id,
             EnvironmentPackage.install_status == "installed",
         )
     ).scalars().all()
-    browser_pkg = next((p for p in browser_pkg if _is_browser_package(p.package_name)), None)
+    browser_pkg = next(
+        (p for p in installed_packages if _is_browser_package(p.package_name)),
+        None,
+    )
     if not browser_pkg:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -7,6 +7,7 @@ import os
 import ssl
 import time
 from datetime import datetime, timezone
+from typing import Literal
 
 import httpx
 from sqlalchemy.orm import Session
@@ -213,7 +214,7 @@ def probe_idp_discovery(
                                 f"JWKS endpoint returned HTTP {status}"
                             ),
                         ))
-                    elif not isinstance(jwks_data.get("keys"), list):
+                    elif jwks_data is None or not isinstance(jwks_data.get("keys"), list):
                         checks.append(DryRunCheckRow(
                             check_name="jwks_fetched",
                             status="warning",
@@ -255,7 +256,7 @@ def probe_idp_discovery(
 
     elapsed_ms = int((time.monotonic() - start) * 1000)
     all_passed = all(c.status == "passed" for c in checks)
-    overall = "passed" if all_passed else "failed"
+    overall: Literal["passed", "failed"] = "passed" if all_passed else "failed"
 
     # Update IdP dry-run tracking fields
     now = datetime.now(timezone.utc)

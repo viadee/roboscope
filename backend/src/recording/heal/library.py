@@ -68,7 +68,7 @@ _DEFAULT_THRESHOLD_READONLY = 0.5
 _PER_CALL_RETRY_BUDGET = 1
 
 
-@library(scope="TEST SUITE", version="1.0.0", auto_keywords=False)
+@library(scope="SUITE", version="1.0.0", auto_keywords=False)
 class RoboScopeHeal:
     """Self-healing wrappers around the `Browser` Robot Framework library.
 
@@ -340,11 +340,14 @@ class RoboScopeHeal:
 
         from src.recording.heal.fingerprint import find_best_by_fingerprint
 
-        pairs = [
-            (item.get("selector"), item.get("fingerprint"))
-            for item in live
-            if isinstance(item, dict) and item.get("selector") and item.get("fingerprint")
-        ]
+        pairs: list[tuple[str, dict[str, Any]]] = []
+        for item in live:
+            if not isinstance(item, dict):
+                continue
+            sel = item.get("selector")
+            fp = item.get("fingerprint")
+            if isinstance(sel, str) and sel and isinstance(fp, dict):
+                pairs.append((sel, fp))
         # Walker's own default threshold (0.6) is stricter than many
         # per-keyword thresholds; combine them so the caller's gate
         # always wins when it's higher.
