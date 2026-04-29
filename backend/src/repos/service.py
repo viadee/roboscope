@@ -357,7 +357,7 @@ def commit_changes(
     try:
         repo = Repo(local_path)
     except InvalidGitRepositoryError:
-        raise GitOperationError("not_a_repo", "not a git repository")
+        raise GitOperationError("not_a_repo", "not a git repository") from None
 
     if paths is None:
         status = get_repo_status(local_path)
@@ -376,7 +376,7 @@ def commit_changes(
         try:
             repo.git.add("-A", "--", *targets)
         except GitCommandError as e:
-            raise GitOperationError("other", f"git add failed: {e}")
+            raise GitOperationError("other", f"git add failed: {e}") from e
 
     try:
         diff_to_head = list(repo.index.diff("HEAD"))
@@ -411,8 +411,8 @@ def commit_changes(
         head_sha = repo.head.commit.hexsha
     except GitCommandError as e:
         if "nothing to commit" in str(e).lower():
-            raise GitOperationError("nothing_to_commit", "no staged changes to commit")
-        raise GitOperationError("other", f"git commit failed: {e}")
+            raise GitOperationError("nothing_to_commit", "no staged changes to commit") from e
+        raise GitOperationError("other", f"git commit failed: {e}") from e
 
     return {
         "commit_hash": head_sha,
@@ -439,7 +439,7 @@ def push_branch(local_path: str, branch: str | None = None) -> dict:
     try:
         repo = Repo(local_path)
     except InvalidGitRepositoryError:
-        raise GitOperationError("not_a_repo", "not a git repository")
+        raise GitOperationError("not_a_repo", "not a git repository") from None
 
     target_branch = branch
     if target_branch is None:
@@ -474,15 +474,15 @@ def push_branch(local_path: str, branch: str | None = None) -> dict:
             or "fetch first" in msg
             or "updates were rejected" in msg
         ):
-            raise GitOperationError("non_fast_forward", str(e))
+            raise GitOperationError("non_fast_forward", str(e)) from e
         if (
             "authentication" in msg
             or "permission denied" in msg
             or "could not read username" in msg
             or "support for password authentication was removed" in msg
         ):
-            raise GitOperationError("auth", str(e))
-        raise GitOperationError("other", f"git push failed: {e}")
+            raise GitOperationError("auth", str(e)) from e
+        raise GitOperationError("other", f"git push failed: {e}") from e
 
 
 def publish_changes(

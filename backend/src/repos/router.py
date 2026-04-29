@@ -311,7 +311,7 @@ def commit(
             current_user.email,
         )
     except GitOperationError as e:
-        raise _gitop_to_http(e)
+        raise _gitop_to_http(e) from e
     return CommitResponse(**result)
 
 
@@ -333,7 +333,7 @@ def push(
     try:
         result = push_branch(repo.local_path)
     except GitOperationError as e:
-        raise _gitop_to_http(e)
+        raise _gitop_to_http(e) from e
     return PushResponse(**result)
 
 
@@ -382,8 +382,8 @@ def publish(
                     "conflict": True,
                     "reason": str(e),
                 },
-            )
-        raise _gitop_to_http(e)
+            ) from e
+        raise _gitop_to_http(e) from e
     return PublishResponse(**result)
 
 

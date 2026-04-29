@@ -93,7 +93,7 @@ def refresh_token(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=ERR_TOKEN_INVALID,
-        )
+        ) from None
 
     if payload.get("type") != "refresh":
         raise HTTPException(
@@ -213,17 +213,17 @@ def change_password_endpoint(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Current password is incorrect",
-            )
+            ) from e
         if reason == "too_short":
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="New password must be at least 8 characters",
-            )
+            ) from e
         if reason == "same_as_current":
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="New password must differ from the current one",
-            )
+            ) from e
         raise
     db.commit()
 

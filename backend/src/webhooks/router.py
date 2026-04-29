@@ -174,7 +174,9 @@ def create_hook(
     try:
         webhook = create_webhook(db, data.model_dump(), current_user.id)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e),
+        ) from e
     return _webhook_to_response(webhook)
 
 
@@ -216,7 +218,9 @@ def update_hook(
     try:
         updated = update_webhook(db, webhook, data.model_dump(exclude_unset=True))
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e),
+        ) from e
     return _webhook_to_response(updated)
 
 
