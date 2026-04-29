@@ -24,6 +24,7 @@ from src.ai.schemas import (
     GenerateRequest,
     JobAcceptRequest,
     ReverseRequest,
+    RfKeywordResult,
     RfKeywordSearchResponse,
     RfKnowledgeStatusResponse,
     RfMcpDetailedStatus,
@@ -389,9 +390,18 @@ async def rf_knowledge_keywords(
     from src.ai import rf_knowledge
 
     results = await rf_knowledge.search_keywords(q, repo_id=repo_id)
+    # Build typed `RfKeywordResult` instances directly. Pydantic
+    # would coerce dicts at the outer constructor anyway, but the
+    # explicit form satisfies mypy and surfaces the schema at the
+    # call site.
     return RfKeywordSearchResponse(
         results=[
-            {"name": r.get("name", ""), "library": r.get("library", ""), "doc": r.get("doc", ""), "args": r.get("args", [])}
+            RfKeywordResult(
+                name=r.get("name", ""),
+                library=r.get("library", ""),
+                doc=r.get("doc", ""),
+                args=r.get("args", []),
+            )
             for r in results
         ]
     )
