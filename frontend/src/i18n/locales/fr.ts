@@ -1692,6 +1692,7 @@ export default {
       pathPlaceholder: 'flows/recording',
       save: 'Enregistrer',
       stopAndSave: 'Arrêter et enregistrer',
+      deleteStep: 'Supprimer cette étape',
       streamError: 'Connexion au recorder perdue.',
       startFailed: 'Impossible de lancer le navigateur.',
       saveFailed: "Impossible d'enregistrer la session.",

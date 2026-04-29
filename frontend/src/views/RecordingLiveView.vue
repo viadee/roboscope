@@ -144,6 +144,27 @@ function updateActiveIndex(cmdIndex: number, newActive: number) {
 }
 
 /**
+ * RECORDER-PRUNE-1 — local prune of an unwanted captured step.
+ *
+ * The deny-list at `_AD_IFRAME_HOST_SUBSTRINGS` filters known
+ * ad/tracker iframes server-side, but it can never be exhaustive
+ * (new ad networks, A/B-tested experimentation widgets, hover
+ * interstitials a user accidentally hits, …). Per-step delete lets
+ * the user remove a row before saving — purely client-side: the
+ * sidecar uploaded on Save already excludes pruned rows because the
+ * save POST sends `commands.value`, not the SSE-streamed history.
+ *
+ * No undo: the deletion is local-only and the user can always stop
+ * + re-record if they over-prune. Adding undo would mean buffering
+ * deleted commands and a UI toast — disproportionate for a path
+ * that's by definition "I clearly don't want this row".
+ */
+function deleteCommand(cmdIndex: number): void {
+  if (cmdIndex < 0 || cmdIndex >= commands.value.length) return
+  commands.value.splice(cmdIndex, 1)
+}
+
+/**
  * RECORDER-FRAMES — short host label for the iframe badge.
  * Strips the protocol and any trailing path so the chip stays narrow
  * (`message-eu.sp-prod.net`, not the full URL with consent-id query).
@@ -217,6 +238,20 @@ const isTerminal = computed(() => streamState.value === 'done' || streamState.va
         <span v-if="cmd.args && Object.keys(cmd.args).length" class="recording-live__args">
           {{ Object.values(cmd.args).join(' · ') }}
         </span>
+        <!-- Story RECORDER-PRUNE-1 — per-step delete. Local-only;
+             no undo (over-prune ⇒ stop and re-record). The button
+             is visually subdued and right-aligned via flex so it
+             doesn't compete with the keyword + selector picker. -->
+        <button
+          type="button"
+          class="recording-live__step-delete"
+          :title="t('recorder.live.deleteStep')"
+          :aria-label="t('recorder.live.deleteStep')"
+          :data-testid="`recording-step-delete-${idx}`"
+          @click="deleteCommand(idx)"
+        >
+          ✕
+        </button>
       </li>
     </ol>
 
@@ -311,6 +346,33 @@ const isTerminal = computed(() => streamState.value === 'done' || streamState.va
   font-weight: 600;
   white-space: nowrap;
   cursor: help;
+}
+
+.recording-live__step-delete {
+  margin-left: auto;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary, #888);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0.4;
+  transition: opacity 0.15s, color 0.15s, background-color 0.15s, border-color 0.15s;
+}
+.recording-live__step:hover .recording-live__step-delete {
+  opacity: 1;
+}
+.recording-live__step-delete:hover {
+  color: #c0392b;
+  background: rgba(192, 57, 43, 0.10);
+  border-color: rgba(192, 57, 43, 0.3);
+}
+.recording-live__step-delete:focus-visible {
+  outline: 2px solid #c0392b;
+  outline-offset: 1px;
+  opacity: 1;
 }
 
 .recording-live__hint {
