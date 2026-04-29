@@ -97,7 +97,9 @@ Open:
 - **Phase 6 — Quality**: saved run templates; Jira plugin; Helm chart.
 - **Polish**: general UI refinements (loaders, error/empty states).
 
-Known open issues (tracked in `issues/`): unauthenticated `/reports/{id}/assets/`, JWT in download URL, missing upload size limits, default-credentials probe on login, 270KB docs eagerly bundled (→ dynamic import), ~55 `as any` casts, a11y gaps, plaintext logging only, shallow health-check, duplicated Docker client code.
+Known open issues (tracked in `issues/`): unauthenticated `/reports/{id}/assets/`, JWT in download URL, missing upload size limits, default-credentials probe on login (banner-only, force-change walked back), a11y gaps, duplicated Docker client code. Long-tail: 65 `: any` annotations remain (mostly `catch (e: any)` idioms; zero actual `as any` casts).
+
+Already addressed (kept here for history): docs lazy-loaded per locale (PERF-1, route also dynamic-imported), JSON logging via `pythonjsonlogger.JsonFormatter` in `main.py`, deep `/health` check (DB SELECT 1 + 503 on outage, regression-tested), backend datetime UTC normalization (`UtcJSONResponse` + frontend `parseBackendDate`), XXE hardening on `output.xml` parsing (`defusedxml`), Windows shell-injection in Open-In-Editor (`os.startfile`).
 
 Test gaps (highest risk): SubprocessRunner / DockerRunner, `execute_test_run()`, AI LLM client + encryption, WebSocket manager, TaskExecutor, several AI + Report router endpoints.
 
