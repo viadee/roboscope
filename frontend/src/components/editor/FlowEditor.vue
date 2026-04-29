@@ -27,6 +27,7 @@ import {
 } from '@/utils/robotKeywordSignatures'
 import {
   applySelectorSwap,
+  estimateNodeHeight,
   isCustomSelectorValue,
   isStepType,
   robotFormToFlow,
@@ -703,14 +704,30 @@ function getStepNodes(): Node[] {
     .sort((a, b) => a.position.y - b.position.y)
 }
 
-/** Find insertion index from a flow-coordinate Y position */
+/** Find insertion index from a flow-coordinate Y position.
+ *
+ * Compares `flowY` against each step node's MIDPOINT (top + height/2)
+ * rather than its top edge. The previous "fixed offset" feel was the
+ * top-edge comparison: anywhere inside a node body resolved to "after
+ * this node", so dropping near the bottom of node N inserted at N+1
+ * — but so did dropping in the upper half of N+1. Whether you wanted
+ * "before this step" or "after the previous step", the cursor had to
+ * be in the narrow gap above the next node's top, which felt like
+ * the indicator only snapped on a fixed grid.
+ *
+ * Heights vary because keyword nodes grow with arg count (one chip
+ * per row, per `estimateNodeHeight`). The midpoint comparison keeps
+ * the indicator anchored to where the user expects.
+ */
 function findInsertIndex(flowY: number): number {
   const stepNodes = getStepNodes()
   if (stepNodes.length === 0) return 0
 
   for (let i = 0; i < stepNodes.length; i++) {
-    const nodeY = stepNodes[i].position.y
-    if (flowY < nodeY) return i
+    const top = stepNodes[i].position.y
+    const data = stepNodes[i].data as FlowNodeData
+    const midpoint = top + estimateNodeHeight(data.step) / 2
+    if (flowY < midpoint) return i
   }
   return stepNodes.length
 }
@@ -724,13 +741,29 @@ function eventToFlowY(event: DragEvent): number {
   return pos.y
 }
 
-/** Get the Y position for the drop indicator line */
+/** Get the Y position for the drop indicator line.
+ *
+ * Renders the indicator inside the actual gap between nodes. Without
+ * factoring in `estimateNodeHeight`, the average of two `position.y`
+ * values (TOP edges) is biased toward the previous node — the
+ * indicator visually overlapped the lower part of the previous node
+ * body whenever it had args, instead of sitting in the gap. Using
+ * `prev.bottom + (gap / 2)` puts the line in the geometric middle of
+ * the actual whitespace.
+ */
 function getDropIndicatorY(index: number): number {
   const stepNodes = getStepNodes()
   if (stepNodes.length === 0) return NODE_START_Y
   if (index <= 0) return stepNodes[0].position.y - 25
-  if (index >= stepNodes.length) return stepNodes[stepNodes.length - 1].position.y + 60
-  return (stepNodes[index - 1].position.y + stepNodes[index].position.y) / 2
+  if (index >= stepNodes.length) {
+    const last = stepNodes[stepNodes.length - 1]
+    const lastData = last.data as FlowNodeData
+    return last.position.y + estimateNodeHeight(lastData.step) + 25
+  }
+  const prev = stepNodes[index - 1]
+  const next = stepNodes[index]
+  const prevBottom = prev.position.y + estimateNodeHeight((prev.data as FlowNodeData).step)
+  return (prevBottom + next.position.y) / 2
 }
 
 function makeStepFromDrag(event: DragEvent): RobotStep | null {

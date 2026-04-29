@@ -239,7 +239,7 @@ function cloneStep(step: RobotStep): RobotStep {
 const START_END_HEIGHT = 32
 const NODE_BASE_HEIGHT = 44
 
-function estimateNodeHeight(step: RobotStep): number {
+export function estimateNodeHeight(step: RobotStep): number {
   const type = getNodeType(step.type)
   if (type === 'start' || type === 'end') return START_END_HEIGHT
   let h = NODE_BASE_HEIGHT
