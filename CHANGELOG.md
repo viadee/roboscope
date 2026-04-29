@@ -1,5 +1,88 @@
 # Changelog
 
+## [Unreleased]
+
+Work in progress on `feat/recorder-and-bmad` branch. Highlights from
+the loop session of 2026-04-28/29 (24 stories shipped on top of the
+Phase-4 SSO/Teams + Recorder + BMAD foundation):
+
+### Features
+- **REPO save loop for non-Git users** (REPO-1) — `GET /repos/{id}/status`,
+  `POST /repos/{id}/commit`, `/push`, `/publish` endpoints; in-app
+  Save modal with conflict-recovery state; tree-header `Save N changes`
+  badge in Explorer.
+- **Auto-Sync actually pulls on schedule** (REPO-2) — APScheduler
+  5-minute heartbeat invokes `due_repos(now)`; per-repo
+  `sync_interval_minutes` honoured. Was previously a stored-but-unused
+  toggle.
+- **Pre-run sync** (REPO-3) — opt-in per-repo flag pulls
+  `origin/<default_branch>` synchronously before each run, with a
+  60 s wall-clock timeout and graceful fall-through on failure.
+- **Webhook pre-sync** (REPO-4) — `POST /webhooks/git` now dispatches
+  `sync_repo` before `execute_test_run`; the single-worker task
+  executor guarantees order.
+- **Default-password banner** (SECURITY-1, revised) — non-blocking
+  yellow banner shown when an admin still uses the seed password,
+  links to a `POST /auth/change-password` endpoint. Server logs a
+  WARNING on every flagged login.
+
+### Security
+- **Authenticated report assets** (REPORT-1) — `/reports/{id}/assets/`
+  was anonymous; now requires Bearer header or `?token=<jwt>`. Closes
+  the first item under CLAUDE.md known issues.
+- **Asset token replaces JWT in iframe URLs** (SECURITY-3) — new
+  HMAC-signed, report-scoped, 1-hour-TTL `?at=<asset_token>` embedded
+  in `<base href>` instead of the user's JWT. Iframe URLs leaking out
+  no longer expose the user's full access token.
+- **Streaming upload size guard** (ROBUSTNESS-1) — `/reports/upload`
+  previously read the full body into RAM before the 500 MB check. Now
+  streamed in 1 MiB chunks with an early-abort plus a Content-Length
+  pre-check.
+
+### Performance
+- **Lazy-loaded docs locales** (PERF-1) — DocsView chunk shrunk from
+  413 kB → 4 kB (gzipped 124 kB → 1.8 kB). Each locale's content
+  streams on demand.
+
+### Robustness / Ops
+- **Deep `/health` endpoint** (ROBUSTNESS-1) — runs `SELECT 1`; returns
+  503 with `{"status":"unhealthy","reason":"database_unreachable"}`
+  on DB outage so kubelet liveness probes can flag the pod.
+- **Request-ID correlation in logs** (LOGGING-1) — every log record
+  emitted during an HTTP request carries the `X-Request-ID` header
+  value via a `ContextVar`, propagated automatically through the
+  pythonjsonlogger formatter.
+
+### Refactor / DevEx
+- **Single Docker client bootstrap** (REFACTOR-1) — three near-identical
+  copies of the `from_env()` + `docker context inspect` recipe
+  replaced with `src/docker_client.py:get_docker_client()`.
+- **`as any` cleanup** (TYPE-1..TYPE-4) — went 25 → 0 real casts in
+  source. New exported unions (`AnalysisStatus`, `PackageInstallStatus`),
+  discriminated union for the keyword palette, runtime type-guard
+  for drag-drop step-type strings.
+
+### Accessibility
+- **A11Y baseline pass** (A11Y-1) — `<html lang>` follows i18n locale,
+  icon-only AppHeader buttons get `aria-label`, language switcher
+  gets `aria-pressed`, skip-to-main link mounted in DefaultLayout.
+
+### Tests (5 new files, 99 new tests)
+- WebSocket `ConnectionManager` (TEST-1, 15)
+- DockerRunner (TEST-2, 24)
+- AI provider CRUD endpoints (TEST-3, 19)
+- AI generate / reverse / analyze / status / accept (TEST-4, 20)
+- `execute_test_run` early-exit branches (TEST-5, 3)
+
+### Sibling repos (local-only, pre-publish)
+- `roboscope-rfheal/` — heal package, packaged for PyPI; commit
+  ready, not pushed.
+- `roboscope-examples/` — Apache-2.0 starter examples for the most-used
+  Robot Framework libraries (Collections, String/DateTime, Process/OS,
+  RequestsLibrary, DatabaseLibrary, JSONLibrary, Browser); 26 tests
+  green via `uv run robot examples/`. Initial commit ready, not
+  pushed.
+
 ## [0.8.1] - 2026-03-26
 
 ### Features
