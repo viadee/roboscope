@@ -92,6 +92,23 @@ class TestTextStrategy:
         cands = synthesise_selectors(_snap(text=""))
         assert [c for c in cands if c.strategy == "text"] == []
 
+    def test_text_emits_exact_match_with_quotes(self) -> None:
+        """RECORDER-EXACT-TEXT — Playwright's `text="foo"` (with
+        quotes) is the EXACT-match form; substring `text=foo` would
+        also match a paragraph containing the word, which broke the
+        Sourcepoint cookie-banner replay on heise.de."""
+        cands = synthesise_selectors(_snap(text="Zustimmen"))
+        text_cands = [c for c in cands if c.strategy == "text"]
+        assert len(text_cands) == 1
+        assert text_cands[0].value == 'text="Zustimmen"'
+
+    def test_text_with_double_quote_skipped(self) -> None:
+        """Escaping a literal quote inside the .robot wire format is
+        brittle. CSS / testid / aria cover this case; just drop the
+        text candidate and let the others carry the test."""
+        cands = synthesise_selectors(_snap(text='He said "hi"'))
+        assert [c for c in cands if c.strategy == "text"] == []
+
 
 class TestCssStrategy:
     def test_stable_id_is_emitted(self) -> None:

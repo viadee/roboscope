@@ -121,6 +121,25 @@ def _text(snap: ElementSnapshot) -> list[SelectorCandidate]:
     t = snap.text.strip()
     if not t:
         return []
+    # RECORDER-EXACT-TEXT — emit Playwright's EXACT-match form
+    # (`text="..."` with quotes) instead of the substring form
+    # (`text=...`).
+    #
+    # Why: substring matching catches false positives. Real example
+    # from a heise.de Sourcepoint banner: a paragraph reading
+    # "Unter Einstellungen können Sie zustimmen..." matched
+    # `text=Zustimmen` together with the actual button. With
+    # `>> nth=0` disambiguation that would click the paragraph (a
+    # no-op or worse) instead of the button. Exact match scopes the
+    # locator to elements whose textContent equals the recorded
+    # string after trim.
+    #
+    # Skip when the text contains a literal quote — escaping inside
+    # the .robot wire format is brittle and other strategies (CSS,
+    # testid, aria) cover those cases. Loss of a text candidate for
+    # `He said "hi"` is acceptable.
+    if '"' in t:
+        return []
     score = 70
     if len(t) > 40:
         score -= 20
@@ -129,7 +148,7 @@ def _text(snap: ElementSnapshot) -> list[SelectorCandidate]:
     return [
         SelectorCandidate(
             strategy="text",
-            value=f"text={t}",
+            value=f'text="{t}"',
             quality_score=_cap(score),
             verified_unique=False,
         )
