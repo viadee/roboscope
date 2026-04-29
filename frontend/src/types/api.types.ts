@@ -6,7 +6,9 @@ export interface LoginRequest {
 }
 
 export interface RepoCreateRequest {
-  name: string
+  // Optional for git repos — backend derives the name from the git
+  // URL basename when omitted. Required for local repos.
+  name?: string
   repo_type?: 'git' | 'local'
   git_url?: string
   local_path?: string

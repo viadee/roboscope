@@ -227,17 +227,24 @@ function selectFallbackBranch(branch: string) {
 }
 
 async function doCreateRepo() {
+  const trimmedName = newRepo.value.name.trim()
   const payload: RepoCreateRequest = {
-    name: newRepo.value.name,
     repo_type: newRepo.value.repo_type as 'git' | 'local',
     default_branch: newRepo.value.default_branch,
+    // Omit name on git repos when empty — backend derives it from
+    // the git URL basename. Always send for local repos.
+    ...(trimmedName ? { name: trimmedName } : {}),
     ...(newRepo.value.repo_type === 'git' ? { git_url: newRepo.value.git_url } : { local_path: newRepo.value.local_path }),
     ...(newRepo.value.environment_id != null ? { environment_id: newRepo.value.environment_id } : {}),
   }
+  // Best-effort display name for the toast — fall back to git URL
+  // when the user didn't provide one (the real name will surface in
+  // the list once the create response comes back).
+  const displayName = trimmedName || newRepo.value.git_url || ''
   await repos.addRepo(payload)
   const msg = newRepo.value.repo_type === 'git'
-    ? t('repos.toasts.cloning', { name: newRepo.value.name })
-    : t('repos.toasts.addedLocal', { name: newRepo.value.name })
+    ? t('repos.toasts.cloning', { name: displayName })
+    : t('repos.toasts.addedLocal', { name: displayName })
   toast.success(t('repos.toasts.added'), msg)
   showAddDialog.value = false
 }
@@ -675,8 +682,20 @@ async function removeMember(member: ProjectMember) {
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">{{ t('common.name') }}</label>
-          <input v-model="newRepo.name" class="form-input" placeholder="mein-projekt" required />
+          <label class="form-label">
+            {{ t('common.name') }}
+            <span v-if="newRepo.repo_type === 'git'" class="form-label-hint">
+              {{ t('repos.addDialog.nameOptional') }}
+            </span>
+          </label>
+          <input
+            v-model="newRepo.name"
+            class="form-input"
+            :placeholder="newRepo.repo_type === 'git'
+              ? t('repos.addDialog.namePlaceholderGit')
+              : 'mein-projekt'"
+            :required="newRepo.repo_type === 'local'"
+          />
         </div>
         <div v-if="newRepo.repo_type === 'git'" class="form-group">
           <label class="form-label">{{ t('repos.addDialog.gitUrl') }}</label>

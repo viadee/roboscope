@@ -174,6 +174,8 @@ export default {
       defaultBranch: 'Standard-Branch',
       defaultEnv: 'Standard-Umgebung',
       noEnv: 'Keine',
+      nameOptional: '(optional — wird aus der Git-URL abgeleitet)',
+      namePlaceholderGit: 'leer lassen, um aus der URL abzuleiten',
     },
     libraryCheck: {
       title: 'Library-Check',

@@ -174,6 +174,8 @@ export default {
       defaultBranch: 'Default Branch',
       defaultEnv: 'Default Environment',
       noEnv: 'None',
+      nameOptional: '(optional — derived from the Git URL)',
+      namePlaceholderGit: 'leave blank to derive from URL',
     },
     libraryCheck: {
       title: 'Library Check',

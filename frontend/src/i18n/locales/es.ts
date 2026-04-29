@@ -174,6 +174,8 @@ export default {
       defaultBranch: 'Rama por defecto',
       defaultEnv: 'Entorno por defecto',
       noEnv: 'Ninguno',
+      nameOptional: '(opcional — derivado de la URL Git)',
+      namePlaceholderGit: 'dejar vacío para derivar de la URL',
     },
     libraryCheck: {
       title: 'Verificación de bibliotecas',

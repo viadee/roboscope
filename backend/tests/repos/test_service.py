@@ -112,6 +112,36 @@ class TestCreateRepository:
         assert repo.auto_sync is True
         assert repo.sync_interval_minutes == 15
 
+    def test_create_derives_name_from_git_url_when_omitted(
+        self, db_session, admin_user
+    ):
+        """When `name` is omitted on a git repo, derive it from the URL
+        basename. The schema validator runs before the service ever
+        sees the data, so by the time we hit `create_repository` the
+        name is populated."""
+        data = RepoCreate(git_url="https://github.com/viadee/roboscope.git")
+        assert data.name == "roboscope"
+        repo = create_repository(db_session, data, admin_user.id)
+        assert repo.name == "roboscope"
+        assert "roboscope" in repo.local_path
+
+    def test_create_derives_name_from_ssh_url(self, db_session, admin_user):
+        data = RepoCreate(git_url="git@github.com:viadee/roboscope.git")
+        assert data.name == "roboscope"
+
+    def test_create_derives_name_strips_unsafe_chars(self):
+        data = RepoCreate(git_url="https://example.com/owner/my repo!.git")
+        # Spaces and `!` collapse to `-` so the name remains
+        # filesystem-usable when used as a workspace dir.
+        assert data.name == "my-repo"
+
+    def test_create_local_repo_still_requires_name(self):
+        import pytest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError, match="name is required"):
+            RepoCreate(repo_type="local", local_path="/tmp/foo")
+
 
 class TestUpdateRepository:
     def test_update_partial(self, db_session, admin_user):
