@@ -66,3 +66,20 @@ export async function saveV2Flow(
   })
   return response.data
 }
+
+
+export interface ResetStuckSessionsResponse {
+  aborted: number
+}
+
+/**
+ * RECORDER-RESET-1 — panic-button cleanup of stuck v2 recording
+ * sessions for the current user. Idempotent: zero stuck rows ⇒
+ * `{aborted: 0}`.
+ */
+export async function resetStuckSessions(): Promise<ResetStuckSessionsResponse> {
+  const response = await apiClient.post<ResetStuckSessionsResponse>(
+    '/recordings/sessions/reset',
+  )
+  return response.data
+}

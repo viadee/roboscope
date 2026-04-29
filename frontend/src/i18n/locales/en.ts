@@ -1669,6 +1669,15 @@ export default {
         body: 'The RoboScope backend has no viewable browser (typical for a remote server deployment), so it cannot open a Chromium window for you to record in. Install the RoboScope Chrome Extension on your own machine instead — it records in your browser and streams the events to this backend.',
         override: 'Admins can force-enable browser recording with the environment variable ROBOSCOPE_HEADED_BROWSER=true on the backend host.',
       },
+      reset: {
+        hint: 'Recording stuck or browser window won\'t open? Click Reset to clean up any leftover sessions and orphan browser processes.',
+        label: 'Reset stuck recordings',
+        busy: 'Resetting…',
+        noneFound: 'No stuck recordings found.',
+        done: 'Reset done',
+        doneDetail: 'Cleaned up {count} stuck recording session(s).',
+        failed: 'Reset failed. Please try again.',
+      },
     },
     live: {
       heading: 'Recording',

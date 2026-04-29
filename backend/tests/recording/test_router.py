@@ -365,3 +365,118 @@ class TestRecordingLifecycle:
         assert data["count"] == 2
         assert data["events"][0]["event_type"] == "navigate"
         assert data["events"][1]["selector"] == "//button[@id='login']"
+
+
+class TestResetStuckSessions:
+    """RECORDER-RESET-1 — panic-button cleanup of stuck v2 sessions.
+
+    The endpoint exists for the failure mode where a v2 RecordingSession
+    row stays in `RECORDING` even though the underlying Playwright task
+    is gone (recorder thread crashed, browser closed manually, SSE
+    dropped). Without this, the next launcher start trips AR-10's
+    "abort other active sessions" guard silently and the user has no
+    way to clear the state from the UI.
+    """
+
+    def _make_session(
+        self,
+        db_session: Session,
+        user_id: int,
+        repo_id: int,
+        status: RecordingStatus = RecordingStatus.RECORDING,
+    ) -> RecordingSession:
+        from datetime import datetime, timezone
+        sess = RecordingSession(
+            repository_id=repo_id,
+            triggered_by=user_id,
+            source=RecordingSource.PLAYWRIGHT,
+            status=status,
+            started_at=datetime.now(timezone.utc),
+        )
+        db_session.add(sess)
+        db_session.flush()
+        db_session.refresh(sess)
+        return sess
+
+    def test_reset_returns_zero_when_no_stuck_sessions(
+        self, client, admin_user
+    ):
+        """Idempotent — no rows in `RECORDING` ⇒ aborted=0."""
+        resp = client.post(
+            "/api/v1/recordings/sessions/reset",
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 200
+        assert resp.json() == {"aborted": 0}
+
+    def test_reset_cancels_all_user_owned_recording_sessions(
+        self, client, admin_user, repo, db_session
+    ):
+        s1 = self._make_session(db_session, admin_user.id, repo.id)
+        s2 = self._make_session(db_session, admin_user.id, repo.id)
+        db_session.commit()
+
+        resp = client.post(
+            "/api/v1/recordings/sessions/reset",
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 200
+        assert resp.json() == {"aborted": 2}
+
+        # Both rows are now CANCELLED.
+        for s in [s1, s2]:
+            db_session.refresh(s)
+            assert s.status == RecordingStatus.CANCELLED
+            assert s.finished_at is not None
+
+    def test_reset_does_not_touch_already_terminal_sessions(
+        self, client, admin_user, repo, db_session
+    ):
+        """Sessions in `COMPLETED` / `CANCELLED` / `FAILED` should NOT
+        be re-aborted (would clobber `finished_at` and confuse audit)."""
+        completed = self._make_session(
+            db_session, admin_user.id, repo.id, RecordingStatus.COMPLETED
+        )
+        cancelled = self._make_session(
+            db_session, admin_user.id, repo.id, RecordingStatus.CANCELLED
+        )
+        db_session.commit()
+        original_completed_finish = completed.finished_at
+        original_cancelled_finish = cancelled.finished_at
+
+        resp = client.post(
+            "/api/v1/recordings/sessions/reset",
+            headers=auth_header(admin_user),
+        )
+        assert resp.json() == {"aborted": 0}
+
+        db_session.refresh(completed)
+        db_session.refresh(cancelled)
+        assert completed.status == RecordingStatus.COMPLETED
+        assert cancelled.status == RecordingStatus.CANCELLED
+        assert completed.finished_at == original_completed_finish
+        assert cancelled.finished_at == original_cancelled_finish
+
+    def test_reset_does_not_touch_other_users_sessions(
+        self, client, admin_user, runner_user, repo, db_session
+    ):
+        """Admin reset only clears the ADMIN's own stuck sessions —
+        admin-wide nuke would let one admin kill another's live recording."""
+        own = self._make_session(db_session, admin_user.id, repo.id)
+        other = self._make_session(db_session, runner_user.id, repo.id)
+        db_session.commit()
+
+        resp = client.post(
+            "/api/v1/recordings/sessions/reset",
+            headers=auth_header(admin_user),
+        )
+        assert resp.json() == {"aborted": 1}
+
+        db_session.refresh(own)
+        db_session.refresh(other)
+        assert own.status == RecordingStatus.CANCELLED
+        assert other.status == RecordingStatus.RECORDING
+
+    def test_reset_requires_authentication(self, client):
+        resp = client.post("/api/v1/recordings/sessions/reset")
+        assert resp.status_code == 401

@@ -747,6 +747,82 @@ def v2_abort_session(
 
 
 # ---------------------------------------------------------------------------
+# Recorder v2 — RECORDER-RESET-1: panic-button cleanup
+# ---------------------------------------------------------------------------
+#
+# Some failure modes leave a session row in `RECORDING` even though the
+# Playwright browser is gone (recorder thread crashed, SSE dropped,
+# user closed the recorder window directly). The next launcher start
+# then trips AR-10's "abort other active sessions" path silently —
+# functional but confusing — and orphan Chromium processes can stick
+# around on the backend host.
+#
+# This endpoint is the user-facing panic button. It:
+#  - Lists all `RECORDING` sessions for the current user.
+#  - Sends graceful stop signals to whatever task registry has them
+#    (no-op for already-dead tasks — `signal_stop_v2` returns False).
+#  - Marks every row CANCELLED unconditionally so the launcher state
+#    is clean afterwards.
+#  - Returns the count so the UI can show an accurate "reset N stuck
+#    sessions" toast.
+
+
+@router.post("/recordings/sessions/reset")
+def v2_reset_stuck_sessions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, int]:
+    """Force-cleanup of every `RECORDING` session for the current user.
+
+    Returns `{aborted: N}` where N is the number of rows that were in
+    `RECORDING` and have now been moved to `CANCELLED`. The endpoint is
+    idempotent — calling it again returns `{aborted: 0}`.
+
+    Admins reset only their OWN sessions; an admin-wide "reset
+    everything" is intentionally NOT exposed (would let one admin
+    nuke another's live recording).
+    """
+    from src.recording.desktop_recorder_task import signal_stop_desktop
+    from src.recording.v2_command_queue import finalize_session, tear_down_session
+    from src.recording.v2_recorder_task import signal_stop_v2
+
+    stuck = (
+        db.query(RecordingSession)
+        .filter(
+            RecordingSession.triggered_by == current_user.id,
+            RecordingSession.status == RecordingStatus.RECORDING,
+        )
+        .all()
+    )
+    if not stuck:
+        return {"aborted": 0}
+
+    now = datetime.now(timezone.utc)
+    for session in stuck:
+        # Best-effort graceful stop — no-op if the underlying task is
+        # already dead (which is the whole reason this endpoint exists).
+        signal_stop_v2(session.id)
+        signal_stop_desktop(session.id)
+        finalize_session(session.id)
+        tear_down_session(session.id)
+        session.status = RecordingStatus.CANCELLED
+        session.finished_at = now
+        log_event(
+            db,
+            AuditEventType.RECORDING_SESSION_ABORTED,
+            user_id=current_user.id,
+            resource_id=session.repository_id,
+            detail={"session_id": session.id, "reason": "user_reset"},
+        )
+    db.commit()
+    logger.info(
+        "user %d reset %d stuck recording session(s)",
+        current_user.id, len(stuck),
+    )
+    return {"aborted": len(stuck)}
+
+
+# ---------------------------------------------------------------------------
 # Recorder v2 — Story W.2: SSE command stream
 # ---------------------------------------------------------------------------
 

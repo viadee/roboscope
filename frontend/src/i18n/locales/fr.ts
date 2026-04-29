@@ -1669,6 +1669,15 @@ export default {
         body: "Le backend RoboScope ne dispose pas d'un navigateur affichable (typique d'un déploiement distant) et ne peut donc pas ouvrir une fenêtre Chromium à enregistrer. Installez plutôt l'extension Chrome RoboScope sur votre propre machine : elle enregistre dans votre navigateur et diffuse les événements vers ce backend.",
         override: "Les administrateurs peuvent forcer l'enregistrement navigateur via la variable d'environnement ROBOSCOPE_HEADED_BROWSER=true côté backend.",
       },
+      reset: {
+        hint: "L'enregistrement est bloqué ou la fenêtre du navigateur ne s'ouvre pas ? Cliquez sur Réinitialiser pour nettoyer les sessions résiduelles et les processus navigateur orphelins.",
+        label: 'Réinitialiser les enregistrements bloqués',
+        busy: 'Réinitialisation…',
+        noneFound: 'Aucun enregistrement bloqué trouvé.',
+        done: 'Réinitialisation terminée',
+        doneDetail: '{count} session(s) d\'enregistrement bloquée(s) nettoyée(s).',
+        failed: 'La réinitialisation a échoué. Réessayez.',
+      },
     },
     live: {
       heading: 'Enregistrement',

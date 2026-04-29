@@ -1669,6 +1669,15 @@ export default {
         body: 'El backend de RoboScope no tiene un navegador visible (típico en despliegues remotos) y, por tanto, no puede abrir una ventana de Chromium para grabar. Instala la extensión de Chrome de RoboScope en tu propia máquina: graba en tu navegador y envía los eventos a este backend.',
         override: 'Los administradores pueden forzar la grabación del navegador con la variable de entorno ROBOSCOPE_HEADED_BROWSER=true en el host del backend.',
       },
+      reset: {
+        hint: '¿La grabación se quedó bloqueada o la ventana del navegador no se abre? Haz clic en Restablecer para limpiar sesiones residuales y procesos de navegador huérfanos.',
+        label: 'Restablecer grabaciones bloqueadas',
+        busy: 'Restableciendo…',
+        noneFound: 'No se encontraron grabaciones bloqueadas.',
+        done: 'Restablecimiento completado',
+        doneDetail: 'Se limpiaron {count} sesión(es) de grabación bloqueada(s).',
+        failed: 'El restablecimiento falló. Inténtalo de nuevo.',
+      },
     },
     live: {
       heading: 'Grabación',

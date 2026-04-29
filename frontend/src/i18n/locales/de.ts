@@ -1669,6 +1669,15 @@ export default {
         body: 'Das RoboScope-Backend kann keinen sichtbaren Browser öffnen (typisch bei Remote-Deployments) und somit auch kein Chromium-Fenster zum Aufnehmen bereitstellen. Installiere stattdessen die RoboScope Chrome Extension auf deinem eigenen Rechner — sie zeichnet in deinem Browser auf und streamt die Events an dieses Backend.',
         override: 'Admins können Browser-Aufnahmen am Backend-Host per Umgebungsvariable ROBOSCOPE_HEADED_BROWSER=true erzwingen.',
       },
+      reset: {
+        hint: 'Aufzeichnung hängt oder Browser-Fenster öffnet sich nicht? Klick auf Zurücksetzen, um hängende Sessions und vergessene Browser-Prozesse zu bereinigen.',
+        label: 'Hängende Aufzeichnungen zurücksetzen',
+        busy: 'Setze zurück…',
+        noneFound: 'Keine hängenden Aufzeichnungen gefunden.',
+        done: 'Zurückgesetzt',
+        doneDetail: '{count} hängende Aufzeichnungs-Session(s) bereinigt.',
+        failed: 'Zurücksetzen fehlgeschlagen. Bitte erneut versuchen.',
+      },
     },
     live: {
       heading: 'Aufzeichnung',

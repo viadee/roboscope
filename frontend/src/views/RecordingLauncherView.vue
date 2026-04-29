@@ -10,19 +10,29 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { createV2Session, getV2Capabilities, type V2Capabilities } from '@/api/recording-v2.api'
+import {
+  createV2Session,
+  getV2Capabilities,
+  resetStuckSessions,
+  type V2Capabilities,
+} from '@/api/recording-v2.api'
 import { useReposStore } from '@/stores/repos.store'
+import { useToast } from '@/composables/useToast'
 import type { RecordingTransport } from '@/types/recorder.types'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const reposStore = useReposStore()
+const toast = useToast()
 
 const transport = ref<RecordingTransport>('web_playwright')
 const repoId = ref<number | null>(null)
 const starting = ref(false)
 const error = ref<string | null>(null)
+// RECORDER-RESET-1 — panic-button state for the "click here when
+// something went wrong" affordance below the Record CTA.
+const resetting = ref(false)
 
 // Story DEPLOY-1 — capability probe. Defaults err on the side of
 // "everything enabled" so a failed probe never locks the user out.
@@ -55,6 +65,35 @@ const transports = computed<{ value: RecordingTransport; labelKey: string; disab
 const webNotViable = computed(() => !capabilities.value.web_playwright_viable)
 
 const canStart = computed(() => transport.value && repoId.value !== null && !starting.value)
+
+async function reset() {
+  // No confirm dialog: the endpoint only touches the user's OWN stuck
+  // sessions, and idempotent calls are zero-cost. A double-confirm
+  // discourages the action exactly when the user needs it most
+  // (recorder is already broken, they're trying to unstick it).
+  if (resetting.value) return
+  resetting.value = true
+  error.value = null
+  try {
+    const out = await resetStuckSessions()
+    if (out.aborted === 0) {
+      toast.info(t('recorder.launcher.reset.noneFound'))
+    } else {
+      toast.success(
+        t('recorder.launcher.reset.done'),
+        t('recorder.launcher.reset.doneDetail', { count: out.aborted }),
+      )
+    }
+  } catch (e: any) {
+    const detail = e?.response?.data?.detail
+    error.value =
+      typeof detail === 'string'
+        ? detail
+        : detail?.message ?? t('recorder.launcher.reset.failed')
+  } finally {
+    resetting.value = false
+  }
+}
 
 async function start() {
   if (!canStart.value) return
@@ -161,6 +200,22 @@ onMounted(async () => {
     >
       {{ starting ? t('recorder.launcher.starting') : t('recorder.launcher.record') }}
     </button>
+
+    <!-- RECORDER-RESET-1 — panic button. Always visible so the user
+         can find it when the recorder hangs. Visually subdued so it
+         doesn't compete with the primary Record CTA above. -->
+    <div class="launcher__reset" role="group">
+      <p class="launcher__reset-hint">{{ t('recorder.launcher.reset.hint') }}</p>
+      <button
+        type="button"
+        class="launcher__reset-btn"
+        :disabled="resetting"
+        data-testid="recorder-reset"
+        @click="reset"
+      >
+        {{ resetting ? t('recorder.launcher.reset.busy') : t('recorder.launcher.reset.label') }}
+      </button>
+    </div>
   </section>
 </template>
 
@@ -265,5 +320,43 @@ onMounted(async () => {
 .launcher__cta:disabled {
   background: var(--color-border, #ccc);
   cursor: not-allowed;
+}
+
+.launcher__reset {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--color-border, #ddd);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.launcher__reset-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary, #666);
+}
+
+.launcher__reset-btn {
+  align-self: flex-start;
+  padding: 0.4rem 0.9rem;
+  background: transparent;
+  color: var(--color-text-secondary, #666);
+  border: 1px solid var(--color-border, #ccc);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.launcher__reset-btn:hover:not(:disabled) {
+  background: rgba(192, 57, 43, 0.08);
+  border-color: #c0392b;
+  color: #c0392b;
+}
+
+.launcher__reset-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 </style>
