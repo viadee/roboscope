@@ -4,12 +4,24 @@ import type {
   IdpProvider,
   IdpProviderCreate,
   IdpProviderUpdate,
+  SsoProviderPublic,
 } from '@/types/domain.types'
 
 const BASE = '/auth/idp-providers'
 
 export async function listIdps(): Promise<IdpProvider[]> {
   const response = await apiClient.get<IdpProvider[]>(BASE)
+  return response.data
+}
+
+/** Public-safe SSO provider list for the unauthenticated login view.
+ *  Mirrors `GET /auth/sso/providers`. The store imported this function
+ *  for months but it was never actually defined — the call would
+ *  throw TypeError, the store's try/catch swallowed it, and the
+ *  login form silently fell back to local-only mode for every user.
+ */
+export async function listPublicSsoProviders(): Promise<SsoProviderPublic[]> {
+  const response = await apiClient.get<SsoProviderPublic[]>('/auth/sso/providers')
   return response.data
 }
 

@@ -649,3 +649,65 @@ export interface DryRunProbeResponse {
   checks: DryRunCheckRow[]
   elapsed_ms: number
 }
+
+// --- Phase-4 Teams + Group Mappings + Public SSO ---
+// Mirrors `backend/src/teams/schemas.py` and the `SsoProviderPublic`
+// shape from `backend/src/auth/schemas.py`. These were imported by
+// teams.api / teams.store / sso.store but never defined here, leaving
+// the entire teams admin view broken at type-check (DEVEX-2 surfaced
+// it once `npm run lint` actually ran).
+
+export interface Team {
+  id: number
+  name: string
+  description: string | null
+  external_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TeamCreate {
+  name: string
+  description?: string | null
+}
+
+export interface TeamUpdate {
+  name?: string | null
+  description?: string | null
+}
+
+export interface TeamMemberDetail {
+  id: number
+  user_id: number
+  email: string
+  role: string
+  source: string
+}
+
+export interface TeamDetail extends Team {
+  members: TeamMemberDetail[]
+}
+
+export interface GroupMapping {
+  id: number
+  idp_id: number
+  team_id: number
+  group_claim_value: string
+  role: string
+  created_at: string
+  updated_at: string
+}
+
+export interface GroupMappingCreate {
+  idp_id: number
+  group_name: string
+  role?: string
+}
+
+/** Public-safe IdP row — only the fields the unauthenticated login
+ *  view needs to render a provider button. */
+export interface SsoProviderPublic {
+  id: number
+  name: string
+  provider_type: string
+}
