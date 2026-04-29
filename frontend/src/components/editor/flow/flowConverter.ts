@@ -45,6 +45,15 @@ export interface RobotStep {
   exceptVar: string
   varScope: string
   comment: string
+  /**
+   * Story RECORDER-IDMAP — position-independent link to the matching
+   * sidecar `RecordedCommand`. Parsed from the trailing
+   * `# rbs:<id>` comment on the line. When set,
+   * `matchStepToCommand` looks up by id; falls back to positional
+   * match when missing (legacy recordings, hand-written tests).
+   * Optional / blank for any step that wasn't recorded.
+   */
+  rbs_id?: string
 }
 
 export interface RobotTestCase {
@@ -143,9 +152,18 @@ export function recordedIndex(steps: RobotStep[], stepIndex: number): number {
 }
 
 /**
- * Match the step at `stepIndex` to a sidecar command, or `null` if the
- * sidecar is missing, the step is not recorded-eligible, or no command
- * exists at the matching position.
+ * Match the step at `stepIndex` to a sidecar command, or `null` if no
+ * match can be made.
+ *
+ * RECORDER-IDMAP — Story W.6 originally matched by POSITION
+ * (`sidecar.commands[recordedIndex(...)]`). Reordering or deleting a
+ * step in the FlowEditor silently shifted the candidate group onto
+ * a different row. Now we prefer the position-independent id parsed
+ * from the line's trailing `# rbs:<id>` comment, and fall back to
+ * the positional lookup only when the step has no id (legacy
+ * recordings, hand-written tests). The fallback is safe because the
+ * positional match has been the de-facto contract for months — id
+ * lookup just becomes the better answer when both exist.
  */
 export function matchStepToCommand(
   steps: RobotStep[],
@@ -153,6 +171,31 @@ export function matchStepToCommand(
   stepIndex: number,
 ): RecordedCommand | null {
   if (!sidecar) return null
+  if (stepIndex < 0 || stepIndex >= steps.length) return null
+  const step = steps[stepIndex]
+  if (!isRecordedStep(step)) return null
+
+  // RECORDER-IDMAP — three cases:
+  //
+  // 1. Step has an `rbs_id` → id-lookup only. If no match, return
+  //    null (drift detection — the sidecar lost the command, or the
+  //    user ID-typo'd in source view; positional fallback would
+  //    silently show wrong selectors).
+  if (step.rbs_id) {
+    return sidecar.commands.find((c) => c.id === step.rbs_id) ?? null
+  }
+  // 2. Step has no id, but ANOTHER step in the file does. That means
+  //    the file is identity-tracked (post-IDMAP recording) and this
+  //    specific step was hand-inserted / had its `# rbs:<id>` comment
+  //    deleted. Positional fallback would phantom-match it; null is
+  //    accurate. (We check the STEPS array, not the sidecar — Phase 1
+  //    made every backend command get a fresh id even on legacy
+  //    sidecars, so `sidecar.commands.some(c => c.id)` would always
+  //    be true and break the legacy fallback.)
+  const fileIsIdTracked = steps.some((s) => isRecordedStep(s) && Boolean(s.rbs_id))
+  if (fileIsIdTracked) return null
+  // 3. Legacy recording — no ids in the .robot file. Positional
+  //    fallback is the de-facto pre-IDMAP contract.
   const idx = recordedIndex(steps, stepIndex)
   if (idx < 0) return null
   return sidecar.commands[idx] ?? null

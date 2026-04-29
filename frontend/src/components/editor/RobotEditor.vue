@@ -61,6 +61,7 @@ interface RobotStep {
   exceptVar: string      // except: AS ${var}
   varScope: string       // var: scope (LOCAL|TEST|TASK|SUITE|GLOBAL)
   comment: string        // comment: text
+  rbs_id?: string        // RECORDER-IDMAP — see flow/flowConverter.ts
 }
 
 interface RobotTestCase {
@@ -250,6 +251,8 @@ const testCaseCount = computed(() => form.testCases.length)
 const keywordCount = computed(() => form.keywords.length)
 
 // --- Step line parser ---
+const _RBS_ID_CELL = /^# rbs:([a-f0-9]{8,32})$/
+
 function parseStepLine(raw: string): RobotStep {
   const step = makeStep()
   const trimmed = raw.trim()
@@ -265,6 +268,19 @@ function parseStepLine(raw: string): RobotStep {
   // Split into cells on 2+ spaces or tab
   const cells = trimmed.split(/  +|\t+/).filter(c => c !== '')
   if (cells.length === 0) return step
+
+  // Story RECORDER-IDMAP — peel off the trailing `# rbs:<id>` cell
+  // (emitted by the recorder) BEFORE the rest of the parser treats
+  // it as an arg. The id stays on `step.rbs_id`; serializeStep
+  // re-appends it so save round-trips don't drop the link to the
+  // sidecar's selector group.
+  const lastCell = cells[cells.length - 1]
+  const idMatch = _RBS_ID_CELL.exec(lastCell)
+  if (idMatch) {
+    step.rbs_id = idMatch[1]
+    cells.pop()
+    if (cells.length === 0) return step
+  }
 
   const first = cells[0]
 
@@ -380,14 +396,22 @@ function parseStepLine(raw: string): RobotStep {
 const SEP = '    '
 
 function serializeStep(step: RobotStep): string {
+  // Story RECORDER-IDMAP — append the trailing `# rbs:<id>` after
+  // the rest of the line if the step carries an id. RF treats it as
+  // a regular line comment; the id round-trips through save → reload
+  // so the FlowEditor's selector picker stays linked to the sidecar
+  // command across reorder / insert / delete.
+  const withId = (line: string): string =>
+    step.rbs_id ? `${line}${SEP}# rbs:${step.rbs_id}` : line
+
   switch (step.type) {
     case 'keyword':
-      return [step.keyword, ...step.args].filter(Boolean).join(SEP)
+      return withId([step.keyword, ...step.args].filter(Boolean).join(SEP))
     case 'assignment': {
       const vars = step.returnVars.map((v, i) =>
         i === step.returnVars.length - 1 ? v + '=' : v
       )
-      return [...vars, step.keyword, ...step.args].filter(Boolean).join(SEP)
+      return withId([...vars, step.keyword, ...step.args].filter(Boolean).join(SEP))
     }
     case 'for':
       return ['FOR', step.loopVar, step.loopFlavor, ...step.loopValues].filter(Boolean).join(SEP)
