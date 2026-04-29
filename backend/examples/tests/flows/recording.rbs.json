@@ -1,78 +1,26 @@
 {
   "schema_version": 1,
   "transport": "web_playwright",
-  "session_id": "17",
+  "session_id": "23",
   "name": null,
   "commands": [
     {
       "index": 0,
-      "keyword": "Scroll To Element",
-      "args": {},
-      "selector_candidates": [
-        {
-          "strategy": "text",
-          "value": "text=de‪Deutsch‬‪English (United Kingdom)‬‪Español (España)‬‪Fra…",
-          "quality_score": 50,
-          "verified_unique": false
-        },
-        {
-          "strategy": "css",
-          "value": "div.jw8mI",
-          "quality_score": 50,
-          "verified_unique": false
-        },
-        {
-          "strategy": "xpath",
-          "value": "//*[@id=\"xe7COe\"]//div",
-          "quality_score": 45,
-          "verified_unique": false
-        },
-        {
-          "strategy": "xpath",
-          "value": "/div/div/body/html/div",
-          "quality_score": 25,
-          "verified_unique": false
-        }
-      ],
+      "keyword": "Go To",
+      "args": {
+        "url": "https://www.heise.de/"
+      },
+      "selector_candidates": [],
       "active_candidate_index": 0,
       "element_fingerprint": null
     },
     {
       "index": 1,
-      "keyword": "Click",
-      "args": {},
-      "selector_candidates": [
-        {
-          "strategy": "text",
-          "value": "text=Alle ablehnen",
-          "quality_score": 70,
-          "verified_unique": false
-        },
-        {
-          "strategy": "xpath",
-          "value": "//div[normalize-space()=\"Alle ablehnen\"]",
-          "quality_score": 65,
-          "verified_unique": false
-        },
-        {
-          "strategy": "css",
-          "value": "div.QS5gu.sy4vM",
-          "quality_score": 45,
-          "verified_unique": false
-        },
-        {
-          "strategy": "xpath",
-          "value": "//*[@id=\"CXQnmb\"]//div",
-          "quality_score": 45,
-          "verified_unique": false
-        },
-        {
-          "strategy": "xpath",
-          "value": "/button/div/div/div/div/div/span/div/div",
-          "quality_score": 25,
-          "verified_unique": false
-        }
-      ],
+      "keyword": "Go To",
+      "args": {
+        "url": "https://www.heise.de/"
+      },
+      "selector_candidates": [],
       "active_candidate_index": 0,
       "element_fingerprint": null
     },
@@ -82,73 +30,26 @@
       "args": {},
       "selector_candidates": [
         {
-          "strategy": "aria",
-          "value": "role=combobox[name=\"Suche\"]",
-          "quality_score": 80,
+          "strategy": "text",
+          "value": "text=Developer",
+          "quality_score": 70,
           "verified_unique": false
         },
         {
           "strategy": "pw_locator",
-          "value": "getByRole(\"combobox\", { name: \"Suche\" })",
-          "quality_score": 75,
-          "verified_unique": false
-        },
-        {
-          "strategy": "css",
-          "value": "#APjFqb",
-          "quality_score": 60,
-          "verified_unique": false
-        },
-        {
-          "strategy": "css",
-          "value": "textarea.gLFyf",
-          "quality_score": 50,
+          "value": "getByText(\"Developer\", { exact: true })",
+          "quality_score": 70,
           "verified_unique": false
         },
         {
           "strategy": "xpath",
-          "value": "/div/div/div/div/div/form/div/div/textarea",
-          "quality_score": 25,
-          "verified_unique": false
-        }
-      ],
-      "active_candidate_index": 0,
-      "element_fingerprint": null
-    },
-    {
-      "index": 3,
-      "keyword": "Press Keys",
-      "args": {
-        "key": "Enter"
-      },
-      "selector_candidates": [
-        {
-          "strategy": "aria",
-          "value": "role=combobox[name=\"Suche\"]",
-          "quality_score": 80,
-          "verified_unique": false
-        },
-        {
-          "strategy": "pw_locator",
-          "value": "getByRole(\"combobox\", { name: \"Suche\" })",
-          "quality_score": 75,
-          "verified_unique": false
-        },
-        {
-          "strategy": "css",
-          "value": "#APjFqb",
-          "quality_score": 60,
-          "verified_unique": false
-        },
-        {
-          "strategy": "css",
-          "value": "textarea.gLFyf",
-          "quality_score": 50,
+          "value": "//a[normalize-space()=\"Developer\"]",
+          "quality_score": 65,
           "verified_unique": false
         },
         {
           "strategy": "xpath",
-          "value": "/div/div/div/div/div/form/div/div/textarea",
+          "value": "/li/ul/div/a-scroll-container/nav/div/header/div/a",
           "quality_score": 25,
           "verified_unique": false
         }
