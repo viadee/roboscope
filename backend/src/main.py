@@ -18,6 +18,7 @@ from src.api.v1.router import api_router
 from src.config import settings
 from src.database import create_tables, SessionLocal
 from src.rate_limit import limiter
+from src.utc_response import UtcJSONResponse
 from src.websocket.manager import ws_manager
 
 logger = logging.getLogger("roboscope")
@@ -243,6 +244,10 @@ def create_app() -> FastAPI:
         docs_url=f"{settings.API_V1_PREFIX}/docs",
         redoc_url=f"{settings.API_V1_PREFIX}/redoc",
         lifespan=lifespan,
+        # Naive UTC datetime → `...Z` on the wire. SQLAlchemy on SQLite
+        # strips `tzinfo` so Pydantic emits naive ISO; this guarantees
+        # every JS client reads timestamps as real UTC. See utc_response.py.
+        default_response_class=UtcJSONResponse,
     )
 
     # Rate limiting
