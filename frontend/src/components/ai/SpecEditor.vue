@@ -407,7 +407,13 @@ function toggleStepType(tsIndex: number, tcIndex: number, stepIdx: number) {
 // --- Parse/Serialize ---
 function parseYamlToForm(yamlContent: string): boolean {
   try {
-    const parsed = yaml.load(yamlContent) as any
+    // `yaml.load` returns `unknown` by design — the spec is user-edited
+    // and may contain anything. We narrow to a permissive record so
+    // nested field reads compile, then do defensive `|| ''` reads for
+    // every value pulled out. Adopting a Zod schema is the next-step
+    // refactor; until then the defensive reads + `Record<string, any>`
+    // is the pragmatic spelling.
+    const parsed = yaml.load(yamlContent) as Record<string, any> | null | undefined
     if (!parsed || typeof parsed !== 'object') {
       form.version = '2'
       form.metadata = { title: '', author: '', created: '', last_generated: null, generation_hash: null, target_file: '', environment: null, libraries: [], external_id: '' }
@@ -775,7 +781,7 @@ function updateSimpleStep(tsIndex: number, tcIndex: number, stepIdx: number, val
 function updateStructuredStep(tsIndex: number, tcIndex: number, stepIdx: number, field: 'action' | 'data' | 'expected_result', value: string) {
   const step = form.test_sets[tsIndex].test_cases[tcIndex].steps[stepIdx]
   if (isStructuredStep(step)) {
-    (step as any)[field] = value
+    step[field] = value
   }
 }
 
