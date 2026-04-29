@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatDate, formatDateTime, formatTimeAgo } from '@/utils/formatDate'
+import { formatDate, formatDateTime, formatTimeAgo, parseBackendDate } from '@/utils/formatDate'
 
 describe('formatDate', () => {
   it('formats a valid ISO date string to de-DE format', () => {
@@ -102,7 +102,7 @@ describe('formatTimeAgo', () => {
     expect(result).toMatch(/\d{2}\.\d{2}\.\d{4}/)
   })
 
-  it('treats a naive backend ISO string as UTC, not local time', () => {
+  it('treats a naive backend ISO string as UTC, not local time', () => {  // (formatTimeAgo path — fix in commit a600159)
     // Backend stores `last_synced_at` via `datetime.now(timezone.utc)`
     // but SQLAlchemy on SQLite drops `tzinfo` on round-trip, so the
     // API ships e.g. `2026-04-29T07:58:04` with no `Z`. JS `new Date`
@@ -115,5 +115,27 @@ describe('formatTimeAgo', () => {
     // strip the trailing `Z` to simulate the backend's naive format
     const naive = nowUtc.toISOString().replace(/Z$/, '')
     expect(formatTimeAgo(naive)).toBe('gerade eben')
+  })
+})
+
+describe('parseBackendDate', () => {
+  it('appends `Z` so naive ISO strings parse as UTC', () => {
+    // Same wall-clock used twice: once with Z, once without. Both
+    // must produce the same epoch ms.
+    const naive = '2026-04-29T07:00:00'
+    const explicit = '2026-04-29T07:00:00Z'
+    expect(parseBackendDate(naive).getTime()).toBe(parseBackendDate(explicit).getTime())
+    // And both equal `Date.UTC` for that wall-clock.
+    expect(parseBackendDate(naive).getTime()).toBe(Date.UTC(2026, 3, 29, 7, 0, 0))
+  })
+
+  it('passes strings with explicit zone offsets through unchanged', () => {
+    const offset = '2026-04-29T07:00:00+02:00'
+    expect(parseBackendDate(offset).getTime()).toBe(new Date(offset).getTime())
+  })
+
+  it('passes lowercase `z` through (still recognized as zone marker)', () => {
+    const lower = '2026-04-29T07:00:00z'
+    expect(parseBackendDate(lower).getTime()).toBe(Date.UTC(2026, 3, 29, 7, 0, 0))
   })
 })

@@ -8,6 +8,7 @@
  */
 import { computed, ref } from 'vue'
 import { getBypassStatus, type BypassStatus } from '@/api/emergencyBypass.api'
+import { parseBackendDate } from '@/utils/formatDate'
 
 const status = ref<BypassStatus | null>(null)
 const subscribers = ref(0)
@@ -60,7 +61,11 @@ export function useBypassStatus() {
   const active = computed(() => status.value?.active === true)
   const remainingMinutes = computed(() => {
     if (!status.value?.active || !status.value.expires_at) return null
-    const diff = new Date(status.value.expires_at).getTime() - Date.now()
+    // `parseBackendDate` treats naive ISO (no `Z` / no offset) as UTC.
+    // Without it, JS `new Date(...)` parses the bypass `expires_at`
+    // as local time, so for a user in UTC+2 a 30-minute bypass shows
+    // 0 minutes remaining the moment it's set.
+    const diff = parseBackendDate(status.value.expires_at).getTime() - Date.now()
     return diff > 0 ? Math.round(diff / 60000) : 0
   })
 

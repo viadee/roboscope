@@ -10,8 +10,13 @@
  * We detect the "no zone marker" case and append `Z` so naive strings
  * are treated as UTC. ISO strings that already carry `Z` or an
  * `+HH:MM` / `-HH:MM` offset pass through unchanged.
+ *
+ * Exported so other call sites that compute "now − backend-stamp" can
+ * reuse the same normalization. Anywhere `new Date(apiField)` flowed
+ * into a duration / "remaining" / "X ago" computation has the same
+ * off-by-tz-offset bug; use this helper instead.
  */
-function parseBackendDate(s: string): Date {
+export function parseBackendDate(s: string): Date {
   const hasZone = /[Zz]$/.test(s) || /[+-]\d{2}:?\d{2}$/.test(s)
   return new Date(hasZone ? s : `${s}Z`)
 }

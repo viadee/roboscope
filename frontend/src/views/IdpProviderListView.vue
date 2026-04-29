@@ -9,6 +9,7 @@ import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import type { IdpProvider, IdpProviderType } from '@/types/domain.types'
+import { parseBackendDate } from '@/utils/formatDate'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -58,7 +59,9 @@ function typeLabel(idp: IdpProvider): string {
 
 function formatRelative(iso: string | null): string {
   if (!iso) return t('idpProviders.relative.never')
-  const diffMs = Date.now() - new Date(iso).getTime()
+  // `parseBackendDate` normalizes naive UTC ISO strings (no `Z` / no
+  // offset) so the diff is computed in real-UTC, not user-local time.
+  const diffMs = Date.now() - parseBackendDate(iso).getTime()
   if (diffMs < 0) return t('idpProviders.relative.justNow')
   const mins = Math.floor(diffMs / 60_000)
   if (mins < 1) return t('idpProviders.relative.justNow')

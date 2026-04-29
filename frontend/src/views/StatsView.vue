@@ -11,6 +11,7 @@ import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import { formatDuration, formatPercent } from '@/utils/formatDuration'
+import { parseBackendDate } from '@/utils/formatDate'
 import type { AnalysisReport, KpiMeta } from '@/types/domain.types'
 
 const stats = useStatsStore()
@@ -112,7 +113,10 @@ const chartXLabels = computed(() => {
 
 const stalenessText = computed(() => {
   if (!stats.lastRunFinished || !stats.lastAggregated) return ''
-  const runDate = new Date(stats.lastRunFinished)
+  // `parseBackendDate` treats naive ISO (no `Z` / no offset) as UTC.
+  // Without it `now − runDate` is off by the user's UTC offset and a
+  // fresh aggregation can render as "5 hours ago" for a CEST user.
+  const runDate = parseBackendDate(stats.lastRunFinished)
   const now = new Date()
   const diffMs = now.getTime() - runDate.getTime()
   const diffMin = Math.floor(diffMs / 60000)
