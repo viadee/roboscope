@@ -36,9 +36,8 @@ _RECORDING_IDLE_TIMEOUT_MINUTES = 30
 def cleanup_oidc_login_attempts(db: Session | None = None) -> int:
     """Delete expired OidcLoginAttempt rows. Returns number deleted."""
     own_session = db is None
-    if own_session:
+    if db is None:
         db = SessionLocal()
-    assert db is not None
     try:
         now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
         result = db.execute(
@@ -56,9 +55,8 @@ def cleanup_oidc_login_attempts(db: Session | None = None) -> int:
 def cleanup_rate_limit_counters(db: Session | None = None) -> int:
     """Delete RateLimitCounter rows outside the active 1-hour window."""
     own_session = db is None
-    if own_session:
+    if db is None:
         db = SessionLocal()
-    assert db is not None
     try:
         cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
             hours=_RATE_LIMIT_WINDOW_HOURS
@@ -83,9 +81,8 @@ def expire_sso_emergency_bypass(db: Session | None = None) -> bool:
     Returns True if a deactivation happened this run, else False.
     """
     own_session = db is None
-    if own_session:
+    if db is None:
         db = SessionLocal()
-    assert db is not None
     try:
         from src.audit.event_types import AuditEventType
         from src.audit.service import log_event
@@ -135,9 +132,8 @@ def abort_idle_recording_sessions(db: Session | None = None) -> int:
     with reason=idle_timeout so the audit trail matches reality.
     """
     own_session = db is None
-    if own_session:
+    if db is None:
         db = SessionLocal()
-    assert db is not None
     try:
         from src.audit.event_types import AuditEventType
         from src.audit.service import log_event
