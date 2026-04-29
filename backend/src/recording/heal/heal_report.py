@@ -13,9 +13,13 @@ from __future__ import annotations
 
 import json
 import re
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
+
+# Defused parser: same rationale as src/reports/parser.py — the
+# output.xml comes from user-authored .robot tests, so XXE / billion-
+# laughs payloads in the XML could exfiltrate files or DoS the parser.
+from defusedxml import ElementTree as ET
 
 
 @dataclass
@@ -73,7 +77,11 @@ def _parse_output_xml_for_test_outcomes(output_xml: Path) -> dict[str, str]:
     outcomes: dict[str, str] = {}
     try:
         root = ET.parse(output_xml).getroot()
-    except (OSError, ET.ParseError):
+    except (OSError, ET.ParseError, ValueError):
+        # ValueError covers `defusedxml.common.DefusedXmlException` and
+        # its subclasses (EntitiesForbidden, DTDForbidden, ...). When
+        # the XML is malicious we drop the parse and return empty —
+        # heal classification simply falls back to "unknown".
         return outcomes
     for test in root.iter("test"):
         name = test.attrib.get("name", "")

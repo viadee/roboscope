@@ -2,7 +2,17 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from xml.etree import ElementTree as ET
+
+# Use defusedxml for XXE / billion-laughs hardening: output.xml is
+# constructed by Robot Framework from user-authored `.robot` tests,
+# so external-entity payloads could exfiltrate files or DoS the
+# parser. The defusedxml ElementTree is a drop-in replacement for
+# `parse()` and re-exports `ParseError`, but it doesn't expose the
+# `Element` type itself — that one we still pull from stdlib (it's
+# the same class either way; defusedxml only hardens parsing).
+from xml.etree.ElementTree import Element as _Element  # type alias only
+
+from defusedxml import ElementTree as ET
 
 
 @dataclass
@@ -44,13 +54,21 @@ def parse_output_xml(xml_path: str) -> ParsedReport:
 
     Raises:
         FileNotFoundError: If the xml file doesn't exist.
-        ET.ParseError: If the xml is malformed.
+        ET.ParseError: If the xml is malformed OR rejected by the
+            defused parser (entities / DTD / external references).
     """
     path = Path(xml_path)
     if not path.exists():
         raise FileNotFoundError(f"output.xml not found: {xml_path}")
 
-    tree = ET.parse(xml_path)
+    try:
+        tree = ET.parse(xml_path)
+    except ValueError as exc:
+        # defusedxml raises subclasses of ValueError (EntitiesForbidden,
+        # DTDForbidden, …) when it refuses to parse a hostile document.
+        # Translate to ET.ParseError so existing callers that already
+        # handle parse failures handle the security-rejection path too.
+        raise ET.ParseError(f"output.xml rejected by defused parser: {exc}") from exc
     root = tree.getroot()
 
     report = ParsedReport()
@@ -71,7 +89,7 @@ def parse_output_xml(xml_path: str) -> ParsedReport:
     return report
 
 
-def _parse_suite(element: ET.Element, report: ParsedReport, parent_suite: str) -> None:
+def _parse_suite(element: _Element, report: ParsedReport, parent_suite: str) -> None:
     """Recursively parse suites and their test cases."""
     for suite_elem in element.iter("suite"):
         suite_name = suite_elem.get("name", "")
@@ -85,7 +103,7 @@ def _parse_suite(element: ET.Element, report: ParsedReport, parent_suite: str) -
             report.test_results.append(result)
 
 
-def _parse_test(test_elem: ET.Element, suite_name: str) -> ParsedTestResult:
+def _parse_test(test_elem: _Element, suite_name: str) -> ParsedTestResult:
     """Parse a single test element."""
     result = ParsedTestResult()
     result.test_name = test_elem.get("name", "")
@@ -127,7 +145,12 @@ def parse_output_xml_deep(xml_path: str) -> dict:
     if not path.exists():
         raise FileNotFoundError(f"output.xml not found: {xml_path}")
 
-    tree = ET.parse(xml_path)
+    try:
+        tree = ET.parse(xml_path)
+    except ValueError as exc:
+        # See note in parse_output_xml: translate defused-parser
+        # rejections to ET.ParseError for caller compatibility.
+        raise ET.ParseError(f"output.xml rejected by defused parser: {exc}") from exc
     root = tree.getroot()
 
     generated = root.get("generated", "")
@@ -148,7 +171,7 @@ def parse_output_xml_deep(xml_path: str) -> dict:
     }
 
 
-def _parse_suite_deep(suite_elem: ET.Element) -> dict:
+def _parse_suite_deep(suite_elem: _Element) -> dict:
     """Recursively parse a suite element into a nested dict."""
     name = suite_elem.get("name", "")
     source = suite_elem.get("source", "")
@@ -192,7 +215,7 @@ def _parse_suite_deep(suite_elem: ET.Element) -> dict:
     }
 
 
-def _parse_test_deep(test_elem: ET.Element) -> dict:
+def _parse_test_deep(test_elem: _Element) -> dict:
     """Parse a test element including its keywords."""
     name = test_elem.get("name", "")
 
@@ -241,7 +264,7 @@ def _parse_test_deep(test_elem: ET.Element) -> dict:
     }
 
 
-def _parse_keyword_deep(kw_elem: ET.Element) -> dict:
+def _parse_keyword_deep(kw_elem: _Element) -> dict:
     """Recursively parse a keyword element."""
     name = kw_elem.get("name", "")
     kw_type = kw_elem.get("type", "kw")
@@ -298,7 +321,7 @@ def _parse_keyword_deep(kw_elem: ET.Element) -> dict:
     }
 
 
-def _parse_statistics(root: ET.Element) -> dict:
+def _parse_statistics(root: _Element) -> dict:
     """Parse the statistics section of output.xml."""
     stats = {"total": {}, "tag": [], "suite": []}
     stat_elem = root.find("statistics")

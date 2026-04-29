@@ -38,6 +38,11 @@ dependencies = [
     "playwright>=1.49.0",
     "authlib>=1.6.10",
     "reportlab>=4.4.10",
+    # XXE / billion-laughs hardening for any XML coming from
+    # subprocess output (output.xml is built from user-authored .robot
+    # tests, so external-entity references could exfiltrate files or
+    # DoS the parser if we used stdlib ET directly).
+    "defusedxml>=0.7.1",
 ]
 
 [project.optional-dependencies]
