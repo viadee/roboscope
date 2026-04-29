@@ -253,6 +253,23 @@ const keywordCount = computed(() => form.keywords.length)
 // --- Step line parser ---
 const _RBS_ID_CELL = /^# rbs:([a-f0-9]{8,32})$/
 
+/**
+ * Reverse of `escapeRfToken` (defined below). Strips the leading `\`
+ * from `\#…` so the user-visible value stored on `step.args[i]`
+ * matches the logical selector / arg the user typed (or the recorder
+ * synthesised). Without this, a `\#login-form` from disk would never
+ * compare-equal to the picker's `#login-form` candidate, and the
+ * selector picker would mis-flag every escaped CSS-ID as "custom".
+ *
+ * Currently handles only the leading `\#` case — the only escape the
+ * emitter applies. If the backend emit grows new escape sequences,
+ * extend here AND in `escapeRfToken`.
+ */
+function unescapeRfToken(s: string): string {
+  if (s.startsWith('\\#')) return s.slice(1)
+  return s
+}
+
 function parseStepLine(raw: string): RobotStep {
   const step = makeStep()
   const trimmed = raw.trim()
@@ -381,19 +398,42 @@ function parseStepLine(raw: string): RobotStep {
     step.type = 'assignment'
     step.returnVars = returnVars
     step.keyword = cells[keywordIdx]
-    step.args = cells.slice(keywordIdx + 1)
+    // RECORDER-RF-ESCAPE — unescape `\#…` cells back to their logical
+    // form, mirroring the serializer. Without this, a fresh recording
+    // (which emits `\#login-form`) would mismatch the picker's raw
+    // `#login-form` candidate after one save round-trip.
+    step.args = cells.slice(keywordIdx + 1).map(unescapeRfToken)
     return step
   }
 
   // Regular keyword call
   step.type = 'keyword'
   step.keyword = cells[0]
-  step.args = cells.slice(1)
+  step.args = cells.slice(1).map(unescapeRfToken)
   return step
 }
 
 // --- Step serializer ---
 const SEP = '    '
+
+/**
+ * Mirror of `backend/src/recording/robot_emit.py::_escape_rf_token`.
+ *
+ * Robot Framework's lexer treats any token that STARTS with `#` as a
+ * comment. After `applySelectorSwap` swaps a candidate like
+ * `#login-form` into `step.args[0]` the value is the raw selector
+ * (no escape). When the user saves, this serializer must add the
+ * `\` so the round-tripped `.robot` keeps the selector intact —
+ * otherwise the file would emit `Click    #login-form` and RF would
+ * silently run Click without args.
+ *
+ * Idempotent: a value that's already `\#…` doesn't start with `#`
+ * (it starts with `\`), so it passes through unchanged.
+ */
+function escapeRfToken(s: string): string {
+  if (!s) return s
+  return s.startsWith('#') ? '\\' + s : s
+}
 
 function serializeStep(step: RobotStep): string {
   // Story RECORDER-IDMAP — append the trailing `# rbs:<id>` after
@@ -404,14 +444,17 @@ function serializeStep(step: RobotStep): string {
   const withId = (line: string): string =>
     step.rbs_id ? `${line}${SEP}# rbs:${step.rbs_id}` : line
 
+  // RECORDER-RF-ESCAPE — mirror the backend escape on the save path.
+  const args = step.args.map(escapeRfToken)
+
   switch (step.type) {
     case 'keyword':
-      return withId([step.keyword, ...step.args].filter(Boolean).join(SEP))
+      return withId([step.keyword, ...args].filter(Boolean).join(SEP))
     case 'assignment': {
       const vars = step.returnVars.map((v, i) =>
         i === step.returnVars.length - 1 ? v + '=' : v
       )
-      return withId([...vars, step.keyword, ...step.args].filter(Boolean).join(SEP))
+      return withId([...vars, step.keyword, ...args].filter(Boolean).join(SEP))
     }
     case 'for':
       return ['FOR', step.loopVar, step.loopFlavor, ...step.loopValues].filter(Boolean).join(SEP)
