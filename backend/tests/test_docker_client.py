@@ -143,6 +143,36 @@ class TestResolveContextHost:
         ):
             assert _resolve_context_host() == "tcp://host:2375"
 
+    def test_returns_none_on_non_string_host(self):
+        """Defensive: a malformed `docker context inspect` payload
+        with a non-string `Host` value (could happen with custom
+        plugins or future schema drift) must return None, not the
+        non-string value coerced into a string. Pre-fix this leaked
+        an `Any` upstream.
+        """
+        import json
+        payload = json.dumps([
+            {"Endpoints": {"docker": {"Host": 12345}}},
+        ])
+        with patch(
+            "src.docker_client.subprocess.check_output",
+            return_value=payload,
+        ):
+            assert _resolve_context_host() is None
+
+    def test_returns_none_on_non_dict_first_entry(self):
+        """Another malformed shape: `ctx[0]` is a string, not a dict.
+        The .get() chain would crash; the isinstance guard rejects
+        cleanly.
+        """
+        import json
+        payload = json.dumps(["bogus-context-string"])
+        with patch(
+            "src.docker_client.subprocess.check_output",
+            return_value=payload,
+        ):
+            assert _resolve_context_host() is None
+
 
 class TestBackwardsCompat:
     def test_runner_re_exports_exception(self):

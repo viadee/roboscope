@@ -24,6 +24,7 @@ verification, so we don't need a structured JSON wrapper.
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import hmac
 import time
@@ -70,7 +71,7 @@ def verify_asset_token(token: str, report_id: int) -> bool:
         return False
     try:
         decoded = _b64url_decode(token)
-    except (ValueError, base64.binascii.Error):
+    except (ValueError, binascii.Error):
         return False
 
     # Signature is the LAST 32 bytes (SHA-256 output). The payload is

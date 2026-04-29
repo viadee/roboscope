@@ -55,9 +55,13 @@ def _resolve_context_host() -> str | None:
     except json.JSONDecodeError:
         return None
 
-    if isinstance(ctx, list) and ctx:
-        host = ctx[0].get("Endpoints", {}).get("docker", {}).get("Host", "")
-        if host:
+    if isinstance(ctx, list) and ctx and isinstance(ctx[0], dict):
+        # `host` is `Any` at the static layer because the JSON came
+        # from external CLI output; isinstance-narrow before returning
+        # so a malformed `docker context inspect` payload can't
+        # smuggle a non-string into our typed return contract.
+        host = ctx[0].get("Endpoints", {}).get("docker", {}).get("Host")
+        if isinstance(host, str) and host:
             return host
     return None
 
