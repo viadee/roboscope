@@ -143,6 +143,43 @@ class TestGetRepo:
         assert data["id"] == seed_repo.id
         assert data["name"] == "seed-repo"
 
+    def test_get_existing_datetimes_carry_z_suffix(
+        self, client, admin_user, seed_repo
+    ):
+        """End-to-end check that `UtcJSONResponse` is wired and renders
+        UTC datetimes with `Z` on the wire.
+
+        SQLAlchemy on SQLite stores `created_at` / `updated_at` as
+        naive UTC; without the response post-processor those would
+        ship without a zone marker and the JS client would parse them
+        as local time (the "vor 2 Std." class of bug). We assert on
+        the raw response TEXT so the regex sees what JS would see.
+        """
+        response = client.get(
+            f"/api/v1/repos/{seed_repo.id}",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        text = response.text
+        # Both `created_at` and `updated_at` are non-null on a freshly
+        # seeded repo. They must both carry `Z`.
+        import re
+
+        # Every `..._at` field whose value is a naive ISO string must
+        # NOT exist in the body; the regex below would only match if
+        # the post-processor missed one.
+        naive = re.findall(
+            r'"\w+_at":"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?"',
+            text,
+        )
+        assert naive == [], f"naive datetimes leaked through: {naive}"
+        # And at least the two we expect are present in `...Z` form.
+        with_z = re.findall(
+            r'"\w+_at":"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z"',
+            text,
+        )
+        assert len(with_z) >= 2, f"expected ≥2 zoned `_at` fields, got: {with_z}"
+
     def test_get_not_found(self, client, admin_user):
         response = client.get(
             "/api/v1/repos/99999",
