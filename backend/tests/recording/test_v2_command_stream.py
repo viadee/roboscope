@@ -175,6 +175,19 @@ class TestSseEndpoint:
         assert 'event: command' in body
         assert '"keyword": "Go To"' in body or '"keyword":"Go To"' in body
         assert '"keyword": "Click"' in body or '"keyword":"Click"' in body
+        # RECORDER-IDMAP — every SSE command frame must carry the
+        # `id` field. The FE's RecordingLiveView keeps it on the
+        # in-memory command, the deleteCommand button preserves it,
+        # the eventual /save POST round-trips it onto the .robot's
+        # `# rbs:<id>` comment + the .rbs.json sidecar. If the
+        # serialiser ever drops the field (e.g. someone adds
+        # `exclude={"id"}` to model_dump), the FlowEditor's
+        # id-based matcher silently regresses to positional. Pin it.
+        assert '"id"' in body
+        # Two commands → two id occurrences (no other field is
+        # spelled `"id"` in the wire shape — `index` and
+        # `session_id` are namespaced differently).
+        assert body.count('"id":') >= 2
         assert 'event: end' in body
 
         tear_down_session(session.id)
