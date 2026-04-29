@@ -371,19 +371,25 @@ def _extract_git_url(payload: dict) -> str | None:
     if isinstance(repo, dict):
         # GitHub: clone_url or html_url
         for key in ("clone_url", "html_url", "ssh_url", "git_url"):
-            if key in repo:
-                return repo[key]
+            value = repo.get(key)
+            if isinstance(value, str):
+                return value
         # GitLab: git_http_url or git_ssh_url
         for key in ("git_http_url", "git_ssh_url", "url"):
-            if key in repo:
-                return repo[key]
+            value = repo.get(key)
+            if isinstance(value, str):
+                return value
     return None
 
 
 def _extract_branch(payload: dict) -> str | None:
     """Extract branch name from push payload."""
-    ref = payload.get("ref", "")
-    if ref.startswith("refs/heads/"):
+    # Webhook payloads come from external providers — `ref` is `Any`
+    # at the static-typing level; defend against missing or non-string
+    # values rather than crash with `AttributeError: 'int' object has
+    # no attribute 'startswith'`.
+    ref = payload.get("ref")
+    if isinstance(ref, str) and ref.startswith("refs/heads/"):
         return ref[len("refs/heads/"):]
     return None
 

@@ -390,3 +390,55 @@ class TestGitWebhookInbound:
         # Both were attempted; the run dispatch succeeded after the sync
         # dispatch raised.
         assert attempts == [sync_repo, execute_test_run]
+
+
+class TestPayloadExtractors:
+    """Defensive-typing regression guard. Webhook payloads come from
+    untrusted external providers (GitHub, GitLab, attackers); the
+    extractor functions used to call `.startswith` and dict-access on
+    `Any` values, which mypy flagged as `no-any-return`. A malformed
+    payload with a non-string `ref` (`{"ref": 42}`) would crash with
+    `AttributeError`. The fix added `isinstance(...)` guards.
+    """
+
+    def test_extract_git_url_string_value(self):
+        from src.webhooks.router import _extract_git_url
+        assert _extract_git_url(
+            {"repository": {"clone_url": "https://github.com/x/y.git"}}
+        ) == "https://github.com/x/y.git"
+
+    def test_extract_git_url_gitlab_format(self):
+        from src.webhooks.router import _extract_git_url
+        assert _extract_git_url(
+            {"repository": {"git_http_url": "https://gitlab.com/x/y.git"}}
+        ) == "https://gitlab.com/x/y.git"
+
+    def test_extract_git_url_non_string_value_returns_none(self):
+        from src.webhooks.router import _extract_git_url
+        # Hostile / malformed payload — clone_url is an int.
+        assert _extract_git_url({"repository": {"clone_url": 42}}) is None
+
+    def test_extract_git_url_missing_repository_returns_none(self):
+        from src.webhooks.router import _extract_git_url
+        assert _extract_git_url({}) is None
+        assert _extract_git_url({"repository": "not a dict"}) is None
+
+    def test_extract_branch_string_ref(self):
+        from src.webhooks.router import _extract_branch
+        assert _extract_branch({"ref": "refs/heads/main"}) == "main"
+        assert _extract_branch({"ref": "refs/heads/feat/foo"}) == "feat/foo"
+
+    def test_extract_branch_non_branch_ref(self):
+        from src.webhooks.router import _extract_branch
+        assert _extract_branch({"ref": "refs/tags/v1.0"}) is None
+
+    def test_extract_branch_missing_ref(self):
+        from src.webhooks.router import _extract_branch
+        assert _extract_branch({}) is None
+
+    def test_extract_branch_non_string_ref_returns_none(self):
+        from src.webhooks.router import _extract_branch
+        # Pre-fix: this crashed with AttributeError on `.startswith`.
+        assert _extract_branch({"ref": 42}) is None
+        assert _extract_branch({"ref": None}) is None
+        assert _extract_branch({"ref": ["refs/heads/main"]}) is None
