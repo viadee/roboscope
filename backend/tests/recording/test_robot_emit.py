@@ -108,7 +108,11 @@ class TestGlobalKeywords:
         out = emit_robot(_flow([cmd]))
         assert "New Browser    chromium" in out
         assert "New Context" in out
-        assert "New Page    https://example.com" in out
+        # Story RECORDER-NAV-1 — `wait_until=domcontentloaded` is
+        # required so real-world pages (heise.de etc.) don't time out
+        # on the 10s `load` event waiting for ads/trackers. Run 32
+        # hit exactly that bug with the default `wait_until=load`.
+        assert "New Page    https://example.com    wait_until=domcontentloaded" in out
         assert "Go To" not in out  # the first Go To was folded into New Page
 
 
@@ -197,7 +201,9 @@ class TestMultiStepFlow:
         steps = lines[idx_test + 1 : idx_test + 8]
         assert steps[0] == "New Browser    chromium    headless=${HEADLESS}"
         assert steps[1] == "New Context"
-        assert steps[2] == "New Page    https://example.com/login"
+        # See note in TestGlobalKeywords — `wait_until=domcontentloaded`
+        # is the regression guard for the 10s `load`-event timeout.
+        assert steps[2] == "New Page    https://example.com/login    wait_until=domcontentloaded"
         assert steps[3].startswith("Type Text    [data-testid=\"email\"]")
         assert steps[4].startswith("Type Text    [data-testid=\"password\"]")
         assert steps[5].startswith("Click    [data-testid=\"login-btn\"]")

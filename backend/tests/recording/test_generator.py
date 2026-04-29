@@ -23,7 +23,15 @@ class TestGenerateRobotFile:
         ])
         result = generate_robot_file(events, "Browser")
         assert "New Browser" in result
-        assert "New Page    https://example.com" in result
+        # Story RECORDER-NAV-1 — Run 32 hit a 10s `page.goto` timeout
+        # on heise.de because the default `wait_until=load` waits for
+        # every ad/tracker subresource. The browser was visible (DOM
+        # was loaded), but `load` never fired in time.
+        # Fix: emit `wait_until=domcontentloaded` on every recorded
+        # `New Page`. This regression guard keeps the option pinned —
+        # if anyone drops it, real-world recordings start timing out
+        # again.
+        assert "New Page    https://example.com    wait_until=domcontentloaded" in result
 
     def test_navigate_selenium(self):
         events = json.dumps([

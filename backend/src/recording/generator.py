@@ -89,7 +89,13 @@ def generate_robot_file(
         if event_type == "navigate":
             if target_library == "Browser":
                 lines.append(f"    New Browser    ${{BROWSER}}    headless=false")
-                lines.append(f"    New Page    {url}")
+                # Default `wait_until=load` waits for every ad/tracker
+                # subresource to settle, which on real-world pages
+                # (heise.de etc.) routinely exceeds the Browser-library
+                # 10s timeout even when the page is visually loaded and
+                # interactive. `domcontentloaded` is enough for any
+                # subsequent Click / Type Text to find its target.
+                lines.append(f"    New Page    {url}    wait_until=domcontentloaded")
             else:
                 lines.append(f"    Open Browser    {url}    ${{BROWSER}}")
         elif event_type in ("input", "password"):

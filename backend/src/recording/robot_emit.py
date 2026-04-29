@@ -230,7 +230,12 @@ def emit_robot(flow: RecordedFlow) -> str:
         )
         lines.append(f"    New Browser    chromium    headless=${{HEADLESS}}")
         lines.append(f"    New Context")
-        lines.append(f"    New Page    {initial_url}")
+        # Default `wait_until=load` waits for every ad/tracker subresource
+        # to settle, which on real-world pages (heise.de etc.) routinely
+        # exceeds the Browser-library 10s timeout even when the page is
+        # visually loaded and interactive. `domcontentloaded` is enough
+        # for any subsequent Click / Type Text to find its target.
+        lines.append(f"    New Page    {initial_url}    wait_until=domcontentloaded")
         for i, cmd in enumerate(flow.commands):
             if i == first_goto_idx:
                 continue
