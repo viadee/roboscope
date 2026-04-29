@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.recording.robot_emit import emit_robot
+from src.recording.robot_emit import _emit_command, emit_robot
 from src.recording.selector_schema import (
     RecordedCommand,
     RecordedFlow,
@@ -91,7 +91,9 @@ class TestTargetedKeywords:
             ],
         )
         out = emit_robot(_flow([cmd]))
-        assert "Type Text    #email    hello@example.com" in out
+        # RECORDER-RF-ESCAPE — `#email` would be a comment for RF;
+        # emitter prepends `\` so the lexer treats it as literal.
+        assert "Type Text    \\#email    hello@example.com" in out
 
 
 class TestGlobalKeywords:
@@ -216,3 +218,124 @@ class TestMultiStepFlow:
         assert steps[4].startswith("Type Text    [data-testid=\"password\"]")
         assert steps[5].startswith("Click    [data-testid=\"login-btn\"]")
         assert steps[6].startswith("Wait For Elements State    text=Welcome")
+
+
+# ─── RECORDER-RF-ESCAPE — Robot-Framework token escaping ──────────────
+
+
+class TestRfTokenEscape:
+    """A Robot Framework token that STARTS with `#` is treated as a
+    comment — everything from there is dropped. The recorder must
+    backslash-escape leading `#` so CSS-ID selectors and similar
+    survive the lexer.
+    """
+
+    def test_css_id_selector_gets_leading_hash_escaped(self) -> None:
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css",
+                    value="#login-form",
+                    quality_score=90,
+                    verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        # Without the escape, `Click    #login-form` becomes
+        # `Click` + comment, and Click runs without args.
+        assert "\\#login-form" in line
+        assert " #login-form" not in line.replace("\\#", "<esc>")
+
+    def test_text_selector_no_escape_needed(self) -> None:
+        """Token starts with `t` (text=...), not `#` — must not be
+        touched. Escaping unnecessarily would break Browser library."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="text",
+                    value='text="Zustimmen"',
+                    quality_score=70,
+                    verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        assert 'text="Zustimmen"' in line
+        assert "\\text" not in line  # no spurious escape
+
+    def test_iframe_wrapped_selector_inner_hash_escaped(self) -> None:
+        """When the inner selector is `#login-form` AND we add the
+        iframe wrapper, the FINAL composite token starts with `i`
+        (iframe[src...]). No leading-`#` escape needed because the
+        composite token doesn't start with `#`. Sanity check the
+        escape doesn't mangle the iframe path."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css",
+                    value="#login-form",
+                    quality_score=90,
+                    verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+            frame_url="https://message-eu.sp-prod.net/i?id=xxx",
+        )
+        line = _emit_command(cmd)
+        assert 'iframe[src*="message-eu.sp-prod.net"] >>> #login-form' in line
+        # Composite token starts with `i`, no escape needed.
+        assert "\\iframe" not in line
+
+    def test_arg_starting_with_hash_gets_escaped(self) -> None:
+        """`Type Text    selector    #fancy-tag` — the third arg
+        starts with `#`. Without escape it'd be a comment and
+        Type Text would receive only the selector."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Type Text",
+            args={"text": "#fancy-tag"},
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="testid",
+                    value='[data-testid="search"]',
+                    quality_score=95,
+                    verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        assert "\\#fancy-tag" in line
+
+    def test_url_with_hash_fragment_not_escaped(self) -> None:
+        """A URL like `https://example.com/#section` doesn't START
+        with `#`, so it isn't a comment — escape would be wrong."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Go To",
+            args={"url": "https://example.com/#section"},
+        )
+        line = _emit_command(cmd)
+        assert "https://example.com/#section" in line
+        assert "\\https" not in line
+        assert "\\#section" not in line  # no spurious mid-string escape
+
+    def test_none_value_emits_robot_none_variable(self) -> None:
+        """Sanity — non-string args route through `_render_arg` and
+        must NOT trip the escape (None ⇒ `${None}`, no leading-#)."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Set Variable",
+            args={"value": None},
+        )
+        line = _emit_command(cmd)
+        assert "${None}" in line

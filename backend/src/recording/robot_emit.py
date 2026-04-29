@@ -45,6 +45,33 @@ _GLOBAL_KEYWORDS = {
 }
 
 
+def _escape_rf_token(s: str) -> str:
+    """Escape Robot Framework special characters at the TOKEN level.
+
+    Robot Framework's lexer (space-separated format) treats any token
+    that STARTS with `#` as a comment — everything from there to end
+    of line is dropped. So a recorded CSS-ID selector `#login-form`
+    naively rendered as `Click    #login-form` makes the entire
+    Click silently run without arguments.
+
+    Escape sequence is RF-defined: `\\#` → literal `#`. The leading
+    backslash is consumed by RF's lexer before the value reaches
+    Browser library, so the eventual `page.locator('#login-form')`
+    call sees the raw selector unchanged.
+
+    Other RF token-level traps (TAB or 2+ spaces inside the value,
+    leading whitespace, literal `\\`) are NOT handled here yet —
+    they're rare in recorded selectors / text labels and would
+    require per-character escaping that risks over-correction. If a
+    new failure mode shows up, extend here.
+    """
+    if not s:
+        return s
+    if s.startswith("#"):
+        return "\\" + s
+    return s
+
+
 def _render_selector(cand: SelectorCandidate) -> str:
     """Return the on-disk representation of a selector for a Robot line.
 
@@ -94,12 +121,12 @@ def _iframe_locator_from_url(frame_url: str) -> str | None:
 def _render_arg(value: object) -> str:
     """Render a keyword argument for a Robot line."""
     if isinstance(value, str):
-        return value
+        return _escape_rf_token(value)
     if isinstance(value, bool):
         return "${TRUE}" if value else "${FALSE}"
     if value is None:
         return "${None}"
-    return str(value)
+    return _escape_rf_token(str(value))
 
 
 def _emit_command(cmd: RecordedCommand) -> str:
@@ -115,6 +142,7 @@ def _emit_command(cmd: RecordedCommand) -> str:
         )
         if active is None:
             # Fail loud — a targeted keyword without a selector is a bug.
+            # Intentional RF comment marker; do NOT escape.
             parts.append("# WARNING: no selector captured")
         else:
             inner = _render_selector(active)
@@ -126,7 +154,11 @@ def _emit_command(cmd: RecordedCommand) -> str:
                 iframe_loc = _iframe_locator_from_url(cmd.frame_url)
                 if iframe_loc is not None:
                     inner = f"{iframe_loc} >>> {inner}"
-            parts.append(inner)
+            # RF-token escape — a CSS-ID selector `#login-form` would
+            # be parsed as a comment by Robot Framework. The escape
+            # `\#login-form` is consumed by RF's lexer before the
+            # value reaches Browser library.
+            parts.append(_escape_rf_token(inner))
 
     # Ordered args by convention: `url` first for navigation, `text` for
     # type/assert, `state` for wait, generic `value` last.
