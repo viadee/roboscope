@@ -107,6 +107,14 @@ extend-immutable-calls = [
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 
+[tool.ruff.lint.per-file-ignores]
+# Pytest fixture pattern: import a fixture for discovery, then use
+# its name as a function parameter. Ruff sees the parameter as a
+# "redefinition" (F811) of the imported name even though the import
+# uses `# noqa: F401`. F811 is a real bug-class in production code,
+# so we silence it ONLY in tests/.
+"tests/**" = ["F811"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
