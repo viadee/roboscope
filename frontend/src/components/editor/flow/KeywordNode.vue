@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Handle, Position } from '@vue-flow/core'
 import { activeSelector } from '@/types/recorder.types'
 import { qualityBand } from '@/utils/selectorQuality'
 import { getArgLabel, friendlyType } from '@/utils/robotKeywordSignatures'
+import { DRAG_ARM_DELAY_MS } from './reorderDrag'
 import type { FlowNodeData } from './flowConverter'
 
 const props = defineProps<{
@@ -18,8 +19,35 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
+// Drag-arm gating: HTML5 native drag fires the moment the user
+// nudges the mouse a few pixels with the button down. That meant a
+// brief click on the handle could already start a reorder gesture.
+// We defer setting `draggable=true` until the user has held the
+// button for `DRAG_ARM_DELAY_MS` ms — tap-and-release before that
+// never arms the drag. `pointerup` / `pointerleave` cancel the timer
+// so a release-and-retry doesn't accumulate state.
+const dragArmed = ref(false)
+let armTimer: number | null = null
+function armDrag() {
+  cancelArm()
+  armTimer = window.setTimeout(() => {
+    dragArmed.value = true
+  }, DRAG_ARM_DELAY_MS)
+}
+function cancelArm() {
+  if (armTimer != null) {
+    clearTimeout(armTimer)
+    armTimer = null
+  }
+  dragArmed.value = false
+}
+onBeforeUnmount(cancelArm)
+
 function onHandleDragStart(event: DragEvent) {
   emit('reorder-drag-start', event)
+}
+function onHandleDragEnd() {
+  cancelArm()
 }
 
 // Story EDITOR-2 — render chips as `name: value` when the signature is
@@ -75,9 +103,15 @@ const candidateTooltip = computed(() =>
       <div
         v-if="reorderEnabled"
         class="flow-drag-handle"
-        draggable="true"
+        :class="{ 'flow-drag-handle--armed': dragArmed }"
+        :draggable="dragArmed"
+        @pointerdown.stop="armDrag"
+        @pointerup="cancelArm"
+        @pointerleave="cancelArm"
+        @pointercancel="cancelArm"
         @mousedown.stop
         @dragstart.stop="onHandleDragStart"
+        @dragend="onHandleDragEnd"
       >&#x2630;</div>
       <span class="flow-node-icon">&#x2699;</span>
       <span class="flow-node-label">{{ data.step.keyword || 'Keyword' }}</span>
@@ -163,8 +197,11 @@ const candidateTooltip = computed(() =>
   opacity: 1;
   background: rgba(0, 0, 0, 0.06);
 }
-.flow-drag-handle:active {
+.flow-drag-handle:active,
+.flow-drag-handle--armed {
   cursor: grabbing;
+  background: rgba(59, 125, 216, 0.15);
+  opacity: 1;
 }
 .flow-node-args {
   margin-top: 4px;

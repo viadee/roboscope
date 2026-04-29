@@ -216,8 +216,14 @@ function onPaneClick() {
 
 // --- Editable step fields ---
 
-function rebuildAndReselect() {
-  const selectedId = selectedNode.value?.id
+// Optional `targetId` overrides the post-rebuild selection lookup.
+// Reorder ops (moveStepUp/Down/drag-drop) move a step to a new array
+// index, but node IDs are position-based — `tc0-step-N` for the step
+// currently at index N — so the OLD id points to a DIFFERENT step
+// after the rebuild. Callers that mutate positions must pass the new
+// id explicitly so the selection follows the *step*, not the slot.
+function rebuildAndReselect(targetId?: string) {
+  const selectedId = targetId ?? selectedNode.value?.id
   suppressFitView = true
   buildGraph()
   if (selectedId) {
@@ -226,6 +232,16 @@ function rebuildAndReselect() {
       selectedNode.value = reselected || null
     })
   }
+}
+
+// Helper: compose the position-based node id for a step at `realIdx`
+// in the currently-active section/item. Mirrors the format used in
+// `flowConverter.ts::stepsToFlow` (`${prefix}-step-${i}`).
+function stepNodeIdAt(realIdx: number): string {
+  const prefix = activeSection.value === 'testcases'
+    ? `tc${activeItemIndex.value}`
+    : `kw${activeItemIndex.value}`
+  return `${prefix}-step-${realIdx}`
 }
 
 function onStepFieldChange() {
@@ -549,7 +565,9 @@ function moveStepUp() {
   steps[idx] = steps[idx - 1]
   steps[idx - 1] = temp
   selectedNodeData.value.stepIndex = idx - 1
-  rebuildAndReselect()
+  // Pin selection to the moved step's NEW position id so a user can
+  // press Up repeatedly to walk a step to the top of the list.
+  rebuildAndReselect(stepNodeIdAt(idx - 1))
   emit('update:step', selectedNodeData.value)
 }
 
@@ -563,7 +581,7 @@ function moveStepDown() {
   steps[idx] = steps[idx + 1]
   steps[idx + 1] = temp
   selectedNodeData.value.stepIndex = idx + 1
-  rebuildAndReselect()
+  rebuildAndReselect(stepNodeIdAt(idx + 1))
   emit('update:step', selectedNodeData.value)
 }
 
