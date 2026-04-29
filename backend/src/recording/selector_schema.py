@@ -11,6 +11,7 @@ raises on unknown versions — fail loud, never silently coerce.
 
 from __future__ import annotations
 
+import uuid
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -49,6 +50,26 @@ class SelectorCandidate(BaseModel):
     model_config = {"frozen": True}
 
 
+def _new_command_id() -> str:
+    """Stable identifier for one recorded command.
+
+    Story RECORDER-IDMAP — the link between a Robot Framework step and
+    its sidecar selector group used to be purely positional ("nth
+    recorded step in the file"). Reordering / deleting / inserting
+    steps in the visual editor would silently shift the candidate
+    groups onto the wrong rows. This id is the position-independent
+    handle: the emitter writes it as a trailing `# rbs:<id>` comment
+    on each `.robot` line, so the FlowEditor can re-link by identity
+    instead of by position.
+
+    Short prefix + 12 hex chars is enough entropy to avoid collisions
+    within a single recording (UUIDv4 truncated). Full UUIDs would
+    bloat every line; 12 chars (~48 bits) gives 1-in-billions for
+    typical recording sizes.
+    """
+    return uuid.uuid4().hex[:12]
+
+
 class RecordedCommand(BaseModel):
     """A single recorded user interaction mapped to a Robot keyword.
 
@@ -58,6 +79,14 @@ class RecordedCommand(BaseModel):
     .robot file.
     """
 
+    # Story RECORDER-IDMAP — position-independent identity. See
+    # `_new_command_id` docstring. Always present on commands minted
+    # by `translate_payload`; older sidecars (pre-RECORDER-IDMAP) load
+    # with a freshly-generated id so loading + re-saving doesn't drop
+    # the field, but the FlowEditor still falls back to positional
+    # matching for those legacy flows since the .robot can't carry
+    # ids that were never written.
+    id: str = Field(default_factory=_new_command_id)
     index: int = Field(ge=0)
     keyword: str
     args: dict = Field(default_factory=dict)

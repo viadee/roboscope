@@ -339,3 +339,89 @@ class TestRfTokenEscape:
         )
         line = _emit_command(cmd)
         assert "${None}" in line
+
+
+# ─── RECORDER-IDMAP — position-independent command id ─────────────────
+
+
+class TestCommandIdEmit:
+    """Each emitted line carries `# rbs:<id>` so the FlowEditor can
+    re-link selector groups to their step independent of position
+    (reorder / delete / insert in the visual editor must not silently
+    shift candidate groups onto the wrong rows)."""
+
+    def test_click_line_carries_id_comment(self) -> None:
+        cmd = RecordedCommand(
+            id="abc123def456",
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="testid",
+                    value='[data-testid="login"]',
+                    quality_score=95,
+                    verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        # Trailing comment must be present so the editor can match by id.
+        assert line.rstrip().endswith("# rbs:abc123def456")
+        # Standard arg ordering still intact (selector is between
+        # keyword and the trailing comment).
+        assert '[data-testid="login"]' in line
+
+    def test_go_to_line_carries_id_comment(self) -> None:
+        """`Go To` has no selector but still benefits from id-mapping
+        in case the user reorders subsequent navigation."""
+        cmd = RecordedCommand(
+            id="navi5678",
+            index=0,
+            keyword="Go To",
+            args={"url": "https://example.com"},
+        )
+        line = _emit_command(cmd)
+        assert line.rstrip().endswith("# rbs:navi5678")
+
+    def test_warning_line_does_not_get_id_comment(self) -> None:
+        """When the recorder couldn't synthesise any selector, the
+        line is already a `# WARNING: …` comment marker. Adding a
+        second `# rbs:…` would tail-pollute that comment."""
+        cmd = RecordedCommand(
+            id="should-not-leak",
+            index=0,
+            keyword="Click",
+            # No selector_candidates → fail-loud warning path.
+        )
+        line = _emit_command(cmd)
+        assert "# WARNING" in line
+        assert "# rbs:" not in line
+
+    def test_id_default_is_short_and_collision_resistant(self) -> None:
+        """Default factory generates a 12-char hex slice. Long enough
+        to avoid collisions within a recording, short enough to not
+        bloat every emitted line."""
+        cmd_a = RecordedCommand(index=0, keyword="Click")
+        cmd_b = RecordedCommand(index=1, keyword="Click")
+        assert cmd_a.id != cmd_b.id
+        assert len(cmd_a.id) == 12
+        assert all(c in "0123456789abcdef" for c in cmd_a.id)
+
+    def test_explicit_id_round_trips_through_emit(self) -> None:
+        """The id is the user's identity for the row; sidecar load,
+        FlowEditor edit, save back must preserve it. Emit-side check:
+        whatever id is on the model lands verbatim in the line."""
+        cmd = RecordedCommand(
+            id="my-pinned-id",
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="button.x", quality_score=50
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        assert "# rbs:my-pinned-id" in line

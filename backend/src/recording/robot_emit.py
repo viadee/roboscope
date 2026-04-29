@@ -181,7 +181,17 @@ def _emit_command(cmd: RecordedCommand) -> str:
         if key not in ordered:
             parts.append(_render_arg(val))
 
-    return "    " + "    ".join(parts)
+    # Story RECORDER-IDMAP — trailing comment with the command's
+    # position-independent id. RF treats it as a regular line comment
+    # (token starts with `#`); the FlowEditor parses it back out so
+    # selector groups stay linked to their step even after
+    # reorder / delete / insert in the visual editor. Skip when the
+    # command has no candidates AND no id-bearing payload to map to —
+    # the warning line above is its own comment.
+    line = "    " + "    ".join(parts)
+    if cmd.id and not (selector_needed and not cmd.selector_candidates):
+        line += f"    # rbs:{cmd.id}"
+    return line
 
 
 def _library_for_transport(transport: str) -> str:

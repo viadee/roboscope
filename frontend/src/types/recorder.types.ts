@@ -33,6 +33,16 @@ export interface SelectorCandidate {
 }
 
 export interface RecordedCommand {
+  /**
+   * Story RECORDER-IDMAP — position-independent command id. The
+   * emitter writes this as a trailing `# rbs:<id>` comment on the
+   * `.robot` line so the FlowEditor can re-link selector groups to
+   * their step even after reorder / insert / delete in the visual
+   * editor. Optional for backwards compatibility with sidecars
+   * recorded before the field shipped — the FlowEditor falls back
+   * to positional matching when the id is missing.
+   */
+  id?: string
   index: number
   /** Robot Framework keyword name — e.g. "Click", "Type Text", "Get Element Value". */
   keyword: string
