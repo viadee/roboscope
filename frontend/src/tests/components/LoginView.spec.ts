@@ -55,7 +55,7 @@ describe('LoginView', () => {
   describe('rendering', () => {
     it('renders login form with email input', () => {
       const wrapper = mountLoginView()
-      const emailInput = wrapper.find('input[type="text"]')
+      const emailInput = wrapper.find('input[type="email"]')
       expect(emailInput.exists()).toBe(true)
       expect(emailInput.attributes('placeholder')).toBe('admin@roboscope.local')
     })
@@ -90,7 +90,7 @@ describe('LoginView', () => {
         response: { data: { detail: 'Ungueltige Anmeldedaten' } },
       })
 
-      await wrapper.find('input[type="text"]').setValue('bad@email.com')
+      await wrapper.find('input[type="email"]').setValue('bad@email.com')
       await wrapper.find('input[type="password"]').setValue('wrong')
       await wrapper.find('form').trigger('submit')
       await flushPromises()
@@ -105,7 +105,7 @@ describe('LoginView', () => {
 
       vi.spyOn(auth, 'login').mockRejectedValue(new Error('Network Error'))
 
-      await wrapper.find('input[type="text"]').setValue('bad@email.com')
+      await wrapper.find('input[type="email"]').setValue('bad@email.com')
       await wrapper.find('input[type="password"]').setValue('wrong')
       await wrapper.find('form').trigger('submit')
       await flushPromises()
@@ -121,7 +121,7 @@ describe('LoginView', () => {
 
       vi.spyOn(auth, 'login').mockResolvedValue(undefined)
 
-      await wrapper.find('input[type="text"]').setValue('admin@roboscope.local')
+      await wrapper.find('input[type="email"]').setValue('admin@roboscope.local')
       await wrapper.find('input[type="password"]').setValue('admin')
       await wrapper.find('form').trigger('submit')
       await flushPromises()
