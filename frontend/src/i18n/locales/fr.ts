@@ -1214,6 +1214,8 @@ export default {
       unknown: 'Valeur',
       optionalSuffix: ' (optionnel)',
       customValue: 'personnalisé',
+      toggleToText: 'Basculer en saisie texte (p.ex. pour une variable)',
+      toggleBackToTyped: 'Revenir à la saisie typée',
     },
   },
   robotEditor: {

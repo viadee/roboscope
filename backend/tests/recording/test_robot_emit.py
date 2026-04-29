@@ -114,6 +114,14 @@ class TestGlobalKeywords:
         # hit exactly that bug with the default `wait_until=load`.
         assert "New Page    https://example.com    wait_until=domcontentloaded" in out
         assert "Go To" not in out  # the first Go To was folded into New Page
+        # The bootstrap references `${HEADLESS}`; the suite MUST also
+        # define it under `*** Variables ***`, otherwise Robot Framework
+        # refuses to start with "Variable '${HEADLESS}' not found."
+        assert "*** Variables ***" in out
+        # Default value: `false` — recorded tests come from clicking a
+        # real page; running them headed by default matches user intent.
+        import re
+        assert re.search(r"\$\{HEADLESS\}\s+false", out) is not None
 
 
 class TestArgOrdering:

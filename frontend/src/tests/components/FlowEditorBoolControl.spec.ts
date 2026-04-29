@@ -86,6 +86,48 @@ describe('isBoolChecked', () => {
   })
 })
 
+// Mirror of FlowEditor.vue::effectiveControl's var-ref check, focused
+// on the `name=value` round-trip. The full `effectiveControl` also
+// consults `argTypeAt(i).control` and a per-slot text-mode override
+// — out of scope here; we test only the regex layer that decides
+// whether a slot is "currently bearing a Robot variable reference".
+function valueHalfIsVariableRef(raw: string): boolean {
+  const m = /^([A-Za-z_][\w]*)\s*=(.*)$/.exec(raw)
+  const valueHalf = m ? m[2] : raw
+  return /^[$@&]\{.+\}$/.test(valueHalf.trim())
+}
+
+describe('effectiveControl variable-ref detection (named-arg form)', () => {
+  it('treats `headless=${HEADLESS}` as variable-bearing → render as text', () => {
+    // The recorder emits `headless=${HEADLESS}` so the user can flip
+    // head/headless without editing the test body. Without this fix
+    // FlowEditor rendered a checkbox that would overwrite the var ref
+    // with literal `True`/`False` on the first toggle.
+    expect(valueHalfIsVariableRef('headless=${HEADLESS}')).toBe(true)
+  })
+
+  it('treats bare `${HEADLESS}` as variable-bearing too', () => {
+    expect(valueHalfIsVariableRef('${HEADLESS}')).toBe(true)
+  })
+
+  it('does NOT treat literal `True` / `False` as variable-bearing', () => {
+    expect(valueHalfIsVariableRef('True')).toBe(false)
+    expect(valueHalfIsVariableRef('headless=True')).toBe(false)
+    expect(valueHalfIsVariableRef('headless=false')).toBe(false)
+  })
+
+  it('handles `@{LIST}` and `&{DICT}` reference forms too', () => {
+    expect(valueHalfIsVariableRef('@{ITEMS}')).toBe(true)
+    expect(valueHalfIsVariableRef('items=@{ITEMS}')).toBe(true)
+    expect(valueHalfIsVariableRef('&{CFG}')).toBe(true)
+  })
+
+  it('does NOT match a partially-formed variable (just `${`)', () => {
+    expect(valueHalfIsVariableRef('${incomplete')).toBe(false)
+    expect(valueHalfIsVariableRef('not_a_var${VAR}suffix')).toBe(false)
+  })
+})
+
 describe('applyBoolToggle', () => {
   it('preserves the `name=` prefix on a named-arg slot after toggle', () => {
     // Bug #1 — without the fix, `force=True` becomes `True` after a

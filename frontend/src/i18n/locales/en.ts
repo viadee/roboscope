@@ -1214,6 +1214,8 @@ export default {
       unknown: 'Value',
       optionalSuffix: ' (optional)',
       customValue: 'custom',
+      toggleToText: 'Switch to text input (e.g. for a variable)',
+      toggleBackToTyped: 'Switch back to typed input',
     },
   },
   robotEditor: {

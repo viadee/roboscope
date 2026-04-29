@@ -204,9 +204,26 @@ def emit_robot(flow: RecordedFlow) -> str:
         "*** Settings ***",
         f"Library           {library}",
         "",
+    ]
+
+    # Web flows reference `${HEADLESS}` in their bootstrap (`New Browser
+    # chromium    headless=${HEADLESS}`) so the user can flip head /
+    # headless without touching the test body. We MUST also DEFINE the
+    # variable here, otherwise Robot Framework refuses to start with
+    # "Variable '${HEADLESS}' not found." `false` is the right default
+    # for recorded tests — they're authored by clicking through a real
+    # page; running them headed by default is what the user expects.
+    if not is_desktop:
+        lines.extend([
+            "*** Variables ***",
+            "${HEADLESS}       false",
+            "",
+        ])
+
+    lines.extend([
         "*** Test Cases ***",
         test_name,
-    ]
+    ])
 
     if not flow.commands:
         lines.append("    No Operation")

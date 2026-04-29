@@ -371,18 +371,61 @@ function argTooltipAt(index: number): string | undefined {
   return ft.raw + (ft.optional ? t('flowEditor.argTypes.optionalSuffix') : '')
 }
 
+// Per-slot user override that forces the text input even when the
+// inferred control would be checkbox / select / number. Cleared when
+// the selected node changes (different step → different intent).
+// Keyed by `${nodeId}#${slotIndex}` so two slots on different nodes
+// don't share state.
+const textModeOverrides = ref<Set<string>>(new Set())
+function _slotKey(index: number): string {
+  return `${selectedNode.value?.id ?? '?'}#${index}`
+}
+function isTextModeOverridden(index: number): boolean {
+  return textModeOverrides.value.has(_slotKey(index))
+}
+function toggleTextMode(index: number): void {
+  const key = _slotKey(index)
+  const next = new Set(textModeOverrides.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  textModeOverrides.value = next
+}
+// Reset the per-slot text-mode overrides when the selection changes
+// — overrides are intent-bound to a specific step, not the panel.
+watch(selectedNode, () => {
+  textModeOverrides.value = new Set()
+})
+
 /**
  * Story EDITOR-3 — when the user has a Robot Framework variable ref
  * (`${TRUE}`, `${SELECTED}`) in the slot, fall back to the plain text
  * input even for typed slots. A naive checkbox would read `${TRUE}` as
  * falsy and overwrite the variable reference with literal `False` on
  * the first toggle — silent data loss.
+ *
+ * Three layers of "render as text instead of typed control":
+ *   1. The arg-type itself is `text` (no friendly typing known).
+ *   2. The slot value (or the value-half of a `name=value` slot, like
+ *      `headless=${HEADLESS}`) is a Robot Framework variable
+ *      reference. The detection has to peek INSIDE the named-arg form
+ *      so the recorder's `headless=${HEADLESS}` doesn't get rendered
+ *      as a checkbox that would overwrite the var ref on toggle.
+ *   3. The user explicitly flipped text mode on for this slot via the
+ *      `{}` toggle button (e.g. they want to enter `${HEADLESS}` into
+ *      a slot currently holding `False`).
  */
 function effectiveControl(index: number): FriendlyType['control'] {
+  if (isTextModeOverridden(index)) return 'text'
   const ctrl = argTypeAt(index).control
   if (ctrl === 'text') return ctrl
-  const v = selectedNodeData.value?.step.args[index]
-  if (isVariableRef(v)) return 'text'
+  const raw = selectedNodeData.value?.step.args[index] ?? ''
+  // Strip a leading `name=` so `headless=${HEADLESS}` is recognised
+  // as a variable-bearing slot. Without this, `isVariableRef` only
+  // matches bare `${...}` and the recorder's `headless=${HEADLESS}`
+  // gets rendered as a checkbox.
+  const m = /^([A-Za-z_][\w]*)\s*=(.*)$/.exec(raw)
+  const valueHalf = m ? m[2] : raw
+  if (isVariableRef(valueHalf)) return 'text'
   return ctrl
 }
 
@@ -1163,6 +1206,23 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
                 :placeholder="argPlaceholderAt(i)"
                 @change="onStepFieldChange"
               />
+              <!-- Story EDITOR-VAR-1 — escape hatch from the typed
+                   control to a free-text input so the user can enter
+                   a Robot Framework variable reference (`${HEADLESS}`)
+                   on a slot whose underlying type is bool/select/number.
+                   Hidden when the underlying type is already plain text
+                   (nothing to toggle to). The button text flips when
+                   the override is active so the user can switch back. -->
+              <button
+                v-if="argTypeAt(i).control !== 'text'"
+                type="button"
+                class="flow-input-toggle"
+                :title="isTextModeOverridden(i)
+                  ? t('flowEditor.argTypes.toggleBackToTyped')
+                  : t('flowEditor.argTypes.toggleToText')"
+                :data-testid="`arg-text-toggle-${i}`"
+                @click="toggleTextMode(i)"
+              >{{ isTextModeOverridden(i) ? '⌨' : '{}' }}</button>
             </template>
             <button class="flow-btn-remove" @click="removeArg(i)">&times;</button>
           </div>
@@ -1541,6 +1601,26 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   flex-shrink: 0;
   cursor: pointer;
   accent-color: var(--color-primary, #3B7DD8);
+}
+/* Story EDITOR-VAR-1 — toggle between typed control and plain text.
+   Lets the user enter a Robot Framework variable reference on a slot
+   whose inferred type is bool / select / number. */
+.flow-input-toggle {
+  border: 1px solid var(--color-border, #e2e8f0);
+  background: #fff;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-text-muted, #5A6380);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.flow-input-toggle:hover {
+  background: rgba(59, 125, 216, 0.10);
+  color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #3B7DD8);
 }
 /* Story EDITOR-9 — named-arg picker popover */
 .flow-add-arg-wrap {
