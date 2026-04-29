@@ -31,10 +31,27 @@ LocatorFactory = Callable[[SelectorCandidate], Awaitable[int]]
 
 
 def _with_nth_match(candidate: SelectorCandidate) -> SelectorCandidate:
-    """Return a new candidate with `:nth-match(1)` glued on where the
-    strategy allows. Unsupported strategies (text, aria, testid) are
-    returned unchanged — Playwright's text= and role= selectors don't
-    compose with :nth-match."""
+    """Return a new candidate that picks the first match where the
+    strategy allows.
+
+    The original Story-S.3 implementation only handled CSS / XPath /
+    pw_locator. text / aria / testid passed through unchanged with
+    `verified_unique=False`, because the comment claimed "Playwright's
+    text= and role= don't compose with :nth-match". That's true for
+    the CSS pseudo-class `:nth-match()`, but Playwright (and Browser
+    library, which passes locators through verbatim) DOES support the
+    chained-locator `<base> >> nth=0` syntax for every strategy.
+
+    Concrete failure that motivated this fix: the recorder produced
+    `text=Zustimmen` for a Sourcepoint banner where two buttons AND a
+    paragraph all matched. At replay, Playwright strict-mode rejected
+    the click. With this change, multi-match text/aria/testid now
+    disambiguate to `text=Zustimmen >> nth=0` and the click works.
+
+    Quality score is penalised by 15 in every disambiguation branch
+    so verified-but-needs-disambiguation candidates rank below truly-
+    unique ones in the picker.
+    """
     if candidate.strategy == "css":
         value = f"{candidate.value}:nth-match(1)"
     elif candidate.strategy == "xpath":
@@ -42,6 +59,11 @@ def _with_nth_match(candidate: SelectorCandidate) -> SelectorCandidate:
         value = f"({candidate.value})[1]"
     elif candidate.strategy == "pw_locator":
         value = f"{candidate.value}.first"
+    elif candidate.strategy in ("text", "aria", "testid"):
+        # Playwright/Browser-library chained locator. `nth=0` selects
+        # the first of N matches. Same semantics as `.first()` on a
+        # JS Locator.
+        value = f"{candidate.value} >> nth=0"
     else:
         return candidate
     return SelectorCandidate(
