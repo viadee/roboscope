@@ -387,17 +387,41 @@ function effectiveControl(index: number): FriendlyType['control'] {
 
 // Bool control round-trip: value may be 'True', 'true', 'yes', 'on', '1'
 // for truthy or anything else for falsy. We always write 'True' / 'False'.
+//
+// Both helpers must respect the `name=value` form (e.g. `force=True`).
+// Without that:
+//   - `isBoolChecked` would `readBoolValue('force=True')` → false, so a
+//     value the user explicitly set to True renders unchecked.
+//   - `onBoolToggle` would overwrite `force=True` with bare `True`,
+//     dropping the `name=` prefix. After re-render `specForSlot` no
+//     longer finds the spec by name and falls back to the positional
+//     spec at the same index — usually a different, non-bool spec —
+//     so the checkbox disappears and a text input takes its place
+//     mid-edit. Both bugs reported by the user, both fixed here.
+const _NAMED_ARG_RE = /^([A-Za-z_][\w]*)\s*=(.*)$/
 function onBoolToggle(index: number, e: Event) {
   if (!selectedNodeData.value) return
   const checked = (e.target as HTMLInputElement).checked
-  selectedNodeData.value.step.args[index] = writeBoolValue(checked)
+  const raw = selectedNodeData.value.step.args[index] ?? ''
+  const m = _NAMED_ARG_RE.exec(raw)
+  selectedNodeData.value.step.args[index] = m
+    ? `${m[1]}=${writeBoolValue(checked)}`
+    : writeBoolValue(checked)
   onStepFieldChange()
 }
 function isBoolChecked(index: number): boolean {
-  const v = selectedNodeData.value?.step.args[index] ?? ''
+  const raw = selectedNodeData.value?.step.args[index] ?? ''
+  // Strip a leading `name=` so a named-arg slot is read against its
+  // value half rather than the literal slot string.
+  const m = _NAMED_ARG_RE.exec(raw)
+  const v = m ? m[2] : raw
   if (v) return readBoolValue(v)
-  // Fall back to the default value when the user hasn't entered anything.
-  const def = selectedNodeData.value?.argSpecs?.[index]?.defaultValue
+  // Fall back to the keyword's signature default — covers both bare
+  // empty positional slots and `name=` (no value yet) named slots,
+  // so the checkbox initial state mirrors RF's runtime behaviour.
+  // `specForSlot` resolves named-arg slots by name; falls back to
+  // positional otherwise.
+  const def = specForSlot(index)?.spec.defaultValue
   return readBoolValue(def ?? '')
 }
 
@@ -462,9 +486,19 @@ function toggleAddArgPicker() {
 function pickAddArg(opt: AddArgOption) {
   if (!selectedNodeData.value) return
   // Next positional → bare value (RF reads positionally, label resolves
-  // by index). Otherwise write a named arg `name=` so RF doesn't depend
-  // on order, and `specForSlot` will pick up the spec by name.
-  const value = opt.isNextPositional ? '' : `${opt.name}=`
+  // by index). Otherwise write a named arg `name=<default>` so RF
+  // doesn't depend on order AND the slot is valid the moment it's
+  // added — `name=` on its own would be syntactically invalid in
+  // `.robot` source, plus a bool checkbox would read it as unchecked
+  // even when the keyword's signature default is True.
+  let value: string
+  if (opt.isNextPositional) {
+    value = ''
+  } else if (opt.defaultValue != null && opt.defaultValue !== '') {
+    value = `${opt.name}=${opt.defaultValue}`
+  } else {
+    value = `${opt.name}=`
+  }
   selectedNodeData.value.step.args.push(value)
   updateStepFromNode(props.form, selectedNodeData.value)
   rebuildAndReselect()
