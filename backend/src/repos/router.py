@@ -369,15 +369,14 @@ def publish(
     except GitOperationError as e:
         # Commit succeeded but push failed → return 409 with the
         # commit metadata so the user knows their work is safe
-        # locally.
-        commit_hash = getattr(e, "commit_hash", None)
-        committed_files = getattr(e, "committed_files", None)
-        if commit_hash is not None and e.kind == "non_fast_forward":
+        # locally. The exception type now declares these fields
+        # (story TYPE-7) so we read them as attributes directly.
+        if e.commit_hash is not None and e.kind == "non_fast_forward":
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={
-                    "commit_hash": commit_hash,
-                    "files": committed_files or [],
+                    "commit_hash": e.commit_hash,
+                    "files": e.committed_files or [],
                     "message": body.message,
                     "pushed": False,
                     "conflict": True,

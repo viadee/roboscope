@@ -216,11 +216,22 @@ class GitOperationError(Exception):
       - 'non_fast_forward'   the remote rejected the push (409)
       - 'auth'               remote authentication failed (502)
       - 'other'              everything else (500)
+
+    Optional fields (set when commit succeeded but a subsequent step
+    like push failed — the router uses these to return 409 with the
+    commit-recovery payload so the user's local work isn't lost):
+      - commit_hash       — the SHA of the local commit that landed
+      - committed_files   — the paths in that commit
     """
 
     def __init__(self, kind: str, message: str):
         super().__init__(message)
         self.kind = kind
+        # Declared upfront so callers don't need
+        # `getattr(e, "commit_hash", None)` and the service-layer
+        # writes don't need `# type: ignore[attr-defined]`.
+        self.commit_hash: str | None = None
+        self.committed_files: list[str] | None = None
 
 
 def get_repo_status(local_path: str) -> dict:
@@ -497,8 +508,11 @@ def publish_changes(
     try:
         push_result = push_branch(local_path)
     except GitOperationError as e:
-        e.commit_hash = commit_result["commit_hash"]  # type: ignore[attr-defined]
-        e.committed_files = commit_result["files"]   # type: ignore[attr-defined]
+        # Commit landed locally; surface that to the router via the
+        # declared exception fields (was previously stuffed via
+        # attr-defined ignores).
+        e.commit_hash = commit_result["commit_hash"]
+        e.committed_files = commit_result["files"]
         raise
 
     return {
