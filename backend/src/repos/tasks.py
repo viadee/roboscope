@@ -31,6 +31,16 @@ def clone_repo(repo_id: int, max_retries: int = 3) -> dict:
         repo.sync_error = None
         session.commit()
 
+        # Defensive: a git-typed repo without a git_url shouldn't reach
+        # here (Pydantic + the router both enforce it), but if a stray
+        # row slipped through migrations or a manual DB edit, surface
+        # a clean error instead of crashing in GitPython.
+        if not repo.git_url:
+            repo.sync_status = "error"
+            repo.sync_error = "No git URL configured"
+            session.commit()
+            return {"status": "error", "message": "No git URL configured"}
+
         last_exc = None
         for attempt in range(max_retries):
             try:

@@ -48,6 +48,14 @@ def create_repository(
 ) -> Repository:
     """Create a new repository entry."""
     if data.repo_type == "local":
+        # `data.local_path` is `str | None` on the schema; the
+        # `validate_type_fields` model validator on RepoCreate enforces
+        # it's set whenever repo_type == 'local'. Mypy can't see across
+        # the validator, so we re-assert here.
+        assert data.local_path is not None, (
+            "RepoCreate.validate_type_fields should have rejected a "
+            "local repo without local_path before reaching this point"
+        )
         local_path = data.local_path
         path = Path(local_path)
         if not path.exists():
