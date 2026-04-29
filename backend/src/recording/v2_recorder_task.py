@@ -45,25 +45,29 @@ logger = logging.getLogger("roboscope.recording.v2_recorder")
 
 async def _verify_command_candidates(
     cmd: RecordedCommand,
-    page: Any,
+    frame_or_page: Any,
 ) -> RecordedCommand:
-    """Run `verify_candidates` against the live page, return an
-    enriched copy with `verified_unique` flags populated.
+    """Run `verify_candidates` against the originating frame, return
+    an enriched copy with `verified_unique` flags populated.
 
     Extracted out of `on_capture` so a unit test can exercise it
-    against a fake `page` without mounting Playwright. `page` only
-    needs `.locator(value).count()` returning an awaitable int.
+    against a fake locator-target without mounting Playwright. The
+    target only needs `.locator(value).count()` returning an
+    awaitable int. In production we pass `source.frame` (the
+    Playwright `BindingSource.frame`) so iframe selectors resolve
+    within the iframe document — passing `.page` would search the
+    top frame and falsely drop every iframe selector as 0-match.
 
     Returns the original command unchanged when there are no
     candidates to verify (e.g. `Go To` / `Switch Page` / payloads
     with an unknown element).
     """
-    if not cmd.selector_candidates or page is None:
+    if not cmd.selector_candidates or frame_or_page is None:
         return cmd
 
     async def _count(c: SelectorCandidate) -> int:
         try:
-            return int(await page.locator(c.value).count())
+            return int(await frame_or_page.locator(c.value).count())
         except Exception:
             # Invalid selector syntax (some xpath / pw_locator exotica)
             # — treat as "no match" so it gets dropped, not silently
@@ -83,6 +87,7 @@ async def _verify_command_candidates(
         selector_candidates=verified,
         active_candidate_index=0,
         element_fingerprint=cmd.element_fingerprint,
+        frame_url=cmd.frame_url,
     )
 
 # Per-session stop signal. The DELETE endpoint sets this; the recorder
@@ -171,12 +176,14 @@ async def _recorder_loop(
             if cmd is None:
                 return
             # Story S.3 wire-up — verify candidate uniqueness against the
-            # live page before the command lands in the SSE stream. The
-            # helper sorts by `(verified_unique desc, quality_score desc)`,
-            # so the picker's first option is the best verified candidate
-            # (or the best unverified one if no candidate is unique).
-            page = getattr(source, "page", None)
-            cmd = await _verify_command_candidates(cmd, page)
+            # ORIGINATING FRAME, not the top page. iframe selectors only
+            # resolve within their own document; using `source.page`
+            # would falsely drop every iframe selector as 0-match.
+            # The helper sorts by `(verified_unique desc, quality_score
+            # desc)`, so the picker's first option is the best verified
+            # candidate (or the best unverified one if none is unique).
+            frame = getattr(source, "frame", None) or getattr(source, "page", None)
+            cmd = await _verify_command_candidates(cmd, frame)
             enqueue_command(session_id, cmd)
         except Exception:
             # Must NEVER raise — the binding handler runs on the Playwright

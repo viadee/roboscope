@@ -44,6 +44,25 @@ def _candidates_for(el: ElementSnapshot | None) -> list[SelectorCandidate]:
     return synthesise_selectors(el)
 
 
+def _frame_url_from_payload(payload: dict[str, Any]) -> str | None:
+    """Extract the originating frame URL when the event came from an
+    iframe. Top-frame events return None — the emitter omits the
+    `iframe[...] >>>` composite-locator wrapper for those.
+
+    Capture script tags every payload with `frame_url` (location.href)
+    and `is_top_frame` (window.top === window). We only treat
+    `is_top_frame === false` AND a non-empty URL as iframe-scoped.
+    Anything else (including missing fields from older payloads) maps
+    to None so existing recordings keep behaving as top-frame.
+    """
+    if payload.get("is_top_frame", True):
+        return None
+    url = payload.get("frame_url")
+    if isinstance(url, str) and url and not url.startswith("about:"):
+        return url
+    return None
+
+
 # Map the JS `kind` discriminator to the Robot keyword the v2 emitter
 # understands. Global keywords (Go To) carry no selector; targeted
 # keywords get one from the element snapshot.
@@ -69,6 +88,8 @@ def translate_payload(
     if not isinstance(kind, str):
         return None
 
+    frame_url = _frame_url_from_payload(payload)
+
     # Custom action emitted by the context-menu overlay (Story W.5).
     if kind == "custom_action":
         keyword = payload.get("keyword")
@@ -82,6 +103,7 @@ def translate_payload(
             args=args,
             selector_candidates=_candidates_for(el),
             active_candidate_index=0,
+            frame_url=frame_url,
         )
 
     if kind == "drag_drop":
@@ -99,6 +121,7 @@ def translate_payload(
             args={"value": target_value},
             selector_candidates=from_cands,
             active_candidate_index=0,
+            frame_url=frame_url,
         )
 
     if kind == "navigate":
@@ -157,6 +180,7 @@ def translate_payload(
                 args={"target": "page"},
                 selector_candidates=[],
                 active_candidate_index=0,
+                frame_url=frame_url,
             )
 
     return RecordedCommand(
@@ -165,4 +189,5 @@ def translate_payload(
         args=args,
         selector_candidates=_candidates_for(el),
         active_candidate_index=0,
+        frame_url=frame_url,
     )

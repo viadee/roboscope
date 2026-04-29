@@ -69,6 +69,14 @@ class RecordedCommand(BaseModel):
     # the drifted live DOM. Legacy / hand-written flows leave this None.
     # Shape: {tag, id, testid, classes:[], name, role, text, ancestors:[]}.
     element_fingerprint: dict | None = None
+    # Story RECORDER-FRAMES — URL of the document this event originated
+    # from. Top-frame events leave this None (the emitter doesn't wrap
+    # them with a frame qualifier). Iframe events carry the iframe
+    # document URL so the emitter can produce the Browser-library
+    # composite locator: `iframe[src*="<host>"] >>> <selector>`. Critical
+    # for capturing cross-origin consent banners (Sourcepoint / OneTrust /
+    # TCF) which are virtually always inside an iframe.
+    frame_url: str | None = None
 
     def model_post_init(self, _context) -> None:  # type: ignore[override]
         if self.selector_candidates:

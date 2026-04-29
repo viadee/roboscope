@@ -62,6 +62,35 @@ def _render_selector(cand: SelectorCandidate) -> str:
     return value
 
 
+def _iframe_locator_from_url(frame_url: str) -> str | None:
+    """Build a Browser-library iframe locator that targets a frame by
+    its host. Returns None if the URL has no usable host (data:, empty,
+    parse failure).
+
+    `iframe[src*="<host>"]` matches any iframe whose `src` contains
+    the host substring — robust to query-string variation between
+    consent flows (Sourcepoint, OneTrust et al. embed
+    session/consent-id query params that change every visit).
+
+    Composed at the call site as
+    `<iframe-locator> >>> <inner-selector>` (Browser library cross-
+    frame piercing dialect). For replay this resolves the iframe by
+    src match, descends into its document, then finds the inner
+    selector — so a recorded click on a Sourcepoint "Accept all"
+    button comes back as something like
+    `iframe[src*="message-eu.sp-prod.net"] >>> button.message-component`.
+    """
+    from urllib.parse import urlparse
+    try:
+        parsed = urlparse(frame_url)
+    except Exception:
+        return None
+    host = parsed.netloc
+    if not host:
+        return None
+    return f'iframe[src*="{host}"]'
+
+
 def _render_arg(value: object) -> str:
     """Render a keyword argument for a Robot line."""
     if isinstance(value, str):
@@ -88,7 +117,16 @@ def _emit_command(cmd: RecordedCommand) -> str:
             # Fail loud — a targeted keyword without a selector is a bug.
             parts.append("# WARNING: no selector captured")
         else:
-            parts.append(_render_selector(active))
+            inner = _render_selector(active)
+            # Story RECORDER-FRAMES — events captured inside an iframe
+            # carry their originating URL on the command; wrap the
+            # inner selector with `iframe[src*="<host>"] >>> ` so the
+            # replay locates the right document.
+            if cmd.frame_url:
+                iframe_loc = _iframe_locator_from_url(cmd.frame_url)
+                if iframe_loc is not None:
+                    inner = f"{iframe_loc} >>> {inner}"
+            parts.append(inner)
 
     # Ordered args by convention: `url` first for navigation, `text` for
     # type/assert, `state` for wait, generic `value` last.

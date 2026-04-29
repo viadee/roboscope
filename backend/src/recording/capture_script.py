@@ -21,15 +21,25 @@ CAPTURE_SCRIPT: str = r"""
   if (window.__roboscopeCaptureInstalled) return;
   window.__roboscopeCaptureInstalled = true;
 
-  // RECORDER-1A v2: `add_init_script` runs in EVERY document — including
-  // every iframe (ads, embedded video players, OAuth widgets). Capturing
-  // events from those frames pollutes the recording with URLs and clicks
-  // the user never made. Restrict the entire capture to the top frame.
-  // (iframe support requires RF Browser's `frame=` selector dialect and
-  // is a separate story when the need arises.)
+  // RECORDER-FRAMES — `add_init_script` runs in every document including
+  // iframes. The original v2 design aborted in non-top frames to keep
+  // ad/tracker iframes from polluting the recording, but that also
+  // meant Sourcepoint / OneTrust / TCF consent banners (which are
+  // virtually always in cross-origin iframes) were silently dropped —
+  // a real recording on heise.de produced a flow with the cookie
+  // accept missing. Now we ALWAYS run, and tag every payload with the
+  // originating `frame_url`. The backend treats the top frame as
+  // "default" (no frame qualifier in the emitted Click) and any other
+  // frame as a composite-locator target (`iframe[src*="..."] >>> sel`).
+  // Suppression of ad-iframe noise happens server-side now, with the
+  // benefit of context — see translate_payload's frame allow-list.
   let isTopFrame = true;
   try { isTopFrame = window.top === window; } catch (e) { /* cross-origin parent → treat as iframe */ isTopFrame = false; }
-  if (!isTopFrame) return;
+
+  // Capture phase fires before the page's own click handlers, so even
+  // a banner that calls stopPropagation never silences us. The binding
+  // is exposed on the BrowserContext, which Playwright propagates to
+  // every frame in every page.
 
   const MAX_TEXT = 60;
   const NAV_DEBOUNCE_MS = 100;
@@ -43,6 +53,11 @@ CAPTURE_SCRIPT: str = r"""
 
   function send(payload) {
     try {
+      // Tag every payload with the frame URL it came from. Top-frame
+      // payloads carry the page URL; iframe payloads carry the iframe
+      // document URL. Empty for `about:blank` etc.
+      payload.frame_url = location.href;
+      payload.is_top_frame = isTopFrame;
       if (typeof window.__roboscopeCapture === "function") {
         window.__roboscopeCapture(payload);
       }
@@ -172,6 +187,13 @@ CAPTURE_SCRIPT: str = r"""
   const CLICK_NAV_WINDOW_MS = 1500;
 
   function maybeEmitNav(source) {
+    // RECORDER-FRAMES — iframe documents navigate independently
+    // (consent flow internal redirects, ad-frame document swaps,
+    // OAuth pop-ups inside iframes). None of those are user-meaningful
+    // page navigations; emitting `Go To <iframe-url>` from them would
+    // pollute the recording with URLs the user never typed. Only the
+    // top frame contributes navigation events.
+    if (!isTopFrame) return;
     const now = location.href;
     if (now === lastNavUrl) return;
     // Placeholder URLs that browsers / Playwright use as the "no real
