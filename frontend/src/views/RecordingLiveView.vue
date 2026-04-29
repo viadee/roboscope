@@ -143,6 +143,20 @@ function updateActiveIndex(cmdIndex: number, newActive: number) {
   commands.value[cmdIndex] = { ...cmd, active_candidate_index: newActive }
 }
 
+/**
+ * RECORDER-FRAMES — short host label for the iframe badge.
+ * Strips the protocol and any trailing path so the chip stays narrow
+ * (`message-eu.sp-prod.net`, not the full URL with consent-id query).
+ */
+function frameHost(frameUrl: string | null | undefined): string {
+  if (!frameUrl) return ''
+  try {
+    return new URL(frameUrl).host
+  } catch {
+    return frameUrl
+  }
+}
+
 onMounted(async () => {
   await ensureBrowserStarted()
   connectStream()
@@ -180,6 +194,20 @@ const isTerminal = computed(() => streamState.value === 'done' || streamState.va
     <ol class="recording-live__steps">
       <li v-for="(cmd, idx) in commands" :key="idx" class="recording-live__step">
         <span class="recording-live__keyword">{{ cmd.keyword }}</span>
+        <!-- Story RECORDER-FRAMES — every iframe-originating command
+             gets a small chip with the iframe host so the user can
+             tell at a glance which clicks came from the consent
+             banner / OAuth widget vs. the main page. Critical signal
+             when the iframe was an ad they didn't intend to record —
+             they can delete the row before saving. -->
+        <span
+          v-if="cmd.frame_url"
+          class="recording-live__frame-badge"
+          :title="cmd.frame_url"
+          data-testid="recording-frame-badge"
+        >
+          ⇣ {{ frameHost(cmd.frame_url) }}
+        </span>
         <SelectorPicker
           v-if="cmd.selector_candidates.length"
           :command="cmd"
@@ -268,6 +296,21 @@ const isTerminal = computed(() => streamState.value === 'done' || streamState.va
   font-family: var(--font-mono, monospace);
   font-size: 0.8rem;
   color: var(--color-text-secondary, #555);
+}
+
+.recording-live__frame-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(212, 136, 62, 0.15);
+  color: var(--color-accent, #D4883E);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: help;
 }
 
 .recording-live__hint {

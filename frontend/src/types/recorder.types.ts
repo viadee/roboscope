@@ -45,6 +45,20 @@ export interface RecordedCommand {
   selector_candidates: SelectorCandidate[]
   /** Index into selector_candidates; 0 by default. */
   active_candidate_index: number
+  /**
+   * Story SH-3 — element fingerprint captured at record-time for the
+   * runtime self-healing fallback. Opaque shape used by the heal
+   * library; the UI never reads it.
+   */
+  element_fingerprint?: Record<string, unknown> | null
+  /**
+   * Story RECORDER-FRAMES — origin frame URL for events captured in
+   * a cross-origin iframe (Sourcepoint / OneTrust consent banners,
+   * OAuth widgets). Top-frame events have this null. The .robot
+   * emitter wraps the selector with `iframe[src*="<host>"] >>> …`
+   * when set.
+   */
+  frame_url?: string | null
 }
 
 export interface RecordedFlow {
