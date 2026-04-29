@@ -55,6 +55,7 @@ def _cand(value: str, score: int = 50, strategy: str = "css") -> SelectorCandida
 @pytest.mark.asyncio
 async def test_unique_candidate_gets_flagged_and_promoted() -> None:
     cmd = RecordedCommand(
+        id="pre-verify-id",
         index=0,
         keyword="Click",
         selector_candidates=[
@@ -72,6 +73,11 @@ async def test_unique_candidate_gets_flagged_and_promoted() -> None:
     assert out.selector_candidates[0].verified_unique is True
     # active_candidate_index is reset to 0 so the picker auto-selects the unique one.
     assert out.active_candidate_index == 0
+    # RECORDER-IDMAP — id MUST survive the reconstruct. Without
+    # `id=cmd.id` in `_verify_command_candidates`, the default
+    # factory mints a fresh id and translate_payload's original id
+    # is silently lost.
+    assert out.id == "pre-verify-id"
 
 
 @pytest.mark.asyncio
@@ -156,5 +162,5 @@ async def test_no_page_object_returns_command_unchanged() -> None:
         selector_candidates=[_cand("button.x", score=50)],
         active_candidate_index=0,
     )
-    out = await _verify_command_candidates(cmd, page=None)
+    out = await _verify_command_candidates(cmd, frame_or_page=None)
     assert out is cmd

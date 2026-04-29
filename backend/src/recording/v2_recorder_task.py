@@ -80,7 +80,17 @@ async def _verify_command_candidates(
     # it referred to a position in the unsorted/un-pruned list. Resetting
     # to 0 also keeps the RecordedCommand validator happy when verify
     # dropped enough candidates that the old index would be out of range.
+    #
+    # CRITICAL: copy `id` over from the source `cmd`. Without it the
+    # default factory mints a fresh id here and the one
+    # `translate_payload` assigned is silently lost. Within a single
+    # session the resulting chain (SSE → /save → .robot) is still
+    # internally consistent because everything downstream sees the
+    # NEW id, but it wastes an id and would confuse any future logic
+    # that expects translate_payload's id to be authoritative
+    # (e.g. correlating across logs).
     return RecordedCommand(
+        id=cmd.id,
         index=cmd.index,
         keyword=cmd.keyword,
         args=cmd.args,
