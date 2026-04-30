@@ -654,6 +654,28 @@ def v2_start_browser(
         return V2StartBrowserResponse(session_id=session_id, task_id=None)
 
     target_url = (data.target_url if data else None) or None
+    # Validate the URL scheme upfront — `page.goto(target_url)` would
+    # otherwise accept anything Playwright supports, including
+    # `javascript:` (potential XSS if a user is socially-engineered
+    # into pasting one) and `file://` (read-anywhere on the recorder
+    # host). Whitelisting http/https rejects all of those plus the
+    # accidental "ftp://" / "mailto:" / typo-without-scheme cases.
+    # Empty / whitespace-only normalises to None so the recorder
+    # opens to about:blank and lets the user navigate manually.
+    if target_url is not None:
+        target_url = target_url.strip()
+        if not target_url:
+            target_url = None
+        elif not (
+            target_url.startswith("http://") or target_url.startswith("https://")
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "target_url must be an http:// or https:// URL "
+                    "(got a different scheme — refused for security)"
+                ),
+            )
     transport: RecordingTransport = (data.transport if data else None) or "web_playwright"
 
     # Transport dispatch (D.1 AC): the Windows desktop recorder lives on

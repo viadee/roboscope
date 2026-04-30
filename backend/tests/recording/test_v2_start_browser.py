@@ -162,6 +162,125 @@ class TestTargetUrl:
         assert called["args"] == (session.id, "https://example.com")
 
 
+class TestTargetUrlValidation:
+    """Reject any URL whose scheme isn't http/https before the
+    recorder dispatch, so a `javascript:` or `file://` URL never
+    reaches `page.goto(...)`. Empty / whitespace-only normalises
+    to None (recorder opens to about:blank — same UX as a session
+    started without a target_url at all)."""
+
+    @pytest.fixture
+    def _no_dispatch(self, monkeypatch):
+        """Replace dispatch_task so we observe whether it was called.
+        If validation correctly rejects, dispatch must NOT fire."""
+        monkeypatch.delenv("ROBOSCOPE_RECORDER_DISABLED", raising=False)
+
+        called: dict = {}
+
+        class _FakeResult:
+            id = "fake-task-id"
+
+        def _fake(fn, *args, **kwargs):
+            called["fn"] = fn.__name__
+            called["args"] = args
+            return _FakeResult()
+
+        import src.recording.router as rr
+        monkeypatch.setattr(rr, "dispatch_task", _fake)
+        return called
+
+    @pytest.mark.parametrize(
+        "bad_url",
+        [
+            "javascript:alert(1)",
+            "file:///etc/passwd",
+            "ftp://server/",
+            "data:text/html,<p>x</p>",
+            "mailto:user@example.com",
+            "not-a-url",
+            "//missing-scheme.example.com",
+        ],
+        ids=["javascript", "file", "ftp", "data", "mailto", "no_scheme", "protocol_relative"],
+    )
+    def test_non_http_scheme_rejected_with_400(
+        self, client, db_session, admin_user, _no_dispatch, bad_url,
+    ):
+        session = _mk_session(db_session, admin_user)
+        resp = client.post(
+            ENDPOINT.format(session.id),
+            json={"target_url": bad_url},
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 400
+        assert "http://" in resp.json()["detail"] or "https://" in resp.json()["detail"]
+        # And critically — the recorder dispatch must NOT have run.
+        assert _no_dispatch == {}, (
+            f"validation rejected the URL but dispatch_task fired anyway: {_no_dispatch}"
+        )
+
+    def test_http_scheme_accepted(
+        self, client, db_session, admin_user, _no_dispatch,
+    ):
+        session = _mk_session(db_session, admin_user)
+        resp = client.post(
+            ENDPOINT.format(session.id),
+            json={"target_url": "http://internal.example.com/"},
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 202
+        assert _no_dispatch["args"] == (session.id, "http://internal.example.com/")
+
+    def test_https_scheme_accepted(
+        self, client, db_session, admin_user, _no_dispatch,
+    ):
+        session = _mk_session(db_session, admin_user)
+        resp = client.post(
+            ENDPOINT.format(session.id),
+            json={"target_url": "https://example.com/path?q=1"},
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 202
+        assert _no_dispatch["args"] == (session.id, "https://example.com/path?q=1")
+
+    def test_whitespace_only_normalised_to_none(
+        self, client, db_session, admin_user, _no_dispatch,
+    ):
+        # Same UX as omitting target_url — recorder opens about:blank
+        # and the user navigates manually.
+        session = _mk_session(db_session, admin_user)
+        resp = client.post(
+            ENDPOINT.format(session.id),
+            json={"target_url": "   \t\n  "},
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 202
+        assert _no_dispatch["args"] == (session.id, None)
+
+    def test_leading_trailing_whitespace_stripped(
+        self, client, db_session, admin_user, _no_dispatch,
+    ):
+        session = _mk_session(db_session, admin_user)
+        resp = client.post(
+            ENDPOINT.format(session.id),
+            json={"target_url": "  https://example.com/  "},
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 202
+        assert _no_dispatch["args"] == (session.id, "https://example.com/")
+
+    def test_omitted_target_url_still_works(
+        self, client, db_session, admin_user, _no_dispatch,
+    ):
+        session = _mk_session(db_session, admin_user)
+        resp = client.post(
+            ENDPOINT.format(session.id),
+            json={},
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 202
+        assert _no_dispatch["args"] == (session.id, None)
+
+
 class TestTransportDispatch:
     """Story D.1 AC — transport-aware dispatch + Windows-only guard."""
 
