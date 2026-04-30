@@ -552,6 +552,14 @@ class RoboScopeHeal:
         audit = self._resolve_audit_path()
         if audit is None:
             return
+        # RECORDER-IDMAP — best-effort lookup of the recorded command
+        # whose selector matches `original_selector`. Surfaces in the
+        # audit as `command_id` so reviewers can correlate heal
+        # patterns to specific recorded steps. Ambiguous case (two
+        # commands with identical selector values) records the first
+        # match; callers reading the audit should treat the field as
+        # informational, not authoritative.
+        command_id = self._lookup_command_id(original_selector)
         append_heal_audit(
             audit,
             test_name=self._current_test_name or self._discover_current_test_name(),
@@ -560,7 +568,30 @@ class RoboScopeHeal:
             healed_selector=candidate.value,
             confidence=candidate.confidence,
             source=candidate.source,
+            command_id=command_id,
         )
+
+    def _lookup_command_id(self, failed_selector: str) -> str | None:
+        """Read the sidecar and return the `id` of the command whose
+        active selector equals `failed_selector`. Returns None when no
+        sidecar / no match / sidecar lacks ids (pre-IDMAP recordings).
+        """
+        import json as _json
+
+        sidecar = self._resolve_sidecar_path()
+        if sidecar is None:
+            return None
+        try:
+            data = _json.loads(sidecar.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        for cmd in (data.get("commands") or []):
+            cands = cmd.get("selector_candidates") or []
+            for c in cands:
+                if (c.get("value") or "").strip() == failed_selector.strip():
+                    cid = cmd.get("id")
+                    return cid if isinstance(cid, str) else None
+        return None
 
     def _resolve_audit_path(self) -> Path | None:
         base: str | None = self._output_dir_arg

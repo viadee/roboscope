@@ -151,3 +151,57 @@ class TestAppendHealAudit:
             )
         lines = audit.read_text(encoding="utf-8").strip().splitlines()
         assert len(lines) == 3
+
+
+# ─── RECORDER-IDMAP — heal audit carries command_id when available ────
+
+
+class TestHealAuditCommandId:
+    def test_record_includes_command_id_when_provided(self, tmp_path: Path) -> None:
+        audit = tmp_path / "heal_audit.jsonl"
+        append_heal_audit(
+            audit,
+            test_name="T",
+            keyword="Click",
+            original_selector="text=Submit",
+            healed_selector="[data-testid='submit']",
+            confidence=0.85,
+            source="sidecar",
+            command_id="abc123def456",
+        )
+        record = json.loads(audit.read_text(encoding="utf-8").strip())
+        assert record["command_id"] == "abc123def456"
+
+    def test_record_omits_command_id_when_unset(self, tmp_path: Path) -> None:
+        """Pre-IDMAP recordings (no `id` on commands) and recordings
+        without sidecars produce audits with NO `command_id` key —
+        callers reading the JSONL must treat it as optional."""
+        audit = tmp_path / "heal_audit.jsonl"
+        append_heal_audit(
+            audit,
+            test_name="T",
+            keyword="Click",
+            original_selector="text=Submit",
+            healed_selector="[data-testid='submit']",
+            confidence=0.85,
+            source="transposition",
+        )
+        record = json.loads(audit.read_text(encoding="utf-8").strip())
+        assert "command_id" not in record
+
+    def test_record_omits_command_id_when_explicitly_none(self, tmp_path: Path) -> None:
+        """The library lookup returns None when no command matches —
+        passing through as None must NOT serialise an explicit `null`."""
+        audit = tmp_path / "heal_audit.jsonl"
+        append_heal_audit(
+            audit,
+            test_name="T",
+            keyword="Click",
+            original_selector="text=Submit",
+            healed_selector="[data-testid='submit']",
+            confidence=0.85,
+            source="sidecar",
+            command_id=None,
+        )
+        record = json.loads(audit.read_text(encoding="utf-8").strip())
+        assert "command_id" not in record

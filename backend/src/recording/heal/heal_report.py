@@ -174,15 +174,25 @@ def append_heal_audit(
     healed_selector: str,
     confidence: float,
     source: str,
+    command_id: str | None = None,
 ) -> None:
     """Append a single JSONL record to the audit file. Best-effort — a
     filesystem error does NOT take the test down; we log to stderr and
     keep going. A failed audit write means the heal still helped the
     test pass; losing the audit is far less bad than killing the run.
+
+    `command_id` is the RECORDER-IDMAP id of the recorded command
+    that the failing keyword was sourced from (resolved by the heal
+    library via sidecar lookup on `original_selector`). Including it
+    in the audit lets users correlate "this heal happened on
+    recording-step <id>" when reviewing heal patterns. Optional: not
+    every heal happens against a recorded command (legacy tests
+    without sidecars), and ambiguous lookups (two commands with
+    identical selector values) just record the first match.
     """
     from datetime import datetime, timezone
 
-    record = {
+    record: dict[str, object] = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "test_name": test_name,
         "keyword": keyword,
@@ -191,6 +201,8 @@ def append_heal_audit(
         "confidence": round(float(confidence), 4),
         "source": source,
     }
+    if command_id:
+        record["command_id"] = command_id
     try:
         audit_path.parent.mkdir(parents=True, exist_ok=True)
         with audit_path.open("a", encoding="utf-8") as f:
