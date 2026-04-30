@@ -15,60 +15,62 @@
  * sites should migrate as they're touched (the codebase tracks 65
  * such annotations as a known long-tail in CLAUDE.md).
  */
-import axios from 'axios'
-
 /**
  * Extract a human-readable error message from a thrown value, falling
  * back to `fallback` when nothing usable is available.
  *
- * Walks several common shapes:
- *   - axios error with `response.data.detail` (string) — FastAPI's
- *     conventional error shape; the most common case
- *   - axios error with `response.data.detail` (object with .message)
- *     — some endpoints wrap a structured error
- *   - axios error with `response.data` (string) — endpoints that
- *     skip the detail wrapper
- *   - native Error with `.message` — non-axios paths (sync errors,
- *     fetch failures, etc.)
- *   - everything else — `fallback`
+ * The migration target replaces this exact idiom (which appears 50+
+ * times in the codebase):
+ *
+ *     const detail = e?.response?.data?.detail || fallback
+ *
+ * The helper therefore matches that semantic precisely — it walks
+ * the `response.data` path on an unknown thrown value and returns
+ * a string, falling back when nothing usable was extractable. It
+ * deliberately does NOT extract `Error.message` or
+ * `AxiosError.message` ("Network Error", "Request failed with
+ * status code 500"), because the original idiom didn't either —
+ * call sites uniformly preferred a localised fallback over those
+ * raw messages.
+ *
+ * The structural check (`response?.data?.detail`) — rather than
+ * `axios.isAxiosError(e)` — also makes the helper drop-in for unit
+ * tests that mock with plain objects (`{ response: { data: { detail
+ * } } }`), matching the codebase's existing test patterns.
  *
  * Always returns a string. Never throws.
  */
 export function extractErrorDetail(e: unknown, fallback: string): string {
-  // Most common path — axios error with a FastAPI-shaped `detail`.
-  if (axios.isAxiosError(e)) {
-    const data: unknown = e.response?.data
-    // FastAPI conventional shape: `{ "detail": "<string>" }`
-    if (data && typeof data === 'object' && 'detail' in data) {
-      const detail = (data as { detail?: unknown }).detail
-      if (typeof detail === 'string' && detail.length > 0) {
-        return detail
+  // Walk `e.response.data` defensively — `e` may be anything from a
+  // real AxiosError to a plain object mocked in tests, to a native
+  // Error, to null. Only return a string when we find one in the
+  // expected place.
+  if (e && typeof e === 'object' && 'response' in e) {
+    const response = (e as { response?: unknown }).response
+    if (response && typeof response === 'object' && 'data' in response) {
+      const data = (response as { data?: unknown }).data
+      if (data && typeof data === 'object' && 'detail' in data) {
+        const detail = (data as { detail?: unknown }).detail
+        // FastAPI conventional shape: `{ "detail": "<string>" }`
+        if (typeof detail === 'string' && detail.length > 0) {
+          return detail
+        }
+        // Some endpoints return a structured detail object with
+        // `.message` (e.g. validation errors with extra context).
+        if (
+          detail
+          && typeof detail === 'object'
+          && 'message' in detail
+          && typeof (detail as { message?: unknown }).message === 'string'
+        ) {
+          return (detail as { message: string }).message
+        }
       }
-      // Some endpoints return a structured detail object with
-      // `.message` (e.g. validation errors with extra context).
-      if (
-        detail
-        && typeof detail === 'object'
-        && 'message' in detail
-        && typeof (detail as { message?: unknown }).message === 'string'
-      ) {
-        return (detail as { message: string }).message
+      // Endpoints that skip the detail wrapper and return a plain string.
+      if (typeof data === 'string' && data.length > 0) {
+        return data
       }
     }
-    // Endpoints that skip the detail wrapper and return a plain string.
-    if (typeof data === 'string' && data.length > 0) {
-      return data
-    }
-    // Axios's own message is a usable last-resort (e.g. "Network
-    // Error", "Request failed with status code 500") — better than
-    // a localised fallback when the user is debugging.
-    if (e.message) {
-      return e.message
-    }
-  }
-  // Non-axios Error subclass (sync throw, programming error).
-  if (e instanceof Error && e.message) {
-    return e.message
   }
   return fallback
 }

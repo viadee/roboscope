@@ -18,6 +18,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { abortV2Session, saveV2Flow, startV2Browser } from '@/api/recording-v2.api'
+import { extractErrorDetail } from '@/utils/errors'
 import type { RecordedCommand, RecordedFlow, RecordingTransport } from '@/types/recorder.types'
 import { RECORDER_SCHEMA_VERSION } from '@/types/recorder.types'
 import SelectorPicker from '@/components/recorder/SelectorPicker.vue'
@@ -73,8 +74,8 @@ async function ensureBrowserStarted() {
     // that somehow slipped through.
     const stashedUrl = sessionStorage.getItem(`recorder.url.${sessionId}`) ?? undefined
     await startV2Browser(sessionId, stashedUrl)
-  } catch (e: any) {
-    errorMsg.value = e?.response?.data?.detail ?? t('recorder.live.startFailed')
+  } catch (e: unknown) {
+    errorMsg.value = extractErrorDetail(e, t('recorder.live.startFailed'))
   }
 }
 
@@ -135,10 +136,8 @@ async function stopAndSave() {
     }
     const res = await saveV2Flow(flow, repoId, savePathInput.value)
     router.push(`/explorer/${repoId}?path=${encodeURIComponent(res.saved_path)}`)
-  } catch (e: any) {
-    const detail = e?.response?.data?.detail
-    errorMsg.value =
-      typeof detail === 'string' ? detail : detail?.message ?? t('recorder.live.saveFailed')
+  } catch (e: unknown) {
+    errorMsg.value = extractErrorDetail(e, t('recorder.live.saveFailed'))
   } finally {
     saving.value = false
   }

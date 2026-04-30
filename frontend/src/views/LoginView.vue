@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth.store'
+import { extractErrorDetail } from '@/utils/errors'
 import BaseButton from '@/components/ui/BaseButton.vue'
 
 const router = useRouter()
@@ -43,8 +44,8 @@ async function handleLogin() {
     await auth.login(email.value, password.value)
     const redirect = (route.query.redirect as string) || '/dashboard'
     router.push(redirect)
-  } catch (e: any) {
-    error.value = e.response?.data?.detail || t('auth.loginFailed')
+  } catch (e: unknown) {
+    error.value = extractErrorDetail(e, t('auth.loginFailed'))
     showError.value = true
   } finally {
     loading.value = false

@@ -5,6 +5,7 @@ import { useReposStore } from '@/stores/repos.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
+import { extractErrorDetail } from '@/utils/errors'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
@@ -146,8 +147,8 @@ async function switchBranch(repoId: number, branch: string) {
   try {
     await repos.checkoutBranch(repoId, branch)
     toast.success(t('repos.toasts.branchSwitched'), branch)
-  } catch (e: any) {
-    toast.error(t('repos.toasts.branchSwitchFailed'), e.response?.data?.detail || '')
+  } catch (e: unknown) {
+    toast.error(t('repos.toasts.branchSwitchFailed'), extractErrorDetail(e, ''))
     await repos.fetchRepos() // revert UI
   } finally {
     branchSwitching.value = null
@@ -210,8 +211,8 @@ async function addRepo() {
       }
     }
     await doCreateRepo()
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || t('repos.toasts.addError'))
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('repos.toasts.addError')))
   } finally {
     adding.value = false
   }
@@ -255,8 +256,8 @@ async function syncRepo(id: number) {
     toast.info(t('repos.toasts.syncStarted'))
     // Poll for sync status updates
     pollSyncStatus(id)
-  } catch (e: any) {
-    toast.error(t('repos.toasts.syncFailed'), e.response?.data?.detail || '')
+  } catch (e: unknown) {
+    toast.error(t('repos.toasts.syncFailed'), extractErrorDetail(e, ''))
   }
 }
 
@@ -309,8 +310,8 @@ async function runLibCheck() {
   libCheckResults.value = null
   try {
     libCheckResults.value = await checkLibraries(libCheckRepoId.value, libCheckEnvId.value)
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || 'Library check failed')
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, 'Library check failed'))
   } finally {
     libCheckScanning.value = false
   }
@@ -328,8 +329,8 @@ async function installMissingPkg(lib: LibraryCheckItem) {
       libCheckResults.value.installed_count++
     }
     toast.success(t('common.installed'), lib.pypi_package)
-  } catch (e: any) {
-    toast.error(t('environments.toasts.installFailed'), e.response?.data?.detail || '')
+  } catch (e: unknown) {
+    toast.error(t('environments.toasts.installFailed'), extractErrorDetail(e, ''))
   } finally {
     libCheckInstallingPkg.value = null
   }
@@ -358,8 +359,8 @@ async function rebuildDocker() {
   try {
     await buildDockerImage(libCheckEnvId.value)
     toast.success(t('environments.docker.buildStarted'), t('environments.docker.buildStartedMsg'))
-  } catch (e: any) {
-    toast.error(t('environments.docker.buildFailed'), e.response?.data?.detail || '')
+  } catch (e: unknown) {
+    toast.error(t('environments.docker.buildFailed'), extractErrorDetail(e, ''))
   } finally {
     libCheckRebuilding.value = false
   }
@@ -434,8 +435,8 @@ async function addMember() {
     addMemberUserId.value = null
     addMemberRole.value = 'viewer'
     toast.success(t('repos.members.toasts.added'))
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || t('repos.members.toasts.addError'))
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('repos.members.toasts.addError')))
   } finally {
     addingMember.value = false
   }

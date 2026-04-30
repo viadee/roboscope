@@ -15,6 +15,7 @@ import { useI18n } from 'vue-i18n'
 import apiClient from '@/api/client'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
+import { extractErrorDetail } from '@/utils/errors'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -66,12 +67,8 @@ async function submit(approve: boolean) {
       ui.info(t('welcome.toast.signInCancelled'), '')
       router.push('/login')
     }
-  } catch (e: any) {
-    const msg =
-      typeof e?.response?.data?.detail === 'string'
-        ? e.response.data.detail
-        : e?.response?.data?.detail?.message ?? t('common.error')
-    ui.error(t('common.error'), msg)
+  } catch (e: unknown) {
+    ui.error(t('common.error'), extractErrorDetail(e, t('common.error')))
     router.push('/login')
   } finally {
     loading.value = false

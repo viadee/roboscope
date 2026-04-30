@@ -10,6 +10,7 @@ import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import { formatDateTime } from '@/utils/formatDate'
 import { formatDuration } from '@/utils/formatDuration'
 import { formatPercent } from '@/utils/formatDuration'
+import { extractErrorDetail } from '@/utils/errors'
 
 const reports = useReportsStore()
 const auth = useAuthStore()
@@ -59,10 +60,10 @@ async function handleFileUpload(event: Event) {
         tests: result.report.total_tests,
       }),
     )
-  } catch (e: any) {
+  } catch (e: unknown) {
     toast.error(
       t('reports.upload.error'),
-      e.response?.data?.detail || t('reports.upload.errorMsg'),
+      extractErrorDetail(e, t('reports.upload.errorMsg')),
     )
   } finally {
     uploading.value = false

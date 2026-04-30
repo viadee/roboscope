@@ -1,95 +1,65 @@
 /**
  * `extractErrorDetail` — shared error-message unwrapper.
  *
- * Pins the contract every `catch` block in the codebase relies on:
- * extract the FastAPI-shaped `{ detail: "..." }` from an axios error
- * when present, fall back through the axios message, native Error
- * message, and finally the localised fallback. Always returns a
- * non-empty string; never throws.
+ * Pins the contract every migrated `catch` block in the codebase
+ * relies on: walk the structural `e.response.data.detail` path,
+ * fall back to the supplied string when nothing usable was found.
+ * Mirrors the old `e?.response?.data?.detail || fallback` idiom
+ * exactly — and deliberately does NOT extract Error.message /
+ * AxiosError.message, because the old idiom didn't either.
  */
 import { describe, it, expect } from 'vitest'
-import { AxiosError, AxiosHeaders } from 'axios'
 
 import { extractErrorDetail } from '@/utils/errors'
 
-function _axiosErrorWith(data: unknown, message = 'Request failed'): AxiosError {
-  const err = new AxiosError(message)
-  err.response = {
-    data,
-    status: 400,
-    statusText: 'Bad Request',
-    headers: {},
-    config: { headers: new AxiosHeaders() },
-  } as AxiosError['response']
-  return err
-}
-
 describe('extractErrorDetail', () => {
-  describe('axios error — FastAPI {detail: "..."} shape', () => {
+  describe('FastAPI {detail: "..."} shape', () => {
     it('returns the string detail when present', () => {
-      const e = _axiosErrorWith({ detail: 'Repository not found' })
+      const e = { response: { data: { detail: 'Repository not found' } } }
       expect(extractErrorDetail(e, 'fallback')).toBe('Repository not found')
     })
 
     it('returns the structured detail.message when detail is an object', () => {
-      const e = _axiosErrorWith({
-        detail: { message: 'Validation failed', code: 'INVALID' },
-      })
+      const e = {
+        response: { data: { detail: { message: 'Validation failed', code: 'INVALID' } } },
+      }
       expect(extractErrorDetail(e, 'fallback')).toBe('Validation failed')
     })
 
-    it('falls through past empty-string detail to the next layer', () => {
-      // Empty detail is not "human-readable" — fall back to the
-      // axios message so the user sees something useful.
-      const e = _axiosErrorWith({ detail: '' }, 'Request failed with status code 500')
-      expect(extractErrorDetail(e, 'fallback')).toBe(
-        'Request failed with status code 500',
-      )
+    it('falls through past empty-string detail to fallback', () => {
+      const e = { response: { data: { detail: '' } } }
+      expect(extractErrorDetail(e, 'fallback')).toBe('fallback')
     })
 
     it('handles a structured detail without a message field', () => {
-      const e = _axiosErrorWith(
-        { detail: { code: 'XYZ' } },
-        'Request failed with status code 500',
-      )
-      // No usable detail.message → axios message → returned.
-      expect(extractErrorDetail(e, 'fallback')).toBe(
-        'Request failed with status code 500',
-      )
+      const e = { response: { data: { detail: { code: 'XYZ' } } } }
+      expect(extractErrorDetail(e, 'fallback')).toBe('fallback')
     })
   })
 
-  describe('axios error — plain-string body', () => {
+  describe('plain-string body', () => {
     it('returns the body when response.data is a string', () => {
-      const e = _axiosErrorWith('Internal Server Error')
+      const e = { response: { data: 'Internal Server Error' } }
       expect(extractErrorDetail(e, 'fallback')).toBe('Internal Server Error')
     })
 
-    it('skips empty string body and falls through to message', () => {
-      const e = _axiosErrorWith('', 'Network Error')
-      expect(extractErrorDetail(e, 'fallback')).toBe('Network Error')
+    it('falls back when body is empty string', () => {
+      const e = { response: { data: '' } }
+      expect(extractErrorDetail(e, 'fallback')).toBe('fallback')
     })
   })
 
-  describe('axios error — no response (network failure)', () => {
-    it('uses the axios message', () => {
-      const e = new AxiosError('Network Error')
-      expect(extractErrorDetail(e, 'fallback')).toBe('Network Error')
-    })
-  })
-
-  describe('non-axios errors', () => {
-    it('returns the message of a native Error', () => {
-      expect(extractErrorDetail(new Error('Boom'), 'fallback')).toBe('Boom')
+  describe('inputs that don\'t match the response.data path', () => {
+    it('returns fallback for native Error (no response field)', () => {
+      // Matches the OLD `e?.response?.data?.detail || fallback`
+      // behavior — the call sites uniformly preferred their
+      // localised fallback over the raw `Error.message`.
+      expect(extractErrorDetail(new Error('Network Error'), 'fallback')).toBe(
+        'fallback',
+      )
     })
 
-    it('returns the message of a TypeError subclass', () => {
-      expect(extractErrorDetail(new TypeError('bad arg'), 'fallback')).toBe('bad arg')
-    })
-
-    it('returns fallback for a string thrown bare', () => {
-      // `throw "oops"` is bad practice but happens; can't extract
-      // a usable message from a primitive.
+    it('returns fallback for plain string thrown bare', () => {
       expect(extractErrorDetail('oops', 'fallback')).toBe('fallback')
     })
 
@@ -98,15 +68,31 @@ describe('extractErrorDetail', () => {
       expect(extractErrorDetail(undefined, 'fallback')).toBe('fallback')
     })
 
-    it('returns fallback for plain object without recognised shape', () => {
+    it('returns fallback for object without response field', () => {
       expect(extractErrorDetail({ random: 'stuff' }, 'fallback')).toBe('fallback')
+    })
+
+    it('returns fallback when response is not an object', () => {
+      expect(extractErrorDetail({ response: 'not-an-object' }, 'fallback')).toBe(
+        'fallback',
+      )
+    })
+
+    it('returns fallback when response.data is not an object or string', () => {
+      expect(extractErrorDetail({ response: { data: 42 } }, 'fallback')).toBe(
+        'fallback',
+      )
     })
   })
 
-  describe('always returns a non-empty string', () => {
-    it('returns the fallback when an Error has no message', () => {
-      const e = new Error('')
-      expect(extractErrorDetail(e, 'fallback')).toBe('fallback')
+  describe('test-mock parity (plain objects, no AxiosError prototype)', () => {
+    it('handles the existing codebase test-mock shape', () => {
+      // Tests across the codebase mock errors with this exact
+      // shape: `{ response: { data: { detail: "..." } } }` — a
+      // plain object, not an AxiosError. The helper must work
+      // structurally so those tests continue to pass.
+      const e = { response: { data: { detail: 'Ungueltige Anmeldedaten' } } }
+      expect(extractErrorDetail(e, 'fallback')).toBe('Ungueltige Anmeldedaten')
     })
   })
 })

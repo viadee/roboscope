@@ -12,6 +12,7 @@ import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import ReportXmlView from '@/components/report/ReportXmlView.vue'
 import { formatDuration } from '@/utils/formatDuration'
 import { renderMarkdown } from '@/utils/renderMarkdown'
+import { extractErrorDetail } from '@/utils/errors'
 
 const route = useRoute()
 const reports = useReportsStore()
@@ -130,8 +131,8 @@ async function startAnalysis() {
   analysisError.value = ''
   try {
     await aiStore.analyzeFailures(reportId.value)
-  } catch (e: any) {
-    analysisError.value = e.response?.data?.detail || 'Analysis failed'
+  } catch (e: unknown) {
+    analysisError.value = extractErrorDetail(e, 'Analysis failed')
   }
 }
 
