@@ -28,6 +28,19 @@ const toast = useToast()
 
 const transport = ref<RecordingTransport>('web_playwright')
 const repoId = ref<number | null>(null)
+// Optional URL the recorder will navigate to right after the browser
+// opens. Only relevant for `web_playwright`; desktop transports
+// ignore it. Empty/whitespace-only → recorder starts at about:blank
+// and the user navigates manually. The same scheme guard the backend
+// applies (`http(s)://` only) is mirrored here so users see an inline
+// validation message instead of a 400 round-trip.
+const targetUrl = ref<string>('')
+const targetUrlError = computed<string | null>(() => {
+  const v = targetUrl.value.trim()
+  if (v === '') return null
+  if (v.startsWith('http://') || v.startsWith('https://')) return null
+  return t('recorder.launcher.targetUrlInvalid')
+})
 const starting = ref(false)
 const error = ref<string | null>(null)
 // RECORDER-RESET-1 — panic-button state for the "click here when
@@ -64,7 +77,13 @@ const transports = computed<{ value: RecordingTransport; labelKey: string; disab
 
 const webNotViable = computed(() => !capabilities.value.web_playwright_viable)
 
-const canStart = computed(() => transport.value && repoId.value !== null && !starting.value)
+const canStart = computed(
+  () =>
+    transport.value
+    && repoId.value !== null
+    && !starting.value
+    && targetUrlError.value === null,
+)
 
 async function reset() {
   // No confirm dialog: the endpoint only touches the user's OWN stuck
@@ -104,6 +123,14 @@ async function start() {
     // Stash the repo id so the live view's save step can POST /save
     // without re-prompting the user.
     sessionStorage.setItem(`recorder.repo.${session.session_id}`, String(repoId.value))
+    // Stash the target URL (if any) so the live view's
+    // `startV2Browser(sessionId, targetUrl)` call carries it through
+    // to the recorder. Trim + empty-check matches the backend's
+    // normalisation in v2_start_browser.
+    const trimmedUrl = targetUrl.value.trim()
+    if (trimmedUrl) {
+      sessionStorage.setItem(`recorder.url.${session.session_id}`, trimmedUrl)
+    }
     router.push(`/recordings/live/${session.session_id}`)
   } catch (e: any) {
     const detail = e?.response?.data?.detail
@@ -162,6 +189,32 @@ onMounted(async () => {
       <select id="rec-repo" v-model.number="repoId" class="launcher__select">
         <option v-for="r in reposStore.repos" :key="r.id" :value="r.id">{{ r.name }}</option>
       </select>
+    </div>
+
+    <div v-if="transport === 'web_playwright'" class="launcher__field">
+      <label class="launcher__label" for="rec-url">
+        {{ t('recorder.launcher.targetUrlLabel') }}
+      </label>
+      <input
+        id="rec-url"
+        v-model="targetUrl"
+        type="url"
+        class="launcher__input"
+        :placeholder="t('recorder.launcher.targetUrlPlaceholder')"
+        :aria-invalid="targetUrlError !== null"
+        autocomplete="url"
+        spellcheck="false"
+        data-testid="rec-target-url"
+      />
+      <small
+        v-if="targetUrlError"
+        class="launcher__field-error"
+        role="alert"
+        data-testid="rec-target-url-error"
+      >{{ targetUrlError }}</small>
+      <small v-else class="launcher__field-hint">
+        {{ t('recorder.launcher.targetUrlHint') }}
+      </small>
     </div>
 
     <div class="launcher__field">
@@ -241,11 +294,32 @@ onMounted(async () => {
   margin-bottom: 0.4rem;
 }
 
-.launcher__select {
+.launcher__select,
+.launcher__input {
   width: 100%;
   padding: 0.5rem 0.6rem;
   border: 1px solid var(--color-border, #ddd);
   border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.launcher__input[aria-invalid="true"] {
+  border-color: #c0392b;
+}
+
+.launcher__field-hint,
+.launcher__field-error {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.launcher__field-hint {
+  color: var(--color-text-secondary, #666);
+}
+
+.launcher__field-error {
+  color: #c0392b;
 }
 
 .launcher__radios {

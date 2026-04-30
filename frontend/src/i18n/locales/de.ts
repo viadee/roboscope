@@ -1655,6 +1655,10 @@ export default {
       heading: 'Neue Aufzeichnung starten',
       hint: 'Zeichne einen Ablauf auf und verwandle ihn in einen Robot-Framework-Test. Der Browser öffnet sich in einem kontrollierten Fenster — keine Extension nötig.',
       repoLabel: 'Speichern in Repository',
+      targetUrlLabel: 'URL öffnen (optional)',
+      targetUrlPlaceholder: 'https://example.com',
+      targetUrlHint: 'Leer lassen für about:blank — du kannst nach dem Start manuell navigieren.',
+      targetUrlInvalid: 'URL muss mit http:// oder https:// beginnen',
       transportLabel: 'Was möchtest du aufzeichnen?',
       transport: {
         web: 'Web — browser-basierter Ablauf',

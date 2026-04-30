@@ -1655,6 +1655,10 @@ export default {
       heading: 'Iniciar una grabación',
       hint: 'Graba un flujo de usuario y conviértelo en una prueba Robot Framework. El navegador se abre en una ventana controlada — sin necesidad de extensión.',
       repoLabel: 'Guardar en el repositorio',
+      targetUrlLabel: 'Abrir URL (opcional)',
+      targetUrlPlaceholder: 'https://example.com',
+      targetUrlHint: 'Déjalo en blanco para iniciar en about:blank — puedes navegar manualmente cuando se abra el navegador.',
+      targetUrlInvalid: 'La URL debe empezar por http:// o https://',
       transportLabel: '¿Qué quieres grabar?',
       transport: {
         web: 'Web — flujo en el navegador',

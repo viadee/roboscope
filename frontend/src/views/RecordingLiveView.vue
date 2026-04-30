@@ -65,7 +65,14 @@ function handleError() {
 
 async function ensureBrowserStarted() {
   try {
-    await startV2Browser(sessionId)
+    // Optional target URL stashed by the launcher view in
+    // sessionStorage. Empty/missing → undefined → recorder opens
+    // about:blank (existing behavior). Validation is mirrored on
+    // both sides — the launcher disables Start for malformed URLs,
+    // and `v2_start_browser` returns 400 for any non-http(s) value
+    // that somehow slipped through.
+    const stashedUrl = sessionStorage.getItem(`recorder.url.${sessionId}`) ?? undefined
+    await startV2Browser(sessionId, stashedUrl)
   } catch (e: any) {
     errorMsg.value = e?.response?.data?.detail ?? t('recorder.live.startFailed')
   }

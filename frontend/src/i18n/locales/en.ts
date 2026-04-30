@@ -1655,6 +1655,10 @@ export default {
       heading: 'Start a recording',
       hint: 'Record a user flow and turn it into a Robot Framework test. The browser opens in a controlled window — no extension install required.',
       repoLabel: 'Save to repository',
+      targetUrlLabel: 'Open URL (optional)',
+      targetUrlPlaceholder: 'https://example.com',
+      targetUrlHint: 'Leave blank to start at about:blank — you can navigate manually once the browser opens.',
+      targetUrlInvalid: 'URL must start with http:// or https://',
       transportLabel: 'What do you want to record?',
       transport: {
         web: 'Web — browser-based flow',

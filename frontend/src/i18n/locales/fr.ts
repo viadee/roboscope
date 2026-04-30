@@ -1655,6 +1655,10 @@ export default {
       heading: 'Démarrer un enregistrement',
       hint: "Enregistre un flux et convertis-le en test Robot Framework. Le navigateur s'ouvre dans une fenêtre contrôlée — aucune extension à installer.",
       repoLabel: 'Enregistrer dans le référentiel',
+      targetUrlLabel: 'Ouvrir URL (optionnel)',
+      targetUrlPlaceholder: 'https://example.com',
+      targetUrlHint: "Laissez vide pour démarrer sur about:blank — vous pourrez naviguer manuellement une fois le navigateur ouvert.",
+      targetUrlInvalid: "L'URL doit commencer par http:// ou https://",
       transportLabel: 'Que voulez-vous enregistrer ?',
       transport: {
         web: 'Web — flux dans le navigateur',
