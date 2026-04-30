@@ -203,6 +203,19 @@ def _quote_for_role(s: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+# Strategies the synthesizer no longer produces. Their values were
+# always Browser-library-incompatible (e.g. `pw_locator` emitted
+# Playwright JS API syntax `getByRole(...)`), so promoting one as a
+# heal candidate would commit a guaranteed-broken selector. Filter
+# them out here so legacy sidecars (saved before commit 0c62c7a
+# removed `_pw_locator` from `_STRATEGIES`) can't surface a
+# known-broken alternative through the heal path. Verify would also
+# drop these in production, but unit tests / no-Browser paths skip
+# verify and a 0.80-confidence pw_locator row would otherwise win
+# the threshold gate.
+_LEGACY_DROPPED_STRATEGIES: frozenset[str] = frozenset({"pw_locator"})
+
+
 def _sidecar_candidates(failed_selector: str, sidecar_path: Path) -> list[HealCandidate]:
     try:
         data = json.loads(sidecar_path.read_text(encoding="utf-8"))
@@ -228,6 +241,8 @@ def _sidecar_candidates(failed_selector: str, sidecar_path: Path) -> list[HealCa
             value = c.get("value")
             strategy = c.get("strategy")
             if not value or not strategy:
+                continue
+            if strategy in _LEGACY_DROPPED_STRATEGIES:
                 continue
             quality = c.get("quality_score")
             conf = float(quality) if isinstance(quality, (int, float)) else \

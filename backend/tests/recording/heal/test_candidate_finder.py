@@ -290,6 +290,83 @@ class TestIframeWrappedSelectors:
         assert all(not c.value.startswith("iframe[") for c in out)
 
 
+class TestLegacyStrategyFilter:
+    """Sidecars saved before commit 0c62c7a contain `pw_locator`
+    candidates whose values are Playwright JS API syntax — Browser
+    library cannot parse them. Verify drops these in production,
+    but the heal path that runs verify=None (offline tests, future
+    refactors) could otherwise surface a 0.80-confidence pw_locator
+    row as the picked heal. The filter in `_sidecar_candidates`
+    drops them before they ever enter the candidate list."""
+
+    def test_pw_locator_sibling_excluded_from_heal_candidates(
+        self, tmp_path: Path
+    ) -> None:
+        # Legacy sidecar — failed selector matches a `testid` row;
+        # the siblings include both a `text` candidate (legitimate)
+        # and a `pw_locator` candidate (legacy, must be dropped).
+        payload = {
+            "schema_version": 1,
+            "commands": [
+                {
+                    "index": 0,
+                    "keyword": "Click",
+                    "active_candidate_index": 0,
+                    "selector_candidates": [
+                        {"strategy": "testid", "value": "id=submit", "quality_score": 0.9},
+                        {"strategy": "text",   "value": "text=Submit", "quality_score": 0.7},
+                        {"strategy": "pw_locator", "value": 'getByRole("button", { name: "Submit" })', "quality_score": 0.75},
+                    ],
+                }
+            ],
+        }
+        sc = tmp_path / "flow.rbs.json"
+        sc.write_text(json.dumps(payload), encoding="utf-8")
+
+        out = find_heal_candidates("id=submit", sidecar_path=sc)
+
+        sidecar_hits = [c for c in out if c.source == "sidecar"]
+        # The text candidate survives, the pw_locator sibling does not.
+        strategies = [c.strategy for c in sidecar_hits]
+        assert "text" in strategies
+        assert "pw_locator" not in strategies
+        # And no candidate value carries the JS API syntax.
+        assert all("getByRole" not in c.value for c in out)
+        assert all("getByText" not in c.value for c in out)
+
+    def test_pw_locator_sibling_filter_still_returns_other_candidates(
+        self, tmp_path: Path
+    ) -> None:
+        # If pw_locator was the ONLY sibling, the result is empty —
+        # that's preferable to surfacing a known-broken alternative
+        # (the transposition fallback in `find_heal_candidates`
+        # still adds top-frame transposition candidates afterwards).
+        payload = {
+            "schema_version": 1,
+            "commands": [
+                {
+                    "index": 0,
+                    "keyword": "Click",
+                    "active_candidate_index": 0,
+                    "selector_candidates": [
+                        {"strategy": "css", "value": "#failed", "quality_score": 0.55},
+                        {"strategy": "pw_locator", "value": 'getByText("X")', "quality_score": 0.7},
+                    ],
+                }
+            ],
+        }
+        sc = tmp_path / "flow.rbs.json"
+        sc.write_text(json.dumps(payload), encoding="utf-8")
+
+        out = find_heal_candidates("#failed", sidecar_path=sc)
+
+        sidecar_hits = [c for c in out if c.source == "sidecar"]
+        assert sidecar_hits == [], (
+            "the only sibling was pw_locator — heal must surface "
+            "no sidecar candidate at all rather than the broken one"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Threshold picker
 # ---------------------------------------------------------------------------
