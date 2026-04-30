@@ -149,7 +149,12 @@ def _click_cmd(value: str, frame_url: str | None) -> RecordedCommand:
 
 def test_emit_top_frame_click_no_iframe_wrapper() -> None:
     line = _emit_command(_click_cmd("button#login", frame_url=None))
-    assert line.strip() == "Click    button#login"
+    # Load-bearing: top-frame clicks must NOT get an iframe wrap.
+    # (RECORDER-IDMAP appends a trailing `# rbs:<id>` comment to
+    # every targeted command — that's expected and tested elsewhere;
+    # use a substring assertion so future trailing-metadata changes
+    # don't fail this test for the wrong reason.)
+    assert "Click    button#login" in line
     assert "iframe" not in line
 
 
