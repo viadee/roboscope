@@ -198,8 +198,14 @@ def _desktop_loop(session_id: int, stop_event: threading.Event) -> None:
     # This keeps the thread lifecycle correct (create/destroy) while the
     # hook wiring is a separate PR that needs a Windows dev host.
 
-    while not stop_event.is_set():
-        stop_event.wait(timeout=0.5)
+    # Block until the stop signal fires. No periodic work to do in this
+    # thread — once the hook wiring lands, pywinauto will call
+    # `enqueue(...)` from its own threads, so this main thread has no
+    # reason to wake up. A previous version polled every 0.5s which
+    # added a half-second of latency to every Stop click for no
+    # benefit (matches the asyncio refactor in v2_recorder_task that
+    # replaced the 1Hz busy-poll with an executor wait).
+    stop_event.wait()
 
     _mark_status(session_id, RecordingStatus.COMPLETED)
 
