@@ -234,7 +234,9 @@ def _render_desktop_selector(cand: SelectorCandidate) -> str:
 def _emit_desktop_command(cmd: RecordedCommand) -> str:
     parts: list[str] = [cmd.keyword]
 
-    if cmd.keyword in _DESKTOP_TARGETED_KEYWORDS:
+    targeted = cmd.keyword in _DESKTOP_TARGETED_KEYWORDS
+    selector_missing = False
+    if targeted:
         active = (
             cmd.selector_candidates[cmd.active_candidate_index]
             if cmd.selector_candidates
@@ -242,6 +244,7 @@ def _emit_desktop_command(cmd: RecordedCommand) -> str:
         )
         if active is None:
             parts.append("# WARNING: no selector captured")
+            selector_missing = True
         else:
             parts.append(_render_desktop_selector(active))
 
@@ -253,7 +256,17 @@ def _emit_desktop_command(cmd: RecordedCommand) -> str:
         if key not in ordered:
             parts.append(_render_arg(val))
 
-    return "    " + "    ".join(parts)
+    # RECORDER-IDMAP — desktop transport gets the same trailing
+    # `# rbs:<id>` comment as web so reorder / insert / delete in
+    # the visual editor preserves the link from a Robot step to its
+    # sidecar candidate group. Skip when the line is already a
+    # WARNING comment (the warning IS its own comment) — appending
+    # a second `# …` would still be RF-legal but reads as a
+    # cosmetic mess.
+    line = "    " + "    ".join(parts)
+    if cmd.id and not selector_missing:
+        line += f"    # rbs:{cmd.id}"
+    return line
 
 
 def emit_robot(flow: RecordedFlow) -> str:

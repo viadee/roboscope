@@ -137,6 +137,53 @@ class TestWebTransportStillWorks:
         assert "Library           Browser" in out
 
 
+class TestDesktopRbsComment:
+    """RECORDER-IDMAP — desktop transport must emit the same trailing
+    `# rbs:<id>` comment that web does, otherwise reorder / insert /
+    delete in the visual editor silently regresses to positional
+    matching for desktop heals."""
+
+    def test_targeted_step_appends_rbs_comment(self) -> None:
+        cmd = RecordedCommand(
+            id="deskcmd00001",
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="automation_id", value="submitBtn", quality_score=92,
+                )
+            ],
+        )
+        out = emit_robot(_desktop_flow([cmd]))
+        assert "Click    id:submitBtn    # rbs:deskcmd00001" in out
+
+    def test_typed_step_appends_rbs_after_value(self) -> None:
+        cmd = RecordedCommand(
+            id="deskcmd00002",
+            index=0,
+            keyword="Type Text",
+            args={"text": "alice@corp"},
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="automation_id", value="userEdit", quality_score=92,
+                )
+            ],
+        )
+        out = emit_robot(_desktop_flow([cmd]))
+        assert (
+            "Type Text    id:userEdit    alice@corp    # rbs:deskcmd00002" in out
+        )
+
+    def test_warning_line_omits_rbs_comment(self) -> None:
+        # `# WARNING: no selector captured` is itself a comment; appending
+        # a second `# rbs:` would still parse but reads as a cosmetic
+        # mess. The matching web emitter rule applies here too.
+        cmd = RecordedCommand(id="deskcmd00003", index=0, keyword="Click")
+        out = emit_robot(_desktop_flow([cmd]))
+        assert "# WARNING: no selector captured" in out
+        assert "# rbs:deskcmd00003" not in out
+
+
 class TestFullDesktopFlow:
     def test_roundtrip_three_step_windows_flow(self) -> None:
         flow = _desktop_flow(
