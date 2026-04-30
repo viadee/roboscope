@@ -1,4 +1,4 @@
-"""Lifecycle tests for `run_v2_recorder_session`.
+"""Lifecycle + stop-latency tests for the v2 recorder task.
 
 The wrapper is the only place that:
   * catches an exception from the Playwright loop
@@ -16,7 +16,10 @@ refactor of the lifecycle ordering can't silently regress.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import threading
+import time
 from typing import Any
 
 import pytest
@@ -185,6 +188,97 @@ class TestCrashPathFlipsStatusAndCleansUp:
         # an exit if a race grabbed the queue first. Both are valid;
         # what's NOT valid is hanging or raising.
         assert isinstance(items, list)
+
+class TestWaitForStopEvent:
+    """`_wait_for_stop_event` replaced a 1Hz busy-poll. Stop latency
+    used to be up to a full second after the user clicked Stop —
+    "did my click register?" UX. The new helper hands the
+    threading.Event.wait() to a thread-pool executor so the asyncio
+    loop stays responsive (Playwright bindings keep firing) and
+    returns the instant the event is set."""
+
+    @pytest.mark.asyncio
+    async def test_returns_when_event_fires_with_low_latency(self) -> None:
+        from src.recording.v2_recorder_task import _wait_for_stop_event
+
+        ev = threading.Event()
+
+        # Fire the event from another thread after a short delay.
+        # Wall-clock measurement of how long the wait took to
+        # observe it — must be near the delay, not a full poll
+        # tick + delay.
+        FIRE_DELAY_S = 0.05
+
+        def _fire_later() -> None:
+            time.sleep(FIRE_DELAY_S)
+            ev.set()
+
+        threading.Thread(target=_fire_later, daemon=True).start()
+
+        t0 = time.perf_counter()
+        await _wait_for_stop_event(ev)
+        elapsed = time.perf_counter() - t0
+
+        # Wall-clock must be in the FIRE_DELAY_S +/- a generous
+        # 200ms margin (covers thread scheduling + executor
+        # round-trip on slow CI). The legacy 1Hz polling would
+        # measure ~1s here on average.
+        assert elapsed < FIRE_DELAY_S + 0.2, (
+            f"stop-event wait took {elapsed:.3f}s — should be near "
+            f"{FIRE_DELAY_S}s, not the legacy 1s poll-tick cadence"
+        )
+
+    @pytest.mark.asyncio
+    async def test_returns_immediately_when_event_already_set(self) -> None:
+        from src.recording.v2_recorder_task import _wait_for_stop_event
+
+        ev = threading.Event()
+        ev.set()  # set BEFORE the wait
+
+        t0 = time.perf_counter()
+        await _wait_for_stop_event(ev)
+        elapsed = time.perf_counter() - t0
+
+        # `threading.Event.wait()` returns True immediately if
+        # already set — the executor round-trip is the only
+        # measurable cost.
+        assert elapsed < 0.1, (
+            f"already-set event took {elapsed:.3f}s — "
+            "wait must return without sleeping"
+        )
+
+    @pytest.mark.asyncio
+    async def test_other_coroutines_run_during_wait(self) -> None:
+        """Critical invariant: while we await the stop event, the
+        asyncio loop must keep delivering other coroutines'
+        events. Otherwise Playwright bindings (which deliver
+        captured commands) would freeze for the entire duration of
+        the recording."""
+        from src.recording.v2_recorder_task import _wait_for_stop_event
+
+        ev = threading.Event()
+        progress: list[str] = []
+
+        async def _other_work() -> None:
+            for i in range(5):
+                progress.append(f"tick-{i}")
+                await asyncio.sleep(0.01)
+            ev.set()  # finally let the stop wait return
+
+        # Fire the work coroutine alongside the stop wait. If the
+        # wait blocked the loop, _other_work would never run and
+        # the event would never get set → test would hang.
+        await asyncio.gather(_other_work(), _wait_for_stop_event(ev))
+        assert progress == [f"tick-{i}" for i in range(5)], (
+            "asyncio loop was blocked while awaiting the stop event"
+        )
+
+
+class TestHappyPathDoesNotMarkFailed:
+    """Counterfactual to TestCrashPathFlipsStatusAndCleansUp — when
+    `_recorder_loop` returns cleanly, the wrapper must NOT invoke
+    `_mark_status(FAILED)`. Confirms the FAILED flip is gated on
+    the exception path, not on every exit."""
 
     def test_happy_path_does_not_call_mark_status_failed(
         self,

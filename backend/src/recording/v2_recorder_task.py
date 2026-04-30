@@ -101,8 +101,27 @@ async def _verify_command_candidates(
     )
 
 # Per-session stop signal. The DELETE endpoint sets this; the recorder
-# loop polls it every heartbeat.
+# loop awaits it via `_wait_for_stop_event`.
 _stop_signals: dict[int, threading.Event] = {}
+
+
+async def _wait_for_stop_event(stop_event: threading.Event) -> None:
+    """Async-friendly wait for a `threading.Event` to fire.
+
+    `stop_event.wait()` is a blocking call. Running it in the asyncio
+    event loop directly would freeze every other coroutine (most
+    importantly the Playwright bindings that deliver capture events).
+    Hand it off to the default thread-pool executor instead — the
+    coroutine awaits the executor's future without blocking the loop,
+    and returns the moment the event is set.
+
+    Returns immediately if the event was already set when called
+    (the wait() call detects the prior set state). Has no timeout —
+    callers that need a deadline should wrap with
+    `asyncio.wait_for(..., timeout)`.
+    """
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, stop_event.wait)
 
 
 def signal_stop_v2(session_id: int) -> bool:
@@ -265,9 +284,18 @@ async def _recorder_loop(
             await asyncio.sleep(0.4)
             stop_event.set()
 
-        # Loop: wait for stop_event to be set, polling at 1 Hz.
-        while not stop_event.is_set():
-            await asyncio.sleep(1.0)
+        # Block until `stop_event` fires (set by the user clicking
+        # Stop, by the test hook, or by the browser-disconnect
+        # listener above). The threading.Event.wait() runs in a
+        # worker thread via `run_in_executor`, so it doesn't block
+        # the asyncio event loop — Playwright bindings keep
+        # delivering events while we wait. A previous version
+        # busy-polled at 1 Hz, which made stop latency up to a full
+        # second after the click; for an interactive recorder
+        # that's "did my click register?" UX. Event-driven wait is
+        # instantaneous (the executor returns the moment the event
+        # is set).
+        await _wait_for_stop_event(stop_event)
 
         try:
             await context.close()
