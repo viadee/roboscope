@@ -284,6 +284,23 @@ def _xpath(snap: ElementSnapshot) -> list[SelectorCandidate]:
 
 
 def _pw_locator(snap: ElementSnapshot) -> list[SelectorCandidate]:
+    """DEPRECATED — produced Playwright JS API syntax (`getByRole(...)`,
+    `getByText(...)`) which Browser library cannot parse as a selector
+    string. Verify always dropped these candidates as 0-match in
+    production, but in unit tests / no-Browser paths a `pw_locator`
+    candidate (quality 70-75) could outscore the `_css` one (~55) and
+    ship a broken selector into the `.robot`. The functionality is
+    fully covered by `_aria` (emits `role=button[name="Submit"]`) and
+    `_text` (emits `text="Submit"`), both in valid Browser library
+    syntax. Removed from `_STRATEGIES` so it never runs.
+
+    The function body is kept verbatim and the `pw_locator` strategy
+    literal still lives in `selector_schema.SelectorStrategy` so
+    sidecars saved before this change continue to load. The
+    nth-match disambiguation in `selector_verification.py` also
+    stays for the same back-compat reason — neither path produces
+    new candidates, but loading historical ones must not fail.
+    """
     out: list[SelectorCandidate] = []
     role = snap.aria_role
     name = snap.aria_name
@@ -318,7 +335,11 @@ def _pw_locator(snap: ElementSnapshot) -> list[SelectorCandidate]:
 # ---------------------------------------------------------------------------
 
 
-_STRATEGIES = (_testid, _aria, _text, _css, _xpath, _pw_locator)
+# `_pw_locator` deliberately removed — see its docstring. `_aria` and
+# `_text` already cover the same elements in valid Browser library
+# syntax; keeping `_pw_locator` here shipped a footgun in test paths
+# where the verify pass was skipped.
+_STRATEGIES = (_testid, _aria, _text, _css, _xpath)
 
 # Candidates with score below this are dropped — they're worse than having
 # no candidate at all (misleads the user into trusting a fragile selector).

@@ -197,19 +197,29 @@ class TestXpathStrategy:
 
 
 class TestPlaywrightLocator:
-    def test_get_by_role(self) -> None:
+    """`_pw_locator` was removed from `_STRATEGIES` because the
+    `getByRole(...)` / `getByText(...)` JS API syntax it produced is
+    not valid Browser library selector input. These tests now pin
+    the absence of that strategy from synthesis output, and the
+    fact that the same elements get covered by `_aria` / `_text`
+    in valid Browser library syntax."""
+
+    def test_synthesis_no_longer_emits_pw_locator(self) -> None:
         cands = synthesise_selectors(
             _snap(aria_role="button", aria_name="Save")
         )
-        pw = [c for c in cands if c.strategy == "pw_locator"]
-        assert any("getByRole" in c.value for c in pw)
+        assert all(c.strategy != "pw_locator" for c in cands)
 
-    def test_generic_role_penalised(self) -> None:
+    def test_aria_covers_what_pw_locator_used_to(self) -> None:
+        """An element with role + name still produces a candidate via
+        `_aria` — in Browser library's `role=...[name="..."]` syntax,
+        which IS valid selector input."""
         cands = synthesise_selectors(
-            _snap(aria_role="group", aria_name="Filters")
+            _snap(aria_role="button", aria_name="Save")
         )
-        pw = [c for c in cands if c.strategy == "pw_locator"][0]
-        assert pw.quality_score == 75 - 10
+        aria = [c for c in cands if c.strategy == "aria"]
+        assert aria, "aria strategy should still produce a candidate"
+        assert any('role=button' in c.value and 'name="Save"' in c.value for c in aria)
 
 
 class TestSortOrder:
@@ -220,8 +230,8 @@ class TestSortOrder:
                 aria_role="button", aria_name="Submit", text="Submit",
             )
         )
-        # Test-id (95) must come before pw_locator (75) before aria (80) - wait,
-        # aria (80) > pw_locator (75). Assert strict descending.
+        # Test-id (95) > aria (80) > text (70) > css (varies).
+        # `pw_locator` (was 75) is gone — see TestPlaywrightLocator.
         scores = [c.quality_score for c in cands]
         assert scores == sorted(scores, reverse=True)
 
