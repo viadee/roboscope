@@ -6,7 +6,7 @@ import { useExplorerStore } from '@/stores/explorer.store'
 import { useReposStore } from '@/stores/repos.store'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
-import { extractErrorDetail } from '@/utils/errors'
+import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
 import { createRun } from '@/api/execution.api'
 import type { RunCreateRequest } from '@/types/api.types'
 import { checkLibraries } from '@/api/explorer.api'
@@ -715,8 +715,14 @@ async function doRunRobot(node: TreeNode) {
     }
     const run = await createRun(runPayload)
     runOverlay.value.runId = run.id
-  } catch (e: any) {
-    runOverlay.value.error = e.response?.data?.detail || e.message
+  } catch (e: unknown) {
+    // Prefer the FastAPI detail; fall back to the native Error
+    // message when this is a non-axios path (network error, sync
+    // throw). Helper only handles the response-shape — `e.message`
+    // here is intentional.
+    const detail = extractErrorDetail(e, '')
+    runOverlay.value.error =
+      detail || (e instanceof Error ? e.message : t('common.error'))
   } finally {
     runningFile.value = null
   }
@@ -732,8 +738,8 @@ async function setupDefaultFromExplorer() {
       checkAndRunRobot(pendingRunNode.value)
       pendingRunNode.value = null
     }
-  } catch (e: any) {
-    if (e.response?.status === 409) {
+  } catch (e: unknown) {
+    if (extractErrorStatus(e) === 409) {
       toast.error(t('environments.setupDefault.alreadyExists'))
     } else {
       toast.error(t('environments.setupDefault.toastError'))

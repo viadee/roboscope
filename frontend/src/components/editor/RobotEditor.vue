@@ -662,8 +662,9 @@ function parseRobotToForm(content: string): boolean {
     form.preambleLines = newForm.preambleLines
     parseError.value = null
     return true
-  } catch (e: any) {
-    parseError.value = e.message || 'Failed to parse Robot Framework file'
+  } catch (e: unknown) {
+    parseError.value =
+      e instanceof Error ? e.message : 'Failed to parse Robot Framework file'
     return false
   }
 }

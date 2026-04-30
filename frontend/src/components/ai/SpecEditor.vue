@@ -465,8 +465,8 @@ function parseYamlToForm(yamlContent: string): boolean {
 
     parseError.value = null
     return true
-  } catch (e: any) {
-    parseError.value = e.message || 'Failed to parse YAML'
+  } catch (e: unknown) {
+    parseError.value = e instanceof Error ? e.message : 'Failed to parse YAML'
     return false
   }
 }

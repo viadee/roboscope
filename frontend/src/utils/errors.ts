@@ -16,6 +16,25 @@
  * such annotations as a known long-tail in CLAUDE.md).
  */
 /**
+ * Extract the HTTP status code from an axios-style error, or null
+ * when the thrown value isn't an HTTP response. Used by call sites
+ * that branch on specific status codes (401 = wrong password, 409 =
+ * conflict, 422 = validation, ...) — pairs with `extractErrorDetail`
+ * for the message extraction. Same structural-walk philosophy:
+ * works on real AxiosError instances AND plain test mocks.
+ */
+export function extractErrorStatus(e: unknown): number | null {
+  if (e && typeof e === 'object' && 'response' in e) {
+    const r = (e as { response?: unknown }).response
+    if (r && typeof r === 'object' && 'status' in r) {
+      const s = (r as { status?: unknown }).status
+      if (typeof s === 'number') return s
+    }
+  }
+  return null
+}
+
+/**
  * Extract a human-readable error message from a thrown value, falling
  * back to `fallback` when nothing usable is available.
  *

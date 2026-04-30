@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { changePassword } from '@/api/auth.api'
 import { useAuthStore } from '@/stores/auth.store'
+import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 
@@ -58,11 +59,12 @@ async function submit() {
     await auth.fetchCurrentUser()
     reset()
     open.value = false
-  } catch (e: any) {
-    if (e?.response?.status === 401) {
+  } catch (e: unknown) {
+    const status = extractErrorStatus(e)
+    if (status === 401) {
       error.value = t('auth.pwChange.wrongCurrent')
-    } else if (e?.response?.status === 422) {
-      error.value = e?.response?.data?.detail || t('auth.pwChange.invalid')
+    } else if (status === 422) {
+      error.value = extractErrorDetail(e, t('auth.pwChange.invalid'))
     } else {
       error.value = t('common.error')
     }

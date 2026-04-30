@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as aiApi from '@/api/ai.api'
+import { extractErrorDetail } from '@/utils/errors'
 import type { AiJob, AiProvider, DriftResponse, ValidateSpecResponse } from '@/types/domain.types'
 import type { AiProviderCreateRequest, AiProviderUpdateRequest } from '@/types/api.types'
 
@@ -232,8 +233,8 @@ export const useAiStore = defineStore('ai', () => {
       rfMcpError.value = status.error_message || ''
       // Start polling for status updates
       startRfMcpPolling()
-    } catch (e: any) {
-      rfMcpError.value = e.response?.data?.detail || 'Setup failed'
+    } catch (e: unknown) {
+      rfMcpError.value = extractErrorDetail(e, 'Setup failed')
       rfMcpStatus.value = 'error'
       throw e
     }
@@ -244,8 +245,8 @@ export const useAiStore = defineStore('ai', () => {
       await aiApi.stopRfMcp()
       stopRfMcpPolling()
       await fetchRfMcpStatus()
-    } catch (e: any) {
-      rfMcpError.value = e.response?.data?.detail || 'Stop failed'
+    } catch (e: unknown) {
+      rfMcpError.value = extractErrorDetail(e, 'Stop failed')
       throw e
     }
   }

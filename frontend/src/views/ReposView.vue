@@ -5,7 +5,7 @@ import { useReposStore } from '@/stores/repos.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
-import { extractErrorDetail } from '@/utils/errors'
+import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
@@ -378,8 +378,8 @@ async function setupDefaultFromLibCheck() {
       libCheckResults.value = null
       showLibCheckDialog.value = true
     }
-  } catch (e: any) {
-    if (e.response?.status === 409) {
+  } catch (e: unknown) {
+    if (extractErrorStatus(e) === 409) {
       toast.error(t('environments.setupDefault.alreadyExists'))
     } else {
       toast.error(t('environments.setupDefault.toastError'))

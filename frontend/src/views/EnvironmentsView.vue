@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
-import { extractErrorDetail } from '@/utils/errors'
+import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
 import * as envsApi from '@/api/environments.api'
 import type { EnvironmentPackage } from '@/types/domain.types'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -79,21 +79,33 @@ async function addEnvironment() {
     }
     showAddDialog.value = false
     newEnv.value = { name: defaultEnvName(), python_version: '3.12', docker_image: '', description: '', index_url: '', extra_index_url: '' }
-  } catch (e: any) {
-    let msg = t('environments.toasts.createError')
-    if (e.response?.data?.detail) {
-      const detail = e.response.data.detail
-      if (typeof detail === 'string') {
-        msg = detail
-      } else if (Array.isArray(detail)) {
-        // Pydantic validation errors
-        msg = detail.map((err: any) => {
-          const field = err.loc?.slice(-1)[0] || ''
-          if (field === 'name' && err.type?.includes('missing')) return t('environments.toasts.nameRequired')
-          if (field === 'name' && err.type?.includes('string_too_short')) return t('environments.toasts.nameRequired')
+  } catch (e: unknown) {
+    // FastAPI returns Pydantic validation errors as an ARRAY at
+    // `response.data.detail` rather than the conventional string.
+    // The shared `extractErrorDetail` only handles the string +
+    // `{message}` shapes; this site keeps the bespoke array path
+    // because the field-specific localisation
+    // (`nameRequired` translation when the failing field is `name`)
+    // is unique to this form.
+    const detail = (e && typeof e === 'object' && 'response' in e
+      ? (e as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
+      : null) as unknown
+    let msg: string
+    if (Array.isArray(detail)) {
+      msg = (detail as Array<{ loc?: unknown[]; type?: string; msg?: string }>)
+        .map((err) => {
+          const field = err.loc?.slice(-1)[0] ?? ''
+          if (field === 'name' && err.type?.includes('missing')) {
+            return t('environments.toasts.nameRequired')
+          }
+          if (field === 'name' && err.type?.includes('string_too_short')) {
+            return t('environments.toasts.nameRequired')
+          }
           return err.msg || String(err)
-        }).join('; ')
-      }
+        })
+        .join('; ')
+    } else {
+      msg = extractErrorDetail(e, t('environments.toasts.createError'))
     }
     toast.error(t('common.error'), msg)
   } finally {
@@ -269,8 +281,8 @@ async function setupDefaultEnv() {
   try {
     await envs.setupDefault()
     toast.success(t('environments.setupDefault.toastSuccess'))
-  } catch (e: any) {
-    if (e.response?.status === 409) {
+  } catch (e: unknown) {
+    if (extractErrorStatus(e) === 409) {
       toast.error(t('environments.setupDefault.alreadyExists'))
     } else {
       toast.error(t('environments.setupDefault.toastError'))

@@ -8,7 +8,7 @@ import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useReportsStore } from '@/stores/reports.store'
 import { useToast } from '@/composables/useToast'
-import { extractErrorDetail } from '@/utils/errors'
+import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
 import { getRunOutput } from '@/api/execution.api'
 import { buildDockerImage } from '@/api/environments.api'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -320,8 +320,8 @@ async function setupDefaultFromExecution() {
     runForm.value.environment_id = env.id
     showEnvPrompt.value = false
     toast.success(t('environments.setupDefault.toastSuccess'))
-  } catch (e: any) {
-    if (e.response?.status === 409) {
+  } catch (e: unknown) {
+    if (extractErrorStatus(e) === 409) {
       toast.error(t('environments.setupDefault.alreadyExists'))
     } else {
       toast.error(t('environments.setupDefault.toastError'))

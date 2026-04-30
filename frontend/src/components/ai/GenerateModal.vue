@@ -70,12 +70,11 @@ async function handleStart() {
         selectedProviderId.value || undefined,
       )
     }
-  } catch (e: any) {
-    if (e.response?.status === 409) {
-      error.value = e.response.data.detail
-    } else {
-      error.value = e.response?.data?.detail || t('common.error')
-    }
+  } catch (e: unknown) {
+    // 409 is a "spec already exists" conflict — surface the detail
+    // verbatim so the user sees the concrete reason; other statuses
+    // fall back to the generic error label.
+    error.value = extractErrorDetail(e, t('common.error'))
   }
 }
 

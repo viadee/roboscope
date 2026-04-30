@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest'
 
-import { extractErrorDetail } from '@/utils/errors'
+import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
 
 describe('extractErrorDetail', () => {
   describe('FastAPI {detail: "..."} shape', () => {
@@ -94,5 +94,31 @@ describe('extractErrorDetail', () => {
       const e = { response: { data: { detail: 'Ungueltige Anmeldedaten' } } }
       expect(extractErrorDetail(e, 'fallback')).toBe('Ungueltige Anmeldedaten')
     })
+  })
+})
+
+describe('extractErrorStatus', () => {
+  it('returns the numeric status when present', () => {
+    expect(extractErrorStatus({ response: { status: 401 } })).toBe(401)
+    expect(extractErrorStatus({ response: { status: 422 } })).toBe(422)
+    expect(extractErrorStatus({ response: { status: 409 } })).toBe(409)
+    expect(extractErrorStatus({ response: { status: 500 } })).toBe(500)
+  })
+
+  it('returns null when status is not a number', () => {
+    expect(extractErrorStatus({ response: { status: '401' } })).toBeNull()
+    expect(extractErrorStatus({ response: { status: null } })).toBeNull()
+  })
+
+  it('returns null when response is missing', () => {
+    expect(extractErrorStatus(new Error('boom'))).toBeNull()
+    expect(extractErrorStatus({ random: 'stuff' })).toBeNull()
+    expect(extractErrorStatus(null)).toBeNull()
+    expect(extractErrorStatus(undefined)).toBeNull()
+    expect(extractErrorStatus('plain string')).toBeNull()
+  })
+
+  it('returns null when response is not an object', () => {
+    expect(extractErrorStatus({ response: 'not-an-object' })).toBeNull()
   })
 })
