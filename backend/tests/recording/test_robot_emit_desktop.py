@@ -120,6 +120,26 @@ class TestDesktopKeywords:
         out = emit_robot(_desktop_flow([cmd]))
         assert "# WARNING: no selector captured" in out
 
+    def test_click_without_selector_emits_server_warning(
+        self, caplog
+    ) -> None:
+        """Companion to the placeholder check above: a missing
+        desktop selector also emits a WARNING server-side so the
+        recorder log stream surfaces the partial-failure during
+        save POST instead of waiting for the user to discover the
+        placeholder when they open the .robot."""
+        cmd = RecordedCommand(
+            id="deskmiss0001", index=2, keyword="Click",
+        )
+        caplog.set_level("WARNING", logger="roboscope.recording.emit")
+        emit_robot(_desktop_flow([cmd]))
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert len(warnings) == 1
+        msg = warnings[0].getMessage()
+        assert "Click" in msg
+        assert "deskmiss0001" in msg
+        assert "desktop" in msg.lower()
+
 
 class TestWebTransportStillWorks:
     def test_web_flow_keeps_browser_library(self) -> None:

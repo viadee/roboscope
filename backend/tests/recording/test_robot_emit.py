@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.recording.robot_emit import _emit_command, emit_robot
 from src.recording.selector_schema import (
     RecordedCommand,
@@ -425,3 +427,78 @@ class TestCommandIdEmit:
         )
         line = _emit_command(cmd)
         assert "# rbs:my-pinned-id" in line
+
+
+class TestEmitMissingSelectorObservability:
+    """When a targeted keyword (Click, Type Text, etc.) reaches the
+    emitter without any selector candidate, the emitter writes a
+    `# WARNING: no selector captured` placeholder into the .robot
+    AND emits a server-side WARNING. The placeholder alone is too
+    quiet — the user who saved the flow only notices when they
+    later open the .robot. The log surfaces it during the save POST
+    so the recorder's log stream catches the partial-failure in
+    real time."""
+
+    def test_targeted_keyword_without_selector_emits_warning_log(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        cmd = RecordedCommand(
+            id="missingfp001",
+            index=3,
+            keyword="Click",
+            selector_candidates=[],
+            active_candidate_index=0,
+            frame_url="https://message-eu.sp-prod.net/?id=42",
+        )
+        caplog.set_level("WARNING", logger="roboscope.recording.emit")
+        line = _emit_command(cmd)
+        # Placeholder still in the line (existing contract).
+        assert "# WARNING: no selector captured" in line
+        # And exactly one warning carrying the diagnostic context.
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert len(warnings) == 1
+        msg = warnings[0].getMessage()
+        assert "Click" in msg
+        assert "missingfp001" in msg
+        assert "message-eu.sp-prod.net" in msg
+
+    def test_targeted_keyword_with_selector_emits_no_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        cmd = RecordedCommand(
+            id="happypath001",
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="testid",
+                    value='[data-testid="x"]',
+                    quality_score=95,
+                    verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        caplog.set_level("WARNING", logger="roboscope.recording.emit")
+        _emit_command(cmd)
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert warnings == []
+
+    def test_global_keyword_without_selector_emits_no_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # `Go To` legitimately has no selector — it carries a URL.
+        # The emitter must NOT mistake that for a missing-selector
+        # case and warn.
+        cmd = RecordedCommand(
+            id="goto00000001",
+            index=0,
+            keyword="Go To",
+            args={"url": "https://example.com"},
+            selector_candidates=[],
+            active_candidate_index=0,
+        )
+        caplog.set_level("WARNING", logger="roboscope.recording.emit")
+        _emit_command(cmd)
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert warnings == []

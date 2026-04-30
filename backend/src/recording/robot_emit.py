@@ -10,11 +10,16 @@ _KEYWORD_EMITTERS without breaking existing flows.
 
 from __future__ import annotations
 
+import logging
+
 from src.recording.selector_schema import (
     RecordedCommand,
     RecordedFlow,
     SelectorCandidate,
 )
+
+
+_logger = logging.getLogger("roboscope.recording.emit")
 
 
 # Keywords that target an element and therefore need the active selector
@@ -144,6 +149,20 @@ def _emit_command(cmd: RecordedCommand) -> str:
             # Fail loud — a targeted keyword without a selector is a bug.
             # Intentional RF comment marker; do NOT escape.
             parts.append("# WARNING: no selector captured")
+            # Server-side observability for an otherwise silent
+            # partial-failure: the user who saved this flow won't
+            # notice until they open the .robot and see the
+            # placeholder. Surface it in the recorder's log stream
+            # at WARNING so operators (and ourselves during dev)
+            # see it during the save POST. Includes the command id
+            # so it can be correlated to a recording-step entry in
+            # the FE without spelunking through the saved sidecar.
+            _logger.warning(
+                "emit: targeted keyword %r has no selector candidate "
+                "(cmd.id=%s, index=%d, frame_url=%s) — wrote the "
+                "placeholder comment; the .robot will not run this step",
+                cmd.keyword, cmd.id or "<none>", cmd.index, cmd.frame_url,
+            )
         else:
             inner = _render_selector(active)
             # Story RECORDER-FRAMES — events captured inside an iframe
@@ -245,6 +264,12 @@ def _emit_desktop_command(cmd: RecordedCommand) -> str:
         if active is None:
             parts.append("# WARNING: no selector captured")
             selector_missing = True
+            _logger.warning(
+                "emit (desktop): targeted keyword %r has no selector "
+                "candidate (cmd.id=%s, index=%d) — wrote placeholder; "
+                "the .robot will not run this step",
+                cmd.keyword, cmd.id or "<none>", cmd.index,
+            )
         else:
             parts.append(_render_desktop_selector(active))
 
