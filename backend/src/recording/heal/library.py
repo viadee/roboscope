@@ -319,10 +319,25 @@ class RoboScopeHeal:
            or evaluation fails, silently skip.
         3. Score each candidate; return the best above the walker
            threshold (also gated by the keyword's heal threshold).
+
+        RECORDER-FRAMES guard — when ``failed_selector`` carries an
+        ``iframe[src*="..."] >>> `` qualifier, refuse to run the
+        live-DOM walker. The walker JS uses ``document.querySelectorAll``
+        on the TOP frame, and cross-origin iframes (Sourcepoint /
+        OneTrust / TCF cookie banners — the dominant iframe case)
+        can't be traversed via ``contentDocument`` anyway. Letting
+        the walker pretend would silently emit top-frame selectors
+        that, when re-clicked, target the wrong element. Stored-
+        fingerprint lookup is still wired up so a future cross-
+        frame walker (Browser library frame-scoped Evaluate JS) can
+        reuse the stored signature.
         """
         try:
             self._builtin.get_library_instance("Browser")
         except Exception:
+            return None
+
+        if failed_selector.lstrip().startswith("iframe["):
             return None
 
         stored_fp = self._lookup_stored_fingerprint(failed_selector)
@@ -367,7 +382,17 @@ class RoboScopeHeal:
     def _lookup_stored_fingerprint(self, failed_selector: str) -> dict | None:
         """Read the sidecar and return the `element_fingerprint` of the
         command whose active selector equals `failed_selector`. Any
-        IO/parse error → None (graceful degrade)."""
+        IO/parse error → None (graceful degrade).
+
+        RECORDER-FRAMES — strip the iframe wrap before matching for
+        the same reason ``_lookup_command_id`` does: sidecar
+        candidates store only the inner selector value, while the
+        runtime-failed selector carries the composite
+        ``iframe[...] >>> <inner>``. Without the strip the lookup
+        always misses on iframe-recorded commands (which is exactly
+        when fingerprint heal would be most valuable, since the
+        cookie-banner DOM tends to drift between visits).
+        """
         import json as _json
 
         sidecar = self._resolve_sidecar_path()
@@ -377,10 +402,11 @@ class RoboScopeHeal:
             data = _json.loads(sidecar.read_text(encoding="utf-8"))
         except Exception:
             return None
+        needle = self._unwrap_iframe_prefix(failed_selector).strip()
         for cmd in (data.get("commands") or []):
             cands = cmd.get("selector_candidates") or []
             for c in cands:
-                if (c.get("value") or "").strip() == failed_selector.strip():
+                if (c.get("value") or "").strip() == needle:
                     fp = cmd.get("element_fingerprint")
                     return fp if isinstance(fp, dict) else None
         return None

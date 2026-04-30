@@ -227,3 +227,130 @@ class TestCommandIdLookup:
         # `iframe` keyword without the `[...]` attribute selector is also
         # not the cross-frame dialect; leave it alone.
         assert RoboScopeHeal._unwrap_iframe_prefix("iframe") == "iframe"
+
+
+class TestFingerprintHealIframeBlindspot:
+    """Story SH-3 fingerprint walker, RECORDER-FRAMES guard.
+
+    The fingerprint walker JS uses ``document.querySelectorAll`` on
+    the TOP frame. Cross-origin iframes (Sourcepoint / OneTrust /
+    TCF cookie banners — the dominant iframe case in real
+    recordings) can't be traversed via ``contentDocument``, so a
+    walker run for an iframe-wrapped failed selector would emit
+    candidate selectors that target the wrong DOM. The runtime
+    guard refuses to walk in that case so a heal can never silently
+    click the wrong element.
+
+    Sidecar fingerprint LOOKUP, however, must still resolve the
+    stored fingerprint via the inner selector so a future cross-
+    frame walker (Browser library frame-scoped Evaluate JS) can
+    reuse the stored signature without another schema migration.
+    """
+
+    @staticmethod
+    def _write_sidecar_with_fingerprint(tmp_path: Path) -> Path:
+        sc = tmp_path / "flow.rbs.json"
+        sc.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "commands": [
+                        {
+                            "id": "fpcmd0000001",
+                            "index": 0,
+                            "keyword": "Click",
+                            "args": {},
+                            "selector_candidates": [
+                                {
+                                    "strategy": "css",
+                                    "value": "#accept-all",
+                                    "quality_score": 90,
+                                    "verified_unique": True,
+                                }
+                            ],
+                            "active_candidate_index": 0,
+                            "frame_url": "https://message-eu.sp-prod.net/?id=42",
+                            "element_fingerprint": {
+                                "tag": "button",
+                                "id": "accept-all",
+                                "testid": None,
+                                "classes": ["sp-accept"],
+                                "name": None,
+                                "role": "button",
+                                "text": "Accept all",
+                                "ancestors": [],
+                            },
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return sc
+
+    def test_lookup_stored_fingerprint_strips_iframe_wrap(
+        self, tmp_path: Path
+    ) -> None:
+        sc = self._write_sidecar_with_fingerprint(tmp_path)
+        lib = _make_lib(sidecar_path=str(sc))
+        # Top-frame lookup still works.
+        fp_top = lib._lookup_stored_fingerprint("#accept-all")
+        assert fp_top is not None
+        assert fp_top["text"] == "Accept all"
+        # Iframe-wrapped lookup resolves to the SAME stored
+        # fingerprint via the inner selector.
+        composite = 'iframe[src*="message-eu.sp-prod.net"] >>> #accept-all'
+        fp_frame = lib._lookup_stored_fingerprint(composite)
+        assert fp_frame == fp_top
+
+    def test_try_fingerprint_heal_skips_walker_for_iframe_selector(
+        self, tmp_path: Path
+    ) -> None:
+        sc = self._write_sidecar_with_fingerprint(tmp_path)
+        lib = _make_lib(sidecar_path=str(sc))
+        # Pretend Browser library is reachable so we get past that
+        # early-return — the iframe guard must trip BEFORE the walker
+        # JS runs. If the guard didn't fire, run_keyword would be
+        # invoked at least once for "Evaluate JavaScript".
+        lib._builtin.get_library_instance.side_effect = None
+        lib._builtin.get_library_instance.return_value = object()
+
+        composite = 'iframe[src*="message-eu.sp-prod.net"] >>> #accept-all'
+        result = lib._try_fingerprint_heal(composite, threshold=0.5)
+        assert result is None
+        # The walker JS must NEVER run for an iframe-wrapped selector;
+        # otherwise it would emit top-frame candidate selectors that
+        # silently click the wrong element on retry.
+        eval_calls = [
+            c for c in lib._builtin.run_keyword.call_args_list
+            if c.args and c.args[0] == "Evaluate JavaScript"
+        ]
+        assert eval_calls == [], (
+            "fingerprint walker must NOT run for iframe-wrapped failed "
+            f"selectors, but it was invoked: {eval_calls}"
+        )
+
+    def test_try_fingerprint_heal_still_runs_for_top_frame_selector(
+        self, tmp_path: Path
+    ) -> None:
+        # Backward compatibility — when the failed selector has no
+        # iframe wrap, the walker must still attempt to fire (its own
+        # internal failures still degrade gracefully to None).
+        sc = self._write_sidecar_with_fingerprint(tmp_path)
+        lib = _make_lib(sidecar_path=str(sc))
+        lib._builtin.get_library_instance.side_effect = None
+        lib._builtin.get_library_instance.return_value = object()
+        # Walker JS returns no live candidates — match=None is fine,
+        # we're only asserting the JS DID run.
+        lib._builtin.run_keyword.return_value = []
+
+        result = lib._try_fingerprint_heal("#accept-all", threshold=0.5)
+        assert result is None
+        # The walker JS DID run for the top-frame case.
+        eval_calls = [
+            c for c in lib._builtin.run_keyword.call_args_list
+            if c.args and c.args[0] == "Evaluate JavaScript"
+        ]
+        assert len(eval_calls) == 1, (
+            "top-frame fingerprint heal should still run the walker JS"
+        )
