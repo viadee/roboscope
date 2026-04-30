@@ -253,6 +253,37 @@ def _sidecar_candidates(failed_selector: str, sidecar_path: Path) -> list[HealCa
 # ---------------------------------------------------------------------------
 
 
+def _split_iframe_wrap(selector: str) -> tuple[str, str]:
+    """Return ``(prefix, inner)`` where prefix is the full chained
+    ``iframe[...] >>> `` qualifier and inner is the deepest selector
+    after all iframe steps. ``prefix`` is the empty string when the
+    selector has no cross-frame qualifier.
+
+    RECORDER-FRAMES — the recorder emits cross-frame selectors as
+    ``iframe[src*="<host>"] >>> <inner>`` (Browser library's
+    cross-frame piercing dialect). The sidecar still stores only the
+    INNER selector on each candidate (the iframe wrap lives
+    separately on ``cmd.frame_url``), so a heal lookup must split off
+    the wrap before matching, then re-attach it to every candidate
+    so the verify callback (and subsequent ``run_keyword``) targets
+    the same frame the recorder captured. Without this split,
+    sidecar lookups always miss for iframe-recorded events
+    (Sourcepoint / OneTrust / TCF consent banners) and transposition
+    candidates run against the top-frame DOM, where the captured
+    element doesn't exist — ``verify`` returns 0 and every
+    candidate is dropped.
+    """
+    s = selector.strip()
+    prefix_parts: list[str] = []
+    while s.startswith("iframe["):
+        sep = s.find(" >>> ")
+        if sep < 0:
+            break
+        prefix_parts.append(s[: sep + len(" >>> ")])
+        s = s[sep + len(" >>> "):]
+    return ("".join(prefix_parts), s)
+
+
 def find_heal_candidates(
     failed_selector: str,
     *,
@@ -276,11 +307,44 @@ def find_heal_candidates(
     transposition matches (generic strategy fallbacks). Within each
     group, higher confidence first. Candidates are de-duplicated by
     their `value`.
+
+    RECORDER-FRAMES handling: when ``failed_selector`` carries a
+    Browser-library cross-frame prefix (``iframe[src*="..."] >>>
+    <inner>``), the lookup + transposition run against the inner
+    selector and every returned candidate is re-wrapped with the
+    same prefix. ``verify`` therefore targets the same frame the
+    recorder captured — without this, every candidate would be
+    dropped as count==0.
     """
+    iframe_prefix, inner_selector = _split_iframe_wrap(failed_selector)
+
     buckets: list[HealCandidate] = []
     if sidecar_path is not None and sidecar_path.is_file():
-        buckets.extend(_sidecar_candidates(failed_selector, sidecar_path))
-    buckets.extend(transpose_selector(failed_selector))
+        buckets.extend(_sidecar_candidates(inner_selector, sidecar_path))
+    buckets.extend(transpose_selector(inner_selector))
+
+    if iframe_prefix:
+        # Re-wrap each candidate so verify + run_keyword target the
+        # same frame the user originally clicked in. The dataclass is
+        # frozen, so build a new instance per candidate rather than
+        # mutating in place.
+        wrapped: list[HealCandidate] = []
+        for c in buckets:
+            if c.value.startswith("iframe["):
+                # Already wrapped (defensive — sidecar lookups always
+                # produce inner selectors today, but a future writer
+                # might bake the wrap into the candidate value).
+                wrapped.append(c)
+                continue
+            wrapped.append(
+                HealCandidate(
+                    value=f"{iframe_prefix}{c.value}",
+                    strategy=c.strategy,
+                    confidence=c.confidence,
+                    source=c.source,
+                )
+            )
+        buckets = wrapped
 
     seen: set[str] = set()
     deduped: list[HealCandidate] = []

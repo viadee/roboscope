@@ -161,6 +161,136 @@ class TestFindHealCandidates:
 
 
 # ---------------------------------------------------------------------------
+# RECORDER-FRAMES — iframe-wrapped failed selectors must round-trip
+# through both sidecar lookup and transposition with the wrap intact.
+# ---------------------------------------------------------------------------
+
+
+class TestIframeWrappedSelectors:
+    """Sourcepoint / OneTrust / TCF consent banners live inside cross-
+    origin iframes. The recorder emits clicks on them as
+    ``iframe[src*="<host>"] >>> <inner>``. At heal time the failed
+    selector still carries the wrap, but the sidecar stores only the
+    inner selector on each candidate, and verify probes the live page
+    via ``Get Element Count`` — without the wrap baked back into every
+    candidate, sidecar lookup misses, transposition runs against the
+    top frame, and verify rejects everything as count==0."""
+
+    def test_split_iframe_wrap_unwraps_single(self) -> None:
+        from src.recording.heal.candidate_finder import _split_iframe_wrap
+        prefix, inner = _split_iframe_wrap(
+            'iframe[src*="message-eu.sp-prod.net"] >>> #accept-all'
+        )
+        assert prefix == 'iframe[src*="message-eu.sp-prod.net"] >>> '
+        assert inner == "#accept-all"
+
+    def test_split_iframe_wrap_unwraps_chain(self) -> None:
+        from src.recording.heal.candidate_finder import _split_iframe_wrap
+        prefix, inner = _split_iframe_wrap(
+            'iframe[src*="outer.example"] >>> '
+            'iframe[src*="inner.example"] >>> #accept-all'
+        )
+        assert prefix == (
+            'iframe[src*="outer.example"] >>> '
+            'iframe[src*="inner.example"] >>> '
+        )
+        assert inner == "#accept-all"
+
+    def test_split_iframe_wrap_passthrough_for_plain_selector(self) -> None:
+        from src.recording.heal.candidate_finder import _split_iframe_wrap
+        assert _split_iframe_wrap("id=submit") == ("", "id=submit")
+        assert _split_iframe_wrap("text=Login") == ("", "text=Login")
+
+    def test_sidecar_match_under_iframe_wrap_returns_inner_alternatives(
+        self, tmp_path: Path
+    ) -> None:
+        # Sidecar stores the INNER selector on each candidate, plus
+        # `frame_url` separately on the parent command. The lookup must
+        # strip the iframe wrap from the failed selector before
+        # comparing, otherwise the match always misses.
+        payload = {
+            "schema_version": 1,
+            "commands": [
+                {
+                    "index": 0,
+                    "keyword": "Click",
+                    "active_candidate_index": 0,
+                    "frame_url": "https://message-eu.sp-prod.net/?id=42",
+                    "selector_candidates": [
+                        {"strategy": "text", "value": "text=Accept all", "quality_score": 0.7},
+                        {"strategy": "aria", "value": 'role=button[name="Accept all"]', "quality_score": 0.85},
+                        {"strategy": "css",  "value": "#accept-all", "quality_score": 0.55},
+                    ],
+                }
+            ],
+        }
+        sc = tmp_path / "flow.rbs.json"
+        sc.write_text(json.dumps(payload), encoding="utf-8")
+
+        composite = 'iframe[src*="message-eu.sp-prod.net"] >>> text=Accept all'
+        out = find_heal_candidates(composite, sidecar_path=sc)
+
+        sidecar_hits = [c for c in out if c.source == "sidecar"]
+        assert len(sidecar_hits) >= 2, (
+            "iframe-wrapped lookup should find the inner-selector "
+            "siblings the recorder synthesised"
+        )
+        # Every sidecar candidate must carry the iframe prefix back so
+        # the click lands in the SAME frame the user originally clicked.
+        for c in sidecar_hits:
+            assert c.value.startswith(
+                'iframe[src*="message-eu.sp-prod.net"] >>> '
+            ), f"sidecar candidate dropped iframe wrap: {c.value!r}"
+
+    def test_transposition_under_iframe_wrap_keeps_wrap(
+        self, tmp_path: Path
+    ) -> None:
+        composite = 'iframe[src*="x.example"] >>> id=submit'
+        out = find_heal_candidates(composite, sidecar_path=None)
+        assert out, "transposition should still produce candidates"
+        # The original failed value must NOT appear (de-dup guarantee).
+        assert all(c.value != composite for c in out)
+        # Every candidate carries the iframe wrap.
+        for c in out:
+            assert c.value.startswith('iframe[src*="x.example"] >>> '), (
+                f"transposition candidate dropped iframe wrap: {c.value!r}"
+            )
+        # Inner selectors are valid transpositions of `id=submit`.
+        inner_values = [c.value.split(" >>> ", 1)[1] for c in out]
+        assert any("data-testid=submit" in v for v in inner_values)
+
+    def test_verify_runs_against_wrapped_candidate(self, tmp_path: Path) -> None:
+        # The verify callback must receive the iframe-wrapped value, not
+        # the bare inner selector — the same value the heal library will
+        # later pass to ``Click`` / ``Get Element Count``. Without this
+        # contract, verify probes the wrong DOM and every alternative
+        # is silently dropped.
+        seen_values: list[str] = []
+
+        def verify(value: str) -> int:
+            seen_values.append(value)
+            return 1  # accept all
+
+        composite = 'iframe[src*="x.example"] >>> id=submit'
+        out = find_heal_candidates(composite, sidecar_path=None, verify=verify)
+
+        assert out
+        # Whatever was kept must have been verified under the wrap.
+        for v in seen_values:
+            assert v.startswith('iframe[src*="x.example"] >>> '), (
+                f"verify saw a candidate without the iframe wrap: {v!r}"
+            )
+
+    def test_unwrapped_selector_path_unchanged_for_top_frame(self) -> None:
+        # Backward compatibility — failed selectors WITHOUT an iframe
+        # qualifier keep their existing behavior verbatim. No prefix
+        # accidentally tacked on, no candidate dropped.
+        out = find_heal_candidates("id=submit", sidecar_path=None)
+        assert out
+        assert all(not c.value.startswith("iframe[") for c in out)
+
+
+# ---------------------------------------------------------------------------
 # Threshold picker
 # ---------------------------------------------------------------------------
 
