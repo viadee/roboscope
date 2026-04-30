@@ -372,3 +372,63 @@ class TestHealPatchPreservesRbsComment:
         # Backslash-escape applied + rbs comment preserved.
         assert "\\#login-form" in after
         assert "# rbs:idz1" in after
+
+    def test_finds_line_when_original_selector_starts_with_hash(
+        self, client, db_session, admin_user, tmp_path
+    ):
+        """RECORDER-RF-ESCAPE matcher symmetry — the on-disk line for a
+        `#login-form` selector reads `\\#login-form` (the emitter
+        prefixes the backslash so RF doesn't treat it as a comment).
+        The heal audit, however, captures the runtime-resolved value
+        (`#login-form`) because RF's lexer consumed the escape before
+        Browser library saw it. The matcher must apply the same escape
+        when building its needle, otherwise it can never find the line
+        for a heal that started from a `#`-prefixed selector — which
+        would silently 409 instead of patching."""
+        robot_path = tmp_path / "tests" / "rec.robot"
+        robot_path.parent.mkdir(parents=True)
+        # Realistic on-disk shape: backslash-escape + rbs comment.
+        robot_path.write_text(
+            "*** Test Cases ***\n"
+            "T1\n"
+            "    Click    \\#login-form    # rbs:hashid01\n",
+            encoding="utf-8",
+        )
+        repo = Repository(
+            name="rbs-find-hash", git_url="https://github.com/x/y.git",
+            default_branch="main", local_path=str(tmp_path),
+            created_by=admin_user.id,
+        )
+        db_session.add(repo)
+        db_session.flush()
+        db_session.refresh(repo)
+
+        out = tmp_path / "out"
+        _write_audit_and_output(
+            out,
+            records=[{
+                "timestamp": "x",
+                "test_name": "T1",
+                "keyword": "Click",
+                # Audit value as runtime sees it — no leading backslash.
+                "original_selector": "#login-form",
+                "healed_selector": "[data-testid=login]",
+                "confidence": 0.95,
+                "source": "sidecar",
+                "command_id": "hashid01",
+            }],
+            test_outcomes={"T1": "PASS"},
+        )
+        run = _mk_run(
+            db_session, repo, admin_user, out, target_path="tests/rec.robot",
+        )
+        resp = client.post(APPLY.format(run.id, 0), headers=auth_header(admin_user))
+        assert resp.status_code == 200, resp.json()
+        body = resp.json()
+        assert body["applied"] is True
+        after = robot_path.read_text(encoding="utf-8")
+        assert "[data-testid=login]" in after
+        # rbs comment preserved through the rewrite.
+        assert "# rbs:hashid01" in after
+        # Original `\#login-form` line replaced.
+        assert "\\#login-form" not in after

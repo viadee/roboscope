@@ -904,16 +904,53 @@ function onSidecarUpdated(updated: RecordedFlow) {
 }
 
 /**
+ * Scan a .robot text for trailing `# rbs:<id>` comments and return the
+ * set of ids the file references. Used to prune dead sidecar commands
+ * after the user deletes a step in the editor.
+ */
+function _collectRbsIdsFromContent(content: string): Set<string> {
+  const ids = new Set<string>()
+  // Same shape as the backend emitter: 1+ whitespace, then `# rbs:`,
+  // then 8–32 hex chars at the end of a line.
+  const re = /\s+# rbs:([a-f0-9]{8,32})\s*$/gm
+  let m: RegExpExecArray | null
+  while ((m = re.exec(content)) !== null) ids.add(m[1])
+  return ids
+}
+
+/**
  * Persist the sidecar if it has been modified since the last save.
  * Called by the parent (ExplorerView) right before it writes the
  * `.robot` content, so both files end up on disk together — never the
  * "sidecar swapped but .robot unchanged" inconsistency that breaks the
  * SH-2 invariant. Safe to call when nothing is dirty.
+ *
+ * RECORDER-IDMAP follow-up — when the caller passes the about-to-save
+ * .robot content, also prune sidecar.commands whose ids no longer
+ * appear in that text. Without this, deleting a step in the visual
+ * editor leaves its candidate group orphaned in the sidecar; the
+ * runtime heal library would still match the dead command's selectors
+ * by value and stamp the audit with an `rbs:<id>` chip that points to
+ * a row the user removed. Cosmetic but misleading. Pruning marks the
+ * sidecar dirty itself, so a delete-only edit (no other sidecar
+ * change) still triggers the persist.
  */
-async function saveSidecarIfDirty(): Promise<void> {
-  if (!sidecarDirty.value || !sidecar.value || sidecarPath.value == null || props.repoId == null) {
+async function saveSidecarIfDirty(robotContent?: string): Promise<void> {
+  if (!sidecar.value || sidecarPath.value == null || props.repoId == null) {
     return
   }
+  if (robotContent != null && Array.isArray(sidecar.value.commands)) {
+    const liveIds = _collectRbsIdsFromContent(robotContent)
+    const before = sidecar.value.commands.length
+    const kept = sidecar.value.commands.filter(
+      c => !c.id || liveIds.has(c.id),
+    )
+    if (kept.length !== before) {
+      sidecar.value.commands = kept
+      sidecarDirty.value = true
+    }
+  }
+  if (!sidecarDirty.value) return
   await saveSidecar(props.repoId, sidecarPath.value, sidecar.value)
   sidecarDirty.value = false
 }

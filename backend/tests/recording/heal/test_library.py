@@ -149,3 +149,81 @@ class TestAuditLog:
             lib.heal_click("id=submit")
         audit = tmp_path / "heal_audit.jsonl"
         assert not audit.exists(), "audit must only reflect successful heals"
+
+
+class TestCommandIdLookup:
+    """RECORDER-IDMAP — `_lookup_command_id` correlates the failed
+    selector to the recorded command via the sidecar.
+
+    Two real-world variants of the failed-selector string need to
+    resolve to the same recorded command:
+      1. plain inner selector (`#accept-all`) — top-frame click.
+      2. composite cross-frame selector (`iframe[src*="..."] >>>
+         #accept-all`) — Sourcepoint / OneTrust consent banner case.
+    The sidecar always stores only the inner selector on the
+    candidate; the iframe wrap lives separately on `cmd.frame_url`.
+    """
+
+    @staticmethod
+    def _write_sidecar(tmp_path: Path, sidecar_name: str = "flow.rbs.json") -> Path:
+        sidecar = tmp_path / sidecar_name
+        sidecar.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "transport": "web_playwright",
+                    "session_id": "s1",
+                    "commands": [
+                        {
+                            "id": "abc123def456",
+                            "index": 0,
+                            "keyword": "Click",
+                            "args": {},
+                            "selector_candidates": [
+                                {
+                                    "strategy": "css",
+                                    "value": "#accept-all",
+                                    "quality_score": 90,
+                                    "verified_unique": True,
+                                }
+                            ],
+                            "active_candidate_index": 0,
+                            "frame_url": "https://message-eu.sp-prod.net/?id=42",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return sidecar
+
+    def test_top_frame_inner_selector_resolves_to_command_id(self, tmp_path: Path) -> None:
+        sidecar = self._write_sidecar(tmp_path)
+        lib = _make_lib(sidecar_path=str(sidecar))
+        assert lib._lookup_command_id("#accept-all") == "abc123def456"
+
+    def test_iframe_wrapped_selector_resolves_to_command_id(self, tmp_path: Path) -> None:
+        sidecar = self._write_sidecar(tmp_path)
+        lib = _make_lib(sidecar_path=str(sidecar))
+        composite = 'iframe[src*="message-eu.sp-prod.net"] >>> #accept-all'
+        assert lib._lookup_command_id(composite) == "abc123def456"
+
+    def test_chained_iframe_selector_resolves_to_command_id(self, tmp_path: Path) -> None:
+        sidecar = self._write_sidecar(tmp_path)
+        lib = _make_lib(sidecar_path=str(sidecar))
+        composite = (
+            'iframe[src*="outer.example"] >>> iframe[src*="inner.example"] >>> #accept-all'
+        )
+        assert lib._lookup_command_id(composite) == "abc123def456"
+
+    def test_unrelated_selector_returns_none(self, tmp_path: Path) -> None:
+        sidecar = self._write_sidecar(tmp_path)
+        lib = _make_lib(sidecar_path=str(sidecar))
+        assert lib._lookup_command_id("#something-else") is None
+
+    def test_unwrap_iframe_prefix_passthrough_for_plain_selectors(self) -> None:
+        # `text="Login"` is not an iframe wrap — must not be touched.
+        assert RoboScopeHeal._unwrap_iframe_prefix("text=\"Login\"") == "text=\"Login\""
+        # `iframe` keyword without the `[...]` attribute selector is also
+        # not the cross-frame dialect; leave it alone.
+        assert RoboScopeHeal._unwrap_iframe_prefix("iframe") == "iframe"

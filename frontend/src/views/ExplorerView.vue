@@ -489,8 +489,13 @@ function onEditorContentUpdate(content: string) {
 
 // Story EDITOR-1 — RobotEditor exposes saveSidecarIfDirty(); we call it
 // alongside the .robot save so a swapped selector candidate persists in
-// the same Save action that writes the .robot content.
-const robotEditorRef = ref<{ saveSidecarIfDirty?: () => Promise<void> } | null>(null)
+// the same Save action that writes the .robot content. Passing the
+// about-to-save text lets the editor also prune sidecar entries whose
+// `# rbs:<id>` comment is no longer in the file (RECORDER-IDMAP — keeps
+// the sidecar from accreting orphan rows after the user deletes a step).
+const robotEditorRef = ref<{
+  saveSidecarIfDirty?: (robotContent?: string) => Promise<void>
+} | null>(null)
 
 async function handleSave() {
   if (!selectedRepoId.value || !explorer.selectedFile || !isDirty.value) return
@@ -499,7 +504,9 @@ async function handleSave() {
     // Persist the recording sidecar first (cheap; usually a no-op).
     // If it fails we still try to save the .robot — better one half-saved
     // than zero saved on a transient sidecar write error.
-    try { await robotEditorRef.value?.saveSidecarIfDirty?.() } catch { /* noop */ }
+    try {
+      await robotEditorRef.value?.saveSidecarIfDirty?.(editorContent.value)
+    } catch { /* noop */ }
     await explorer.saveFile(selectedRepoId.value, explorer.selectedFile.path, editorContent.value)
     isDirty.value = false
     // Story REPO-1 — refresh the dirty-count badge after every save so

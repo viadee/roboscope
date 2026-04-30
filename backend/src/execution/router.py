@@ -554,8 +554,16 @@ def apply_heal_patch(
         m = _RBS_TAIL.search(line)
         return m.group(1) if m else ""
 
-    # Filter down by looking for the exact line.
-    needle_original = f"    {entry.keyword}    {entry.original_selector}"
+    # RECORDER-RF-ESCAPE — the on-disk line carries the RF-escaped
+    # form of the selector (`\#login-form`) but the audit captures
+    # the runtime-resolved value (`#login-form`, RF lexer consumes
+    # the leading `\` before Browser library sees it). Build the
+    # needle with the same escape applied so heals against
+    # `#`-prefixed selectors actually find their line.
+    from src.recording.robot_emit import _escape_rf_token
+    needle_original = (
+        f"    {entry.keyword}    {_escape_rf_token(entry.original_selector)}"
+    )
     candidates_with_match: list[tuple[Path, int, list[str]]] = []
     for path in target_candidates:
         try:
@@ -572,7 +580,9 @@ def apply_heal_patch(
     if not candidates_with_match:
         # Is it already applied? Idempotent check — if exactly one file
         # already carries the healed line, report applied=false.
-        needle_healed = f"    {entry.keyword}    {entry.healed_selector}"
+        needle_healed = (
+            f"    {entry.keyword}    {_escape_rf_token(entry.healed_selector)}"
+        )
         for path in target_candidates:
             try:
                 lines = path.read_text(encoding="utf-8").splitlines()
@@ -605,8 +615,8 @@ def apply_heal_patch(
     # FlowEditor's id-based matcher keeps working after the patch.
     rbs_tail = _extract_rbs_tail(lines[line_idx])
     # RF-token escape — a healed `#login-form` selector would
-    # otherwise be parsed as a comment by Robot Framework.
-    from src.recording.robot_emit import _escape_rf_token
+    # otherwise be parsed as a comment by Robot Framework. (The
+    # importer is hoisted near the matcher above so we share it.)
     healed_escaped = _escape_rf_token(entry.healed_selector)
     new_line = f"    {entry.keyword}    {healed_escaped}{rbs_tail}"
     lines[line_idx] = new_line

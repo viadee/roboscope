@@ -575,6 +575,16 @@ class RoboScopeHeal:
         """Read the sidecar and return the `id` of the command whose
         active selector equals `failed_selector`. Returns None when no
         sidecar / no match / sidecar lacks ids (pre-IDMAP recordings).
+
+        RECORDER-FRAMES caveat: the on-disk `.robot` line for an
+        iframe-captured event is the composite
+        `iframe[src*="<host>"] >>> <inner>` — but the sidecar only
+        stores the inner selector on the candidate (the iframe wrap
+        lives separately on `cmd.frame_url`). A naive string equality
+        therefore always misses on iframe heals, dropping the
+        `command_id` correlation in the audit. Strip a leading
+        `iframe[…] >>> ` prefix before comparing so cross-frame heals
+        link back to their recorded step.
         """
         import json as _json
 
@@ -585,13 +595,32 @@ class RoboScopeHeal:
             data = _json.loads(sidecar.read_text(encoding="utf-8"))
         except Exception:
             return None
+        needle = self._unwrap_iframe_prefix(failed_selector).strip()
         for cmd in (data.get("commands") or []):
             cands = cmd.get("selector_candidates") or []
             for c in cands:
-                if (c.get("value") or "").strip() == failed_selector.strip():
+                if (c.get("value") or "").strip() == needle:
                     cid = cmd.get("id")
                     return cid if isinstance(cid, str) else None
         return None
+
+    @staticmethod
+    def _unwrap_iframe_prefix(selector: str) -> str:
+        """Strip a leading `iframe[...] >>> ` cross-frame qualifier.
+
+        Browser library's frame-piercing dialect can chain (`iframe[..]
+        >>> iframe[..] >>> .target`), so unwrap iteratively. Anything
+        that doesn't start with `iframe[` is returned verbatim.
+        """
+        s = selector
+        while True:
+            stripped = s.lstrip()
+            if not stripped.startswith("iframe["):
+                return s
+            sep = stripped.find(" >>> ")
+            if sep < 0:
+                return s
+            s = stripped[sep + len(" >>> "):]
 
     def _resolve_audit_path(self) -> Path | None:
         base: str | None = self._output_dir_arg
