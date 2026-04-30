@@ -290,6 +290,99 @@ class TestIframeWrappedSelectors:
         assert all(not c.value.startswith("iframe[") for c in out)
 
 
+class TestVerifyExceptionLogging:
+    """When the verify callback throws, the candidate is dropped (the
+    pre-existing safe behavior — can't verify means can't trust). But
+    operators looking at "why didn't the heal happen?" deserve a log
+    line. Two-tier emission:
+      - per-failure debug log (low noise)
+      - one summary WARNING per heal-call when ALL candidates failed
+        verify due to exceptions (signals environment-wide trouble:
+        Browser library timeout, page navigation mid-verify, etc.)
+    """
+
+    def test_per_candidate_debug_log_on_verify_exception(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        def verify(value: str) -> int:
+            if value == "[data-testid=submit]":
+                raise RuntimeError("playwright timeout")
+            return 1
+
+        caplog.set_level("DEBUG", logger="roboscope.recording.heal")
+        out = find_heal_candidates(
+            "id=submit", sidecar_path=None, verify=verify,
+        )
+        # The other candidates still survive — only the throwing one
+        # was dropped.
+        assert out
+        assert all(c.value != "[data-testid=submit]" for c in out)
+        debug_msgs = [r for r in caplog.records if r.levelname == "DEBUG"]
+        assert any(
+            "heal-verify exception" in r.getMessage()
+            and "[data-testid=submit]" in r.getMessage()
+            for r in debug_msgs
+        ), "expected debug log naming the throwing candidate"
+
+    def test_warning_when_all_candidates_throw(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # Total environment failure — every verify call throws.
+        def verify(_value: str) -> int:
+            raise RuntimeError("browser disconnected")
+
+        caplog.set_level("WARNING", logger="roboscope.recording.heal")
+        out = find_heal_candidates(
+            "id=submit", sidecar_path=None, verify=verify,
+        )
+        assert out == []
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert len(warnings) == 1, (
+            "expected ONE summary warning per heal-call, not per "
+            f"candidate: {[r.getMessage() for r in warnings]}"
+        )
+        assert "id=submit" in warnings[0].getMessage()
+        assert "candidates" in warnings[0].getMessage()
+
+    def test_no_warning_when_at_least_one_candidate_survives(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # Mixed: some throw, some return real counts. As long as ANY
+        # candidate survives the verify gate, the warning is
+        # suppressed — heal will pick the survivor and the run
+        # proceeds; nothing for the operator to investigate.
+        def verify(value: str) -> int:
+            if value.startswith("role="):
+                raise RuntimeError("flaky strict-mode")
+            return 1
+
+        caplog.set_level("WARNING", logger="roboscope.recording.heal")
+        out = find_heal_candidates(
+            "id=submit", sidecar_path=None, verify=verify,
+        )
+        assert out
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert warnings == []
+
+    def test_no_warning_when_no_candidates_throw_but_all_drop_via_count(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # Every verify call returns 0 — legitimate "no live element
+        # matches anymore" outcome. Don't emit a warning; this is
+        # the expected silent path when a flow's selectors have all
+        # genuinely drifted.
+        def verify(_value: str) -> int:
+            return 0
+
+        caplog.set_level("WARNING", logger="roboscope.recording.heal")
+        out = find_heal_candidates(
+            "id=submit", sidecar_path=None, verify=verify,
+        )
+        assert out == []
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert warnings == []
+
+
 class TestLegacyStrategyFilter:
     """Sidecars saved before commit 0c62c7a contain `pw_locator`
     candidates whose values are Playwright JS API syntax — Browser

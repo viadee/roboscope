@@ -23,10 +23,14 @@ highest-confidence one that exceeds the configured threshold.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
+
+
+_logger = logging.getLogger("roboscope.recording.heal")
 
 
 # Higher is more stable. Mirrors (loosely) the recorder's strategy
@@ -373,14 +377,45 @@ def find_heal_candidates(
         return deduped
 
     out: list[HealCandidate] = []
+    verify_errors = 0
     for c in deduped:
         try:
             count = verify(c.value)
-        except Exception:
+        except Exception as exc:
+            # Two distinct failure shapes both land here:
+            #   1. permanent — invalid selector syntax (some xpath /
+            #      pw_locator exotica). Right behavior: drop.
+            #   2. transient — Browser library timeout, page
+            #      navigation mid-verify, network blip. Same drop
+            #      action, but an operator looking at why a heal
+            #      didn't happen needs visibility into pattern #2.
+            # Log per-candidate at debug; emit a single WARNING at
+            # the end if ANY verify call threw, so production logs
+            # surface "verify keeps failing for run X" without
+            # spamming N lines per candidate.
+            verify_errors += 1
+            _logger.debug(
+                "heal-verify exception for candidate %r (%s/%s): %s",
+                c.value, c.strategy, c.source, exc,
+            )
             continue
         if count == 1:
             out.append(c)
-        # count==0 or count>1 → drop silently
+        # count==0 or count>1 → drop silently (expected outcome)
+
+    if verify_errors and not out:
+        # All candidates failed and none survived → the heal call
+        # will return None and the original failure re-raises. The
+        # operator needs to know whether that was "no good
+        # alternative existed" (silent OK) vs. "verify itself broke"
+        # (warrants investigation). One warning per heal-call, not
+        # per candidate.
+        _logger.warning(
+            "heal-verify dropped all %d candidates due to exceptions "
+            "(failed selector: %r) — heal will not happen for this "
+            "call; check Browser library / page state",
+            verify_errors, failed_selector,
+        )
     return out
 
 
