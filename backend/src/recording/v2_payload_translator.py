@@ -11,6 +11,7 @@ No browser, no DB, no file I/O — fully unit-testable.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from src.recording.selector_schema import RecordedCommand, SelectorCandidate
@@ -19,6 +20,9 @@ from src.recording.selector_synthesis import (
     ElementSnapshot,
     synthesise_selectors,
 )
+
+
+_logger = logging.getLogger("roboscope.recording.translate")
 
 
 def _element_from_payload(raw: dict[str, Any] | None) -> ElementSnapshot | None:
@@ -157,6 +161,14 @@ def translate_payload(
     """
     kind = payload.get("kind")
     if not isinstance(kind, str):
+        # Malformed payload from JS — should never happen in practice
+        # (the capture script always sets `kind`), but if a test stub
+        # or future protocol bump sends one without it, that's a
+        # capture-pipeline bug worth surfacing in logs at debug.
+        _logger.debug(
+            "translate.dropped reason=missing_kind index=%d payload_keys=%s",
+            index, sorted((payload or {}).keys()),
+        )
         return None
 
     frame_url = _frame_url_from_payload(payload)
@@ -164,9 +176,8 @@ def translate_payload(
         # Logged at debug; the live view never sees this command, so
         # the user has no UI signal — that's intentional, the noise
         # would defeat the point.
-        import logging
-        logging.getLogger("roboscope.recording").debug(
-            "recording.iframe.suppressed kind=%s frame=%s",
+        _logger.debug(
+            "translate.dropped reason=ad_iframe kind=%s frame=%s",
             kind, frame_url,
         )
         return None
@@ -175,6 +186,10 @@ def translate_payload(
     if kind == "custom_action":
         keyword = payload.get("keyword")
         if not isinstance(keyword, str) or not keyword:
+            _logger.debug(
+                "translate.dropped reason=custom_action_missing_keyword "
+                "index=%d frame=%s", index, frame_url,
+            )
             return None
         args = dict(payload.get("args") or {})
         el = _element_from_payload(payload.get("element"))
@@ -208,6 +223,10 @@ def translate_payload(
     if kind == "navigate":
         url = payload.get("url")
         if not isinstance(url, str) or not url:
+            _logger.debug(
+                "translate.dropped reason=navigate_missing_url "
+                "index=%d frame=%s", index, frame_url,
+            )
             return None
         return RecordedCommand(
             index=index,
@@ -236,6 +255,14 @@ def translate_payload(
         )
 
     if kind not in _KIND_TO_KEYWORD:
+        # Unknown event kind — either a JS-side feature the backend
+        # doesn't recognise yet (forward-compat) or a typo from a
+        # buggy capture script. Operators correlating "user did X
+        # but no command appeared" need this to land somewhere.
+        _logger.debug(
+            "translate.dropped reason=unknown_kind kind=%s index=%d frame=%s",
+            kind, index, frame_url,
+        )
         return None
 
     keyword = _KIND_TO_KEYWORD[kind]
