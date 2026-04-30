@@ -164,3 +164,96 @@ async def test_no_page_object_returns_command_unchanged() -> None:
     )
     out = await _verify_command_candidates(cmd, frame_or_page=None)
     assert out is cmd
+
+
+# ──────────────────────────────────────────────────────────────────────
+# RECORDER-FRAMES — verification at record-time MUST run against the
+# iframe-frame locator, not the top page. Documented in the helper
+# docstring + comment in `on_capture`, but unverified by tests.
+# ──────────────────────────────────────────────────────────────────────
+
+
+class _RecordingFakePage:
+    """Like _FakePage but logs every selector value passed to .locator()
+    so a test can assert the candidate values reach the locator
+    verbatim — no iframe prefix tacked on, no normalisation."""
+
+    def __init__(self, counts: dict[str, int]) -> None:
+        self.counts = counts
+        self.locator_calls: list[str] = []
+
+    def locator(self, value: str) -> _FakeLocator:
+        self.locator_calls.append(value)
+        return _FakeLocator(self.counts.get(value, 0))
+
+
+@pytest.mark.asyncio
+async def test_iframe_candidate_values_passed_to_frame_locator_verbatim() -> None:
+    """An iframe-captured command carries `frame_url` + bare inner
+    candidate values. The helper must pass those bare values to the
+    frame's `.locator(...)` call WITHOUT bolting on an iframe prefix
+    — Playwright resolves bare CSS / text / role selectors against the
+    frame's own document. If the helper ever started prepending the
+    iframe wrap on its own, candidates would resolve as zero-match
+    inside the frame and every recording from a cookie banner would
+    drop all candidates as un-verified. This test pins the
+    "frame.locator(value), not page.locator(iframe-wrap + value)"
+    contract."""
+    cmd = RecordedCommand(
+        index=0,
+        keyword="Click",
+        selector_candidates=[
+            _cand("text=\"Accept all\"", score=70, strategy="text"),
+            _cand("#accept-all", score=55, strategy="css"),
+        ],
+        active_candidate_index=0,
+        frame_url="https://message-eu.sp-prod.net/?id=42",
+    )
+    iframe_frame = _RecordingFakePage({
+        "text=\"Accept all\"": 1,
+        "#accept-all": 1,
+    })
+
+    out = await _verify_command_candidates(cmd, iframe_frame)
+
+    # The frame received exactly the bare inner candidate values.
+    # If the helper ever invented an iframe wrap, it would have
+    # called e.g. `iframe[src*="..."] >>> #accept-all` and the
+    # frame's count map would return 0 for that.
+    assert sorted(iframe_frame.locator_calls) == sorted(
+        ["text=\"Accept all\"", "#accept-all"]
+    )
+    assert all(c.verified_unique for c in out.selector_candidates)
+    # frame_url must round-trip — it's the metadata the emitter
+    # uses to wrap the selector at .robot-emit time.
+    assert out.frame_url == "https://message-eu.sp-prod.net/?id=42"
+
+
+@pytest.mark.asyncio
+async def test_helper_uses_only_object_passed_in_never_a_global_page() -> None:
+    """Defensive: the helper must not reach for any module-level
+    page object — only the `frame_or_page` argument it received.
+    A `_FakeFrame` with no global counterpart proves no fallback
+    was secretly happening."""
+
+    class _FrameOnly:
+        def __init__(self) -> None:
+            self.locator_calls: list[str] = []
+
+        def locator(self, value: str) -> _FakeLocator:
+            self.locator_calls.append(value)
+            return _FakeLocator(1 if value == "#only-here" else 0)
+
+    cmd = RecordedCommand(
+        index=0,
+        keyword="Click",
+        selector_candidates=[
+            _cand("#only-here", score=90),
+            _cand("#nowhere", score=40),
+        ],
+        active_candidate_index=0,
+    )
+    target = _FrameOnly()
+    out = await _verify_command_candidates(cmd, target)
+    assert [c.value for c in out.selector_candidates] == ["#only-here"]
+    assert target.locator_calls == ["#only-here", "#nowhere"]
