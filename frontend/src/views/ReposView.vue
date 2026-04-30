@@ -223,7 +223,7 @@ function selectFallbackBranch(branch: string) {
   showBranchFallbackDialog.value = false
   adding.value = true
   doCreateRepo()
-    .catch((e: any) => toast.error(t('common.error'), e.response?.data?.detail || t('repos.toasts.addError')))
+    .catch((e: unknown) => toast.error(t('common.error'), extractErrorDetail(e, t('repos.toasts.addError'))))
     .finally(() => { adding.value = false })
 }
 
