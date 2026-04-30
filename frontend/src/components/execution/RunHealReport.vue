@@ -17,6 +17,7 @@ import {
   type HealReport,
 } from '@/api/execution.api'
 import { useAuthStore } from '@/stores/auth.store'
+import { extractErrorDetail } from '@/utils/errors'
 
 const props = defineProps<{ runId: number; status: string }>()
 const { t } = useI18n()
@@ -41,13 +42,10 @@ async function applyPatch(idx: number) {
     if (res.applied || res.reason === 'already_patched') {
       appliedIndices.value.add(idx)
     }
-  } catch (e: any) {
-    const detail = e?.response?.data?.detail ?? ''
+  } catch (e: unknown) {
     applyErrors.value.set(
       idx,
-      typeof detail === 'string' && detail
-        ? detail
-        : t('execution.healReport.applyFailed'),
+      extractErrorDetail(e, t('execution.healReport.applyFailed')),
     )
   } finally {
     applyingIndices.value.delete(idx)
