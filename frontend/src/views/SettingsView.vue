@@ -16,6 +16,7 @@ import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useReposStore } from '@/stores/repos.store'
 import type { AppSetting, User, Role, DockerStatus, ApiToken, ApiTokenCreated, WebhookConfig } from '@/types/domain.types'
 import { formatDateTime } from '@/utils/formatDate'
+import { extractErrorDetail } from '@/utils/errors'
 import * as webhooksApi from '@/api/webhooks.api'
 
 const toast = useToast()
@@ -69,9 +70,8 @@ async function createApiToken() {
     createdTokenValue.value = result.token
     tokens.value.unshift(result)
     toast.success(t('settings.tokens.createdToken'))
-  } catch (e: any) {
-    const detail = e.response?.data?.detail || t('common.error')
-    toast.error(detail)
+  } catch (e: unknown) {
+    toast.error(extractErrorDetail(e, t('common.error')))
   } finally {
     creatingToken.value = false
   }
@@ -118,9 +118,8 @@ async function confirmReassign() {
     reassignTargetToken.value = null
     reassignUserId.value = null
     toast.success(t('settings.tokens.reassignSuccess'))
-  } catch (e: any) {
-    const msg = e?.response?.data?.detail ?? t('common.error')
-    toast.error(typeof msg === 'string' ? msg : t('common.error'))
+  } catch (e: unknown) {
+    toast.error(extractErrorDetail(e, t('common.error')))
   }
 }
 
@@ -177,9 +176,8 @@ async function createNewWebhook() {
     webhooks.value.unshift(wh)
     showCreateWebhookDialog.value = false
     toast.success(t('settings.webhooks.created'))
-  } catch (e: any) {
-    const detail = e.response?.data?.detail || t('common.error')
-    toast.error(detail)
+  } catch (e: unknown) {
+    toast.error(extractErrorDetail(e, t('common.error')))
   } finally {
     creatingWebhook.value = false
   }
@@ -348,9 +346,8 @@ async function handleRfMcpSetup() {
   try {
     await aiStore.setupRfMcpServer(rfMcpEnvId.value)
     toast.success(t('ai.rfMcp.setupStarted'))
-  } catch (e: any) {
-    const detail = e.response?.data?.detail || t('ai.rfMcp.setupFailed')
-    toast.error(detail)
+  } catch (e: unknown) {
+    toast.error(extractErrorDetail(e, t('ai.rfMcp.setupFailed')))
   } finally {
     rfMcpSetupLoading.value = false
   }
@@ -424,9 +421,8 @@ async function createNewUser() {
     users.value.push(created)
     showCreateDialog.value = false
     toast.success(t('settings.toasts.userCreated'), t('settings.toasts.userCreatedMsg', { name: created.username }))
-  } catch (e: any) {
-    const detail = e.response?.data?.detail || t('settings.toasts.userCreateError')
-    toast.error(t('common.error'), detail)
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('settings.toasts.userCreateError')))
   } finally {
     creating.value = false
   }
@@ -449,9 +445,8 @@ async function saveEditedUser() {
     if (idx >= 0) users.value[idx] = updated
     showEditDialog.value = false
     toast.success(t('settings.toasts.userUpdated'))
-  } catch (e: any) {
-    const detail = e.response?.data?.detail || t('settings.toasts.userUpdateError')
-    toast.error(t('common.error'), detail)
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('settings.toasts.userUpdateError')))
   } finally {
     editingUser.value = false
   }
@@ -469,9 +464,8 @@ async function saveResetPassword() {
     await authApi.updateUser(resetPwUser.value.id, { password: resetPwValue.value })
     showResetPwDialog.value = false
     toast.success(t('settings.toasts.passwordReset'), t('settings.toasts.passwordResetMsg', { name: resetPwUser.value.username }))
-  } catch (e: any) {
-    const detail = e.response?.data?.detail || t('settings.toasts.passwordResetError')
-    toast.error(t('common.error'), detail)
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('settings.toasts.passwordResetError')))
   } finally {
     resettingPw.value = false
   }
@@ -483,9 +477,8 @@ async function deleteUser(user: User) {
     await authApi.deleteUser(user.id)
     users.value = users.value.filter(u => u.id !== user.id)
     toast.success(t('settings.toasts.userDeleted'), t('settings.toasts.userDeletedMsg', { name: user.username }))
-  } catch (e: any) {
-    const detail = e.response?.data?.detail || t('settings.toasts.userDeleteError')
-    toast.error(t('common.error'), detail)
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('settings.toasts.userDeleteError')))
   }
 }
 
