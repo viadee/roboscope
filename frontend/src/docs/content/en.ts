@@ -640,8 +640,10 @@ const en: DocsContent = [
   <li><strong>Recorder v2 (recommended)</strong> &mdash; Open the launcher from the sidebar
   entry <em>Recorder</em>, or directly from the Explorer toolbar via the <em>Recorder v2</em>
   button (the Explorer button pre-selects the current repository). The launcher offers a
-  transport picker (Web / Desktop&nbsp;Windows), opens a controlled browser session, and
-  streams each captured action over Server-Sent Events into the live step list with
+  transport picker (Web / Desktop&nbsp;Windows), an optional <em>Open URL</em> field so the
+  controlled browser navigates straight to your starting page (only <code>http://</code> /
+  <code>https://</code> URLs are accepted &mdash; leave blank to start at <code>about:blank</code>),
+  and streams each captured action over Server-Sent Events into the live step list with
   per-step selector candidates.</li>
   <li><strong>Chrome Extension</strong> &mdash; Install the RoboScope Recorder extension to record
   directly in your own browser. Actions are forwarded to RoboScope via the API when connected.

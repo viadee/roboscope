@@ -642,8 +642,11 @@ const es: DocsContent = [
   <em>Recorder</em> de la barra lateral, o directamente desde la barra de herramientas del
   Explorer mediante el bot\u00F3n <em>Recorder v2</em> (el bot\u00F3n del Explorer preselecciona el
   repositorio actual). El lanzador ofrece un selector de transporte (Web / Desktop&nbsp;Windows),
-  abre una sesi\u00F3n de navegador controlada y transmite cada acci\u00F3n capturada mediante Server-Sent
-  Events a la lista de pasos en vivo &mdash; con candidatos de selector por paso.</li>
+  un campo opcional <em>Abrir URL</em> para que el navegador controlado navegue directamente
+  a su p\u00E1gina de inicio (solo se aceptan URL <code>http://</code> / <code>https://</code>
+  &mdash; d\u00E9jelo en blanco para iniciar en <code>about:blank</code>), abre una sesi\u00F3n de
+  navegador controlada y transmite cada acci\u00F3n capturada mediante Server-Sent Events a la
+  lista de pasos en vivo &mdash; con candidatos de selector por paso.</li>
   <li><strong>Extensi\u00F3n de Chrome</strong> &mdash; Instale la extensi\u00F3n RoboScope Recorder para grabar
   directamente en su propio navegador. Las acciones se env\u00EDan a RoboScope a trav\u00E9s de la API cuando est\u00E1 conectado.
   El bot\u00F3n del grabador integrado legacy que antes aparec\u00EDa en la barra de herramientas del Explorer ha sido eliminado;

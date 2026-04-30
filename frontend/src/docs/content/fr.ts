@@ -622,9 +622,12 @@ const fr: DocsContent = [
   <li><strong>Recorder v2 (recommand\u00E9)</strong> &mdash; Ouvrez le lanceur via l\u2019entr\u00E9e <em>Recorder</em>
   de la barre lat\u00E9rale ou directement depuis la barre d\u2019outils de l\u2019Explorer via le bouton
   <em>Recorder v2</em> (le bouton de l\u2019Explorer pr\u00E9s\u00E9lectionne le d\u00E9p\u00F4t courant). Le lanceur propose
-  un choix de transport (Web / Desktop&nbsp;Windows), ouvre une session navigateur contr\u00F4l\u00E9e et
-  diffuse chaque action captur\u00E9e via Server-Sent Events dans la liste des \u00E9tapes en direct
-  &mdash; avec des candidats de s\u00E9lecteur par \u00E9tape.</li>
+  un choix de transport (Web / Desktop&nbsp;Windows), un champ optionnel <em>Ouvrir URL</em>
+  pour que le navigateur contr\u00F4l\u00E9 navigue directement vers votre page de d\u00E9part
+  (seules les URL <code>http://</code> / <code>https://</code> sont accept\u00E9es &mdash;
+  laissez vide pour d\u00E9marrer sur <code>about:blank</code>), ouvre une session navigateur
+  contr\u00F4l\u00E9e et diffuse chaque action captur\u00E9e via Server-Sent Events dans la liste des \u00E9tapes
+  en direct &mdash; avec des candidats de s\u00E9lecteur par \u00E9tape.</li>
   <li><strong>Extension Chrome</strong> &mdash; Installez l\u2019extension RoboScope Recorder pour enregistrer
   directement dans votre propre navigateur. Les actions sont transmises \u00E0 RoboScope via l\u2019API lorsque connect\u00E9.
   Le bouton de l\u2019Enregistreur int\u00E9gr\u00E9 legacy qui figurait dans la barre d\u2019outils de l\u2019Explorer a \u00E9t\u00E9 supprim\u00E9\u00A0;

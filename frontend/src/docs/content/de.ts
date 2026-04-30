@@ -605,9 +605,11 @@ const de: DocsContent = [
   <li><strong>Recorder v2 (empfohlen)</strong> &mdash; \u00D6ffnen Sie den Launcher \u00FCber den
   Sidebar-Eintrag <em>Recorder</em> oder direkt aus der Explorer-Toolbar \u00FCber den Button
   <em>Recorder v2</em> (der Explorer-Button w\u00E4hlt das aktuelle Repository vor). Der Launcher
-  bietet eine Transport-Auswahl (Web / Desktop&nbsp;Windows), \u00F6ffnet eine kontrollierte
-  Browser-Sitzung und streamt jede erfasste Aktion \u00FCber Server-Sent Events in die
-  Live-Schrittliste &mdash; inklusive Selektor-Kandidaten pro Schritt.</li>
+  bietet eine Transport-Auswahl (Web / Desktop&nbsp;Windows), ein optionales Feld <em>URL \u00F6ffnen</em>,
+  damit der gesteuerte Browser direkt zur Startseite navigiert (nur <code>http://</code> /
+  <code>https://</code> sind erlaubt &mdash; leer lassen f\u00FCr <code>about:blank</code>),
+  \u00F6ffnet eine kontrollierte Browser-Sitzung und streamt jede erfasste Aktion \u00FCber
+  Server-Sent Events in die Live-Schrittliste &mdash; inklusive Selektor-Kandidaten pro Schritt.</li>
   <li><strong>Chrome-Erweiterung</strong> &mdash; Installieren Sie die RoboScope Recorder-Erweiterung, um
   direkt in Ihrem eigenen Browser aufzunehmen. Aktionen werden bei bestehender Verbindung \u00FCber die API an RoboScope weitergeleitet.
   Der fr\u00FChere In-App-Recorder-Button in der Explorer-Toolbar wurde entfernt; Chrome-Erweiterung-Workflows sind
