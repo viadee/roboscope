@@ -5,6 +5,7 @@ import { useReportsStore } from '@/stores/reports.store'
 import { useAiStore } from '@/stores/ai.store'
 import { getRunReport } from '@/api/execution.api'
 import { getReportHtmlBlobUrl, getReportZipBlobUrl } from '@/api/reports.api'
+import { extractErrorDetail } from '@/utils/errors'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -122,8 +123,8 @@ async function startAnalysis() {
   analysisError.value = ''
   try {
     await aiStore.analyzeFailures(reportId.value)
-  } catch (e: any) {
-    analysisError.value = e.response?.data?.detail || 'Analysis failed'
+  } catch (e: unknown) {
+    analysisError.value = extractErrorDetail(e, 'Analysis failed')
   }
 }
 
