@@ -6,6 +6,7 @@ import { useExplorerStore } from '@/stores/explorer.store'
 import { useReposStore } from '@/stores/repos.store'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
+import { extractErrorDetail } from '@/utils/errors'
 import { createRun } from '@/api/execution.api'
 import type { RunCreateRequest } from '@/types/api.types'
 import { checkLibraries } from '@/api/explorer.api'
@@ -412,8 +413,8 @@ async function installEditorLib(lib: LibraryCheckItem) {
     await installPackage(envId, { package_name: lib.pypi_package })
     editorMissingLibs.value = editorMissingLibs.value.filter(l => l.library_name !== lib.library_name)
     toast.success(t('explorer.libInstalled', { name: lib.pypi_package }))
-  } catch (e: any) {
-    toast.error(e?.response?.data?.detail || 'Install failed')
+  } catch (e: unknown) {
+    toast.error(extractErrorDetail(e, 'Install failed'))
   }
   editorLibInstalling.value.delete(lib.library_name)
 }

@@ -18,6 +18,7 @@ import {
 } from '@/api/recording-v2.api'
 import { useReposStore } from '@/stores/repos.store'
 import { useToast } from '@/composables/useToast'
+import { extractErrorDetail } from '@/utils/errors'
 import type { RecordingTransport } from '@/types/recorder.types'
 
 const { t } = useI18n()
@@ -103,12 +104,8 @@ async function reset() {
         t('recorder.launcher.reset.doneDetail', { count: out.aborted }),
       )
     }
-  } catch (e: any) {
-    const detail = e?.response?.data?.detail
-    error.value =
-      typeof detail === 'string'
-        ? detail
-        : detail?.message ?? t('recorder.launcher.reset.failed')
+  } catch (e: unknown) {
+    error.value = extractErrorDetail(e, t('recorder.launcher.reset.failed'))
   } finally {
     resetting.value = false
   }
@@ -132,12 +129,8 @@ async function start() {
       sessionStorage.setItem(`recorder.url.${session.session_id}`, trimmedUrl)
     }
     router.push(`/recordings/live/${session.session_id}`)
-  } catch (e: any) {
-    const detail = e?.response?.data?.detail
-    error.value =
-      typeof detail === 'string'
-        ? detail
-        : detail?.message ?? t('recorder.launcher.startFailed')
+  } catch (e: unknown) {
+    error.value = extractErrorDetail(e, t('recorder.launcher.startFailed'))
   } finally {
     starting.value = false
   }

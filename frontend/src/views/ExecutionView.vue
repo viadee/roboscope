@@ -8,6 +8,7 @@ import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useReportsStore } from '@/stores/reports.store'
 import { useToast } from '@/composables/useToast'
+import { extractErrorDetail } from '@/utils/errors'
 import { getRunOutput } from '@/api/execution.api'
 import { buildDockerImage } from '@/api/environments.api'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -85,8 +86,8 @@ async function saveSchedule() {
       toast.success(t('schedule.toasts.created'))
     }
     showScheduleDialog.value = false
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || t('schedule.toasts.saveError'))
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('schedule.toasts.saveError')))
   } finally {
     savingSchedule.value = false
   }
@@ -228,8 +229,8 @@ async function doStartRun() {
     toast.success(t('execution.toasts.started'), t('execution.toasts.startedMsg', { id: run.id }))
     showRunDialog.value = false
     rebuildDocker.value = false
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || t('execution.toasts.startError'))
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('execution.toasts.startError')))
   } finally {
     starting.value = false
   }

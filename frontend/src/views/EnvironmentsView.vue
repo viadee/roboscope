@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
+import { extractErrorDetail } from '@/utils/errors'
 import * as envsApi from '@/api/environments.api'
 import type { EnvironmentPackage } from '@/types/domain.types'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -178,8 +179,8 @@ async function installPkg(packageName: string, version?: string) {
       version: version || undefined,
     })
     toast.success(t('environments.toasts.pkgInstalling'), t('environments.toasts.pkgInstallingMsg', { name: packageName }))
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || t('environments.toasts.installFailed'))
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('environments.toasts.installFailed')))
   } finally {
     installing.value = null
   }
@@ -189,8 +190,8 @@ async function retryInstall(envId: number, pkg: EnvironmentPackage) {
   try {
     await envsApi.retryPackageInstall(envId, pkg.package_name)
     toast.success(t('environments.toasts.pkgInstalling'), t('environments.toasts.pkgInstallingMsg', { name: pkg.package_name }))
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || t('environments.toasts.installFailed'))
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('environments.toasts.installFailed')))
   }
 }
 
@@ -198,8 +199,8 @@ async function upgradePkg(envId: number, packageName: string) {
   try {
     await envsApi.upgradePackage(envId, packageName)
     toast.success(t('environments.toasts.upgradeStarted'), t('environments.toasts.upgradeMsg', { name: packageName }))
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || t('environments.toasts.upgradeFailed'))
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('environments.toasts.upgradeFailed')))
   }
 }
 
@@ -209,8 +210,8 @@ async function triggerRfbrowserInit(envId: number) {
     toast.success(t('environments.toasts.rfbrowserInitStarted'))
     // Refresh packages after a delay to pick up status changes
     setTimeout(() => envs.fetchPackages(envId), 5000)
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || 'rfbrowser init failed')
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, 'rfbrowser init failed'))
   }
 }
 
@@ -239,8 +240,8 @@ async function buildDockerImg(envId: number) {
   try {
     await envsApi.buildDockerImage(envId)
     await envs.fetchEnvironments()
-  } catch (e: any) {
-    toast.error(t('environments.docker.buildFailed'), e.response?.data?.detail || '')
+  } catch (e: unknown) {
+    toast.error(t('environments.docker.buildFailed'), extractErrorDetail(e, ''))
   }
 }
 
@@ -286,8 +287,8 @@ async function updateEnvField(envId: number, field: string, value: string | numb
     if (idx !== -1) {
       Object.assign(envs.environments[idx], { [field]: value })
     }
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || t('common.error'))
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('common.error')))
   }
 }
 
