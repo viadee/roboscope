@@ -35,7 +35,35 @@ const active = computed<SelectorCandidate | null>(() => {
   )
 })
 
-const hasChoices = computed(() => props.command.selector_candidates.length > 1)
+/**
+ * Strategies that the synthesizer no longer produces but legacy
+ * sidecars (recorded before commit 0c62c7a) may still contain.
+ * `pw_locator` emitted Playwright JS API syntax (`getByRole(...)`,
+ * `getByText(...)`) which Browser library cannot parse — those
+ * candidates always failed verify in production, so the active
+ * candidate they're attached to is never one of them. But the
+ * picker dropdown listed them anyway, and a user clicking to
+ * "swap" to a `pw_locator` row would commit a broken selector to
+ * the .robot. Hide them from the menu so the swap path can't pick
+ * a known-broken alternative. Active display is intentionally NOT
+ * filtered — if a legacy file actually has it as the active row,
+ * we keep showing it so the user can see what's there and pick a
+ * working sibling instead.
+ */
+const LEGACY_HIDDEN_STRATEGIES: ReadonlySet<string> = new Set(['pw_locator'])
+
+interface VisibleCandidate {
+  candidate: SelectorCandidate
+  originalIndex: number
+}
+
+const visibleCandidates = computed<VisibleCandidate[]>(() =>
+  props.command.selector_candidates
+    .map((c, i) => ({ candidate: c, originalIndex: i }))
+    .filter(({ candidate }) => !LEGACY_HIDDEN_STRATEGIES.has(candidate.strategy)),
+)
+
+const hasChoices = computed(() => visibleCandidates.value.length > 1)
 
 function pick(index: number) {
   emit('update:activeIndex', index)
@@ -88,12 +116,12 @@ onBeforeUnmount(unbindOutsideClick)
 
     <ul v-if="menuOpen" class="selector-picker__menu" role="listbox">
       <li
-        v-for="(c, i) in command.selector_candidates"
-        :key="`${c.strategy}-${c.value}-${i}`"
+        v-for="{ candidate: c, originalIndex } in visibleCandidates"
+        :key="`${c.strategy}-${c.value}-${originalIndex}`"
         role="option"
-        :aria-selected="i === command.active_candidate_index"
-        :class="['selector-picker__item', { 'is-active': i === command.active_candidate_index }]"
-        @click="pick(i)"
+        :aria-selected="originalIndex === command.active_candidate_index"
+        :class="['selector-picker__item', { 'is-active': originalIndex === command.active_candidate_index }]"
+        @click="pick(originalIndex)"
       >
         <span
           :class="['selector-picker__dot', `selector-picker__dot--${qualityBand(c.quality_score)}`]"

@@ -141,4 +141,86 @@ describe('SelectorPicker', () => {
     expect(items[0].find('.selector-picker__strategy').text()).toBe('Test ID')
     expect(items[2].find('.selector-picker__strategy').text()).toBe('CSS')
   })
+
+  /**
+   * Legacy sidecars (saved before the synthesizer dropped
+   * `_pw_locator`) still contain `pw_locator` candidates whose
+   * value is Playwright JS API syntax — Browser library cannot
+   * parse it. The picker must NOT let users swap to one of those
+   * rows; surface them only in the active-position display (if
+   * the legacy file already had one there).
+   */
+  describe('legacy pw_locator candidates', () => {
+    const legacyCmd: RecordedCommand = {
+      index: 0,
+      keyword: 'Click',
+      args: {},
+      selector_candidates: [
+        { strategy: 'testid', value: '[data-testid="submit"]', quality_score: 95, verified_unique: true },
+        { strategy: 'aria', value: 'role=button[name="Submit"]', quality_score: 80, verified_unique: false },
+        // Legacy pw_locator rows — must be hidden from the menu.
+        { strategy: 'pw_locator', value: 'getByRole("button", { name: "Submit" })', quality_score: 75, verified_unique: false },
+        { strategy: 'pw_locator', value: 'getByText("Submit", { exact: true })', quality_score: 70, verified_unique: false },
+        { strategy: 'css', value: 'button.btn-primary', quality_score: 50, verified_unique: false },
+      ],
+      active_candidate_index: 0,
+    }
+
+    it('hides pw_locator rows from the swap menu', async () => {
+      const w = mk(legacyCmd)
+      await w.find('.selector-picker__toggle').trigger('click')
+      const items = w.findAll('.selector-picker__item')
+      // 5 candidates total, 2 hidden (pw_locator) → 3 visible.
+      expect(items.length).toBe(3)
+      const strategies = items.map(i =>
+        i.find('.selector-picker__strategy').text(),
+      )
+      expect(strategies).not.toContain('Playwright')
+      // The visible ones still render in the original sort order.
+      expect(strategies).toEqual(['Test ID', 'ARIA', 'CSS'])
+    })
+
+    it('emits the original index when swapping past hidden pw_locator rows', async () => {
+      const w = mk(legacyCmd)
+      await w.find('.selector-picker__toggle').trigger('click')
+      const items = w.findAll('.selector-picker__item')
+      // Pick the third visible item (CSS). Its ORIGINAL index in
+      // the un-filtered list is 4, since two pw_locator rows sit
+      // between the second visible (ARIA, idx 1) and CSS.
+      await items[2].trigger('click')
+      const events = w.emitted('update:activeIndex')
+      expect(events).toBeTruthy()
+      expect(events![0]).toEqual([4])
+    })
+
+    it('hides toggle when only one non-legacy candidate remains', () => {
+      // Construct a command whose only non-pw_locator survivor is
+      // a single testid row. The toggle button should disappear.
+      const cmd: RecordedCommand = {
+        ...legacyCmd,
+        selector_candidates: [
+          { strategy: 'testid', value: '[data-testid="x"]', quality_score: 95, verified_unique: true },
+          { strategy: 'pw_locator', value: 'getByRole("button")', quality_score: 75, verified_unique: false },
+          { strategy: 'pw_locator', value: 'getByText("x")', quality_score: 70, verified_unique: false },
+        ],
+      }
+      const w = mk(cmd)
+      expect(w.find('.selector-picker__toggle').exists()).toBe(false)
+    })
+
+    it('still displays the active candidate even if it is pw_locator', () => {
+      // Pathological legacy state: someone manually set active to a
+      // pw_locator row before the filter shipped. The user must
+      // still SEE the broken value (so they can swap away from it),
+      // even though the menu hides pw_locator entries.
+      const cmd: RecordedCommand = {
+        ...legacyCmd,
+        active_candidate_index: 2,  // pw_locator getByRole
+      }
+      const w = mk(cmd)
+      expect(w.find('.selector-picker__value').text()).toBe(
+        'getByRole("button", { name: "Submit" })',
+      )
+    })
+  })
 })
