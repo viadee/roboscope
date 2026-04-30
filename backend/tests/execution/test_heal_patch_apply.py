@@ -432,3 +432,115 @@ class TestHealPatchPreservesRbsComment:
         assert "# rbs:hashid01" in after
         # Original `\#login-form` line replaced.
         assert "\\#login-form" not in after
+
+
+class TestHealPatchUsesCommandIdToDisambiguate:
+    """RECORDER-IDMAP — when two lines share the same selector text
+    (e.g. a confirm-dialog has two `Click id=submit` rows), the
+    audit's `command_id` is what makes the right line unique. The
+    pre-fix matcher 409'd "ambiguous" even though the heal_audit
+    line carried the disambiguating id."""
+
+    def test_command_id_picks_correct_row_when_selector_text_duplicated(
+        self, client, db_session, admin_user, tmp_path
+    ):
+        # Two Click lines with the same selector but different
+        # rbs ids. The audit names the SECOND one. Without the id
+        # path the matcher would 409 ambiguous.
+        robot_path = tmp_path / "tests" / "rec.robot"
+        robot_path.parent.mkdir(parents=True)
+        robot_path.write_text(
+            "*** Test Cases ***\n"
+            "T1\n"
+            "    Click    id=submit    # rbs:firstcmd0001\n"
+            "    Click    id=submit    # rbs:secondcmd002\n",
+            encoding="utf-8",
+        )
+        repo = Repository(
+            name="rbs-dup", git_url="https://github.com/x/y.git",
+            default_branch="main", local_path=str(tmp_path),
+            created_by=admin_user.id,
+        )
+        db_session.add(repo)
+        db_session.flush()
+        db_session.refresh(repo)
+
+        out = tmp_path / "out"
+        _write_audit_and_output(
+            out,
+            records=[{
+                "timestamp": "x",
+                "test_name": "T1",
+                "keyword": "Click",
+                "original_selector": "id=submit",
+                "healed_selector": "[data-testid=submit-2]",
+                "confidence": 0.95,
+                "source": "sidecar",
+                "command_id": "secondcmd002",
+            }],
+            test_outcomes={"T1": "PASS"},
+        )
+        run = _mk_run(
+            db_session, repo, admin_user, out, target_path="tests/rec.robot",
+        )
+        resp = client.post(APPLY.format(run.id, 0), headers=auth_header(admin_user))
+        assert resp.status_code == 200, resp.json()
+        body = resp.json()
+        assert body["applied"] is True
+        after = robot_path.read_text(encoding="utf-8")
+        # The first row is untouched (still `id=submit`); only the
+        # second was healed.
+        assert "    Click    id=submit    # rbs:firstcmd0001" in after
+        assert "[data-testid=submit-2]    # rbs:secondcmd002" in after
+
+    def test_id_path_does_not_overwrite_user_handedit(
+        self, client, db_session, admin_user, tmp_path
+    ):
+        """If the user hand-edited a recorded row to a different
+        selector but kept the rbs comment, the id path must NOT
+        silently rewrite that line — the audit refers to the
+        ORIGINAL selector text, which no longer matches. We fall
+        through to selector-text matching, which won't find the
+        line either, and the regular 409 fires. That's safe."""
+        robot_path = tmp_path / "tests" / "rec.robot"
+        robot_path.parent.mkdir(parents=True)
+        robot_path.write_text(
+            "*** Test Cases ***\n"
+            "T1\n"
+            "    Click    id=now-different    # rbs:driftedid01\n",
+            encoding="utf-8",
+        )
+        repo = Repository(
+            name="rbs-drift", git_url="https://github.com/x/y.git",
+            default_branch="main", local_path=str(tmp_path),
+            created_by=admin_user.id,
+        )
+        db_session.add(repo)
+        db_session.flush()
+        db_session.refresh(repo)
+
+        out = tmp_path / "out"
+        _write_audit_and_output(
+            out,
+            records=[{
+                "timestamp": "x",
+                "test_name": "T1",
+                "keyword": "Click",
+                # Audit recorded the OLD selector before the user
+                # edited the line.
+                "original_selector": "id=submit",
+                "healed_selector": "[data-testid=submit]",
+                "confidence": 0.95,
+                "source": "sidecar",
+                "command_id": "driftedid01",
+            }],
+            test_outcomes={"T1": "PASS"},
+        )
+        run = _mk_run(
+            db_session, repo, admin_user, out, target_path="tests/rec.robot",
+        )
+        resp = client.post(APPLY.format(run.id, 0), headers=auth_header(admin_user))
+        assert resp.status_code == 409
+        # User's hand-edit untouched.
+        after = robot_path.read_text(encoding="utf-8")
+        assert "id=now-different" in after

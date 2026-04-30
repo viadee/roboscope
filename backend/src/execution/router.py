@@ -542,6 +542,7 @@ def apply_heal_patch(
     # selector matcher keeps working after the patch lands.
     import re as _re_idmap
     _RBS_TAIL = _re_idmap.compile(r"(\s+# rbs:[A-Za-z0-9-]+)\s*$")
+    _RBS_TAIL_ID = _re_idmap.compile(r"\s+# rbs:([A-Za-z0-9-]+)\s*$")
 
     def _strip_rbs(line: str) -> str:
         """Return the line without a trailing `# rbs:<id>` comment."""
@@ -554,6 +555,11 @@ def apply_heal_patch(
         m = _RBS_TAIL.search(line)
         return m.group(1) if m else ""
 
+    def _extract_rbs_id(line: str) -> str | None:
+        """Return just the id portion of a trailing `# rbs:<id>` cell."""
+        m = _RBS_TAIL_ID.search(line)
+        return m.group(1) if m else None
+
     # RECORDER-RF-ESCAPE — the on-disk line carries the RF-escaped
     # form of the selector (`\#login-form`) but the audit captures
     # the runtime-resolved value (`#login-form`, RF lexer consumes
@@ -564,18 +570,58 @@ def apply_heal_patch(
     needle_original = (
         f"    {entry.keyword}    {_escape_rf_token(entry.original_selector)}"
     )
+
     candidates_with_match: list[tuple[Path, int, list[str]]] = []
-    for path in target_candidates:
-        try:
-            lines = path.read_text(encoding="utf-8").splitlines()
-        except OSError:
-            continue
-        hits = [
-            i for i, ln in enumerate(lines)
-            if _strip_rbs(ln.rstrip()) == needle_original
-        ]
-        if len(hits) == 1:
-            candidates_with_match.append((path, hits[0], lines))
+
+    # RECORDER-IDMAP step 2 — when the audit carries a `command_id`,
+    # use it to disambiguate among lines that share the same
+    # selector text. Without this, two consecutive `Click id=submit`
+    # rows (a confirm-dialog pattern is enough to trip it) would
+    # 409-ambiguous even though the id makes the target unique.
+    #
+    # The id phase still requires the line's selector text to match
+    # `needle_original` — otherwise a user hand-edit of a recorded
+    # row (different selector kept the rbs comment) would be
+    # silently overwritten when the apply runs. Drifted lines fall
+    # through to the selector-text path, which won't find them
+    # either, and the regular 409 fires — that's the safe outcome.
+    if entry.command_id:
+        id_matches: list[tuple[Path, int, list[str]]] = []
+        for path in target_candidates:
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            for i, ln in enumerate(lines):
+                if _extract_rbs_id(ln) != entry.command_id:
+                    continue
+                if _strip_rbs(ln.rstrip()) != needle_original:
+                    # ID matches but selector text doesn't — drift.
+                    # Skip; the selector-text fallback will report
+                    # the appropriate "missing/already-patched/etc"
+                    # outcome.
+                    continue
+                id_matches.append((path, i, lines))
+                break  # ids are unique within one file
+        if len(id_matches) >= 1:
+            # 1 hit → unambiguous; 2+ hits is a cross-file id
+            # collision (someone copy-pasted a recording into two
+            # .robot files in the same repo), which the existing
+            # multi-file ambiguity guard below will reject.
+            candidates_with_match = id_matches
+
+    if not candidates_with_match:
+        for path in target_candidates:
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            hits = [
+                i for i, ln in enumerate(lines)
+                if _strip_rbs(ln.rstrip()) == needle_original
+            ]
+            if len(hits) == 1:
+                candidates_with_match.append((path, hits[0], lines))
 
     if not candidates_with_match:
         # Is it already applied? Idempotent check — if exactly one file
