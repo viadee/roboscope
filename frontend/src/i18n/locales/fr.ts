@@ -358,6 +358,7 @@ export default {
         skipped: 'Test ignoré.',
         unknown: 'Résultat du test non enregistré.',
       },
+      commandIdTitle: "Identifiant de la commande enregistrée — trouvez le commentaire `# rbs:<id>` correspondant dans le fichier de test pour localiser cette étape.",
     },
     target: 'Cible',
     branch: 'Branche',

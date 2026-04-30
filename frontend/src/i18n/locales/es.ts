@@ -358,6 +358,7 @@ export default {
         skipped: 'Test omitido.',
         unknown: 'Resultado del test no registrado.',
       },
+      commandIdTitle: 'Id del comando grabado — busca el comentario `# rbs:<id>` correspondiente en el archivo de test para localizar este paso.',
     },
     target: 'Destino',
     branch: 'Rama',

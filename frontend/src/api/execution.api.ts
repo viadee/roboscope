@@ -77,6 +77,15 @@ export interface HealAuditEntry {
   confidence: number
   source: string
   outcome: HealOutcome
+  /**
+   * RECORDER-IDMAP — id of the recorded command this heal applied
+   * to (resolved at audit-write time by the heal library via
+   * sidecar lookup on `original_selector`). The matching .robot
+   * line carries the same id as a `# rbs:<id>` trailing comment,
+   * so the UI can link a heal entry to a step in the test source.
+   * Null for legacy runs (no sidecar / pre-IDMAP recordings).
+   */
+  command_id: string | null
 }
 
 export interface HealReport {

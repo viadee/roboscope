@@ -358,6 +358,7 @@ export default {
         skipped: 'Test wurde übersprungen.',
         unknown: 'Test-Ergebnis nicht erfasst.',
       },
+      commandIdTitle: 'ID des aufgenommenen Befehls — finde den passenden `# rbs:<id>` Kommentar in der Testdatei um diesen Step zu lokalisieren.',
     },
     target: 'Ziel',
     branch: 'Branch',

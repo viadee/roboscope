@@ -395,6 +395,10 @@ class HealAuditEntryOut(BaseModel):
     confidence: float
     source: str
     outcome: str
+    # RECORDER-IDMAP — id of the recorded command this heal applied
+    # to (resolved by the heal library at audit-write time via
+    # sidecar matching). None for legacy / no-sidecar runs.
+    command_id: str | None = None
 
 
 class HealReportOut(BaseModel):

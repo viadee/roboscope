@@ -174,6 +174,16 @@ function outcomeIcon(entry: HealAuditEntry): string {
         <span class="heal-entry__confidence">
           {{ (entry.confidence * 100).toFixed(0) }}%
         </span>
+        <!-- RECORDER-IDMAP — show the recorded command id when the
+             audit captured one. Lets the user grep the .robot for
+             the matching `# rbs:<id>` comment to find the exact
+             step the heal applied to. Null for legacy runs. -->
+        <code
+          v-if="entry.command_id"
+          class="heal-entry__cmd-id"
+          :title="t('execution.healReport.commandIdTitle')"
+          data-testid="heal-command-id"
+        >rbs:{{ entry.command_id }}</code>
         <template v-if="entry.outcome === 'confirmed'">
           <span v-if="appliedIndices.has(idx)" class="heal-entry__applied">
             ✅ {{ t('execution.healReport.applied') }}
@@ -358,6 +368,16 @@ function outcomeIcon(entry: HealAuditEntry): string {
 .heal-entry__confidence {
   color: #581c87;
   font-variant-numeric: tabular-nums;
+}
+
+.heal-entry__cmd-id {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.7rem;
+  color: var(--color-text-secondary, #6b7280);
+  background: rgba(107, 114, 128, 0.10);
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
 }
 
 .heal-entry__copy {

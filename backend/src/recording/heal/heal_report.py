@@ -32,6 +32,14 @@ class HealAuditEntry:
     confidence: float
     source: str  # "sidecar" | "transposition"
     outcome: str = "unknown"  # filled in by parse_heal_audit
+    # RECORDER-IDMAP — id of the recorded command this heal applied to
+    # (looked up at audit-write time via sidecar matching). None when
+    # the audit was written by a pre-IDMAP RF library, when the run
+    # had no sidecar, or when the original_selector didn't match any
+    # recorded candidate. Surfaces in the run-detail UI so the user
+    # can correlate a heal back to a specific recorded step via the
+    # `# rbs:<id>` comment in the .robot.
+    command_id: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -43,6 +51,9 @@ class HealAuditEntry:
             "confidence": self.confidence,
             "source": self.source,
             "outcome": self.outcome,
+            # Always emit (even when None) so the API contract is
+            # stable — the FE can decide to hide rather than guard.
+            "command_id": self.command_id,
         }
 
 
@@ -123,6 +134,7 @@ def parse_heal_audit(
             continue
         if not isinstance(record, dict):
             continue
+        cid_raw = record.get("command_id")
         entry = HealAuditEntry(
             timestamp=str(record.get("timestamp", "")),
             test_name=str(record.get("test_name", "")),
@@ -131,6 +143,7 @@ def parse_heal_audit(
             healed_selector=str(record.get("healed_selector", "")),
             confidence=_coerce_float(record.get("confidence"), 0.0),
             source=str(record.get("source", "transposition")),
+            command_id=cid_raw if isinstance(cid_raw, str) and cid_raw else None,
         )
         status = outcomes.get(entry.test_name)
         if status == "PASS":

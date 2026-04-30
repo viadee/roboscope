@@ -205,3 +205,79 @@ class TestHealAuditCommandId:
         )
         record = json.loads(audit.read_text(encoding="utf-8").strip())
         assert "command_id" not in record
+
+
+# ─── parse_heal_audit surfaces command_id ─────────────────────────────
+
+
+class TestHealReportCommandId:
+    def test_parsed_entry_carries_command_id(self, tmp_path: Path) -> None:
+        audit = tmp_path / "heal_audit.jsonl"
+        append_heal_audit(
+            audit,
+            test_name="T",
+            keyword="Click",
+            original_selector="text=Submit",
+            healed_selector="[data-testid='submit']",
+            confidence=0.85,
+            source="sidecar",
+            command_id="abc123def456",
+        )
+        report = parse_heal_audit(audit)
+        assert len(report.entries) == 1
+        assert report.entries[0].command_id == "abc123def456"
+
+    def test_parsed_entry_command_id_is_none_when_missing(
+        self, tmp_path: Path
+    ) -> None:
+        audit = tmp_path / "heal_audit.jsonl"
+        append_heal_audit(
+            audit,
+            test_name="T",
+            keyword="Click",
+            original_selector="text=Submit",
+            healed_selector="[data-testid='submit']",
+            confidence=0.85,
+            source="transposition",
+            # no command_id
+        )
+        report = parse_heal_audit(audit)
+        assert report.entries[0].command_id is None
+
+    def test_to_dict_always_includes_command_id_key(
+        self, tmp_path: Path
+    ) -> None:
+        """API contract: the key is present (possibly None) on every
+        entry. FE can choose to hide rather than guard against
+        missing key."""
+        audit = tmp_path / "heal_audit.jsonl"
+        append_heal_audit(
+            audit, test_name="T", keyword="Click",
+            original_selector="x", healed_selector="y",
+            confidence=0.5, source="sidecar",
+        )
+        report = parse_heal_audit(audit)
+        d = report.entries[0].to_dict()
+        assert "command_id" in d
+        assert d["command_id"] is None
+
+    def test_legacy_command_id_empty_string_treated_as_missing(
+        self, tmp_path: Path
+    ) -> None:
+        """A pre-IDMAP audit might somehow include `command_id: ""`
+        (empty string from a broken serializer); treat that as
+        missing rather than as a literal id."""
+        audit = tmp_path / "heal_audit.jsonl"
+        record = {
+            "timestamp": "2026-04-30T01:00:00Z",
+            "test_name": "T",
+            "keyword": "Click",
+            "original_selector": "x",
+            "healed_selector": "y",
+            "confidence": 0.5,
+            "source": "sidecar",
+            "command_id": "",  # empty, should be treated as None
+        }
+        audit.write_text(json.dumps(record) + "\n", encoding="utf-8")
+        report = parse_heal_audit(audit)
+        assert report.entries[0].command_id is None

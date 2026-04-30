@@ -358,6 +358,7 @@ export default {
         skipped: 'Test was skipped.',
         unknown: 'Test outcome not recorded.',
       },
+      commandIdTitle: 'Recorded command id — find the matching `# rbs:<id>` comment in the test file to locate this step.',
     },
     target: 'Target',
     branch: 'Branch',
