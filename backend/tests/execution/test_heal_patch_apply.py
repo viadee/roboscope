@@ -264,3 +264,111 @@ class TestSafetyGates:
         after = robot_path.read_text(encoding="utf-8")
         assert after.count("id=submit") == 2
         assert "[data-testid=submit]" not in after
+
+
+# ─── RECORDER-IDMAP — heal patch must preserve `# rbs:<id>` comment ──
+
+
+class TestHealPatchPreservesRbsComment:
+    """A fresh recording emits each step line with a trailing
+    `    # rbs:<id>` comment. The heal-patch endpoint used to ignore
+    that comment when matching (so it couldn't find the line) AND
+    drop it when rewriting (so the FlowEditor's id-based matcher
+    silently regressed to positional). Both bugs fixed together."""
+
+    def test_finds_line_with_trailing_rbs_comment(
+        self, client, db_session, admin_user, tmp_path
+    ):
+        # Realistic shape of a recorder-emitted line.
+        robot_path = tmp_path / "tests" / "rec.robot"
+        robot_path.parent.mkdir(parents=True)
+        robot_path.write_text(
+            "*** Test Cases ***\n"
+            "T1\n"
+            "    Click    id=submit    # rbs:abc123def456\n",
+            encoding="utf-8",
+        )
+        repo = Repository(
+            name="rbs-find", git_url="https://github.com/x/y.git",
+            default_branch="main", local_path=str(tmp_path),
+            created_by=admin_user.id,
+        )
+        db_session.add(repo)
+        db_session.flush()
+        db_session.refresh(repo)
+
+        out = tmp_path / "out"
+        _write_audit_and_output(
+            out,
+            records=[{
+                "timestamp": "x",
+                "test_name": "T1",
+                "keyword": "Click",
+                "original_selector": "id=submit",
+                "healed_selector": "[data-testid=submit]",
+                "confidence": 0.95,
+                "source": "sidecar",
+                "command_id": "abc123def456",
+            }],
+            test_outcomes={"T1": "PASS"},
+        )
+        run = _mk_run(
+            db_session, repo, admin_user, out, target_path="tests/rec.robot",
+        )
+        resp = client.post(APPLY.format(run.id, 0), headers=auth_header(admin_user))
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["applied"] is True
+        # Line was rewritten WITH the rbs comment preserved.
+        after = robot_path.read_text(encoding="utf-8")
+        assert "[data-testid=submit]" in after
+        assert "# rbs:abc123def456" in after
+        # Original selector replaced.
+        assert "id=submit    # rbs" not in after
+
+    def test_healed_selector_starting_with_hash_is_escaped(
+        self, client, db_session, admin_user, tmp_path
+    ):
+        """RECORDER-RF-ESCAPE — if the heal swaps to a CSS-ID
+        candidate like `#login-form`, the rewriter must add the
+        `\\` escape so RF doesn't treat the new line as a comment."""
+        robot_path = tmp_path / "tests" / "rec.robot"
+        robot_path.parent.mkdir(parents=True)
+        robot_path.write_text(
+            "*** Test Cases ***\n"
+            "T1\n"
+            "    Click    text=Submit    # rbs:idz1\n",
+            encoding="utf-8",
+        )
+        repo = Repository(
+            name="rbs-esc", git_url="https://github.com/x/y.git",
+            default_branch="main", local_path=str(tmp_path),
+            created_by=admin_user.id,
+        )
+        db_session.add(repo)
+        db_session.flush()
+        db_session.refresh(repo)
+
+        out = tmp_path / "out"
+        _write_audit_and_output(
+            out,
+            records=[{
+                "timestamp": "x",
+                "test_name": "T1",
+                "keyword": "Click",
+                "original_selector": "text=Submit",
+                "healed_selector": "#login-form",  # raw CSS-ID — must get escaped
+                "confidence": 0.95,
+                "source": "sidecar",
+            }],
+            test_outcomes={"T1": "PASS"},
+        )
+        run = _mk_run(
+            db_session, repo, admin_user, out, target_path="tests/rec.robot",
+        )
+        resp = client.post(APPLY.format(run.id, 0), headers=auth_header(admin_user))
+        assert resp.status_code == 200
+        after = robot_path.read_text(encoding="utf-8")
+        # Backslash-escape applied + rbs comment preserved.
+        assert "\\#login-form" in after
+        assert "# rbs:idz1" in after

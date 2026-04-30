@@ -535,6 +535,25 @@ def apply_heal_patch(
             # selector on a line with the matching keyword. Must be unique.
             target_candidates = list(tp.rglob("*.robot"))
 
+    # RECORDER-IDMAP — recorded lines now carry a trailing
+    # `    # rbs:<id>` comment. Strip it before line matching so a
+    # heal apply can find lines from fresh recordings, AND preserve
+    # the comment when rewriting so the FlowEditor's id-based
+    # selector matcher keeps working after the patch lands.
+    import re as _re_idmap
+    _RBS_TAIL = _re_idmap.compile(r"(\s+# rbs:[A-Za-z0-9-]+)\s*$")
+
+    def _strip_rbs(line: str) -> str:
+        """Return the line without a trailing `# rbs:<id>` comment."""
+        return _RBS_TAIL.sub("", line)
+
+    def _extract_rbs_tail(line: str) -> str:
+        """Return the rstripped trailing `    # rbs:<id>` slice (with
+        leading whitespace) if present, else empty string. Used to
+        glue the comment back onto the rewritten line."""
+        m = _RBS_TAIL.search(line)
+        return m.group(1) if m else ""
+
     # Filter down by looking for the exact line.
     needle_original = f"    {entry.keyword}    {entry.original_selector}"
     candidates_with_match: list[tuple[Path, int, list[str]]] = []
@@ -543,7 +562,10 @@ def apply_heal_patch(
             lines = path.read_text(encoding="utf-8").splitlines()
         except OSError:
             continue
-        hits = [i for i, ln in enumerate(lines) if ln.rstrip() == needle_original]
+        hits = [
+            i for i, ln in enumerate(lines)
+            if _strip_rbs(ln.rstrip()) == needle_original
+        ]
         if len(hits) == 1:
             candidates_with_match.append((path, hits[0], lines))
 
@@ -557,7 +579,8 @@ def apply_heal_patch(
             except OSError:
                 continue
             healed_hits = [
-                i for i, ln in enumerate(lines) if ln.rstrip() == needle_healed
+                i for i, ln in enumerate(lines)
+                if _strip_rbs(ln.rstrip()) == needle_healed
             ]
             if len(healed_hits) == 1:
                 return HealPatchApplyResponse(
@@ -578,7 +601,14 @@ def apply_heal_patch(
         )
 
     target, line_idx, lines = candidates_with_match[0]
-    new_line = f"    {entry.keyword}    {entry.healed_selector}"
+    # Preserve any `# rbs:<id>` comment from the original line so the
+    # FlowEditor's id-based matcher keeps working after the patch.
+    rbs_tail = _extract_rbs_tail(lines[line_idx])
+    # RF-token escape — a healed `#login-form` selector would
+    # otherwise be parsed as a comment by Robot Framework.
+    from src.recording.robot_emit import _escape_rf_token
+    healed_escaped = _escape_rf_token(entry.healed_selector)
+    new_line = f"    {entry.keyword}    {healed_escaped}{rbs_tail}"
     lines[line_idx] = new_line
     content = "\n".join(lines)
     # Preserve trailing newline if the original file had one.
