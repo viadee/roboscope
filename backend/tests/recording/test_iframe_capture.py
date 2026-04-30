@@ -65,6 +65,46 @@ def test_frame_url_legacy_payload_without_flags_returns_none() -> None:
     assert _frame_url_from_payload({}) is None
 
 
+def test_frame_url_iframe_with_empty_string_url_returns_none() -> None:
+    """``is_top_frame=False`` but no actual URL — degrade silently
+    rather than emit a broken ``iframe[src*=""]`` wrapper that
+    would match every iframe on the page."""
+    assert _frame_url_from_payload(
+        {"is_top_frame": False, "frame_url": ""}
+    ) is None
+
+
+def test_frame_url_iframe_with_null_url_returns_none() -> None:
+    """JSON null in ``frame_url`` — same safe-degrade path."""
+    assert _frame_url_from_payload(
+        {"is_top_frame": False, "frame_url": None}
+    ) is None
+
+
+def test_frame_url_iframe_with_non_string_url_returns_none() -> None:
+    """Type confusion (`frame_url: 42`) — must not crash, must not
+    surface a stringified value through ``isinstance(url, str)``."""
+    assert _frame_url_from_payload(
+        {"is_top_frame": False, "frame_url": 42}
+    ) is None
+
+
+def test_frame_url_iframe_with_about_srcdoc_returns_none() -> None:
+    """Other ``about:`` schemes (srcdoc, blank) — same filter."""
+    for u in ("about:blank", "about:srcdoc", "about:newtab"):
+        assert _frame_url_from_payload(
+            {"is_top_frame": False, "frame_url": u}
+        ) is None, f"{u!r} should be filtered"
+
+
+def test_frame_url_iframe_missing_frame_url_key_returns_none() -> None:
+    """``is_top_frame=False`` but no ``frame_url`` field at all —
+    a defensive code path; never observed in production payloads
+    from the capture script (which always tags both fields), but
+    a stray test stub or a future protocol bump could trip it."""
+    assert _frame_url_from_payload({"is_top_frame": False}) is None
+
+
 # ─── translate_payload ───────────────────────────────────────────────────
 
 
