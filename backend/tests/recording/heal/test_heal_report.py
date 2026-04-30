@@ -281,3 +281,105 @@ class TestHealReportCommandId:
         audit.write_text(json.dumps(record) + "\n", encoding="utf-8")
         report = parse_heal_audit(audit)
         assert report.entries[0].command_id is None
+
+    def test_legacy_command_id_json_null_treated_as_missing(
+        self, tmp_path: Path
+    ) -> None:
+        """If a future writer emits `command_id: null` (JSON null
+        literal — different from a missing key), the parser must
+        treat it as None rather than crash on `isinstance(None, str)`
+        or worse, surface a string `"None"`."""
+        audit = tmp_path / "heal_audit.jsonl"
+        record = {
+            "timestamp": "2026-04-30T02:00:00Z",
+            "test_name": "T",
+            "keyword": "Click",
+            "original_selector": "x",
+            "healed_selector": "y",
+            "confidence": 0.5,
+            "source": "sidecar",
+            "command_id": None,
+        }
+        audit.write_text(json.dumps(record) + "\n", encoding="utf-8")
+        report = parse_heal_audit(audit)
+        assert report.entries[0].command_id is None
+        # to_dict must still emit the key (FE contract is "always
+        # present, value may be null"), not omit it.
+        d = report.entries[0].to_dict()
+        assert "command_id" in d
+        assert d["command_id"] is None
+
+    def test_interleaved_legacy_and_idmap_lines_parse_independently(
+        self, tmp_path: Path
+    ) -> None:
+        """A heal_audit.jsonl assembled from a partly-upgraded test
+        suite (some Heal* keywords ran with sidecar lookup, some
+        without — e.g. legacy tests living alongside fresh
+        recordings) interleaves rows with and without `command_id`.
+        The parser must not let a missing-id row corrupt the next
+        row's id, and the order of entries must match the file."""
+        audit = tmp_path / "heal_audit.jsonl"
+        rows = [
+            # Legacy row, no command_id key.
+            {
+                "timestamp": "t1",
+                "test_name": "T1",
+                "keyword": "Click",
+                "original_selector": "id=a",
+                "healed_selector": "id=A",
+                "confidence": 0.9,
+                "source": "transposition",
+            },
+            # New row, with command_id.
+            {
+                "timestamp": "t2",
+                "test_name": "T2",
+                "keyword": "Click",
+                "original_selector": "id=b",
+                "healed_selector": "id=B",
+                "confidence": 0.9,
+                "source": "sidecar",
+                "command_id": "newcmdaaaaaa",
+            },
+            # Legacy again, sandwiched.
+            {
+                "timestamp": "t3",
+                "test_name": "T3",
+                "keyword": "Click",
+                "original_selector": "id=c",
+                "healed_selector": "id=C",
+                "confidence": 0.9,
+                "source": "transposition",
+            },
+            # Empty-string id (also legacy-shaped).
+            {
+                "timestamp": "t4",
+                "test_name": "T4",
+                "keyword": "Click",
+                "original_selector": "id=d",
+                "healed_selector": "id=D",
+                "confidence": 0.9,
+                "source": "sidecar",
+                "command_id": "",
+            },
+            # Normal new row at the end.
+            {
+                "timestamp": "t5",
+                "test_name": "T5",
+                "keyword": "Click",
+                "original_selector": "id=e",
+                "healed_selector": "id=E",
+                "confidence": 0.9,
+                "source": "sidecar",
+                "command_id": "newcmdbbbbbb",
+            },
+        ]
+        audit.write_text(
+            "\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8",
+        )
+        report = parse_heal_audit(audit)
+        ids = [e.command_id for e in report.entries]
+        # Order preserved; legacy rows are None, new rows carry
+        # their id, empty-string degrades to None, no cross-row
+        # contamination.
+        assert ids == [None, "newcmdaaaaaa", None, None, "newcmdbbbbbb"]
