@@ -632,21 +632,20 @@ class RoboScopeHeal:
 
     @staticmethod
     def _unwrap_iframe_prefix(selector: str) -> str:
-        """Strip a leading `iframe[...] >>> ` cross-frame qualifier.
+        """Return the inner selector after stripping any leading
+        ``iframe[...] >>> `` cross-frame qualifier.
 
-        Browser library's frame-piercing dialect can chain (`iframe[..]
-        >>> iframe[..] >>> .target`), so unwrap iteratively. Anything
-        that doesn't start with `iframe[` is returned verbatim.
+        Delegates to :func:`candidate_finder._split_iframe_wrap` so
+        record-side, heal-side, and patch-side iframe handling all
+        funnel through one shared parser. Browser library's
+        frame-piercing dialect can chain
+        (``iframe[..] >>> iframe[..] >>> .target``), so the helper
+        unwraps every step. Anything without an ``iframe[`` prefix
+        is returned verbatim.
         """
-        s = selector
-        while True:
-            stripped = s.lstrip()
-            if not stripped.startswith("iframe["):
-                return s
-            sep = stripped.find(" >>> ")
-            if sep < 0:
-                return s
-            s = stripped[sep + len(" >>> "):]
+        from src.recording.heal.candidate_finder import _split_iframe_wrap
+        _prefix, inner = _split_iframe_wrap(selector)
+        return inner
 
     def _resolve_audit_path(self) -> Path | None:
         base: str | None = self._output_dir_arg
