@@ -1158,7 +1158,11 @@ export default {
     },
   },
   flowEditor: {
-    noTestCases: 'No hay casos de prueba ni palabras clave para visualizar. Crea contenido en el editor visual.',
+    noTestCases: 'Aún no hay casos de prueba ni palabras clave. Crea el primero para empezar el flujo.',
+    addTestCase: 'Caso de prueba',
+    addTestCaseTitle: 'Añadir un nuevo caso de prueba vacío',
+    addKeyword: 'Palabra clave',
+    addKeywordTitle: 'Añadir una nueva palabra clave vacía (palabra clave de usuario)',
     keyword: 'Palabra clave',
     arguments: 'Argumentos',
     condition: 'Condición',

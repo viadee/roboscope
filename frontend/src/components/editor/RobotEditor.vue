@@ -2578,6 +2578,8 @@ watch(() => props.content, (newContent) => {
         :repo-id="props.repoId"
         :sidecar="sidecar"
         @update:sidecar="onSidecarUpdated"
+        @add-test-case="addTestCase"
+        @add-keyword="addKeyword"
       />
     </div>
 

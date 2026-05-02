@@ -1158,7 +1158,11 @@ export default {
     },
   },
   flowEditor: {
-    noTestCases: 'No test cases or keywords to visualize. Add content in the Visual Editor first.',
+    noTestCases: 'No test cases or keywords yet. Create your first one to start building the flow.',
+    addTestCase: 'Test Case',
+    addTestCaseTitle: 'Add a new empty test case',
+    addKeyword: 'Keyword',
+    addKeywordTitle: 'Add a new empty keyword (user-defined keyword)',
     keyword: 'Keyword',
     arguments: 'Arguments',
     condition: 'Condition',

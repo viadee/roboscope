@@ -1158,7 +1158,11 @@ export default {
     },
   },
   flowEditor: {
-    noTestCases: 'Keine Testfälle oder Keywords zum Visualisieren. Erstelle zuerst Inhalte im visuellen Editor.',
+    noTestCases: 'Noch keine Testfälle oder Keywords. Lege den ersten an, um den Flow zu bauen.',
+    addTestCase: 'Testfall',
+    addTestCaseTitle: 'Neuen leeren Testfall anlegen',
+    addKeyword: 'Keyword',
+    addKeywordTitle: 'Neues leeres Keyword anlegen (benutzerdefiniertes Keyword)',
     keyword: 'Keyword',
     arguments: 'Argumente',
     condition: 'Bedingung',

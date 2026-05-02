@@ -58,6 +58,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:step', data: FlowNodeData): void
   (e: 'update:sidecar', sidecar: RecordedFlow): void
+  /** Request the parent (RobotEditor) to push a new empty test case
+   *  onto `form.testCases`. The parent owns the form, FlowEditor only
+   *  triggers and then jumps the selection to the new item. */
+  (e: 'add-test-case'): void
+  /** Same as `add-test-case` but for the keywords list. */
+  (e: 'add-keyword'): void
 }>()
 
 const { t } = useI18n()
@@ -83,6 +89,32 @@ const keywordNames = computed(() =>
 const hasTestCases = computed(() => props.form.testCases.length > 0)
 const hasKeywords = computed(() => props.form.keywords.length > 0)
 const hasContent = computed(() => hasTestCases.value || hasKeywords.value)
+
+/**
+ * Emit `add-test-case` and, after the parent has pushed onto
+ * `form.testCases`, switch to the test-cases section and select the
+ * newly-appended item. The new index is `length - 1` AFTER the push,
+ * which we observe via `nextTick` (Vue propagates the prop change in
+ * the next microtask).
+ */
+async function handleAddTestCase(): Promise<void> {
+  emit('add-test-case')
+  await nextTick()
+  if (props.form.testCases.length > 0) {
+    activeSection.value = 'testcases'
+    activeItemIndex.value = props.form.testCases.length - 1
+  }
+}
+
+/** Mirror of `handleAddTestCase` for the keywords list. */
+async function handleAddKeyword(): Promise<void> {
+  emit('add-keyword')
+  await nextTick()
+  if (props.form.keywords.length > 0) {
+    activeSection.value = 'keywords'
+    activeItemIndex.value = props.form.keywords.length - 1
+  }
+}
 
 // Selected node for editable detail panel
 const selectedNode = ref<Node | null>(null)
@@ -993,6 +1025,13 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
             :class="['flow-item-tab', { active: activeItemIndex === i }]"
             @click="activeItemIndex = i"
           >{{ name }}</button>
+          <button
+            type="button"
+            class="flow-item-tab flow-item-tab--add"
+            :title="t('flowEditor.addTestCaseTitle')"
+            data-testid="flow-add-test-case"
+            @click="handleAddTestCase"
+          >+ {{ t('flowEditor.addTestCase') }}</button>
         </template>
         <template v-else>
           <button
@@ -1000,6 +1039,13 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
             :class="['flow-item-tab', { active: activeItemIndex === i }]"
             @click="activeItemIndex = i"
           >{{ name }}</button>
+          <button
+            type="button"
+            class="flow-item-tab flow-item-tab--add"
+            :title="t('flowEditor.addKeywordTitle')"
+            data-testid="flow-add-keyword"
+            @click="handleAddKeyword"
+          >+ {{ t('flowEditor.addKeyword') }}</button>
         </template>
       </div>
     </div>
@@ -1007,6 +1053,20 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
     <!-- Empty state -->
     <div v-if="!hasContent" class="flow-empty">
       <p>{{ t('flowEditor.noTestCases') }}</p>
+      <div class="flow-empty__actions">
+        <button
+          type="button"
+          class="flow-empty__cta"
+          data-testid="flow-empty-add-test-case"
+          @click="handleAddTestCase"
+        >+ {{ t('flowEditor.addTestCase') }}</button>
+        <button
+          type="button"
+          class="flow-empty__cta flow-empty__cta--secondary"
+          data-testid="flow-empty-add-keyword"
+          @click="handleAddKeyword"
+        >+ {{ t('flowEditor.addKeyword') }}</button>
+      </div>
     </div>
 
     <!-- Vue Flow Canvas + Palette -->
@@ -1419,13 +1479,44 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   color: #fff;
   border-color: var(--color-navy, #1A2D50);
 }
+.flow-item-tab--add {
+  border-style: dashed;
+  color: var(--color-text-muted, #5A6380);
+  font-weight: 500;
+}
+.flow-item-tab--add:hover {
+  border-color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #3B7DD8);
+}
 
 .flow-empty {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   flex: 1;
+  gap: 1rem;
   color: var(--color-text-muted, #5A6380);
+}
+.flow-empty__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.flow-empty__cta {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--color-primary, #3B7DD8);
+  border-radius: 4px;
+  background: var(--color-primary, #3B7DD8);
+  color: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.flow-empty__cta:hover {
+  filter: brightness(1.05);
+}
+.flow-empty__cta--secondary {
+  background: #fff;
+  color: var(--color-primary, #3B7DD8);
 }
 
 .flow-canvas-wrapper {
