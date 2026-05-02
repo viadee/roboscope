@@ -91,6 +91,20 @@ const hasKeywords = computed(() => props.form.keywords.length > 0)
 const hasContent = computed(() => hasTestCases.value || hasKeywords.value)
 
 /**
+ * Which section, if any, is currently empty. Drives the contextual
+ * empty-state CTA: a file with only keywords still lets the user
+ * click the Test Cases tab and see "No test cases yet — add one"
+ * with the right button. Without this, the empty state would only
+ * fire when both lists were empty, leaving keyword-only files in a
+ * dead-end blank canvas if the user wanted to add a test case.
+ */
+const emptySection = computed<'testcases' | 'keywords' | null>(() => {
+  if (activeSection.value === 'testcases' && !hasTestCases.value) return 'testcases'
+  if (activeSection.value === 'keywords' && !hasKeywords.value) return 'keywords'
+  return null
+})
+
+/**
  * Emit `add-test-case` and, after the parent has pushed onto
  * `form.testCases`, switch to the test-cases section and select the
  * newly-appended item. The new index is `length - 1` AFTER the push,
@@ -998,18 +1012,22 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
 
 <template>
   <div class="flow-editor">
-    <!-- Section tabs: Test Cases | Keywords -->
+    <!-- Section tabs: Test Cases | Keywords. Both tabs are ALWAYS
+         visible (even when one side is empty) so the user can
+         create a test case in a keyword-only file and vice versa
+         via the "+ ..." button below. Previously these were
+         hidden behind v-if="hasTestCases" / v-if="hasKeywords",
+         which dead-ended files that started life with only one
+         section type. -->
     <div class="flow-section-bar">
       <div class="flow-section-tabs">
         <button
-          v-if="hasTestCases"
           :class="['flow-section-tab', { active: activeSection === 'testcases' }]"
           @click="activeSection = 'testcases'"
         >
           {{ t('robotEditor.testCasesSection') }} ({{ props.form.testCases.length }})
         </button>
         <button
-          v-if="hasKeywords"
           :class="['flow-section-tab', { active: activeSection === 'keywords' }]"
           @click="activeSection = 'keywords'"
         >
@@ -1050,19 +1068,29 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
       </div>
     </div>
 
-    <!-- Empty state -->
-    <div v-if="!hasContent" class="flow-empty">
-      <p>{{ t('flowEditor.noTestCases') }}</p>
+    <!-- Empty state — fires when the active section is empty,
+         independent of whether the OTHER section has content.
+         A keyword-only file that switches to the Test Cases tab
+         lands here with the right contextual CTA. -->
+    <div v-if="emptySection" class="flow-empty">
+      <p>
+        {{ emptySection === 'testcases'
+          ? t('flowEditor.noTestCasesYet')
+          : t('flowEditor.noKeywordsYet')
+        }}
+      </p>
       <div class="flow-empty__actions">
         <button
+          v-if="emptySection === 'testcases'"
           type="button"
           class="flow-empty__cta"
           data-testid="flow-empty-add-test-case"
           @click="handleAddTestCase"
         >+ {{ t('flowEditor.addTestCase') }}</button>
         <button
+          v-if="emptySection === 'keywords'"
           type="button"
-          class="flow-empty__cta flow-empty__cta--secondary"
+          class="flow-empty__cta"
           data-testid="flow-empty-add-keyword"
           @click="handleAddKeyword"
         >+ {{ t('flowEditor.addKeyword') }}</button>

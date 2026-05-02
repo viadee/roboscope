@@ -1158,7 +1158,8 @@ export default {
     },
   },
   flowEditor: {
-    noTestCases: 'Noch keine Testfälle oder Keywords. Lege den ersten an, um den Flow zu bauen.',
+    noTestCasesYet: 'Diese Datei enthält noch keine Testfälle.',
+    noKeywordsYet: 'Diese Datei enthält noch keine Keywords.',
     addTestCase: 'Testfall',
     addTestCaseTitle: 'Neuen leeren Testfall anlegen',
     addKeyword: 'Keyword',

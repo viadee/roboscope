@@ -1158,7 +1158,8 @@ export default {
     },
   },
   flowEditor: {
-    noTestCases: 'Aucun cas de test ou mot-clé pour le moment. Créez le premier pour commencer le flow.',
+    noTestCasesYet: 'Aucun cas de test dans ce fichier.',
+    noKeywordsYet: 'Aucun mot-clé dans ce fichier.',
     addTestCase: 'Cas de test',
     addTestCaseTitle: 'Ajouter un nouveau cas de test vide',
     addKeyword: 'Mot-clé',

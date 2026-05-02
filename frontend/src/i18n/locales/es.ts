@@ -1158,7 +1158,8 @@ export default {
     },
   },
   flowEditor: {
-    noTestCases: 'Aún no hay casos de prueba ni palabras clave. Crea el primero para empezar el flujo.',
+    noTestCasesYet: 'Aún no hay casos de prueba en este archivo.',
+    noKeywordsYet: 'Aún no hay palabras clave en este archivo.',
     addTestCase: 'Caso de prueba',
     addTestCaseTitle: 'Añadir un nuevo caso de prueba vacío',
     addKeyword: 'Palabra clave',
