@@ -927,16 +927,6 @@ const flatNodes = computed(() => {
         <div class="tree-header">
           <strong>{{ t('explorer.files') }}</strong>
           <div class="tree-header-actions">
-            <!-- Story REPO-1: dirty-state badge → opens the publish modal -->
-            <button
-              v-if="dirtyCount > 0"
-              class="repo-save-btn"
-              data-testid="repo-save-btn"
-              :title="t('repos.publish.badgeTitle', { n: dirtyCount })"
-              @click="publishOpen = true"
-            >
-              💾 {{ t('repos.publish.badgeLabel', { n: dirtyCount }) }}
-            </button>
             <span class="text-muted text-sm" v-if="explorer.tree">
               {{ explorer.tree.test_count || 0 }} {{ t('explorer.tests') }}
             </span>
@@ -946,6 +936,19 @@ const flatNodes = computed(() => {
             <button class="icon-btn" @click="openCreateDialog()" :title="t('explorer.newFile')">+</button>
           </div>
         </div>
+        <!-- Story REPO-1: dirty-state badge → opens the publish modal.
+             Lives on its OWN row below the icon controls so the
+             label "n Änderungen speichern" doesn't push the icon
+             buttons (📂 ⊞ ⊟ +) out of view in narrow tree-panels. -->
+        <button
+          v-if="dirtyCount > 0"
+          class="repo-save-btn repo-save-btn--row"
+          data-testid="repo-save-btn"
+          :title="t('repos.publish.badgeTitle', { n: dirtyCount })"
+          @click="publishOpen = true"
+        >
+          💾 {{ t('repos.publish.badgeLabel', { n: dirtyCount }) }}
+        </button>
         <div v-if="explorer.loading && !explorer.tree" class="tree-loading">
           <BaseSpinner />
         </div>
@@ -1395,6 +1398,17 @@ const flatNodes = computed(() => {
 .repo-save-btn:hover {
   background: var(--color-accent, #D4883E);
   color: #fff;
+}
+/* Row-style variant: lives below the icon controls, full-width.
+   Prevents the dirty-count label from pushing the icon buttons
+   out of view in a narrow file-tree panel. */
+.repo-save-btn--row {
+  display: flex;
+  justify-content: center;
+  margin: 0 16px 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  white-space: normal;
 }
 
 .tree-loading {
