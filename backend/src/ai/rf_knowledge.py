@@ -327,7 +327,7 @@ def _scan_repo_files(repo_id: int) -> tuple[list[dict], set[str]]:
                 current_kw = {"name": stripped, "library": f.stem, "doc": "", "args": []}
             elif current_kw and stripped.lower().startswith("[documentation]"):
                 doc = stripped.split("]", 1)[1].strip() if "]" in stripped else ""
-                current_kw["doc"] = doc[:200]
+                current_kw["doc"] = doc[:4000]
             elif current_kw and stripped.lower().startswith("[arguments]"):
                 args_str = stripped.split("]", 1)[1].strip() if "]" in stripped else ""
                 if args_str:
@@ -377,7 +377,7 @@ def _resolve_library_keywords(library_names: set[str], venv_path: str) -> list[d
         "        libdoc = LibraryDocumentation(lib_name)\n"
         "        for kw in libdoc.keywords:\n"
         "            kw_args = [str(a) for a in (kw.args or [])]\n"
-        "            results.append({'name': kw.name, 'library': lib_name, 'doc': (kw.doc or '')[:200], 'args': kw_args})\n"
+        "            results.append({'name': kw.name, 'library': lib_name, 'doc': (kw.doc or '')[:4000], 'args': kw_args})\n"
         "    except Exception:\n"
         "        pass\n"
         "print(json.dumps(results))\n"
@@ -538,7 +538,7 @@ async def search_keywords(query: str, repo_id: int | None = None) -> list[dict]:
                     results.append({
                         "name": name,
                         "library": m.get("library", ""),
-                        "doc": (m.get("documentation", "") or "")[:200],
+                        "doc": (m.get("documentation", "") or "")[:4000],
                     })
 
     return results
