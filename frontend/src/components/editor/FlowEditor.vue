@@ -183,6 +183,13 @@ const librarySuggestions = computed<string[]>(() => {
   }).slice(0, 8)
 })
 
+// Libs shipped with `robotframework` itself — `Library    X` is enough,
+// no pip install. Skip the install-dialog branch for these.
+const _RF_BUNDLED = new Set([
+  'collections', 'string', 'datetime', 'operatingsystem', 'process', 'xml',
+  'dialogs', 'screenshot', 'telnet', 'remote',
+])
+
 /** Push a Library entry onto form.settings unless an identical one
  *  already exists. Names containing a `/` or ending in `.resource`
  *  are treated as Resource imports instead. Emits
@@ -201,9 +208,11 @@ function addLibrary(rawName: string): void {
   if (existing) return
   props.form.settings.push({ key, value: name, args: [] })
   libraryInputValue.value = ''
-  // Only Library imports trigger the env-introspection check
-  // (Resource imports point at .resource files, not pip packages).
-  emit('libraries-changed', isResource ? undefined : name)
+  // Only third-party Library imports trigger the env-introspection
+  // check. Resource imports point at .resource files, and RF-bundled
+  // libs (Collections, XML, …) don't need pip install.
+  const skipInstallCheck = isResource || _RF_BUNDLED.has(name.toLowerCase())
+  emit('libraries-changed', skipInstallCheck ? undefined : name)
 }
 
 function confirmAddLibrary(): void {
