@@ -8,6 +8,7 @@ export interface CachedKeyword {
   name: string
   library: string
   doc: string
+  doc_format?: string
   args?: string[]
 }
 
@@ -115,6 +116,7 @@ export const useExplorerStore = defineStore('explorer', () => {
         name: r.name,
         library: r.library,
         doc: r.doc || '',
+        doc_format: r.doc_format || 'text',
         args: r.args || [],
       }))
       keywordsLoaded.value = true

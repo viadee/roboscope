@@ -10,6 +10,7 @@
  */
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import DOMPurify from 'dompurify'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
 import { parseArgSignature } from '@/utils/robotKeywordSignatures'
@@ -54,6 +55,30 @@ const parsedArgs = computed(() => {
   return info.value.args.map(parseArgSignature)
 })
 
+// libdoc emits HTML for ROBOT/REST/TEXT-format library keywords (see
+// `_resolve_library_keywords` calling `LibraryDoc.convert_docs_to_html()`).
+// Project-resource keywords stay plain text. We sanitize defensively
+// even though library content is admin-installed — DOMPurify strips
+// <script>, on*= handlers, javascript: URIs while keeping libdoc's
+// <p>/<ul>/<code>/<a>/<table> output intact.
+const isHtml = computed(() => info.value?.docFormat === 'html')
+const sanitizedHtml = computed(() => {
+  if (!info.value || !isHtml.value) return ''
+  return DOMPurify.sanitize(info.value.doc, {
+    ALLOWED_TAGS: [
+      'p', 'br', 'hr',
+      'a', 'code', 'pre', 'span',
+      'strong', 'b', 'em', 'i', 'u',
+      'ul', 'ol', 'li',
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'table', 'thead', 'tbody', 'tr', 'th', 'td',
+      'blockquote',
+    ],
+    ALLOWED_ATTR: ['href', 'title', 'class'],
+    ALLOW_DATA_ATTR: false,
+  })
+})
+
 function formatArg(parsed: ReturnType<typeof parseArgSignature>): string {
   let out = parsed.name
   if (parsed.kind === 'varargs') out = '*' + out
@@ -87,7 +112,9 @@ function formatArg(parsed: ReturnType<typeof parseArgSignature>): string {
       </div>
 
       <div class="kw-doc-body">
-        <pre v-if="info.doc.trim().length > 0">{{ info.doc }}</pre>
+        <!-- eslint-disable-next-line vue/no-v-html — sanitized via DOMPurify above -->
+        <div v-if="isHtml && info.doc.trim().length > 0" class="kw-doc-html" v-html="sanitizedHtml" />
+        <pre v-else-if="info.doc.trim().length > 0">{{ info.doc }}</pre>
         <p v-else-if="fetching" class="kw-doc-empty">{{ t('flowEditor.docModal.loading') }}</p>
         <p v-else class="kw-doc-empty">{{ t('flowEditor.docModal.noDoc') }}</p>
       </div>
@@ -161,6 +188,67 @@ function formatArg(parsed: ReturnType<typeof parseArgSignature>): string {
   background: var(--color-bg, #F4F7FA);
   padding: 10px 12px;
   border-radius: 6px;
+}
+.kw-doc-html {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-text, #1A2D50);
+}
+.kw-doc-html :deep(p) { margin: 0 0 10px; }
+.kw-doc-html :deep(p:last-child) { margin-bottom: 0; }
+.kw-doc-html :deep(ul),
+.kw-doc-html :deep(ol) { margin: 0 0 10px; padding-left: 22px; }
+.kw-doc-html :deep(li) { margin: 2px 0; }
+.kw-doc-html :deep(h1),
+.kw-doc-html :deep(h2),
+.kw-doc-html :deep(h3),
+.kw-doc-html :deep(h4) {
+  margin: 14px 0 6px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-navy, #1A2D50);
+}
+.kw-doc-html :deep(code) {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  background: var(--color-bg, #F4F7FA);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.kw-doc-html :deep(pre) {
+  margin: 0 0 10px;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--color-bg, #F4F7FA);
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+.kw-doc-html :deep(a) {
+  color: var(--color-primary, #3B7DD8);
+  text-decoration: underline;
+}
+.kw-doc-html :deep(table) {
+  border-collapse: collapse;
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+.kw-doc-html :deep(th),
+.kw-doc-html :deep(td) {
+  border: 1px solid var(--color-border, #e2e8f0);
+  padding: 4px 8px;
+  text-align: left;
+}
+.kw-doc-html :deep(th) {
+  background: var(--color-bg, #F4F7FA);
+}
+.kw-doc-html :deep(blockquote) {
+  margin: 0 0 10px;
+  padding: 4px 12px;
+  border-left: 3px solid var(--color-border, #e2e8f0);
+  color: var(--color-text-muted, #5A6380);
 }
 .kw-doc-empty {
   margin: 0;

@@ -99,6 +99,7 @@ export interface RfKeywordResult {
   name: string
   library: string
   doc: string
+  doc_format?: string
   args?: string[]
 }
 

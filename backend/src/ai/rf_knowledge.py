@@ -324,7 +324,7 @@ def _scan_repo_files(repo_id: int) -> tuple[list[dict], set[str]]:
                 if current_kw and current_kw["name"].lower() not in seen_kw:
                     seen_kw.add(current_kw["name"].lower())
                     keywords.append(current_kw)
-                current_kw = {"name": stripped, "library": f.stem, "doc": "", "args": []}
+                current_kw = {"name": stripped, "library": f.stem, "doc": "", "doc_format": "text", "args": []}
             elif current_kw and stripped.lower().startswith("[documentation]"):
                 doc = stripped.split("]", 1)[1].strip() if "]" in stripped else ""
                 current_kw["doc"] = doc[:4000]
@@ -368,6 +368,12 @@ def _resolve_library_keywords(library_names: set[str], venv_path: str) -> list[d
         _library_keywords_cache[cache_key] = []
         return []
 
+    # Robot's `LibraryDoc.convert_docs_to_html()` walks every keyword and
+    # renders its doc string from the library's declared `doc_format`
+    # (ROBOT / TEXT / REST) into HTML — this is what libdoc itself ships
+    # to the libdoc HTML view. We piggyback on it so the editor's doc
+    # modal gets nicely formatted output instead of raw markup. Falls
+    # through to text on older RF versions that don't expose the helper.
     script = (
         "import json, sys\n"
         "results = []\n"
@@ -375,9 +381,14 @@ def _resolve_library_keywords(library_names: set[str], venv_path: str) -> list[d
         "    try:\n"
         "        from robot.libdocpkg import LibraryDocumentation\n"
         "        libdoc = LibraryDocumentation(lib_name)\n"
+        "        fmt = 'html'\n"
+        "        try:\n"
+        "            libdoc.convert_docs_to_html()\n"
+        "        except Exception:\n"
+        "            fmt = 'text'\n"
         "        for kw in libdoc.keywords:\n"
         "            kw_args = [str(a) for a in (kw.args or [])]\n"
-        "            results.append({'name': kw.name, 'library': lib_name, 'doc': (kw.doc or '')[:4000], 'args': kw_args})\n"
+        "            results.append({'name': kw.name, 'library': lib_name, 'doc': (kw.doc or '')[:4000], 'doc_format': fmt, 'args': kw_args})\n"
         "    except Exception:\n"
         "        pass\n"
         "print(json.dumps(results))\n"
@@ -539,6 +550,7 @@ async def search_keywords(query: str, repo_id: int | None = None) -> list[dict]:
                         "name": name,
                         "library": m.get("library", ""),
                         "doc": (m.get("documentation", "") or "")[:4000],
+                        "doc_format": "text",
                     })
 
     return results

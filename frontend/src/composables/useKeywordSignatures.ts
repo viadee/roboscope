@@ -63,6 +63,7 @@ export function useKeywordSignatures() {
     display: string
     library: string
     doc: string
+    docFormat: string
     args: string[]
   } | null {
     if (!keywordName) return null
@@ -74,6 +75,7 @@ export function useKeywordSignatures() {
       display: dynamic?.name ?? keywordName,
       library: dynamic?.library ?? 'BuiltIn',
       doc: dynamic?.doc ?? '',
+      docFormat: dynamic?.doc_format ?? 'text',
       args,
     }
   }
@@ -92,7 +94,13 @@ export function useKeywordSignatures() {
   async function fetchKeywordInfo(
     keywordName: string,
     repoId?: number,
-  ): Promise<{ display: string; library: string; doc: string; args: string[] } | null> {
+  ): Promise<{
+    display: string
+    library: string
+    doc: string
+    docFormat: string
+    args: string[]
+  } | null> {
     if (!keywordName) return null
     try {
       const response = await searchKeywords(keywordName, repoId)
@@ -107,6 +115,7 @@ export function useKeywordSignatures() {
           name: hit.name,
           library: hit.library || '',
           doc: hit.doc || '',
+          doc_format: hit.doc_format || 'text',
           args: hit.args || [],
         })
       }
@@ -114,6 +123,7 @@ export function useKeywordSignatures() {
         display: hit.name,
         library: hit.library || 'BuiltIn',
         doc: hit.doc || '',
+        docFormat: hit.doc_format || 'text',
         args: hit.args ?? getArgs(keywordName) ?? [],
       }
     } catch {
