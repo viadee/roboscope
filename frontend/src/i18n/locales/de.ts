@@ -1172,6 +1172,8 @@ export default {
     libraryRemoveTitle: '{name} entfernen',
     keywordNotImportedHint: 'Library "{library}" ist in dieser Datei nicht importiert. Beim Einfügen dieses Keywords wird der Import automatisch ergänzt.',
     keywordNotImportedBadgeTitle: 'Die Library wird automatisch importiert, sobald dieses Keyword eingefügt wird.',
+    examplesCategoryBadge: '(Beispiele)',
+    examplesCategoryHint: 'Nur eine kuratierte Auswahl wird gezeigt, weil die dynamische Library-Introspektion keine Daten liefert — meist weil dem Repository kein Environment zugeordnet ist oder die Library im Environment nicht installiert ist. Ordne ein Environment zu, um die vollständige Keyword-Liste zu sehen.',
     keyword: 'Keyword',
     arguments: 'Argumente',
     condition: 'Bedingung',

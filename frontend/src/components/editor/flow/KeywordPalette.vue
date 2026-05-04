@@ -14,7 +14,18 @@ import type { StepType, RobotStep } from './flowConverter'
 // `'keywords' in cat` / `'items' in cat` template branches without
 // `as any`.
 type ControlItem = { label: string; type: StepType }
-type KeywordCategory = { name: string; keywords: string[] }
+type KeywordCategory = {
+  name: string
+  keywords: string[]
+  /** True when this category comes from the hand-curated static
+   *  fallback list (`Browser`, `BuiltIn`, … with ~10 keywords
+   *  each), used when the dynamic libdoc introspection returns
+   *  nothing — typically because the repo has no environment
+   *  configured or the library isn't installed. The header gets a
+   *  small "(examples)" suffix so users don't mistake the curated
+   *  subset for the full library surface. */
+  isExamples?: boolean
+}
 type ControlCategory = { name: string; items: ControlItem[] }
 type PaletteCategory = KeywordCategory | ControlCategory
 
@@ -257,9 +268,18 @@ const allCategories = computed(() => {
     })
   }
 
-  // If no dynamic keywords loaded, use static fallbacks
+  // If no dynamic keywords loaded, use static fallbacks. Tag each
+  // fallback category as `isExamples: true` so the template can
+  // surface a "(examples)" suffix — otherwise users see e.g. 10
+  // Browser keywords and assume that's the entire library, when
+  // it's actually a hand-picked onboarding subset.
   if (dynamicLibraries.value.size === 0 && projectKeywords.value.length === 0) {
-    cats.push(...categories.filter(c => c.name !== 'Control'))
+    for (const c of categories) {
+      if (c.name === 'Control') continue
+      if ('keywords' in c) {
+        cats.push({ name: c.name, keywords: c.keywords, isExamples: true })
+      }
+    }
   }
 
   // Always add Control category at the end
@@ -360,6 +380,11 @@ function onControlDragStart(event: DragEvent, type: StepType) {
         <div class="category-header" @click="toggleCategory(cat.name)">
           <span class="collapse-icon">{{ isCategoryOpen(cat.name) ? '\u25BC' : '\u25B6' }}</span>
           <span class="category-name">{{ cat.name }}</span>
+          <span
+            v-if="'isExamples' in cat && cat.isExamples"
+            class="category-examples-badge"
+            :title="t('flowEditor.examplesCategoryHint')"
+          >{{ t('flowEditor.examplesCategoryBadge') }}</span>
           <span class="category-count">
             {{ 'keywords' in cat ? cat.keywords.length : cat.items.length }}
           </span>
@@ -568,6 +593,16 @@ function onControlDragStart(event: DragEvent, type: StepType) {
   background: #e2e8f0;
   padding: 1px 5px;
   border-radius: 8px;
+}
+/* Static-fallback hint: "BuiltIn (examples)", "Browser (examples)".
+   Signals that the listed keywords are a curated subset, not the
+   full library — kicks in when the dynamic libdoc introspection
+   returned nothing (no env, library not installed, rf-mcp off). */
+.category-examples-badge {
+  font-size: 9px;
+  font-style: italic;
+  color: var(--color-accent, #D4883E);
+  margin-right: 4px;
 }
 .palette-item {
   display: flex;

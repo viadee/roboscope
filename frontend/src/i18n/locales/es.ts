@@ -1172,6 +1172,8 @@ export default {
     libraryRemoveTitle: 'Quitar {name}',
     keywordNotImportedHint: 'La biblioteca "{library}" no está importada en este archivo. Al añadir esta palabra clave se añadirá el import automáticamente.',
     keywordNotImportedBadgeTitle: 'La biblioteca se importará automáticamente al añadir esta palabra clave.',
+    examplesCategoryBadge: '(ejemplos)',
+    examplesCategoryHint: 'Subconjunto curado mostrado porque la introspección dinámica de bibliotecas no devolvió datos — normalmente el repositorio no tiene un entorno configurado, o la biblioteca no está instalada en el entorno. Configura un entorno para ver la lista completa de palabras clave.',
     keyword: 'Palabra clave',
     arguments: 'Argumentos',
     condition: 'Condición',
