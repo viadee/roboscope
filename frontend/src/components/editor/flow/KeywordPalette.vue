@@ -140,12 +140,11 @@ const searchQuery = ref('')
 // Categories start collapsed by default — the palette can list
 // 100+ keywords across BuiltIn / Project / dynamic libs and an
 // expanded state buries the search box and "(examples)" hints.
-// `_collapsedSeeded` flips on the first non-empty
-// `allCategories` value so a later refresh (e.g. Library
-// install completing) doesn't re-collapse categories the user
-// already opened.
+// We re-collapse on three triggers: first-mount seed, file
+// switch, and explorer keyword refresh (so a fresh page load
+// always opens condensed even when the keyword cache was warm
+// from a previous mount).
 const collapsedCategories = ref<Set<string>>(new Set())
-let _collapsedSeeded = false
 const selectedKeyword = ref<{ name: string; type?: StepType; library?: string } | null>(null)
 
 function toggleCategory(name: string) {
@@ -390,27 +389,36 @@ const allCategories = computed(() => {
   return cats
 })
 
-// Seed collapsed-state once on first non-empty categories list.
-// `immediate: true` would fire before allCategories has data
-// (mount-time computed runs lazily), so we just watch normally —
-// the first real value triggers the seed.
-watch(allCategories, (cats) => {
-  if (_collapsedSeeded || cats.length === 0) return
-  for (const cat of cats) {
-    collapsedCategories.value.add(cat.name)
-  }
-  _collapsedSeeded = true
-}, { immediate: true })
-
-// Re-collapse every category whenever the user switches files.
-// Keeps the palette in a predictable condensed state — opening a
-// new test file shouldn't expose the expanded view from whatever
-// the previous file looked like.
-watch(() => props.filePath, (next, prev) => {
-  if (!next || next === prev) return
+function collapseAllNow() {
   for (const cat of allCategories.value) {
     collapsedCategories.value.add(cat.name)
   }
+}
+
+// Seed collapsed-state on the first non-empty categories list.
+// We only do this until the first real value lands — once data is
+// in, the explicit triggers below own re-collapse decisions.
+let _initialSeed = true
+watch(allCategories, (cats) => {
+  if (!_initialSeed || cats.length === 0) return
+  collapseAllNow()
+  _initialSeed = false
+}, { immediate: true })
+
+// Re-collapse on file switch — opening a different test file
+// shouldn't expose the expanded view from the previous file.
+watch(() => props.filePath, (next, prev) => {
+  if (!next || next === prev) return
+  collapseAllNow()
+})
+
+// Re-collapse on explorer keyword refresh — a fresh ExplorerView
+// load (page reload, repo switch, manual refresh) flips
+// `keywordsLoaded` from false to true and we want the palette to
+// open condensed every time, even if the user had categories
+// expanded before the refresh.
+watch(() => explorer.keywordsLoaded, (loaded, wasLoaded) => {
+  if (loaded && wasLoaded === false) collapseAllNow()
 })
 
 const filteredCategories = computed<PaletteCategory[]>(() => {
