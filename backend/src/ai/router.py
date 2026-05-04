@@ -400,6 +400,7 @@ async def rf_knowledge_keywords(
                 name=r.get("name", ""),
                 library=r.get("library", ""),
                 doc=r.get("doc", ""),
+                doc_format=r.get("doc_format", "text"),
                 args=r.get("args", []),
             )
             for r in results
