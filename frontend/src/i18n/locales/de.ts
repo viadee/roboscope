@@ -1253,6 +1253,8 @@ export default {
     libraryInstallStartedTitle: 'Installation gestartet',
     libraryInstallStartedBody: '{package} wird installiert. Die Palette aktualisiert sich, sobald die Installation abgeschlossen ist.',
     libraryInstallFailed: 'Installation fehlgeschlagen.',
+    libraryAlreadyProvidedTitle: 'Library "{library}" bereits verfügbar',
+    libraryAlreadyProvidedBody: '{library} wird durch "{provider}" bereitgestellt, das bereits im Environment installiert ist. Der Keyword-Cache ist eventuell veraltet — versuche den rf-mcp-Server neu zu starten (Einstellungen → AI → RF MCP) oder wechsle kurz die Datei und zurück, um die Palette zu refreshen.',
     tests: 'Tests',
     keywordsCount: 'Keywords',
     parseError: 'Parsefehler',

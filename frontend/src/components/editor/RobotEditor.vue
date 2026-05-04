@@ -6,7 +6,7 @@ import FlowEditor from '@/components/editor/FlowEditor.vue'
 import { robotLanguage, robotHighlightStyle } from '@/utils/robotLanguage'
 import { RF_KEYWORD_SIGNATURES } from '@/utils/robotKeywordSignatures'
 import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
-import { installPackage } from '@/api/environments.api'
+import { getInstalledPackages, installPackage } from '@/api/environments.api'
 import { loadSidecar, saveSidecar } from '@/composables/useRecordingSidecar'
 import { useToast } from '@/composables/useToast'
 import { useEnvironmentsStore } from '@/stores/environments.store'
@@ -999,33 +999,64 @@ function _refreshKeywordsIfPossible(): void {
 }
 
 /**
- * Common Robot Framework library names → their pip package names.
- * Most third-party RF libraries follow the `robotframework-<lower>`
- * convention but a few drop or rename it (RESTinstance, …). The
- * fallback uses the convention; the dialog input remains editable
- * so users can override for unusual cases.
+ * Known pip-package providers per Robot Framework library name.
+ * The FIRST entry is the "default" suggestion shown in the install
+ * dialog; the full list is consulted by `_isLibraryProvided` to
+ * detect cases where the user already has an alternative
+ * distribution installed (e.g. `robotframework-browser-batteries`
+ * — a self-contained alternative to `robotframework-browser` that
+ * bundles Playwright + Node and provides the same `Library
+ * Browser` import). Without this guard the install dialog would
+ * pointlessly suggest installing `robotframework-browser` next to
+ * an already-working `-batteries` install, leading to either
+ * conflict or a redundant install.
+ *
+ * Most third-party RF libraries have only one pip package; the
+ * single-element entries are still useful as the source-of-truth
+ * for `_guessPipPackage`.
  */
-const _PIP_PACKAGE_MAP: Record<string, string> = {
-  browser: 'robotframework-browser',
-  seleniumlibrary: 'robotframework-seleniumlibrary',
-  requestslibrary: 'robotframework-requests',
-  databaselibrary: 'robotframework-databaselibrary',
-  sshlibrary: 'robotframework-sshlibrary',
-  ftplibrary: 'robotframework-ftplibrary',
-  excellibrary: 'robotframework-excellibrary',
-  jsonlibrary: 'robotframework-jsonlibrary',
-  appiumlibrary: 'robotframework-appiumlibrary',
-  swinglibrary: 'robotframework-swinglibrary',
-  sikulilibrary: 'robotframework-sikulilibrary',
-  imaplibrary: 'robotframework-imaplibrary',
-  archivelibrary: 'robotframework-archivelibrary',
-  cryptolibrary: 'robotframework-crypto',
-  restinstance: 'RESTinstance',
+const _LIBRARY_PROVIDERS: Record<string, string[]> = {
+  browser: ['robotframework-browser', 'robotframework-browser-batteries'],
+  seleniumlibrary: ['robotframework-seleniumlibrary'],
+  requestslibrary: ['robotframework-requests'],
+  databaselibrary: ['robotframework-databaselibrary'],
+  sshlibrary: ['robotframework-sshlibrary'],
+  ftplibrary: ['robotframework-ftplibrary'],
+  excellibrary: ['robotframework-excellibrary'],
+  jsonlibrary: ['robotframework-jsonlibrary'],
+  appiumlibrary: ['robotframework-appiumlibrary'],
+  swinglibrary: ['robotframework-swinglibrary'],
+  sikulilibrary: ['robotframework-sikulilibrary'],
+  imaplibrary: ['robotframework-imaplibrary'],
+  archivelibrary: ['robotframework-archivelibrary'],
+  cryptolibrary: ['robotframework-crypto'],
+  restinstance: ['RESTinstance'],
 }
 
 function _guessPipPackage(libraryName: string): string {
   const lower = libraryName.toLowerCase()
-  return _PIP_PACKAGE_MAP[lower] ?? `robotframework-${lower}`
+  const providers = _LIBRARY_PROVIDERS[lower]
+  return providers?.[0] ?? `robotframework-${lower}`
+}
+
+/**
+ * Return true if any of the known pip-package providers for this
+ * RF library is already installed in the env. Used as a guard
+ * before opening the install dialog — when (e.g.) browser-
+ * batteries is installed but libdoc didn't report Browser
+ * keywords, opening a "do you want to install robotframework-
+ * browser?" prompt is wrong: the library IS installed, the
+ * problem is the libdoc cache (or rf-mcp) didn't pick it up.
+ */
+function _isLibraryProvided(
+  libraryName: string,
+  installed: ReadonlyArray<{ name: string; version: string }>,
+): boolean {
+  const lower = libraryName.toLowerCase()
+  const providers = _LIBRARY_PROVIDERS[lower]
+  if (!providers) return false
+  const installedNames = new Set(installed.map(p => p.name.toLowerCase()))
+  return providers.some(p => installedNames.has(p.toLowerCase()))
 }
 
 // --- Library install dialog state ---
@@ -1118,14 +1149,46 @@ async function onLibrariesChanged(addedLibrary?: string): Promise<void> {
   const found = _explorerStore.keywords.some(k =>
     (k.library || '').toLowerCase() === lower,
   )
-  if (!found) {
-    // Make sure the env list is loaded so we can resolve the
-    // env id and pretty name without a stale cache.
-    if (_envsStore.environments.length === 0) {
-      try { await _envsStore.fetchEnvironments() } catch { /* best-effort */ }
-    }
-    _openInstallDialog(addedLibrary)
+  if (found) return
+
+  // Make sure the env list is loaded so we can resolve the env
+  // id and pretty name without a stale cache.
+  if (_envsStore.environments.length === 0) {
+    try { await _envsStore.fetchEnvironments() } catch { /* best-effort */ }
   }
+  const repo = _reposStore.getRepo(props.repoId)
+  const repoEnv = repo?.environment_id ?? null
+  const defaultEnv = _envsStore.environments.find(e => e.is_default)
+  const envId = repoEnv ?? defaultEnv?.id ?? _envsStore.environments[0]?.id ?? null
+
+  // Pre-check the env's installed pip packages: if a known
+  // alternative provider for this library is already installed
+  // (e.g. browser-batteries instead of browser), DON'T offer to
+  // pip-install — the library IS available, the libdoc cache
+  // just hasn't picked it up. Surface the diagnostic instead.
+  if (envId != null) {
+    try {
+      const installed = await getInstalledPackages(envId)
+      if (_isLibraryProvided(addedLibrary, installed)) {
+        const provider = _LIBRARY_PROVIDERS[lower]?.find(p =>
+          installed.some(i => i.name.toLowerCase() === p.toLowerCase()),
+        ) ?? '?'
+        _toast.info(
+          t('robotEditor.libraryAlreadyProvidedTitle', { library: addedLibrary }),
+          t('robotEditor.libraryAlreadyProvidedBody', {
+            library: addedLibrary,
+            provider,
+          }),
+        )
+        return
+      }
+    } catch {
+      // installed-list fetch failed — fall through to the dialog,
+      // it's better to ask than silently skip.
+    }
+  }
+
+  _openInstallDialog(addedLibrary)
 }
 
 // File-switch trigger: refresh once after the new path settles.

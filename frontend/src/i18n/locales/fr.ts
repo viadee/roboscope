@@ -1253,6 +1253,8 @@ export default {
     libraryInstallStartedTitle: 'Installation démarrée',
     libraryInstallStartedBody: '{package} en cours d\'installation. La palette s\'actualisera à la fin.',
     libraryInstallFailed: 'Échec de l\'installation.',
+    libraryAlreadyProvidedTitle: 'Bibliothèque « {library} » déjà disponible',
+    libraryAlreadyProvidedBody: '{library} est fournie par « {provider} », déjà installé dans l\'environnement. Le cache des mots-clés peut être obsolète — essayez de redémarrer le serveur rf-mcp (Paramètres → AI → RF MCP) ou changez de fichier puis revenez pour rafraîchir la palette.',
     tests: 'tests',
     keywordsCount: 'mots-clés',
     parseError: 'Erreur de parsing',
