@@ -757,8 +757,17 @@ function serializeFormToRobot(): string {
   if (!isResource.value && form.testCases.length > 0) {
     if (lines.length > 0 && lines[lines.length - 1] !== '') lines.push('')
     lines.push('*** Test Cases ***')
-    for (const tc of form.testCases) {
-      lines.push(tc.name)
+    for (let tcIdx = 0; tcIdx < form.testCases.length; tcIdx++) {
+      const tc = form.testCases[tcIdx]
+      // Empty name → fall back to "Test Case N" (same shape the
+      // FlowEditor's tab strip already shows for unnamed entries).
+      // Without this the serializer emits a blank line as the test-
+      // case header; the parser then skips that blank line per its
+      // "non-empty + non-indented = header" rule, the steps below
+      // become orphaned, and the entire test case disappears on
+      // round-trip after a save → file-switch → reload cycle.
+      const tcName = tc.name.trim() || `Test Case ${tcIdx + 1}`
+      lines.push(tcName)
       if (tc.documentation) lines.push(SEP + '[Documentation]' + SEP + tc.documentation)
       if (tc.tags.length > 0) lines.push(SEP + '[Tags]' + SEP + tc.tags.join(SEP))
       if (tc.setup) lines.push(SEP + '[Setup]' + SEP + tc.setup)
@@ -773,8 +782,13 @@ function serializeFormToRobot(): string {
   if (form.keywords.length > 0) {
     if (lines.length > 0 && lines[lines.length - 1] !== '') lines.push('')
     lines.push('*** Keywords ***')
-    for (const kw of form.keywords) {
-      lines.push(kw.name)
+    for (let kwIdx = 0; kwIdx < form.keywords.length; kwIdx++) {
+      const kw = form.keywords[kwIdx]
+      // Same fallback as test cases — an empty keyword name on
+      // disk is equally invalid and would silently swallow the
+      // keyword's steps on reload.
+      const kwName = kw.name.trim() || `Keyword ${kwIdx + 1}`
+      lines.push(kwName)
       if (kw.arguments.length) lines.push(SEP + '[Arguments]' + SEP + kw.arguments.join(SEP))
       if (kw.documentation) lines.push(SEP + '[Documentation]' + SEP + kw.documentation)
       if (kw.tags.length > 0) lines.push(SEP + '[Tags]' + SEP + kw.tags.join(SEP))
