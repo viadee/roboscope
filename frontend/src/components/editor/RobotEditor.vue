@@ -7,6 +7,7 @@ import { robotLanguage, robotHighlightStyle } from '@/utils/robotLanguage'
 import { RF_KEYWORD_SIGNATURES } from '@/utils/robotKeywordSignatures'
 import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
 import { loadSidecar, saveSidecar } from '@/composables/useRecordingSidecar'
+import { useExplorerStore } from '@/stores/explorer.store'
 import type { RecordedFlow } from '@/types/recorder.types'
 
 // CodeMirror imports
@@ -959,6 +960,50 @@ async function saveSidecarIfDirty(robotContent?: string): Promise<void> {
 defineExpose({ saveSidecarIfDirty })
 
 watch(() => [props.repoId, props.filePath] as const, refreshSidecar, { immediate: true })
+
+// --- Keyword cache refresh wiring ---
+//
+// `useExplorerStore().refreshKeywords(repoId)` invalidates the
+// backend's libdoc cache for the repo's environment and re-fetches
+// the merged library + project-keyword list. The keyword palette and
+// `useKeywordSignatures` composable react via the store's reactive
+// `keywords` array — so a single refresh call propagates to every
+// editor surface that consults keyword metadata.
+//
+// Triggers:
+//   1. Library / Resource import was added or removed in FlowEditor's
+//      library panel — emitted via `libraries-changed`.
+//   2. `props.filePath` changed — different file may import a
+//      different library set, and the user has likely just saved
+//      changes that the backend should re-introspect.
+//   3. The user switches between testcases / sections inside the
+//      same file — implicitly handled because the keyword cache is
+//      repo-scoped, no extra fetch needed; FlowEditor's existing
+//      reactive bindings rebuild the canvas off the same store.
+const _explorerStore = useExplorerStore()
+
+function _refreshKeywordsIfPossible(): void {
+  if (props.repoId == null) return
+  // Fire-and-forget — the palette / signatures auto-update via the
+  // store's reactive `keywords` array; we don't need to await.
+  _explorerStore.refreshKeywords(props.repoId).catch(() => { /* non-critical */ })
+}
+
+function onLibrariesChanged(): void {
+  _refreshKeywordsIfPossible()
+}
+
+// File-switch trigger: refresh once after the new path settles.
+// `immediate: false` so we don't double-fetch when the component
+// mounts (the parent ExplorerView already calls `preloadKeywords` on
+// repo open).
+watch(
+  () => props.filePath,
+  (newPath, oldPath) => {
+    if (!newPath || newPath === oldPath) return
+    _refreshKeywordsIfPossible()
+  },
+)
 
 // --- Known RF Libraries (for Library setting autocomplete) ---
 const RF_LIBRARIES = [
@@ -2580,6 +2625,7 @@ watch(() => props.content, (newContent) => {
         @update:sidecar="onSidecarUpdated"
         @add-test-case="addTestCase"
         @add-keyword="addKeyword"
+        @libraries-changed="onLibrariesChanged"
       />
     </div>
 

@@ -64,6 +64,10 @@ const emit = defineEmits<{
   (e: 'add-test-case'): void
   /** Same as `add-test-case` but for the keywords list. */
   (e: 'add-keyword'): void
+  /** Library / Resource import was added or removed. RobotEditor
+   *  hooks this to invalidate the keyword cache and re-fetch the
+   *  palette so the new library's keywords show up immediately. */
+  (e: 'libraries-changed'): void
 }>()
 
 const { t } = useI18n()
@@ -103,6 +107,110 @@ const emptySection = computed<'testcases' | 'keywords' | null>(() => {
   if (activeSection.value === 'keywords' && !hasKeywords.value) return 'keywords'
   return null
 })
+
+// --- Library management ---
+//
+// `form.settings` carries Library / Resource imports as
+// `{ key: 'Library', value: 'Browser', args: [...] }` entries.
+// FlowEditor lets the user add / remove these without leaving the
+// flow tab; RobotEditor's settings watcher picks up the mutation,
+// re-emits the `.robot` text, and re-fetches the keyword cache so
+// the palette updates with whatever keywords the new library
+// exposes (or drops keywords from a removed library).
+
+const librariesPanelOpen = ref(false)
+const libraryInputValue = ref('')
+
+interface LibraryEntry {
+  idx: number          // index into form.settings (so removeLibrary can splice cleanly)
+  kind: 'library' | 'resource'
+  value: string        // library name or resource path
+}
+
+const libraryEntries = computed<LibraryEntry[]>(() => {
+  const out: LibraryEntry[] = []
+  props.form.settings.forEach((s, idx) => {
+    const keyLower = s.key.toLowerCase()
+    if (keyLower === 'library') {
+      out.push({ idx, kind: 'library', value: s.value })
+    } else if (keyLower === 'resource') {
+      out.push({ idx, kind: 'resource', value: s.value })
+    }
+  })
+  return out
+})
+
+/** Lower-cased set of imported library names. Always includes
+ *  `'builtin'` because RF auto-imports BuiltIn. Drives the
+ *  KeywordPalette dimming + auto-import logic.
+ */
+const importedLibraryNames = computed<Set<string>>(() => {
+  const s = new Set<string>(['builtin'])
+  for (const e of libraryEntries.value) {
+    if (e.kind === 'library') s.add(e.value.toLowerCase())
+  }
+  return s
+})
+
+// Static suggestion list — same set the Visual Editor uses. Filtered
+// by the user's current input + already-imported libraries.
+const RF_LIBRARY_SUGGESTIONS = [
+  'BuiltIn', 'Collections', 'String', 'OperatingSystem', 'Process',
+  'DateTime', 'XML', 'Dialogs', 'Screenshot', 'Telnet', 'Remote',
+  'SeleniumLibrary', 'Browser', 'RequestsLibrary', 'DatabaseLibrary',
+  'SSHLibrary', 'FTPLibrary', 'ExcelLibrary', 'JSONLibrary',
+  'AppiumLibrary', 'SwingLibrary', 'SikuliLibrary', 'ImapLibrary',
+  'ArchiveLibrary', 'CryptoLibrary', 'RESTinstance',
+]
+
+const librarySuggestions = computed<string[]>(() => {
+  const q = libraryInputValue.value.trim().toLowerCase()
+  const already = new Set(
+    libraryEntries.value
+      .filter(e => e.kind === 'library')
+      .map(e => e.value.toLowerCase()),
+  )
+  return RF_LIBRARY_SUGGESTIONS.filter(name => {
+    if (already.has(name.toLowerCase())) return false
+    if (!q) return true
+    return name.toLowerCase().includes(q)
+  }).slice(0, 8)
+})
+
+/** Push a Library entry onto form.settings unless an identical one
+ *  already exists. Names containing a `/` or ending in `.resource`
+ *  are treated as Resource imports instead. Emits
+ *  `libraries-changed` so the parent can refresh the keyword
+ *  cache. */
+function addLibrary(rawName: string): void {
+  const name = rawName.trim()
+  if (!name) return
+  const isResource = name.toLowerCase().endsWith('.resource') || name.includes('/')
+  const key = isResource ? 'Resource' : 'Library'
+  // Dedupe — RF accepts duplicate Library imports but they're noise.
+  const existing = props.form.settings.find(
+    s => s.key.toLowerCase() === key.toLowerCase()
+      && s.value.trim().toLowerCase() === name.toLowerCase(),
+  )
+  if (existing) return
+  props.form.settings.push({ key, value: name, args: [] })
+  libraryInputValue.value = ''
+  emit('libraries-changed')
+}
+
+function confirmAddLibrary(): void {
+  addLibrary(libraryInputValue.value)
+}
+
+/** Remove the settings entry at `idx`. Index comes straight from
+ *  the `LibraryEntry` so the splice targets the right row even when
+ *  multiple Library imports are interleaved with other settings
+ *  (Documentation, Suite Setup, …). */
+function removeLibrary(idx: number): void {
+  if (idx < 0 || idx >= props.form.settings.length) return
+  props.form.settings.splice(idx, 1)
+  emit('libraries-changed')
+}
 
 /**
  * Emit `add-test-case` and, after the parent has pushed onto
@@ -701,7 +809,18 @@ function removeLoopValue(index: number) {
 
 // --- Add node from palette ---
 
-function addNodeFromPalette(step: RobotStep) {
+function addNodeFromPalette(step: RobotStep, library?: string) {
+  // Auto-import: when the keyword came from a library that isn't in
+  // form.settings yet, prepend a `Library    X` row so RF can
+  // resolve the keyword at runtime. `addLibrary` already dedupes
+  // and emits `libraries-changed` (which refreshes the palette
+  // signatures cache).
+  if (library) {
+    const lower = library.toLowerCase()
+    const already = importedLibraryNames.value.has(lower)
+    if (!already) addLibrary(library)
+  }
+
   const list = activeSection.value === 'testcases'
     ? props.form.testCases[activeItemIndex.value]?.steps
     : props.form.keywords[activeItemIndex.value]?.steps
@@ -919,6 +1038,15 @@ function onCanvasDrop(event: DragEvent) {
   const step = makeStepFromDrag(event)
   if (!step) return
 
+  // Auto-import: KeywordPalette stamps the source library on the
+  // drag in `application/rf-library`. If the user dragged a keyword
+  // from a not-yet-imported library, prepend the Library row before
+  // inserting the step.
+  const sourceLib = event.dataTransfer?.getData('application/rf-library') || ''
+  if (sourceLib && !importedLibraryNames.value.has(sourceLib.toLowerCase())) {
+    addLibrary(sourceLib)
+  }
+
   const flowY = eventToFlowY(event)
   const idx = findInsertIndex(flowY)
   insertStepAt(step, idx)
@@ -1035,6 +1163,22 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
         </button>
       </div>
 
+      <!-- Library quick-manage: chevron toggles an inline panel
+           below the section bar. Add / remove imports without
+           leaving the Flow tab. The keyword palette + signatures
+           refresh automatically (RobotEditor watches `form.settings`
+           Library entries and re-fetches the cache). -->
+      <button
+        type="button"
+        :class="['flow-libs-toggle', { active: librariesPanelOpen }]"
+        :title="t('flowEditor.librariesTitle')"
+        data-testid="flow-libraries-toggle"
+        @click="librariesPanelOpen = !librariesPanelOpen"
+      >
+        📚 {{ t('flowEditor.libraries') }} ({{ libraryEntries.length }})
+        <span aria-hidden="true">{{ librariesPanelOpen ? '▴' : '▾' }}</span>
+      </button>
+
       <!-- Item tabs within section -->
       <div class="flow-item-tabs">
         <template v-if="activeSection === 'testcases'">
@@ -1065,6 +1209,64 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
             @click="handleAddKeyword"
           >+ {{ t('flowEditor.addKeyword') }}</button>
         </template>
+      </div>
+    </div>
+
+    <!-- Library management panel (toggled by the section-bar
+         button above). Shows the file's current Library / Resource
+         imports as removable chips, plus an autocomplete-input to
+         add new ones. Each mutation rewrites `form.settings` and
+         RobotEditor's settings-watcher refreshes the keyword cache
+         + palette automatically. -->
+    <div v-if="librariesPanelOpen" class="flow-libraries">
+      <div class="flow-libraries__chips">
+        <span v-if="libraryEntries.length === 0" class="flow-libraries__empty">
+          {{ t('flowEditor.librariesNone') }}
+        </span>
+        <span
+          v-for="entry in libraryEntries"
+          :key="entry.idx"
+          class="flow-libraries__chip"
+          :class="{ 'flow-libraries__chip--resource': entry.kind === 'resource' }"
+        >
+          <span class="flow-libraries__chip-kind">{{ entry.kind === 'resource' ? 'R' : 'L' }}</span>
+          <span class="flow-libraries__chip-name">{{ entry.value }}</span>
+          <button
+            type="button"
+            class="flow-libraries__chip-remove"
+            :title="t('flowEditor.libraryRemoveTitle', { name: entry.value })"
+            @click="removeLibrary(entry.idx)"
+            data-testid="flow-library-remove"
+          >×</button>
+        </span>
+      </div>
+      <div class="flow-libraries__input-row">
+        <input
+          v-model="libraryInputValue"
+          type="text"
+          class="flow-libraries__input"
+          :placeholder="t('flowEditor.libraryInputPlaceholder')"
+          autocomplete="off"
+          spellcheck="false"
+          data-testid="flow-library-input"
+          @keydown.enter.prevent="confirmAddLibrary"
+        />
+        <button
+          type="button"
+          class="flow-libraries__add"
+          :disabled="!libraryInputValue.trim()"
+          data-testid="flow-library-add"
+          @click="confirmAddLibrary"
+        >+ {{ t('flowEditor.libraryAdd') }}</button>
+      </div>
+      <div v-if="librarySuggestions.length" class="flow-libraries__suggestions">
+        <button
+          v-for="suggestion in librarySuggestions"
+          :key="suggestion"
+          type="button"
+          class="flow-libraries__suggestion"
+          @click="addLibrary(suggestion)"
+        >{{ suggestion }}</button>
       </div>
     </div>
 
@@ -1099,7 +1301,11 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
 
     <!-- Vue Flow Canvas + Palette -->
     <div v-else class="flow-canvas-wrapper">
-      <KeywordPalette :repo-id="props.repoId" @add-node="addNodeFromPalette" />
+      <KeywordPalette
+        :repo-id="props.repoId"
+        :imported-libraries="importedLibraryNames"
+        @add-node="addNodeFromPalette"
+      />
 
       <div ref="canvasRef" class="flow-canvas">
         <VueFlow
@@ -1463,6 +1669,11 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
 
 /* Section bar: Test Cases | Keywords + item tabs */
 .flow-section-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
   border-bottom: 1px solid var(--color-border, #e2e8f0);
   background: var(--color-bg, #F4F7FA);
   padding: 6px 12px 0;
@@ -1471,6 +1682,142 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   display: flex;
   gap: 4px;
   margin-bottom: 6px;
+}
+.flow-libs-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 4px;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary, #555);
+  cursor: pointer;
+}
+.flow-libs-toggle:hover {
+  border-color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #3B7DD8);
+}
+.flow-libs-toggle.active {
+  background: var(--color-primary, #3B7DD8);
+  color: #fff;
+  border-color: var(--color-primary, #3B7DD8);
+}
+
+/* Library management panel — opens below the section bar. */
+.flow-libraries {
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  background: #fff;
+  padding: 10px 12px;
+}
+.flow-libraries__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.flow-libraries__empty {
+  color: var(--color-text-muted, #5A6380);
+  font-size: 12px;
+  font-style: italic;
+}
+.flow-libraries__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 0;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 4px;
+  background: rgba(59, 125, 216, 0.08);
+  font-size: 12px;
+}
+.flow-libraries__chip--resource {
+  background: rgba(212, 136, 62, 0.10);
+  border-color: var(--color-accent, #D4883E);
+}
+.flow-libraries__chip-kind {
+  display: inline-block;
+  width: 18px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-primary, #3B7DD8);
+  background: rgba(59, 125, 216, 0.15);
+  border-right: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 4px 0 0 4px;
+  padding: 2px 0;
+}
+.flow-libraries__chip--resource .flow-libraries__chip-kind {
+  color: var(--color-accent, #D4883E);
+  background: rgba(212, 136, 62, 0.18);
+}
+.flow-libraries__chip-name {
+  padding: 0 4px;
+  font-family: var(--font-mono, monospace);
+}
+.flow-libraries__chip-remove {
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted, #5A6380);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.flow-libraries__chip-remove:hover {
+  color: #c0392b;
+}
+.flow-libraries__input-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.flow-libraries__input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+}
+.flow-libraries__input:focus {
+  outline: none;
+  border-color: var(--color-primary, #3B7DD8);
+}
+.flow-libraries__add {
+  padding: 4px 12px;
+  border: 1px solid var(--color-primary, #3B7DD8);
+  border-radius: 4px;
+  background: var(--color-primary, #3B7DD8);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.flow-libraries__add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.flow-libraries__suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.flow-libraries__suggestion {
+  padding: 2px 8px;
+  border: 1px dashed var(--color-border, #e2e8f0);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-secondary, #555);
+  font-size: 11px;
+  cursor: pointer;
+}
+.flow-libraries__suggestion:hover {
+  border-color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #3B7DD8);
 }
 .flow-section-tab {
   padding: 5px 14px;

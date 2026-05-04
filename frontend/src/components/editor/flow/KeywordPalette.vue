@@ -20,14 +20,37 @@ type PaletteCategory = KeywordCategory | ControlCategory
 
 const props = defineProps<{
   repoId?: number
+  /** Lower-cased names of libraries currently imported in the file
+   *  (`Library    Browser` → `'browser'`). `BuiltIn` is always
+   *  considered imported because RF auto-imports it. The palette
+   *  uses this to visually dim non-imported keywords and signal
+   *  that picking one will trigger an auto-import. */
+  importedLibraries?: Set<string>
 }>()
 
 const { t } = useI18n()
 const explorer = useExplorerStore()
 
 const emit = defineEmits<{
-  (e: 'add-node', step: RobotStep): void
+  /** Add a step to the active section. `library` is the source
+   *  Library name when the keyword came from one (so the parent can
+   *  auto-import it if missing); `undefined` for Control items and
+   *  Project / Resource keywords. */
+  (e: 'add-node', step: RobotStep, library?: string): void
 }>()
+
+/** Decide if a category's keywords should render as "imported"
+ *  (full opacity) or "not imported" (dimmed + auto-import on pick).
+ *  Always-true for BuiltIn (RF auto-imports it), Control (not a
+ *  library), and Project / Resource categories (in-repo keywords
+ *  are always usable from the same repo). Everything else is
+ *  gated on `props.importedLibraries`. */
+function isCategoryImported(catName: string): boolean {
+  if (catName === 'BuiltIn' || catName === 'Control') return true
+  if (catName.startsWith('Project: ')) return true
+  if (!props.importedLibraries) return true  // no signal → don't dim
+  return props.importedLibraries.has(catName.toLowerCase())
+}
 
 // Dynamic keywords from environment + project .resource files
 const dynamicLibraries = ref<Map<string, RfKeywordResult[]>>(new Map())
@@ -122,6 +145,20 @@ function collapseAll() {
 
 function getKeywordArgs(name: string): string[] {
   return keywordArgsMap.value.get(name) || []
+}
+
+/** Reverse lookup: keyword name → owning library name. Used so the
+ *  parent can auto-import the right `Library    X` line when the
+ *  user picks a keyword from a non-imported library. Returns null
+ *  for project keywords (they live in .resource files, not Library
+ *  imports) and for keywords that aren't in the dynamic map yet
+ *  (the BuiltIn static fallback, which is always imported anyway).
+ */
+function getKeywordLibrary(name: string): string | null {
+  for (const [lib, kws] of dynamicLibraries.value) {
+    if (kws.some(k => k.name === name)) return lib
+  }
+  return null
 }
 
 function selectKeyword(name: string, type?: StepType) {
@@ -258,7 +295,7 @@ function makeStep(type: StepType = 'keyword'): RobotStep {
 function addKeywordNode(keyword: string) {
   const step = makeStep('keyword')
   step.keyword = keyword
-  emit('add-node', step)
+  emit('add-node', step, getKeywordLibrary(keyword) ?? undefined)
 }
 
 function addControlNode(type: StepType) {
@@ -275,6 +312,12 @@ function addControlNode(type: StepType) {
 
 function onDragStart(event: DragEvent, keyword: string) {
   event.dataTransfer?.setData('application/rf-keyword', keyword)
+  // Tag with the source library so the canvas drop handler can
+  // auto-import it if missing. Project keywords (no library map
+  // entry) and Control items use a different drag mime type, so
+  // this slot stays empty for them and the drop side ignores it.
+  const lib = getKeywordLibrary(keyword)
+  if (lib) event.dataTransfer?.setData('application/rf-library', lib)
   event.dataTransfer!.effectAllowed = 'copy'
 }
 
@@ -328,7 +371,15 @@ function onControlDragStart(event: DragEvent, type: StepType) {
             <div
               v-for="kw in cat.keywords"
               :key="kw"
-              :class="['palette-item', 'palette-item-keyword', { selected: isSelected(kw) }]"
+              :class="[
+                'palette-item',
+                'palette-item-keyword',
+                { selected: isSelected(kw),
+                  'palette-item--not-imported': !isCategoryImported(cat.name) },
+              ]"
+              :title="!isCategoryImported(cat.name)
+                ? t('flowEditor.keywordNotImportedHint', { library: cat.name })
+                : undefined"
               draggable="true"
               @dragstart="onDragStart($event, kw)"
               @click="selectKeyword(kw)"
@@ -338,6 +389,11 @@ function onControlDragStart(event: DragEvent, type: StepType) {
               <div class="palette-item-content">
                 <span class="palette-item-name">{{ kw }}</span>
                 <span v-if="getKeywordArgs(kw).length" class="palette-item-argcount">({{ getKeywordArgs(kw).length }})</span>
+                <span
+                  v-if="!isCategoryImported(cat.name)"
+                  class="palette-item-import-badge"
+                  :title="t('flowEditor.keywordNotImportedBadgeTitle')"
+                >+ lib</span>
               </div>
             </div>
           </template>
@@ -549,6 +605,33 @@ function onControlDragStart(event: DragEvent, type: StepType) {
   color: var(--color-text-muted, #5A6380);
   flex-shrink: 0;
 }
+
+/* Dimmed appearance for keywords whose owning library isn't
+   imported in the file yet. Hover restores opacity so the user can
+   read the name; the "+ lib" badge signals what will happen on
+   pick. The auto-import itself runs in FlowEditor. */
+.palette-item--not-imported {
+  opacity: 0.55;
+  border-style: dashed;
+}
+.palette-item--not-imported:hover {
+  opacity: 1;
+  border-style: solid;
+}
+.palette-item-import-badge {
+  flex-shrink: 0;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border: 1px solid var(--color-accent, #D4883E);
+  border-radius: 3px;
+  background: rgba(212, 136, 62, 0.10);
+  color: var(--color-accent, #D4883E);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .palette-item:active {
   cursor: grabbing;
 }
