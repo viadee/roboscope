@@ -82,6 +82,8 @@ export default {
     defaultPwBanner: {
       message: 'Vous utilisez encore le mot de passe d’administrateur par défaut. Pensez à le changer avant d’exposer cette instance.',
       action: 'Changer le mot de passe',
+      dontShowAgain: 'Ne plus afficher',
+      dontShowAgainTitle: 'Masquer ce bandeau de façon permanente pour votre utilisateur. Réapparaît dans un autre navigateur ou après effacement des données du site.',
     },
     features: {
       explorer: 'Explorateur de tests & éditeur',

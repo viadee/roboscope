@@ -82,6 +82,8 @@ export default {
     defaultPwBanner: {
       message: 'You are still using the default admin password. Consider rotating it before exposing this instance.',
       action: 'Change password',
+      dontShowAgain: 'Don\'t show again',
+      dontShowAgainTitle: 'Hide this banner permanently for your user. Re-appears in a different browser or after clearing site data.',
     },
     features: {
       explorer: 'Test Explorer & Editor',

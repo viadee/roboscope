@@ -82,6 +82,8 @@ export default {
     defaultPwBanner: {
       message: 'Sie verwenden noch das Standard-Admin-Passwort. Vor dem Veröffentlichen der Instanz sollten Sie es ändern.',
       action: 'Passwort ändern',
+      dontShowAgain: 'Nicht mehr anzeigen',
+      dontShowAgainTitle: 'Banner für deinen Benutzer dauerhaft ausblenden. Erscheint in einem anderen Browser oder nach dem Löschen der Site-Daten erneut.',
     },
     features: {
       explorer: 'Test-Explorer & Editor',

@@ -82,6 +82,8 @@ export default {
     defaultPwBanner: {
       message: 'Sigue usando la contraseña de administrador por defecto. Considere cambiarla antes de exponer esta instancia.',
       action: 'Cambiar contraseña',
+      dontShowAgain: 'No mostrar más',
+      dontShowAgainTitle: 'Oculta el aviso de forma permanente para tu usuario. Volverá a aparecer en otro navegador o tras borrar los datos del sitio.',
     },
     features: {
       explorer: 'Explorador de pruebas y editor',
