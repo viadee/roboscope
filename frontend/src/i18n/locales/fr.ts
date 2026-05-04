@@ -1238,6 +1238,8 @@ export default {
     visualTab: 'Éditeur visuel',
     flowTab: 'Flow',
     codeTab: 'Code',
+    libraryNotInEnvTitle: 'Bibliothèque « {library} » non installée dans l\'environnement',
+    libraryNotInEnvBody: 'L\'import de bibliothèque a été ajouté au fichier, mais {library} n\'est pas installée dans l\'environnement de ce dépôt. Seuls des mots-clés d\'exemple sont affichés tant que le paquet n\'est pas installé — ouvrez la vue Environnements pour l\'ajouter.',
     tests: 'tests',
     keywordsCount: 'mots-clés',
     parseError: 'Erreur de parsing',

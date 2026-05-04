@@ -66,8 +66,14 @@ const emit = defineEmits<{
   (e: 'add-keyword'): void
   /** Library / Resource import was added or removed. RobotEditor
    *  hooks this to invalidate the keyword cache and re-fetch the
-   *  palette so the new library's keywords show up immediately. */
-  (e: 'libraries-changed'): void
+   *  palette so the new library's keywords show up immediately.
+   *  `addedLibrary` carries the name of the library just added so
+   *  the parent can verify post-refresh that the env actually
+   *  picked it up — and surface a hint when not (lib not pip-
+   *  installed in the env, the file-side import alone won't make
+   *  it visible). Undefined for removals or the input-panel path
+   *  where verification isn't useful. */
+  (e: 'libraries-changed', addedLibrary?: string): void
 }>()
 
 const { t } = useI18n()
@@ -195,7 +201,9 @@ function addLibrary(rawName: string): void {
   if (existing) return
   props.form.settings.push({ key, value: name, args: [] })
   libraryInputValue.value = ''
-  emit('libraries-changed')
+  // Only Library imports trigger the env-introspection check
+  // (Resource imports point at .resource files, not pip packages).
+  emit('libraries-changed', isResource ? undefined : name)
 }
 
 function confirmAddLibrary(): void {

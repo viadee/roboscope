@@ -7,6 +7,7 @@ import { robotLanguage, robotHighlightStyle } from '@/utils/robotLanguage'
 import { RF_KEYWORD_SIGNATURES } from '@/utils/robotKeywordSignatures'
 import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
 import { loadSidecar, saveSidecar } from '@/composables/useRecordingSidecar'
+import { useToast } from '@/composables/useToast'
 import { useExplorerStore } from '@/stores/explorer.store'
 import type { RecordedFlow } from '@/types/recorder.types'
 
@@ -981,6 +982,7 @@ watch(() => [props.repoId, props.filePath] as const, refreshSidecar, { immediate
 //      repo-scoped, no extra fetch needed; FlowEditor's existing
 //      reactive bindings rebuild the canvas off the same store.
 const _explorerStore = useExplorerStore()
+const _toast = useToast()
 
 function _refreshKeywordsIfPossible(): void {
   if (props.repoId == null) return
@@ -989,8 +991,33 @@ function _refreshKeywordsIfPossible(): void {
   _explorerStore.refreshKeywords(props.repoId).catch(() => { /* non-critical */ })
 }
 
-function onLibrariesChanged(): void {
-  _refreshKeywordsIfPossible()
+/**
+ * Post-refresh sanity check: if the user just added `Library X` but
+ * the libdoc introspection didn't return any keywords for it, the
+ * library isn't actually installed in the repo's environment. The
+ * file-side `Library    X` declaration alone doesn't pip-install
+ * the package — users hit this footgun a lot ("I imported it, why
+ * are there only 10 keywords?"), so surface the situation as a
+ * warning toast pointing at the install path.
+ */
+async function onLibrariesChanged(addedLibrary?: string): Promise<void> {
+  if (props.repoId == null) return
+  try {
+    await _explorerStore.refreshKeywords(props.repoId)
+  } catch {
+    return
+  }
+  if (!addedLibrary) return
+  const lower = addedLibrary.toLowerCase()
+  const found = _explorerStore.keywords.some(k =>
+    (k.library || '').toLowerCase() === lower,
+  )
+  if (!found) {
+    _toast.warning(
+      t('robotEditor.libraryNotInEnvTitle', { library: addedLibrary }),
+      t('robotEditor.libraryNotInEnvBody', { library: addedLibrary }),
+    )
+  }
 }
 
 // File-switch trigger: refresh once after the new path settles.

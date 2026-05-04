@@ -1238,6 +1238,8 @@ export default {
     visualTab: 'Visual Editor',
     flowTab: 'Flow',
     codeTab: 'Code',
+    libraryNotInEnvTitle: 'Library "{library}" not installed in environment',
+    libraryNotInEnvBody: 'The Library import was added to the file, but {library} is not installed in this repo\'s environment. Only example keywords are shown until you install the package — open the Environments view to add it.',
     tests: 'tests',
     keywordsCount: 'keywords',
     parseError: 'Parse Error',
