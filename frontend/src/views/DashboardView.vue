@@ -20,6 +20,10 @@ function goToRun(runId: number) {
   router.push({ path: '/runs', query: { run: String(runId) } })
 }
 
+function goToExplorer(repoId: number) {
+  router.push({ name: 'explorer', params: { repoId: String(repoId) } })
+}
+
 onMounted(async () => {
   await Promise.all([
     stats.fetchAll(),
@@ -103,11 +107,19 @@ onMounted(async () => {
           <router-link to="/repos" class="text-sm">{{ t('dashboard.manage') }}</router-link>
         </div>
         <div class="repo-grid" v-if="repos.repos.length">
-          <div v-for="repo in repos.repos" :key="repo.id" class="repo-item">
+          <button
+            v-for="repo in repos.repos"
+            :key="repo.id"
+            type="button"
+            class="repo-item"
+            :title="t('dashboard.openInExplorer', { name: repo.name })"
+            data-testid="dashboard-repo-card"
+            @click="goToExplorer(repo.id)"
+          >
             <strong>{{ repo.name }}</strong>
             <span class="text-muted text-sm">{{ repo.default_branch }}</span>
             <span class="text-muted text-sm">{{ formatTimeAgo(repo.last_synced_at) }}</span>
-          </div>
+          </button>
         </div>
         <p v-else class="text-muted text-center p-4">{{ t('dashboard.noRepos') }}</p>
       </div>
@@ -153,12 +165,34 @@ onMounted(async () => {
   gap: 12px;
 }
 
+/* Repo card. Now a <button> so it's keyboard-focusable and the
+   click handler navigates to /explorer/:repoId. The button reset
+   strips the default UA styling so it renders identically to the
+   pre-button card layout, then we layer on a hover affordance. */
 .repo-item {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 2px;
   padding: 12px;
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-sm);
+  background: var(--color-bg-card, #fff);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.05s;
+}
+.repo-item:hover {
+  background: var(--color-bg-hover, #f8fafc);
+  border-color: var(--color-primary, #3B7DD8);
+}
+.repo-item:active {
+  transform: translateY(1px);
+}
+.repo-item:focus-visible {
+  outline: 2px solid var(--color-primary, #3B7DD8);
+  outline-offset: 2px;
 }
 </style>

@@ -127,6 +127,7 @@ export default {
     repositories: 'Proyectos',
     manage: 'Gestionar \u2192',
     noRepos: 'No hay proyectos configurados.',
+    openInExplorer: 'Abrir {name} en el Explorer',
   },
   repos: {
     title: 'Proyectos',
