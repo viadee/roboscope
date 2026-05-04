@@ -1177,6 +1177,8 @@ export default {
     keywordNotImportedBadgeTitle: 'Library will be imported automatically when this keyword is added.',
     examplesCategoryBadge: '(examples)',
     examplesCategoryHint: 'Curated subset shown because the dynamic library introspection returned no data — typically the repo has no environment configured, or the library is not installed in the environment. Configure an environment to see the full keyword list.',
+    startNodeLabel: 'Start',
+    endNodeLabel: 'End',
     keyword: 'Keyword',
     arguments: 'Arguments',
     condition: 'Condition',

@@ -1177,6 +1177,8 @@ export default {
     keywordNotImportedBadgeTitle: 'Die Library wird automatisch importiert, sobald dieses Keyword eingefügt wird.',
     examplesCategoryBadge: '(Beispiele)',
     examplesCategoryHint: 'Nur eine kuratierte Auswahl wird gezeigt, weil die dynamische Library-Introspektion keine Daten liefert — meist weil dem Repository kein Environment zugeordnet ist oder die Library im Environment nicht installiert ist. Ordne ein Environment zu, um die vollständige Keyword-Liste zu sehen.',
+    startNodeLabel: 'Start',
+    endNodeLabel: 'Ende',
     keyword: 'Keyword',
     arguments: 'Argumente',
     condition: 'Bedingung',

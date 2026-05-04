@@ -402,12 +402,17 @@ export function stepsToFlow(
   const nodes: Node[] = []
   const edges: Edge[] = []
 
-  // Start node
+  // Start node — label comes from i18n inside StartEndNode.vue
+  // ("Start" / "End"). The test-case name is already in the
+  // section tab strip, so duplicating it on the canvas added no
+  // information — and left fresh, unnamed test cases with a
+  // visually empty box. `name` is still on the param list for
+  // any future caller that wants to pin a custom label.
   nodes.push({
     id: `${prefix}-start`,
     type: 'start',
     position: { x: NODE_X, y: 0 },
-    data: { label: name },
+    data: { label: name || undefined },
   })
 
   let prevId = `${prefix}-start`
@@ -459,13 +464,13 @@ export function stepsToFlow(
     y += nodeHeight + NODE_GAP
   }
 
-  // End node
+  // End node — label comes from i18n inside StartEndNode.vue.
   const endId = `${prefix}-end`
   nodes.push({
     id: endId,
     type: 'end',
     position: { x: NODE_X, y },
-    data: { label: 'END' },
+    data: {},
   })
   edges.push({
     id: `${prefix}-e-${prevId}-${endId}`,

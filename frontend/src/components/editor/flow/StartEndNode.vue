@@ -1,16 +1,35 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Handle, Position } from '@vue-flow/core'
 
 const props = defineProps<{
-  data: { label: string }
+  // `data.label` is kept for backwards-compatibility with the
+  // converter's old shape (it used to pass the test-case name as
+  // the start label, which left the node visually empty for
+  // unnamed test cases). Today the labels come from i18n —
+  // "Start" / "End" — independent of the test case name (the
+  // section tab strip already shows that). A non-empty label
+  // here overrides the i18n default so a future caller can pin
+  // a custom label without re-jiggering this component.
+  data?: { label?: string }
   type: string
 }>()
+
+const { t } = useI18n()
+
+const displayLabel = computed(() => {
+  if (props.data?.label && props.data.label.trim()) return props.data.label
+  return props.type === 'start'
+    ? t('flowEditor.startNodeLabel')
+    : t('flowEditor.endNodeLabel')
+})
 </script>
 
 <template>
   <div :class="['flow-node-terminal', type === 'start' ? 'flow-node-start' : 'flow-node-end']">
     <Handle v-if="type === 'end'" type="target" :position="Position.Top" />
-    <span class="flow-terminal-label">{{ data.label }}</span>
+    <span class="flow-terminal-label">{{ displayLabel }}</span>
     <Handle v-if="type === 'start'" type="source" :position="Position.Bottom" />
   </div>
 </template>
