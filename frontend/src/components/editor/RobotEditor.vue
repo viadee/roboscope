@@ -2840,6 +2840,7 @@ watch(() => props.content, (newContent) => {
       <FlowEditor
         :form="form"
         :repo-id="props.repoId"
+        :file-path="props.filePath"
         :sidecar="sidecar"
         @update:sidecar="onSidecarUpdated"
         @add-test-case="addTestCase"

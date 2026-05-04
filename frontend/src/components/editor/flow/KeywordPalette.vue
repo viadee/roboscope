@@ -31,6 +31,12 @@ type PaletteCategory = KeywordCategory | ControlCategory
 
 const props = defineProps<{
   repoId?: number
+  /** Repo-relative path of the file the user is currently editing.
+   *  Used as a re-collapse signal — every time the user switches
+   *  files we re-seed `collapsedCategories` so the palette opens
+   *  in the same condensed view, regardless of how the user had
+   *  expanded categories on the previous file. */
+  filePath?: string
   /** Lower-cased names of libraries currently imported in the file
    *  (`Library    Browser` → `'browser'`). `BuiltIn` is always
    *  considered imported because RF auto-imports it. The palette
@@ -395,6 +401,17 @@ watch(allCategories, (cats) => {
   }
   _collapsedSeeded = true
 }, { immediate: true })
+
+// Re-collapse every category whenever the user switches files.
+// Keeps the palette in a predictable condensed state — opening a
+// new test file shouldn't expose the expanded view from whatever
+// the previous file looked like.
+watch(() => props.filePath, (next, prev) => {
+  if (!next || next === prev) return
+  for (const cat of allCategories.value) {
+    collapsedCategories.value.add(cat.name)
+  }
+})
 
 const filteredCategories = computed<PaletteCategory[]>(() => {
   const q = searchQuery.value.toLowerCase()

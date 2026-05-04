@@ -48,6 +48,10 @@ import '@vue-flow/minimap/dist/style.css'
 const props = defineProps<{
   form: RobotForm
   repoId?: number
+  /** Repo-relative path of the currently open file. Forwarded to
+   *  `KeywordPalette` so it can re-collapse all categories whenever
+   *  the user switches to a different test file. */
+  filePath?: string
   /** Story EDITOR-1 — sidecar (`<file>.rbs.json`) carrying recorded
    *  selector candidates. Null if the file has none, the editor still
    *  works as before. Persistence is the parent's responsibility:
@@ -1320,6 +1324,7 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
     <div v-else class="flow-canvas-wrapper">
       <KeywordPalette
         :repo-id="props.repoId"
+        :file-path="props.filePath"
         :imported-libraries="importedLibraryNames"
         @add-node="addNodeFromPalette"
       />
