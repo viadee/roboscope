@@ -131,7 +131,15 @@ watch(() => explorer.keywordsLoaded, (loaded) => {
 })
 
 const searchQuery = ref('')
+// Categories start collapsed by default — the palette can list
+// 100+ keywords across BuiltIn / Project / dynamic libs and an
+// expanded state buries the search box and "(examples)" hints.
+// `_collapsedSeeded` flips on the first non-empty
+// `allCategories` value so a later refresh (e.g. Library
+// install completing) doesn't re-collapse categories the user
+// already opened.
 const collapsedCategories = ref<Set<string>>(new Set())
+let _collapsedSeeded = false
 const selectedKeyword = ref<{ name: string; type?: StepType; library?: string } | null>(null)
 
 function toggleCategory(name: string) {
@@ -189,7 +197,12 @@ function addSelectedKeyword() {
   selectedKeyword.value = null
 }
 
-// Built-in keyword categories
+// Built-in keyword categories. The list is curated, not exhaustive
+// — about 10 popular keywords per library — and is used to fill
+// gaps in what the dynamic libdoc returned (BuiltIn is always
+// stripped backend-side; common third-party libs may not be
+// installed in the env yet). See `allCategories` for how these
+// are merged with the dynamic data.
 const categories: PaletteCategory[] = [
   {
     name: 'BuiltIn',
@@ -219,11 +232,62 @@ const categories: PaletteCategory[] = [
     ],
   },
   {
+    name: 'DateTime',
+    keywords: [
+      'Get Current Date', 'Convert Date', 'Convert Time',
+      'Subtract Date From Date', 'Add Time To Date', 'Get Time',
+    ],
+  },
+  {
+    name: 'OperatingSystem',
+    keywords: [
+      'Run', 'Run And Return Rc', 'File Should Exist', 'Directory Should Exist',
+      'Create File', 'Remove File', 'Copy File', 'Move File',
+      'List Directory', 'Get Environment Variable',
+    ],
+  },
+  {
+    name: 'Process',
+    keywords: [
+      'Run Process', 'Start Process', 'Wait For Process', 'Terminate Process',
+      'Get Process Result', 'Process Should Be Running',
+    ],
+  },
+  {
+    name: 'XML',
+    keywords: [
+      'Parse XML', 'Get Element', 'Get Element Text',
+      'Get Element Attribute', 'Element Should Exist',
+    ],
+  },
+  {
     name: 'Browser',
     keywords: [
       'New Browser', 'New Page', 'Click', 'Fill Text', 'Get Text',
       'Wait For Elements State', 'Take Screenshot', 'Go To',
       'Get Url', 'Close Browser',
+    ],
+  },
+  {
+    name: 'SeleniumLibrary',
+    keywords: [
+      'Open Browser', 'Close Browser', 'Click Element', 'Input Text',
+      'Get Text', 'Wait Until Element Is Visible', 'Page Should Contain',
+      'Capture Page Screenshot', 'Get Title', 'Go To',
+    ],
+  },
+  {
+    name: 'RequestsLibrary',
+    keywords: [
+      'Create Session', 'GET', 'POST', 'PUT', 'DELETE', 'PATCH',
+      'Status Should Be', 'Should Be Equal As Strings',
+    ],
+  },
+  {
+    name: 'DatabaseLibrary',
+    keywords: [
+      'Connect To Database', 'Disconnect From Database', 'Execute Sql String',
+      'Query', 'Row Count Is Equal To', 'Check If Exists In Database',
     ],
   },
   {
@@ -244,7 +308,31 @@ const categories: PaletteCategory[] = [
   },
 ]
 
-// Build categories: project keywords + dynamic (from rf-mcp) + static fallbacks + control
+/** Common library names we ALWAYS surface in the palette via the
+ *  static curated subset when the dynamic libdoc didn't return
+ *  them. RF-bundled libs (Collections, String, …) are shipped
+ *  with `robotframework` itself but still need an explicit
+ *  `Library    X` import to use; common third-party libs
+ *  (Browser, SeleniumLibrary, …) need pip install + import.
+ *  Either way, showing the curated subset gives the user
+ *  discovery + the auto-import / install path on click.
+ *  BuiltIn is the special case: always shown, never marked
+ *  examples (RF auto-imports it).
+ */
+const _ALWAYS_VISIBLE_LIBS = [
+  'BuiltIn',
+  // RF-bundled (no pip install needed, only `Library    X`):
+  'Collections', 'String', 'DateTime', 'OperatingSystem', 'Process', 'XML',
+  // Common third-party (pip install + Library import):
+  'Browser', 'SeleniumLibrary', 'RequestsLibrary', 'DatabaseLibrary',
+]
+
+// Build categories: project keywords + dynamic (from rf-mcp)
+// + static curated examples for any always-visible lib not
+// covered by dynamic + control. Per-library mix instead of the
+// old all-or-nothing fallback so that an env with e.g. Selenium
+// installed still gets the curated Browser/Requests/DB examples
+// for discovery + auto-install.
 const allCategories = computed(() => {
   const cats: PaletteCategory[] = []
 
@@ -261,37 +349,31 @@ const allCategories = computed(() => {
     }
   }
 
-  // Dynamic library keywords (from rf-mcp, if available)
+  // Dynamic library keywords (from rf-mcp). These show as fully-
+  // available (not "examples") because the libdoc introspection
+  // confirmed they're installed.
+  const dynamicLibNames = new Set<string>()
   for (const [lib, keywords] of dynamicLibraries.value) {
     cats.push({
       name: lib,
       keywords: keywords.map(kw => kw.name),
     })
+    dynamicLibNames.add(lib)
   }
 
-  // If no dynamic keywords loaded, use static fallbacks. Tag each
-  // fallback category as `isExamples: true` so the template can
-  // surface a "(examples)" suffix — otherwise users see e.g. 10
-  // Browser keywords and assume that's the entire library, when
-  // it's actually a hand-picked onboarding subset.
-  //
-  // BuiltIn is excluded from the badge: RF auto-imports it
-  // implicitly so the "configure an environment" hint that the
-  // tooltip carries doesn't apply — BuiltIn keywords always work
-  // at runtime regardless of env configuration. The other
-  // categories (Browser, Collections, String) DO need explicit
-  // `Library    X` imports plus a working env to see the full
-  // surface, so the badge stays.
-  if (dynamicLibraries.value.size === 0 && projectKeywords.value.length === 0) {
-    for (const c of categories) {
-      if (c.name === 'Control') continue
-      if ('keywords' in c) {
-        cats.push({
-          name: c.name,
-          keywords: c.keywords,
-          isExamples: c.name !== 'BuiltIn',
-        })
-      }
+  // Always-visible curated subsets for libs not covered by
+  // dynamic. BuiltIn is special: never tagged isExamples (RF
+  // auto-imports it so the "configure an environment" hint
+  // doesn't apply). The rest get the (examples) badge.
+  for (const libName of _ALWAYS_VISIBLE_LIBS) {
+    if (dynamicLibNames.has(libName)) continue
+    const staticCat = categories.find(c => c.name === libName)
+    if (staticCat && 'keywords' in staticCat) {
+      cats.push({
+        name: staticCat.name,
+        keywords: staticCat.keywords,
+        isExamples: libName !== 'BuiltIn',
+      })
     }
   }
 
@@ -301,6 +383,18 @@ const allCategories = computed(() => {
 
   return cats
 })
+
+// Seed collapsed-state once on first non-empty categories list.
+// `immediate: true` would fire before allCategories has data
+// (mount-time computed runs lazily), so we just watch normally —
+// the first real value triggers the seed.
+watch(allCategories, (cats) => {
+  if (_collapsedSeeded || cats.length === 0) return
+  for (const cat of cats) {
+    collapsedCategories.value.add(cat.name)
+  }
+  _collapsedSeeded = true
+}, { immediate: true })
 
 const filteredCategories = computed<PaletteCategory[]>(() => {
   const q = searchQuery.value.toLowerCase()
