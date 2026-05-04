@@ -6,9 +6,14 @@ import FlowEditor from '@/components/editor/FlowEditor.vue'
 import { robotLanguage, robotHighlightStyle } from '@/utils/robotLanguage'
 import { RF_KEYWORD_SIGNATURES } from '@/utils/robotKeywordSignatures'
 import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
+import { installPackage } from '@/api/environments.api'
 import { loadSidecar, saveSidecar } from '@/composables/useRecordingSidecar'
 import { useToast } from '@/composables/useToast'
+import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useExplorerStore } from '@/stores/explorer.store'
+import { useReposStore } from '@/stores/repos.store'
+import { extractErrorDetail } from '@/utils/errors'
+import BaseModal from '@/components/ui/BaseModal.vue'
 import type { RecordedFlow } from '@/types/recorder.types'
 
 // CodeMirror imports
@@ -982,6 +987,8 @@ watch(() => [props.repoId, props.filePath] as const, refreshSidecar, { immediate
 //      repo-scoped, no extra fetch needed; FlowEditor's existing
 //      reactive bindings rebuild the canvas off the same store.
 const _explorerStore = useExplorerStore()
+const _reposStore = useReposStore()
+const _envsStore = useEnvironmentsStore()
 const _toast = useToast()
 
 function _refreshKeywordsIfPossible(): void {
@@ -992,13 +999,112 @@ function _refreshKeywordsIfPossible(): void {
 }
 
 /**
+ * Common Robot Framework library names → their pip package names.
+ * Most third-party RF libraries follow the `robotframework-<lower>`
+ * convention but a few drop or rename it (RESTinstance, …). The
+ * fallback uses the convention; the dialog input remains editable
+ * so users can override for unusual cases.
+ */
+const _PIP_PACKAGE_MAP: Record<string, string> = {
+  browser: 'robotframework-browser',
+  seleniumlibrary: 'robotframework-seleniumlibrary',
+  requestslibrary: 'robotframework-requests',
+  databaselibrary: 'robotframework-databaselibrary',
+  sshlibrary: 'robotframework-sshlibrary',
+  ftplibrary: 'robotframework-ftplibrary',
+  excellibrary: 'robotframework-excellibrary',
+  jsonlibrary: 'robotframework-jsonlibrary',
+  appiumlibrary: 'robotframework-appiumlibrary',
+  swinglibrary: 'robotframework-swinglibrary',
+  sikulilibrary: 'robotframework-sikulilibrary',
+  imaplibrary: 'robotframework-imaplibrary',
+  archivelibrary: 'robotframework-archivelibrary',
+  cryptolibrary: 'robotframework-crypto',
+  restinstance: 'RESTinstance',
+}
+
+function _guessPipPackage(libraryName: string): string {
+  const lower = libraryName.toLowerCase()
+  return _PIP_PACKAGE_MAP[lower] ?? `robotframework-${lower}`
+}
+
+// --- Library install dialog state ---
+//
+// Opens after the user adds a Library import (typically via the
+// auto-import path when picking a keyword from a non-imported
+// library) AND the post-refresh check finds that the env doesn't
+// have any keywords for it. Asks whether to pip-install. The user
+// can edit the package-name guess before confirming.
+const installDialogOpen = ref(false)
+const installDialogLibrary = ref('')      // Robot library name (e.g. "Browser")
+const installDialogPipPackage = ref('')   // Editable pip name (e.g. "robotframework-browser")
+const installDialogEnvId = ref<number | null>(null)
+const installDialogEnvName = ref('')      // Pretty name for the body copy
+const installDialogInstalling = ref(false)
+const installDialogError = ref<string | null>(null)
+
+function _openInstallDialog(libraryName: string): void {
+  if (props.repoId == null) return
+  const repo = _reposStore.getRepo(props.repoId)
+  // Resolve env: repo's assigned env first, then global default,
+  // then any env. Returning null skips the dialog and falls back
+  // to a non-actionable info toast — the user has no env at all
+  // and the install button would have nothing to point at.
+  const repoEnv = repo?.environment_id ?? null
+  const defaultEnv = _envsStore.environments.find(e => e.is_default)
+  const envId = repoEnv ?? defaultEnv?.id ?? _envsStore.environments[0]?.id ?? null
+  if (envId == null) {
+    _toast.warning(
+      t('robotEditor.libraryNotInEnvTitle', { library: libraryName }),
+      t('robotEditor.libraryNoEnvAtAllBody', { library: libraryName }),
+    )
+    return
+  }
+  const env = _envsStore.environments.find(e => e.id === envId)
+  installDialogLibrary.value = libraryName
+  installDialogPipPackage.value = _guessPipPackage(libraryName)
+  installDialogEnvId.value = envId
+  installDialogEnvName.value = env?.name ?? ''
+  installDialogError.value = null
+  installDialogOpen.value = true
+}
+
+async function confirmLibraryInstall(): Promise<void> {
+  if (installDialogEnvId.value == null) return
+  const pipName = installDialogPipPackage.value.trim()
+  if (!pipName) return
+  installDialogInstalling.value = true
+  installDialogError.value = null
+  try {
+    await installPackage(installDialogEnvId.value, { package_name: pipName })
+    // Install kicked off (status == 'installing' or 'pending').
+    // Refresh keywords once more so the palette picks up the new
+    // library when the install completes.
+    _refreshKeywordsIfPossible()
+    _toast.success(
+      t('robotEditor.libraryInstallStartedTitle'),
+      t('robotEditor.libraryInstallStartedBody', { package: pipName }),
+    )
+    installDialogOpen.value = false
+  } catch (e: unknown) {
+    installDialogError.value = extractErrorDetail(
+      e,
+      t('robotEditor.libraryInstallFailed'),
+    )
+  } finally {
+    installDialogInstalling.value = false
+  }
+}
+
+function cancelLibraryInstall(): void {
+  installDialogOpen.value = false
+}
+
+/**
  * Post-refresh sanity check: if the user just added `Library X` but
  * the libdoc introspection didn't return any keywords for it, the
- * library isn't actually installed in the repo's environment. The
- * file-side `Library    X` declaration alone doesn't pip-install
- * the package — users hit this footgun a lot ("I imported it, why
- * are there only 10 keywords?"), so surface the situation as a
- * warning toast pointing at the install path.
+ * library isn't actually installed in the repo's environment. Open
+ * the install dialog asking whether to pip-install it.
  */
 async function onLibrariesChanged(addedLibrary?: string): Promise<void> {
   if (props.repoId == null) return
@@ -1013,10 +1119,12 @@ async function onLibrariesChanged(addedLibrary?: string): Promise<void> {
     (k.library || '').toLowerCase() === lower,
   )
   if (!found) {
-    _toast.warning(
-      t('robotEditor.libraryNotInEnvTitle', { library: addedLibrary }),
-      t('robotEditor.libraryNotInEnvBody', { library: addedLibrary }),
-    )
+    // Make sure the env list is loaded so we can resolve the
+    // env id and pretty name without a stale cache.
+    if (_envsStore.environments.length === 0) {
+      try { await _envsStore.fetchEnvironments() } catch { /* best-effort */ }
+    }
+    _openInstallDialog(addedLibrary)
   }
 }
 
@@ -2658,6 +2766,59 @@ watch(() => props.content, (newContent) => {
 
     <!-- Code Tab -->
     <div v-show="activeTab === 'code'" class="code-editor" ref="codeEditorContainer"></div>
+
+    <!-- Auto-install prompt for a Library import that the env doesn't
+         know about. Triggered from `onLibrariesChanged` when libdoc
+         introspection turned up no keywords for the just-added lib. -->
+    <BaseModal
+      v-model="installDialogOpen"
+      :title="t('robotEditor.libraryInstallDialogTitle', { library: installDialogLibrary })"
+      size="sm"
+    >
+      <p class="lib-install-intro">
+        {{ t('robotEditor.libraryInstallDialogIntro', {
+          library: installDialogLibrary,
+          env: installDialogEnvName,
+        }) }}
+      </p>
+      <label class="lib-install-pkg-label">
+        {{ t('robotEditor.libraryInstallDialogPipName') }}
+        <input
+          v-model="installDialogPipPackage"
+          type="text"
+          class="lib-install-pkg-input"
+          autocomplete="off"
+          spellcheck="false"
+          data-testid="lib-install-pkg-input"
+          :disabled="installDialogInstalling"
+        />
+        <small class="lib-install-pkg-hint">
+          {{ t('robotEditor.libraryInstallDialogPipHint') }}
+        </small>
+      </label>
+      <div v-if="installDialogError" class="lib-install-error" role="alert">
+        {{ installDialogError }}
+      </div>
+      <template #footer>
+        <BaseButton
+          variant="secondary"
+          :disabled="installDialogInstalling"
+          @click="cancelLibraryInstall"
+        >
+          {{ t('common.cancel') }}
+        </BaseButton>
+        <BaseButton
+          variant="primary"
+          :disabled="installDialogInstalling || !installDialogPipPackage.trim()"
+          data-testid="lib-install-confirm"
+          @click="confirmLibraryInstall"
+        >
+          {{ installDialogInstalling
+            ? t('robotEditor.libraryInstallDialogInstalling')
+            : t('robotEditor.libraryInstallDialogConfirm') }}
+        </BaseButton>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -3001,4 +3162,42 @@ watch(() => props.content, (newContent) => {
 
 /* Setting library input */
 .setting-library-input { width: 100%; font-family: 'Fira Code', 'Consolas', monospace; font-size: 12px; }
+
+/* Auto-install dialog body */
+.lib-install-intro {
+  margin: 0 0 1rem;
+  color: var(--color-text-secondary, #555);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.lib-install-pkg-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.lib-install-pkg-input {
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+.lib-install-pkg-hint {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--color-text-muted, #666);
+  font-weight: 400;
+  font-size: 0.78rem;
+}
+.lib-install-error {
+  margin-top: 0.75rem;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: rgba(192, 57, 43, 0.10);
+  color: #c0392b;
+  font-size: 0.85rem;
+}
 </style>
