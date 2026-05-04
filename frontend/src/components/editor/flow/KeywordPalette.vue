@@ -132,7 +132,7 @@ watch(() => explorer.keywordsLoaded, (loaded) => {
 
 const searchQuery = ref('')
 const collapsedCategories = ref<Set<string>>(new Set())
-const selectedKeyword = ref<{ name: string; type?: StepType } | null>(null)
+const selectedKeyword = ref<{ name: string; type?: StepType; library?: string } | null>(null)
 
 function toggleCategory(name: string) {
   if (collapsedCategories.value.has(name)) {
@@ -158,22 +158,23 @@ function getKeywordArgs(name: string): string[] {
   return keywordArgsMap.value.get(name) || []
 }
 
-/** Reverse lookup: keyword name → owning library name. Used so the
- *  parent can auto-import the right `Library    X` line when the
- *  user picks a keyword from a non-imported library. Returns null
- *  for project keywords (they live in .resource files, not Library
- *  imports) and for keywords that aren't in the dynamic map yet
- *  (the BuiltIn static fallback, which is always imported anyway).
- */
-function getKeywordLibrary(name: string): string | null {
-  for (const [lib, kws] of dynamicLibraries.value) {
-    if (kws.some(k => k.name === name)) return lib
-  }
-  return null
+/** Map a category name to a library name suitable for the
+ *  auto-import hint, or undefined when no auto-import should
+ *  happen. Skips BuiltIn (RF auto-imports it implicitly) and
+ *  Project: ... categories (those are .resource files, would need
+ *  a Resource import — out of scope for the auto-import quick
+ *  path; users can still add Resource manually via the library
+ *  panel). Everything else passes through verbatim — for both
+ *  dynamic categories (the lib name from libdoc) and static-
+ *  fallback categories (Browser, Collections, String). */
+function libraryHintFor(catName: string): string | undefined {
+  if (catName === 'BuiltIn' || catName === 'Control') return undefined
+  if (catName.startsWith('Project: ')) return undefined
+  return catName
 }
 
-function selectKeyword(name: string, type?: StepType) {
-  selectedKeyword.value = { name, type }
+function selectKeyword(name: string, type?: StepType, library?: string) {
+  selectedKeyword.value = { name, type, library }
 }
 function isSelected(name: string): boolean {
   return selectedKeyword.value?.name === name
@@ -183,7 +184,7 @@ function addSelectedKeyword() {
   if (selectedKeyword.value.type) {
     addControlNode(selectedKeyword.value.type)
   } else {
-    addKeywordNode(selectedKeyword.value.name)
+    addKeywordNode(selectedKeyword.value.name, selectedKeyword.value.library)
   }
   selectedKeyword.value = null
 }
@@ -324,10 +325,10 @@ function makeStep(type: StepType = 'keyword'): RobotStep {
   }
 }
 
-function addKeywordNode(keyword: string) {
+function addKeywordNode(keyword: string, library?: string) {
   const step = makeStep('keyword')
   step.keyword = keyword
-  emit('add-node', step, getKeywordLibrary(keyword) ?? undefined)
+  emit('add-node', step, library)
 }
 
 function addControlNode(type: StepType) {
@@ -342,14 +343,14 @@ function addControlNode(type: StepType) {
   emit('add-node', step)
 }
 
-function onDragStart(event: DragEvent, keyword: string) {
+function onDragStart(event: DragEvent, keyword: string, library?: string) {
   event.dataTransfer?.setData('application/rf-keyword', keyword)
   // Tag with the source library so the canvas drop handler can
-  // auto-import it if missing. Project keywords (no library map
-  // entry) and Control items use a different drag mime type, so
-  // this slot stays empty for them and the drop side ignores it.
-  const lib = getKeywordLibrary(keyword)
-  if (lib) event.dataTransfer?.setData('application/rf-library', lib)
+  // auto-import it if missing. The caller (template) passes the
+  // category name when applicable; `libraryHintFor` already
+  // filtered out Project / Control / BuiltIn upstream so we can
+  // trust the value and write it verbatim.
+  if (library) event.dataTransfer?.setData('application/rf-library', library)
   event.dataTransfer!.effectAllowed = 'copy'
 }
 
@@ -418,9 +419,9 @@ function onControlDragStart(event: DragEvent, type: StepType) {
                 ? t('flowEditor.keywordNotImportedHint', { library: cat.name })
                 : undefined"
               draggable="true"
-              @dragstart="onDragStart($event, kw)"
-              @click="selectKeyword(kw)"
-              @dblclick="addKeywordNode(kw)"
+              @dragstart="onDragStart($event, kw, libraryHintFor(cat.name))"
+              @click="selectKeyword(kw, undefined, libraryHintFor(cat.name))"
+              @dblclick="addKeywordNode(kw, libraryHintFor(cat.name))"
             >
               <span class="palette-icon">&#x2699;</span>
               <div class="palette-item-content">
