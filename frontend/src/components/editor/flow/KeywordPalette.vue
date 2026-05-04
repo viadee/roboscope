@@ -273,11 +273,23 @@ const allCategories = computed(() => {
   // surface a "(examples)" suffix — otherwise users see e.g. 10
   // Browser keywords and assume that's the entire library, when
   // it's actually a hand-picked onboarding subset.
+  //
+  // BuiltIn is excluded from the badge: RF auto-imports it
+  // implicitly so the "configure an environment" hint that the
+  // tooltip carries doesn't apply — BuiltIn keywords always work
+  // at runtime regardless of env configuration. The other
+  // categories (Browser, Collections, String) DO need explicit
+  // `Library    X` imports plus a working env to see the full
+  // surface, so the badge stays.
   if (dynamicLibraries.value.size === 0 && projectKeywords.value.length === 0) {
     for (const c of categories) {
       if (c.name === 'Control') continue
       if ('keywords' in c) {
-        cats.push({ name: c.name, keywords: c.keywords, isExamples: true })
+        cats.push({
+          name: c.name,
+          keywords: c.keywords,
+          isExamples: c.name !== 'BuiltIn',
+        })
       }
     }
   }
