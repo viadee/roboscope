@@ -1016,7 +1016,14 @@ function _refreshKeywordsIfPossible(): void {
  * for `_guessPipPackage`.
  */
 const _LIBRARY_PROVIDERS: Record<string, string[]> = {
-  browser: ['robotframework-browser', 'robotframework-browser-batteries'],
+  // Default to `-batteries` for the install suggestion: it bundles
+  // Playwright + Node.js, so the user doesn't need a separate Node
+  // install on the env host. The plain `robotframework-browser`
+  // requires `rfbrowser init` to download Node + Playwright first
+  // and tends to surprise users on freshly-built envs. Both stay
+  // in the providers list so `_isLibraryProvided` recognises
+  // either as already-installed.
+  browser: ['robotframework-browser-batteries', 'robotframework-browser'],
   seleniumlibrary: ['robotframework-seleniumlibrary'],
   requestslibrary: ['robotframework-requests'],
   databaselibrary: ['robotframework-databaselibrary'],
