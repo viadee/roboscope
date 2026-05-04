@@ -1380,8 +1380,21 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
         </VueFlow>
       </div>
 
-      <!-- Editable Node Detail Panel -->
-      <div v-if="selectedNodeData" class="flow-detail-panel">
+      <!-- Editable Node Detail Panel.
+           Drop handlers are mirrored from the canvas so a drag
+           that crosses the panel (it's `position: absolute` over
+           the canvas's top-right) doesn't get rejected with a
+           "no-drop" cursor. Without these, the user couldn't
+           drag a keyword from the palette into the canvas while
+           a step was selected — the panel intercepted the
+           dragover but had no preventDefault. -->
+      <div
+        v-if="selectedNodeData"
+        class="flow-detail-panel"
+        @drop.stop="onCanvasDrop"
+        @dragover.stop.prevent="onCanvasDragOver"
+        @dragleave.stop="onCanvasDragLeave"
+      >
         <div class="flow-detail-header">
           <h4>{{ selectedNodeData.stepType.toUpperCase().replace('_', ' ') }}</h4>
           <div class="flow-detail-actions">
