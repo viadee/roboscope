@@ -68,7 +68,7 @@ function formatArg(parsed: ReturnType<typeof parseArgSignature>): string {
   <BaseModal
     :model-value="modelValue"
     :title="t('flowEditor.docModal.title')"
-    size="md"
+    size="lg"
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <div v-if="info" class="kw-doc">
@@ -161,8 +161,6 @@ function formatArg(parsed: ReturnType<typeof parseArgSignature>): string {
   background: var(--color-bg, #F4F7FA);
   padding: 10px 12px;
   border-radius: 6px;
-  max-height: 320px;
-  overflow-y: auto;
 }
 .kw-doc-empty {
   margin: 0;
