@@ -243,10 +243,17 @@ def is_available() -> bool:
     return bool(get_effective_url())
 
 
-_RF_BUILTINS = frozenset({
-    "builtin", "collections", "datetime", "dialogs", "operatingsystem",
-    "process", "string", "telnet", "xml",
-})
+# RF ships a handful of standard libraries (BuiltIn, Collections,
+# String, …) inside the `robotframework` distribution itself rather
+# than as separate pip packages. They don't appear in
+# `_get_env_installed_libraries` (which reads `pip list`), so the only
+# signal that the user actually wants them is an explicit `Library X`
+# line. We therefore pass everything through to
+# `_resolve_library_keywords` — libdoc handles bundled libs fine, and
+# the response gets the full surface area instead of the curated
+# static-fallback subset. The empty set is kept as a hook for future
+# imports we may want to suppress.
+_RF_BUILTINS: frozenset[str] = frozenset()
 
 
 def _scan_repo_files(repo_id: int) -> tuple[list[dict], set[str]]:
