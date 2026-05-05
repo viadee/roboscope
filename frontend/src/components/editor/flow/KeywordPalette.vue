@@ -33,7 +33,7 @@ const props = defineProps<{
   repoId?: number
   /** Repo-relative path of the file the user is currently editing.
    *  Used as a re-collapse signal — every time the user switches
-   *  files we re-seed `collapsedCategories` so the palette opens
+   *  files we clear `expandedCategories` so the palette opens
    *  in the same condensed view, regardless of how the user had
    *  expanded categories on the previous file. */
   filePath?: string
@@ -137,34 +137,33 @@ watch(() => explorer.keywordsLoaded, (loaded) => {
 })
 
 const searchQuery = ref('')
-// Categories start collapsed by default — the palette can list
-// 100+ keywords across BuiltIn / Project / dynamic libs and an
-// expanded state buries the search box and "(examples)" hints.
-// We re-collapse on three triggers: first-mount seed, file
-// switch, and explorer keyword refresh (so a fresh page load
-// always opens condensed even when the keyword cache was warm
-// from a previous mount).
-const collapsedCategories = ref<Set<string>>(new Set())
+// Track only EXPANDED categories — the palette can list 100+
+// keywords across BuiltIn / Project / dynamic libs and an expanded
+// state buries the search box and "(examples)" hints. With the
+// default being "collapsed unless in the set", new categories that
+// pop in mid-load (e.g. libdoc finishing after the initial render)
+// stay collapsed automatically — no seed pass needed.
+const expandedCategories = ref<Set<string>>(new Set())
 const selectedKeyword = ref<{ name: string; type?: StepType; library?: string } | null>(null)
 
 function toggleCategory(name: string) {
-  if (collapsedCategories.value.has(name)) {
-    collapsedCategories.value.delete(name)
+  if (expandedCategories.value.has(name)) {
+    expandedCategories.value.delete(name)
   } else {
-    collapsedCategories.value.add(name)
+    expandedCategories.value.add(name)
   }
 }
 function isCategoryOpen(name: string): boolean {
   if (searchQuery.value) return true
-  return !collapsedCategories.value.has(name)
+  return expandedCategories.value.has(name)
 }
 function expandAll() {
-  collapsedCategories.value.clear()
+  for (const cat of allCategories.value) {
+    expandedCategories.value.add(cat.name)
+  }
 }
 function collapseAll() {
-  for (const cat of allCategories.value) {
-    collapsedCategories.value.add(cat.name)
-  }
+  expandedCategories.value.clear()
 }
 
 function getKeywordArgs(name: string): string[] {
@@ -390,20 +389,8 @@ const allCategories = computed(() => {
 })
 
 function collapseAllNow() {
-  for (const cat of allCategories.value) {
-    collapsedCategories.value.add(cat.name)
-  }
+  expandedCategories.value.clear()
 }
-
-// Seed collapsed-state on the first non-empty categories list.
-// We only do this until the first real value lands — once data is
-// in, the explicit triggers below own re-collapse decisions.
-let _initialSeed = true
-watch(allCategories, (cats) => {
-  if (!_initialSeed || cats.length === 0) return
-  collapseAllNow()
-  _initialSeed = false
-}, { immediate: true })
 
 // Re-collapse on file switch — opening a different test file
 // shouldn't expose the expanded view from the previous file.
