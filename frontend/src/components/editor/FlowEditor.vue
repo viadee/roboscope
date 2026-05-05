@@ -363,6 +363,25 @@ watch(activeItemIndex, () => {
   })
 })
 
+// Backspace / Delete on a selected node deletes it, mirroring the
+// "x" button on the detail panel. Skip when focus is in any text
+// input — the detail panel inputs (args, condition, loopVar, …) all
+// rely on Backspace to delete characters, and the library autocomplete
+// uses Backspace to retreat through suggestions. `contenteditable`
+// is treated the same way.
+function onWindowKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Backspace' && e.key !== 'Delete') return
+  if (!selectedNode.value || !selectedNodeData.value) return
+  const tgt = e.target as HTMLElement | null
+  if (tgt) {
+    const tag = tgt.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+    if (tgt.isContentEditable) return
+  }
+  e.preventDefault()
+  deleteStep()
+}
+
 onMounted(() => {
   // Default to keywords section if no test cases
   if (!hasTestCases.value && hasKeywords.value) {
@@ -372,6 +391,11 @@ onMounted(() => {
   // Multiple fitView attempts to ensure centering after Vue Flow renders
   setTimeout(() => fitView({ padding: 0.3 }), 200)
   setTimeout(() => fitView({ padding: 0.3 }), 500)
+  window.addEventListener('keydown', onWindowKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onWindowKeydown)
 })
 
 function onNodeClick(event: { node: Node }) {
