@@ -25,6 +25,11 @@ type KeywordCategory = {
    *  small "(examples)" suffix so users don't mistake the curated
    *  subset for the full library surface. */
   isExamples?: boolean
+  /** True when this Project: category corresponds to the file the
+   *  user has open right now. Pinned to the top of the palette and
+   *  visually marked so the user can scan to "their own" keywords
+   *  faster than reading every Project: header. */
+  isCurrentFile?: boolean
 }
 type ControlCategory = { name: string; items: ControlItem[] }
 type PaletteCategory = KeywordCategory | ControlCategory
@@ -340,17 +345,31 @@ const _ALWAYS_VISIBLE_LIBS = [
 const allCategories = computed(() => {
   const cats: PaletteCategory[] = []
 
-  // Project keywords from .robot/.resource files (grouped by file)
+  // Project keywords from .robot/.resource files (grouped by file).
+  // The category for the file the user has currently open is pinned
+  // to the top of the palette and flagged via `isCurrentFile` so the
+  // template can render a "current" badge — saves the user from
+  // scanning every Project: header to find their own keywords.
   if (projectKeywords.value.length > 0) {
-    const byFile = new Map<string, string[]>()
+    const currentBase = props.filePath?.split('/').pop() || ''
+    const byFile = new Map<string, { paths: Set<string>; keywords: string[] }>()
     for (const kw of projectKeywords.value) {
       const file = kw.file_path.split('/').pop() || kw.file_path
-      if (!byFile.has(file)) byFile.set(file, [])
-      byFile.get(file)!.push(kw.name)
+      const entry = byFile.get(file) ?? { paths: new Set<string>(), keywords: [] }
+      entry.paths.add(kw.file_path)
+      entry.keywords.push(kw.name)
+      byFile.set(file, entry)
     }
-    for (const [file, names] of byFile) {
-      cats.push({ name: `Project: ${file}`, keywords: names })
+    const projCats: KeywordCategory[] = []
+    for (const [file, entry] of byFile) {
+      // Match basenames first; if multiple files in different folders
+      // share a basename, only flag the one whose full path matches.
+      const isCurrent = file === currentBase
+        && (props.filePath ? entry.paths.has(props.filePath) || entry.paths.size === 1 : false)
+      projCats.push({ name: `Project: ${file}`, keywords: entry.keywords, isCurrentFile: isCurrent })
     }
+    projCats.sort((a, b) => Number(b.isCurrentFile) - Number(a.isCurrentFile))
+    cats.push(...projCats)
   }
 
   // Dynamic library keywords (from rf-mcp). These show as fully-
@@ -495,10 +514,20 @@ function onControlDragStart(event: DragEvent, type: StepType) {
       <button class="palette-add-btn" @click="addSelectedKeyword">+</button>
     </div>
     <div class="palette-categories">
-      <div v-for="cat in filteredCategories" :key="cat.name" class="palette-category">
+      <div
+        v-for="cat in filteredCategories"
+        :key="cat.name"
+        class="palette-category"
+        :class="{ 'palette-category--current': 'isCurrentFile' in cat && cat.isCurrentFile }"
+      >
         <div class="category-header" @click="toggleCategory(cat.name)">
           <span class="collapse-icon">{{ isCategoryOpen(cat.name) ? '\u25BC' : '\u25B6' }}</span>
           <span class="category-name">{{ cat.name }}</span>
+          <span
+            v-if="'isCurrentFile' in cat && cat.isCurrentFile"
+            class="category-current-badge"
+            :title="t('flowEditor.currentFileCategoryHint')"
+          >{{ t('flowEditor.currentFileCategoryBadge') }}</span>
           <span
             v-if="'isExamples' in cat && cat.isExamples"
             class="category-examples-badge"
@@ -721,6 +750,27 @@ function onControlDragStart(event: DragEvent, type: StepType) {
   font-size: 9px;
   font-style: italic;
   color: var(--color-accent, #D4883E);
+  margin-right: 4px;
+}
+/* Highlights the Project: category for the file the user has open
+   right now — pinned to the top of the palette and tinted so it
+   stands out from the other Project: entries. */
+.palette-category--current .category-header {
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 8%, transparent);
+}
+.palette-category--current .category-name {
+  font-weight: 700;
+  color: var(--color-primary, #3B7DD8);
+}
+.category-current-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-primary, #3B7DD8);
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 14%, transparent);
+  padding: 1px 6px;
+  border-radius: 8px;
   margin-right: 4px;
 }
 .palette-item {

@@ -1177,6 +1177,8 @@ export default {
     keywordNotImportedBadgeTitle: 'La bibliothèque sera importée automatiquement lors de l\'ajout de ce mot-clé.',
     examplesCategoryBadge: '(exemples)',
     examplesCategoryHint: 'Sous-ensemble choisi affiché parce que l\'introspection dynamique des bibliothèques n\'a renvoyé aucune donnée — typiquement le dépôt n\'a pas d\'environnement configuré, ou la bibliothèque n\'est pas installée dans l\'environnement. Configurez un environnement pour voir la liste complète des mots-clés.',
+    currentFileCategoryBadge: 'fichier actuel',
+    currentFileCategoryHint: 'Mots-clés définis dans le fichier que vous éditez actuellement.',
     startNodeLabel: 'Début',
     endNodeLabel: 'Fin',
     keyword: 'Mot-clé',
