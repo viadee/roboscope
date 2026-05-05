@@ -106,6 +106,7 @@ async def lifespan(app: FastAPI):
     # Reset stuck background tasks from previous runs
     with SessionLocal() as session:
         from src.environments.models import Environment, EnvironmentPackage
+        from src.repos.models import Repository
         stuck_builds = session.query(Environment).filter(
             Environment.docker_build_status == "building"
         ).all()
@@ -124,7 +125,19 @@ async def lifespan(app: FastAPI):
                 "Reset stuck package '%s' in env %d", pkg.package_name, pkg.environment_id,
             )
 
-        if stuck_builds or stuck_pkgs:
+        # Repositories whose `sync_repo` task was killed mid-pull keep
+        # `sync_status='syncing'` forever — auto-sync skips them as
+        # "in flight" and the UI shows an indefinite spinner. Surface
+        # the interrupt so the user can re-trigger a manual sync.
+        stuck_syncs = session.query(Repository).filter(
+            Repository.sync_status == "syncing"
+        ).all()
+        for repo in stuck_syncs:
+            repo.sync_status = "error"
+            repo.sync_error = "Sync interrupted — application was restarted."
+            logger.warning("Reset stuck sync for repo '%s' (id=%d)", repo.name, repo.id)
+
+        if stuck_builds or stuck_pkgs or stuck_syncs:
             session.commit()
 
     # Discover and load plugins

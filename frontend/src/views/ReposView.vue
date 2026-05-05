@@ -611,7 +611,7 @@ async function removeMember(member: ProjectMember) {
           </div>
           <div v-if="repo.sync_status === 'error'" class="sync-error">
             <span class="sync-error-label">{{ t('repos.syncError') }}</span>
-            <span class="sync-error-msg">{{ repo.sync_error }}</span>
+            <span class="sync-error-msg">{{ repo.sync_error || t('repos.toasts.unknownError') }}</span>
           </div>
           <div v-if="repo.sync_status === 'syncing'" class="sync-syncing">
             {{ t('repos.syncing') }}
