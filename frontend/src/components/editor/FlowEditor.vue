@@ -803,15 +803,26 @@ function removeArg(index: number) {
   updateStepFromNode(props.form, selectedNodeData.value)
   rebuildAndReselect()
 }
+// Adding the first return-variable to a plain keyword step flips its
+// type to 'assignment' so the serializer emits `${var}=  Keyword`
+// instead of just `Keyword`. Removing the last var flips it back —
+// keeps the FlowEditor surface "any keyword can return a value"
+// rather than asking the user to pick the right node type up front.
 function addReturnVar() {
   if (!selectedNodeData.value) return
-  selectedNodeData.value.step.returnVars.push('${var}')
+  const step = selectedNodeData.value.step
+  step.returnVars.push('${var}')
+  if (step.type === 'keyword') step.type = 'assignment'
   updateStepFromNode(props.form, selectedNodeData.value)
   rebuildAndReselect()
 }
 function removeReturnVar(index: number) {
   if (!selectedNodeData.value) return
-  selectedNodeData.value.step.returnVars.splice(index, 1)
+  const step = selectedNodeData.value.step
+  step.returnVars.splice(index, 1)
+  if (step.returnVars.length === 0 && step.type === 'assignment') {
+    step.type = 'keyword'
+  }
   updateStepFromNode(props.form, selectedNodeData.value)
   rebuildAndReselect()
 }
@@ -1607,8 +1618,12 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
           </div>
         </div>
 
-        <!-- Return variables (assignment) -->
-        <div v-if="selectedNodeData.stepType === 'assignment'" class="flow-detail-row">
+        <!-- Return variables (any keyword call can be promoted to an
+             assignment by adding a return-variable here). -->
+        <div
+          v-if="['keyword', 'assignment'].includes(selectedNodeData.stepType)"
+          class="flow-detail-row"
+        >
           <label>{{ t('flowEditor.returnVars') }}</label>
           <div v-for="(rv, i) in selectedNodeData.step.returnVars" :key="i" class="flow-arg-row">
             <input
