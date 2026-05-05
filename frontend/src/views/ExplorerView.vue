@@ -514,6 +514,14 @@ async function handleSave() {
     // the user sees the "Save N changes" indicator update without a
     // page reload.
     repoStatus.refresh(selectedRepoId.value)
+    // The .robot / .resource file we just wrote may have added or
+    // removed `Library` / `Resource` lines — re-introspect so the
+    // FlowEditor's keyword palette reflects the new imports without
+    // a manual refresh. Cheap: re-uses the wildcard preload path.
+    const path = explorer.selectedFile.path.toLowerCase()
+    if (path.endsWith('.robot') || path.endsWith('.resource')) {
+      explorer.refreshKeywords(selectedRepoId.value).catch(() => { /* non-critical */ })
+    }
   } finally {
     saving.value = false
   }
