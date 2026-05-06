@@ -146,23 +146,26 @@ def _emit_command(cmd: RecordedCommand) -> str:
             else None
         )
         if active is None:
-            # Fail loud — a targeted keyword without a selector is a bug.
-            # Intentional RF comment marker; do NOT escape.
-            parts.append("# WARNING: no selector captured")
-            # Server-side observability for an otherwise silent
-            # partial-failure: the user who saved this flow won't
-            # notice until they open the .robot and see the
-            # placeholder. Surface it in the recorder's log stream
-            # at WARNING so operators (and ourselves during dev)
-            # see it during the save POST. Includes the command id
-            # so it can be correlated to a recording-step entry in
-            # the FE without spelunking through the saved sidecar.
+            # Targeted keyword without a selector — the previous
+            # behavior was to emit `<Keyword>    # WARNING: no
+            # selector captured` to make the gap visible in the
+            # .robot. Problem: RF parses that as `<Keyword>` with
+            # zero args, which crashes Browser-library keywords like
+            # `Scroll To Element` at replay with "expected 1
+            # argument, got 0". Emit the whole line as a single RF
+            # comment instead — the gap is still visible but the
+            # test no longer breaks.
             _logger.warning(
                 "emit: targeted keyword %r has no selector candidate "
-                "(cmd.id=%s, index=%d, frame_url=%s) — wrote the "
-                "placeholder comment; the .robot will not run this step",
+                "(cmd.id=%s, index=%d, frame_url=%s) — emitting as a "
+                "comment so replay doesn't crash on a zero-arg call",
                 cmd.keyword, cmd.id or "<none>", cmd.index, cmd.frame_url,
             )
+            comment_line = (
+                f"    # RBSCOPE: dropped {cmd.keyword} — no selector "
+                f"captured (cmd.id={cmd.id or '<none>'})"
+            )
+            return comment_line
         else:
             inner = _render_selector(active)
             # Story RECORDER-FRAMES — events captured inside an iframe
@@ -254,7 +257,6 @@ def _emit_desktop_command(cmd: RecordedCommand) -> str:
     parts: list[str] = [cmd.keyword]
 
     targeted = cmd.keyword in _DESKTOP_TARGETED_KEYWORDS
-    selector_missing = False
     if targeted:
         active = (
             cmd.selector_candidates[cmd.active_candidate_index]
@@ -262,13 +264,20 @@ def _emit_desktop_command(cmd: RecordedCommand) -> str:
             else None
         )
         if active is None:
-            parts.append("# WARNING: no selector captured")
-            selector_missing = True
+            # Same fix as the web _emit_command: emit the entire
+            # line as a pure RF comment instead of `<Keyword> # …`,
+            # otherwise RPA.Windows would receive a zero-arg call
+            # and crash at replay. Diagnostic still goes through
+            # the recorder log stream at WARNING.
             _logger.warning(
                 "emit (desktop): targeted keyword %r has no selector "
-                "candidate (cmd.id=%s, index=%d) — wrote placeholder; "
-                "the .robot will not run this step",
+                "candidate (cmd.id=%s, index=%d) — emitting as a "
+                "comment so replay doesn't crash on a zero-arg call",
                 cmd.keyword, cmd.id or "<none>", cmd.index,
+            )
+            return (
+                f"    # RBSCOPE: dropped {cmd.keyword} — no selector "
+                f"captured (cmd.id={cmd.id or '<none>'})"
             )
         else:
             parts.append(_render_desktop_selector(active))
@@ -284,12 +293,11 @@ def _emit_desktop_command(cmd: RecordedCommand) -> str:
     # RECORDER-IDMAP — desktop transport gets the same trailing
     # `# rbs:<id>` comment as web so reorder / insert / delete in
     # the visual editor preserves the link from a Robot step to its
-    # sidecar candidate group. Skip when the line is already a
-    # WARNING comment (the warning IS its own comment) — appending
-    # a second `# …` would still be RF-legal but reads as a
-    # cosmetic mess.
+    # sidecar candidate group. The selector-missing path early-
+    # returns above with the id baked into the comment, so by the
+    # time we reach this point the line is always a real keyword.
     line = "    " + "    ".join(parts)
-    if cmd.id and not selector_missing:
+    if cmd.id:
         line += f"    # rbs:{cmd.id}"
     return line
 

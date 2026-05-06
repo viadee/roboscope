@@ -278,18 +278,22 @@ def translate_payload(
         if isinstance(key, str):
             args["key"] = key
     elif kind == "scroll":
-        # scroll event is noisy — emit only if the element snapshot gave
-        # us something stable enough. Scroll-on-document is treated as a
-        # global no-target command.
+        # Scroll events are noisy — only the ones that landed on a
+        # specific element (so we can synthesize a selector) survive.
+        # Scroll-on-document used to emit `Scroll To Element` with
+        # `args={"target": "page"}`, but Browser library's
+        # `Scroll To Element` REQUIRES a selector and crashes at
+        # replay with `expected 1 argument, got 0`. There is no
+        # "scroll the document" Browser keyword that round-trips
+        # cleanly without a target, so drop the event entirely —
+        # page scrolls between targeted interactions don't affect
+        # replay correctness.
         if el is None:
-            return RecordedCommand(
-                index=index,
-                keyword="Scroll To Element",
-                args={"target": "page"},
-                selector_candidates=[],
-                active_candidate_index=0,
-                frame_url=frame_url,
+            _logger.debug(
+                "translate.dropped reason=scroll_no_element index=%d frame=%s",
+                index, frame_url,
             )
+            return None
 
     return RecordedCommand(
         index=index,

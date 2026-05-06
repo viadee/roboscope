@@ -74,12 +74,24 @@ class TestTargetedKeywords:
         out = emit_robot(_flow([cmd]))
         assert 'Click    xpath=//button[text()="Submit"]' in out
 
-    def test_click_without_selector_warns(self) -> None:
-        # Defensive: a targeted keyword without selector is a bug upstream;
-        # emit a visible warning rather than silently producing an invalid line.
+    def test_click_without_selector_emits_pure_comment(self) -> None:
+        # Defensive: a targeted keyword without selector used to emit
+        # `Click    # WARNING: ...` which RF parsed as Click() + zero
+        # args, crashing Browser-library replay with "expected 1
+        # argument, got 0". Emit the entire line as an RF comment so
+        # the gap is still visible but replay doesn't break.
         cmd = RecordedCommand(index=0, keyword="Click")
         out = emit_robot(_flow([cmd]))
-        assert "# WARNING: no selector captured" in out
+        assert "# RBSCOPE: dropped Click — no selector captured" in out
+        # Importantly: the keyword name does NOT appear at the start
+        # of an executable line (every line that mentions Click is
+        # behind the # comment marker).
+        for line in out.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("Click"):
+                pytest.fail(
+                    f"Expected Click line to be commented, got: {line!r}"
+                )
 
     def test_type_text_renders_text_arg(self) -> None:
         cmd = RecordedCommand(
@@ -386,18 +398,22 @@ class TestCommandIdEmit:
         line = _emit_command(cmd)
         assert line.rstrip().endswith("# rbs:navi5678")
 
-    def test_warning_line_does_not_get_id_comment(self) -> None:
+    def test_warning_line_bakes_id_into_comment(self) -> None:
         """When the recorder couldn't synthesise any selector, the
-        line is already a `# WARNING: …` comment marker. Adding a
-        second `# rbs:…` would tail-pollute that comment."""
+        whole line is a single `# RBSCOPE: dropped …` comment
+        carrying the cmd id inline. Adding a second `# rbs:…` token
+        would tail-pollute that comment, so the standalone token
+        path is skipped."""
         cmd = RecordedCommand(
             id="should-not-leak",
             index=0,
             keyword="Click",
-            # No selector_candidates → fail-loud warning path.
+            # No selector_candidates → drop-into-comment path.
         )
         line = _emit_command(cmd)
-        assert "# WARNING" in line
+        assert "# RBSCOPE: dropped Click" in line
+        assert "cmd.id=should-not-leak" in line
+        # No standalone `# rbs:` token appended.
         assert "# rbs:" not in line
 
     def test_id_default_is_short_and_collision_resistant(self) -> None:
@@ -432,12 +448,12 @@ class TestCommandIdEmit:
 class TestEmitMissingSelectorObservability:
     """When a targeted keyword (Click, Type Text, etc.) reaches the
     emitter without any selector candidate, the emitter writes a
-    `# WARNING: no selector captured` placeholder into the .robot
-    AND emits a server-side WARNING. The placeholder alone is too
-    quiet — the user who saved the flow only notices when they
-    later open the .robot. The log surfaces it during the save POST
-    so the recorder's log stream catches the partial-failure in
-    real time."""
+    pure `# RBSCOPE: dropped …` comment line AND emits a server-side
+    WARNING. Pure-comment instead of `Keyword    # WARNING:` because
+    RF parsed the latter as a zero-arg call which crashed Browser
+    library at replay ("expected 1 argument, got 0"). Operators
+    monitoring the recorder log stream still get the diagnostic via
+    the WARNING record."""
 
     def test_targeted_keyword_without_selector_emits_warning_log(
         self, caplog: pytest.LogCaptureFixture
@@ -452,8 +468,9 @@ class TestEmitMissingSelectorObservability:
         )
         caplog.set_level("WARNING", logger="roboscope.recording.emit")
         line = _emit_command(cmd)
-        # Placeholder still in the line (existing contract).
-        assert "# WARNING: no selector captured" in line
+        # Line is now a pure RF comment so replay doesn't crash.
+        assert line.lstrip().startswith("# RBSCOPE: dropped Click")
+        assert "missingfp001" in line
         # And exactly one warning carrying the diagnostic context.
         warnings = [r for r in caplog.records if r.levelname == "WARNING"]
         assert len(warnings) == 1

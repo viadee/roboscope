@@ -28,11 +28,25 @@ from src.recording.v2_recorder_task import _verify_command_candidates
 
 
 class _FakeLocator:
+    """Stand-in for a Playwright Locator. The verifier now invokes
+    `evaluate_all(<JS>)` on each candidate's locator and expects a
+    `{total, visible, actionable}` dict back. The fake mirrors the
+    same contract: every match is treated as fully actionable so the
+    selector-verification logic exercises its uniqueness ranking
+    without needing a real DOM evaluator."""
+
     def __init__(self, count: int) -> None:
         self._count = count
 
     async def count(self) -> int:
         return self._count
+
+    async def evaluate_all(self, _js: str) -> dict[str, int]:
+        return {
+            "total": self._count,
+            "visible": self._count,
+            "actionable": self._count,
+        }
 
 
 class _FakePage:

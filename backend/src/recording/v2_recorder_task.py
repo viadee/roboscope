@@ -67,35 +67,60 @@ async def _verify_command_candidates(
 
     async def _resolve(c: SelectorCandidate) -> MatchInfo:
         """Return total / visible / actionable counts for one
-        candidate. We loop over every match because Playwright's
-        is_visible() / is_enabled() are per-locator — a multi-match
-        locator answers True if the FIRST match is visible, which
-        would mis-classify a hidden-then-visible pair. Bounded at 50
-        matches so a runaway selector (e.g. `*`) doesn't stall the
-        recording session."""
+        candidate via a single JS round-trip per candidate.
+
+        Naive `is_visible()` / `is_enabled()` looped over every match
+        does N×2 RPC calls per candidate — for a typical recording
+        with ~10 candidates per click and ~50-match runaway selectors
+        in there, that's ~1000 round-trips per command which blew
+        through the e2e test's 30s budget. `evaluate_all` packs the
+        per-element check into one CDP call.
+
+        Visibility heuristic mirrors what Playwright's `is_visible`
+        does on the JS side — `offsetParent` (covers display:none
+        ancestors), computed `visibility`, computed `display`,
+        non-zero box. Not perfect (no IntersectionObserver-level
+        clipping check) but good enough for the recorder's intent
+        of "would the user actually click this".
+        """
         try:
-            base = frame_or_page.locator(c.value)
-            total = int(await base.count())
+            loc = frame_or_page.locator(c.value)
+            result = await loc.evaluate_all(
+                """(els) => {
+                    let visible = 0, actionable = 0;
+                    for (const el of els) {
+                        if (!el || !el.ownerDocument || !el.ownerDocument.defaultView) continue;
+                        const style = el.ownerDocument.defaultView.getComputedStyle(el);
+                        const rect = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+                        const inFlow = el.offsetParent !== null
+                            || (style && style.position === 'fixed');
+                        const notHidden = !style
+                            || (style.visibility !== 'hidden'
+                                && style.display !== 'none');
+                        const hasSize = !rect
+                            || (rect.width > 0 && rect.height > 0);
+                        if (inFlow && notHidden && hasSize) {
+                            visible++;
+                            const disabled = el.disabled === true
+                                || el.getAttribute('aria-disabled') === 'true';
+                            if (!disabled) actionable++;
+                        }
+                    }
+                    return { total: els.length, visible, actionable };
+                }""",
+            )
+            if not isinstance(result, dict):
+                return MatchInfo(0, 0, 0)
+            return MatchInfo(
+                total=int(result.get("total", 0)),
+                visible=int(result.get("visible", 0)),
+                actionable=int(result.get("actionable", 0)),
+            )
         except Exception:
+            # Invalid selector syntax / detached frame / mid-mutation
+            # element — treat as 0-match so the candidate is dropped
+            # rather than leaking through unverified.
             return MatchInfo(0, 0, 0)
-        if total == 0:
-            return MatchInfo(0, 0, 0)
-        visible = 0
-        actionable = 0
-        for i in range(min(total, 50)):
-            try:
-                nth = base.nth(i)
-                vis = bool(await nth.is_visible())
-                if vis:
-                    visible += 1
-                    en = bool(await nth.is_enabled())
-                    if en:
-                        actionable += 1
-            except Exception:
-                # Element detached mid-iteration / strict mode quirk
-                # — count it as a non-visible non-actionable match.
-                continue
-        return MatchInfo(total=total, visible=visible, actionable=actionable)
 
     verified = await verify_candidates(cmd.selector_candidates, _resolve)
     # After re-sorting, index 0 is the best (verified > non-verified, then

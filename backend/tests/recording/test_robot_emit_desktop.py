@@ -115,10 +115,14 @@ class TestDesktopKeywords:
         out = emit_robot(_desktop_flow([cmd]))
         assert "Control Window    name:Login" in out
 
-    def test_click_without_selector_warns(self) -> None:
+    def test_click_without_selector_emits_pure_comment(self) -> None:
+        # Used to emit `Click    # WARNING: ...` which RPA.Windows
+        # treated as a zero-arg call and crashed at replay. Now a
+        # full RF comment so the gap is visible without breaking the
+        # run.
         cmd = RecordedCommand(index=0, keyword="Click")
         out = emit_robot(_desktop_flow([cmd]))
-        assert "# WARNING: no selector captured" in out
+        assert "# RBSCOPE: dropped Click" in out
 
     def test_click_without_selector_emits_server_warning(
         self, caplog
@@ -194,14 +198,16 @@ class TestDesktopRbsComment:
             "Type Text    id:userEdit    alice@corp    # rbs:deskcmd00002" in out
         )
 
-    def test_warning_line_omits_rbs_comment(self) -> None:
-        # `# WARNING: no selector captured` is itself a comment; appending
-        # a second `# rbs:` would still parse but reads as a cosmetic
-        # mess. The matching web emitter rule applies here too.
+    def test_warning_line_bakes_id_into_comment(self) -> None:
+        # The selector-missing path now early-returns a pure RF
+        # comment. The id is embedded inside that single comment
+        # ("cmd.id=deskcmd00003"), not appended as a second
+        # `# rbs:` token — the dropped step has no replay anchor
+        # to tie back to anyway.
         cmd = RecordedCommand(id="deskcmd00003", index=0, keyword="Click")
         out = emit_robot(_desktop_flow([cmd]))
-        assert "# WARNING: no selector captured" in out
-        assert "# rbs:deskcmd00003" not in out
+        assert "# RBSCOPE: dropped Click" in out
+        assert "cmd.id=deskcmd00003" in out
 
 
 class TestFullDesktopFlow:

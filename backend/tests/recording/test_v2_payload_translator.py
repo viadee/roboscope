@@ -125,11 +125,14 @@ class TestScroll:
         values = {c.value for c in cmd.selector_candidates}
         assert "#pane" in values
 
-    def test_page_scroll_has_no_candidates(self) -> None:
+    def test_page_scroll_is_dropped(self) -> None:
+        """Scroll-on-document used to emit `Scroll To Element` with
+        `target=page`, which crashed at replay because Browser
+        library's Scroll To Element requires a selector. Page-level
+        scrolls between targeted interactions don't affect replay
+        correctness, so we drop them entirely now."""
         cmd = translate_payload({"kind": "scroll", "element": None}, 0)
-        assert cmd is not None
-        assert cmd.args.get("target") == "page"
-        assert cmd.selector_candidates == []
+        assert cmd is None
 
 
 class TestDragDrop:
