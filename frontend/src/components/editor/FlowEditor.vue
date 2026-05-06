@@ -1492,23 +1492,9 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
         </button>
       </div>
 
-      <!-- Library quick-manage: chevron toggles an inline panel
-           below the section bar. Add / remove imports without
-           leaving the Flow tab. The keyword palette + signatures
-           refresh automatically (RobotEditor watches `form.settings`
-           Library entries and re-fetches the cache). -->
-      <button
-        type="button"
-        :class="['flow-libs-toggle', { active: librariesPanelOpen }]"
-        :title="t('flowEditor.librariesTitle')"
-        data-testid="flow-libraries-toggle"
-        @click="librariesPanelOpen = !librariesPanelOpen"
-      >
-        📚 {{ t('flowEditor.libraries') }} ({{ libraryEntries.length }})
-        <span aria-hidden="true">{{ librariesPanelOpen ? '▴' : '▾' }}</span>
-      </button>
-
-      <!-- Item tabs within section -->
+      <!-- Item tabs within section. Sit immediately to the right of
+           the section toggle so the test case / keyword names land
+           next to where the palette starts on the line below. -->
       <div class="flow-item-tabs">
         <template v-if="activeSection === 'testcases'">
           <button
@@ -1539,6 +1525,23 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
           >+ {{ t('flowEditor.addKeyword') }}</button>
         </template>
       </div>
+
+      <!-- Library quick-manage: chevron toggles an inline panel
+           below the section bar. Add / remove imports without
+           leaving the Flow tab. The keyword palette + signatures
+           refresh automatically (RobotEditor watches `form.settings`
+           Library entries and re-fetches the cache). Aligned to the
+           right edge of the toolbar (margin-left: auto). -->
+      <button
+        type="button"
+        :class="['flow-libs-toggle', { active: librariesPanelOpen }]"
+        :title="t('flowEditor.librariesTitle')"
+        data-testid="flow-libraries-toggle"
+        @click="librariesPanelOpen = !librariesPanelOpen"
+      >
+        📚 {{ t('flowEditor.libraries') }} ({{ libraryEntries.length }})
+        <span aria-hidden="true">{{ librariesPanelOpen ? '▴' : '▾' }}</span>
+      </button>
     </div>
 
     <!-- Library management panel (toggled by the section-bar
@@ -2197,7 +2200,10 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  justify-content: space-between;
+  /* Section tabs + item tabs hug the left; libraries pushes itself
+     to the right edge via `margin-left: auto`. Don't use
+     justify-content: space-between — that would space all three
+     groups evenly and put the names in the middle of the bar. */
   gap: 8px;
   border-bottom: 1px solid var(--color-border, #e2e8f0);
   background: var(--color-bg, #F4F7FA);
@@ -2213,11 +2219,12 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   align-items: center;
   gap: 6px;
   margin-bottom: 6px;
-  padding: 4px 10px;
+  margin-left: auto;
+  padding: 6px 14px;
   border: 1px solid var(--color-border, #e2e8f0);
   border-radius: 4px;
   background: #fff;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--color-text-secondary, #555);
   cursor: pointer;
@@ -2345,12 +2352,12 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   color: var(--color-primary, #3B7DD8);
 }
 .flow-section-tab {
-  padding: 5px 14px;
+  padding: 7px 18px;
   border: 1px solid var(--color-border, #e2e8f0);
   border-bottom: none;
   border-radius: 6px 6px 0 0;
   background: #fff;
-  font-size: 12px;
+  font-size: 17px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -2366,11 +2373,11 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   padding-bottom: 6px;
 }
 .flow-item-tab {
-  padding: 3px 10px;
+  padding: 5px 14px;
   border: 1px solid var(--color-border, #e2e8f0);
   border-radius: 4px;
   background: #fff;
-  font-size: 11px;
+  font-size: 15px;
   cursor: pointer;
   white-space: nowrap;
 }
