@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
-import { VueFlow, useVueFlow } from '@vue-flow/core'
+import { VueFlow, useVueFlow, Handle as VueFlowHandle, Position as HandlePosition } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
@@ -263,14 +263,26 @@ async function handleAddKeyword(): Promise<void> {
 const selectedNode = ref<Node | null>(null)
 const selectedNodeData = computed<FlowNodeData | null>(() => {
   if (!selectedNode.value) return null
-  // Doc-meta nodes carry a different data shape (`{label, text,
-  // section, sectionIndex}`) — they're handled by `selectedDocMeta`
-  // below. Returning null here keeps the step-detail-panel template
-  // from dereferencing missing `stepType` / `step` fields and
-  // crashing.
+  // Doc-meta and Start nodes carry different data shapes than steps
+  // (`{label, text, section, sectionIndex}` for doc-meta; `{label}`
+  // only for Start). They're handled by `selectedDocMeta` /
+  // `selectedStart` below — returning null here keeps the
+  // step-detail-panel template from dereferencing missing
+  // `stepType` / `step` fields and crashing.
   if (selectedNode.value.type === 'doc-meta') return null
+  if (selectedNode.value.type === 'start') return null
   return selectedNode.value.data as FlowNodeData
 })
+
+/** Truthy when the user clicked the Start node — surfaces a
+ *  section-level settings panel (currently the Documentation
+ *  add/edit affordance; future: Tags, Setup, Teardown, …). The
+ *  panel sits in the same detail-panel container as step edits;
+ *  switching between Start clicks and step clicks just swaps the
+ *  template branch. */
+const selectedStart = computed<boolean>(() =>
+  selectedNode.value?.type === 'start',
+)
 
 /** Truthy when the user clicked a `[Documentation]` side-note node.
  *  Drives a separate detail-panel branch with a textarea bound to
@@ -538,15 +550,15 @@ onUnmounted(() => {
 })
 
 function onNodeClick(event: { node: Node }) {
-  // EDITOR-13: terminal Start / End nodes carry only `{label}` in
-  // their data — no `step` / `stepType` / `argSpecs`. The detail panel
-  // template would dereference `stepType.toUpperCase()` and unmount on
-  // the resulting TypeError ("blank page"). Skip them entirely; they
-  // are never editable.
-  if (event.node.type === 'start' || event.node.type === 'end') {
+  // The End node is purely visual — never editable.
+  if (event.node.type === 'end') {
     selectedNode.value = null
     return
   }
+  // The Start node represents the test case / keyword as a whole.
+  // Selecting it surfaces the section-level settings panel
+  // (currently only the [Documentation] affordance — the rest of
+  // the `[…]` settings will follow the same pattern).
   selectedNode.value = event.node
 }
 function onPaneClick() {
@@ -1413,18 +1425,6 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
             @click="handleAddKeyword"
           >+ {{ t('flowEditor.addKeyword') }}</button>
         </template>
-        <!-- Add a `[Documentation]` side note to the active item if
-             it doesn't have one yet. The button only renders when
-             the doc is currently empty so the affordance disappears
-             once a doc-meta side node is on the canvas. -->
-        <button
-          v-if="canAddDocMeta"
-          type="button"
-          class="flow-item-tab flow-item-tab--add-doc"
-          :title="t('flowEditor.docMeta.addTitle')"
-          data-testid="flow-add-doc-meta"
-          @click="addDocMeta"
-        >+ [Documentation]</button>
       </div>
     </div>
 
@@ -1559,12 +1559,19 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
               class="flow-node-doc-meta"
               :class="{ 'flow-node--selected': selectedNode?.id === nodeProps.id }"
             >
-              <span class="flow-node-doc-meta__bracket" aria-hidden="true">[</span>
               <div class="flow-node-doc-meta__body">
                 <span class="flow-node-doc-meta__label">{{ nodeProps.data.label }}</span>
                 <p class="flow-node-doc-meta__text">{{ nodeProps.data.text }}</p>
               </div>
-              <span class="flow-node-doc-meta__bracket" aria-hidden="true">]</span>
+              <!-- Source handle on the RIGHT — outgoing dashed edge
+                   docks here, then enters the Start node on its
+                   LEFT side. -->
+              <VueFlowHandle
+                type="source"
+                :position="HandlePosition.Right"
+                id="right"
+                style="opacity: 0; pointer-events: none;"
+              />
             </div>
           </template>
           <template #node-comment="nodeProps">
@@ -1633,8 +1640,41 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
            drag a keyword from the palette into the canvas while
            a step was selected — the panel intercepted the
            dragover but had no preventDefault. -->
+      <!-- Section-level detail panel (Start node selected). Surfaces
+           the [Documentation] add affordance + a place to land the
+           rest of the [Tags] / [Setup] / [Teardown] etc. settings
+           in follow-up commits. -->
       <div
-        v-if="selectedDocMeta"
+        v-if="selectedStart"
+        class="flow-detail-panel"
+        :class="{ 'flow-detail-panel--resizing': isResizingPanel }"
+        :style="{ width: detailPanelWidth + 'px' }"
+      >
+        <div
+          class="flow-detail-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          :title="t('flowEditor.resizePanelHint')"
+          @pointerdown="onPanelResizeStart"
+        ></div>
+        <div class="flow-detail-header">
+          <h4>{{ activeSection === 'testcases' ? t('flowEditor.testCaseSettings') : t('flowEditor.keywordSettings') }}</h4>
+        </div>
+        <div class="flow-detail-row">
+          <button
+            v-if="canAddDocMeta"
+            type="button"
+            class="flow-btn-add"
+            :title="t('flowEditor.docMeta.addTitle')"
+            data-testid="flow-add-doc-meta"
+            @click="addDocMeta"
+          >+ [Documentation]</button>
+          <p v-else class="flow-detail-hint">{{ t('flowEditor.docMeta.alreadyPresent') }}</p>
+        </div>
+      </div>
+
+      <div
+        v-else-if="selectedDocMeta"
         class="flow-detail-panel"
         :class="{ 'flow-detail-panel--resizing': isResizingPanel }"
         :style="{ width: detailPanelWidth + 'px' }"
@@ -2576,10 +2616,11 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
    flowConverter.ts) so the user reads it as "linked metadata".
    Click to edit in the detail panel. */
 .flow-node-doc-meta {
+  position: relative;
   display: inline-flex;
   align-items: stretch;
   gap: 6px;
-  padding: 8px 4px;
+  padding: 8px 12px;
   background: color-mix(in srgb, var(--color-text-muted, #5A6380) 6%, var(--color-bg-card, #fff));
   border: 1px dashed var(--color-border, #e2e8f0);
   border-radius: 6px;
@@ -2591,16 +2632,6 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
 .flow-node-doc-meta:hover {
   border-color: var(--color-primary, #3B7DD8);
   background: color-mix(in srgb, var(--color-primary, #3B7DD8) 6%, var(--color-bg-card, #fff));
-}
-.flow-node-doc-meta__bracket {
-  font-size: 36px;
-  font-weight: 300;
-  line-height: 0.85;
-  color: var(--color-text-muted, #5A6380);
-  font-family: 'Times New Roman', Georgia, serif;
-  align-self: stretch;
-  display: flex;
-  align-items: center;
 }
 .flow-node-doc-meta__body {
   flex: 1;

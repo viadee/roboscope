@@ -583,6 +583,11 @@ function appendDocMetaNode(
     id: `${prefix}-doc-edge`,
     source: id,
     target: `${prefix}-start`,
+    // Connect doc-meta's RIGHT handle → Start's LEFT handle so the
+    // dashed edge runs horizontally between them rather than the
+    // default Bottom→Top route (which crossed the whole canvas).
+    sourceHandle: 'right',
+    targetHandle: 'left',
     type: 'default',
     style: { strokeDasharray: '6 4', stroke: '#9AA5BF', strokeWidth: 1.5 },
     animated: false,

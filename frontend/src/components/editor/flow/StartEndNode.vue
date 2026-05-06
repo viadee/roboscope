@@ -29,6 +29,17 @@ const displayLabel = computed(() => {
 <template>
   <div :class="['flow-node-terminal', type === 'start' ? 'flow-node-start' : 'flow-node-end']">
     <Handle v-if="type === 'end'" type="target" :position="Position.Top" />
+    <!-- Left handle on the Start node — target for the dashed edge
+         coming from the [Documentation] side note (sits to the left
+         of Start, edges in from its right). Hidden visually because
+         we don't want a connection dot showing on every render. -->
+    <Handle
+      v-if="type === 'start'"
+      type="target"
+      :position="Position.Left"
+      id="left"
+      style="opacity: 0; pointer-events: none;"
+    />
     <span class="flow-terminal-label">{{ displayLabel }}</span>
     <Handle v-if="type === 'start'" type="source" :position="Position.Bottom" />
   </div>
