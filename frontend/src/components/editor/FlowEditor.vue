@@ -429,12 +429,19 @@ function deleteSettingMeta() {
 function addSetting(kind: SettingKind) {
   const target = activeSettingSource()
   if (!target) return
-  // Seed with a single space (or single-element list for chips) so
-  // the side node renders immediately + the detail panel auto-
-  // selects on the user's first interaction. The first keystroke
-  // replaces the placeholder.
-  if (kind === 'tags') target.tags = [' ']
-  else if (kind === 'arguments' && 'arguments' in target) target.arguments = [' ']
+  // Seed so the side note renders immediately. Presence on the
+  // underlying field is what flips the side note into existence
+  // (see `settingPresent()` in flowConverter.ts) — empty strings
+  // for text fields fail that check, so we need a single space;
+  // arrays only need length > 0, so an `['']` placeholder works
+  // cleanly and serializes back to nothing on save.
+  //
+  // The user's first keystroke replaces the placeholder. If they
+  // dismiss the panel without typing, deleting all text on the
+  // next interaction (or the auto-clear via parseListInput("") for
+  // chips) drops the side note again.
+  if (kind === 'tags') target.tags = ['']
+  else if (kind === 'arguments' && 'arguments' in target) target.arguments = ['']
   else if (kind === 'template' && 'template' in target) target.template = ' '
   else if (kind === 'documentation' || kind === 'setup' || kind === 'teardown' || kind === 'timeout') {
     target[kind] = ' '
@@ -1670,7 +1677,14 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
             >
               <div class="flow-node-doc-meta__body">
                 <span class="flow-node-doc-meta__label">{{ nodeProps.data.label }}</span>
-                <p class="flow-node-doc-meta__text">{{ nodeProps.data.text }}</p>
+                <p
+                  v-if="nodeProps.data.text && nodeProps.data.text.trim()"
+                  class="flow-node-doc-meta__text"
+                >{{ nodeProps.data.text }}</p>
+                <p
+                  v-else
+                  class="flow-node-doc-meta__text flow-node-doc-meta__text--empty"
+                >{{ t('flowEditor.settingMeta.emptyHint') }}</p>
               </div>
               <!-- Source handle on the RIGHT — outgoing dashed edge
                    docks here, then enters the Start node on its
@@ -2841,6 +2855,14 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
 .flow-node-doc-meta--arguments .flow-node-doc-meta__text,
 .flow-node-doc-meta--tags .flow-node-doc-meta__text {
   -webkit-line-clamp: 1;
+}
+/* Freshly-added side note (user clicked "+ [X]" but hasn't typed yet).
+   Light-italic placeholder so the empty state reads as "click to
+   edit" rather than as a broken render. */
+.flow-node-doc-meta__text--empty {
+  color: var(--color-text-muted, #5A6380);
+  opacity: 0.7;
+  font-style: italic;
 }
 .flow-node-doc-meta.flow-node--selected {
   outline: 3px solid var(--color-primary, #3B7DD8);

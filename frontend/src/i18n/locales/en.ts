@@ -1217,6 +1217,7 @@ export default {
     },
     settingMeta: {
       allPresent: 'Every [...] setting is attached — click a side note to edit it.',
+      emptyHint: 'click to edit',
       documentation: {
         label: 'Documentation',
         placeholder: 'Describe what this test case (or keyword) does — visible in the HTML report.',

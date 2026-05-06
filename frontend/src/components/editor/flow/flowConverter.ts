@@ -554,7 +554,11 @@ const KIND_LABELS: Record<SettingMetaKind, string> = {
   timeout: '[Timeout]',
 }
 
-/** Read the raw value for a kind off the underlying form record. */
+/** Read the raw value for a kind off the underlying form record.
+ *  Returns the display text — may be empty when the setting is
+ *  freshly added via the "+ [X]" affordance and the user hasn't
+ *  typed anything yet. Use `settingPresent()` to decide whether the
+ *  side note should render; this function only formats the text. */
 function readSettingValue(
   source: RobotTestCase | RobotKeywordDef,
   kind: SettingMetaKind,
@@ -569,6 +573,36 @@ function readSettingValue(
     case 'template':
       return 'template' in source ? source.template : ''
     case 'timeout': return source.timeout
+  }
+}
+
+/** Whether the kind has any user-attached data on the source. The
+ *  side note renders as soon as this returns true, even if the
+ *  current text is empty / whitespace — that's the case the moment
+ *  after the user clicks "+ [X]" before they've typed the value.
+ *
+ *  The presence check is intentionally based on the underlying
+ *  field (array length / truthiness), NOT on the formatted value,
+ *  so a freshly-added empty setting still surfaces a visible side
+ *  note for the user to click and edit. The matching write-side
+ *  uses `[''] / ' '` placeholders in `addSetting()` (FlowEditor.vue)
+ *  to flip the flag without polluting the saved .robot file with
+ *  spurious chars. */
+export function settingPresent(
+  source: RobotTestCase | RobotKeywordDef,
+  kind: SettingMetaKind,
+): boolean {
+  switch (kind) {
+    case 'tags': return source.tags.length > 0
+    case 'arguments':
+      return 'arguments' in source && source.arguments.length > 0
+    case 'template':
+      return 'template' in source && source.template !== ''
+    case 'documentation':
+    case 'setup':
+    case 'teardown':
+    case 'timeout':
+      return source[kind] !== ''
   }
 }
 
@@ -623,8 +657,8 @@ function appendSettingMetaNodes(
   // [Documentation] preview can't grow into the [Tags] node below.
   const META_PITCH = 96
   for (const kind of kinds) {
+    if (!settingPresent(source, kind)) continue
     const value = readSettingValue(source, kind)
-    if (!value || !value.trim()) continue
     const id = `${prefix}-${kind}`
     // Position to the LEFT of the Start node, stacked vertically.
     // Each kind sits at a fixed row offset from the start.

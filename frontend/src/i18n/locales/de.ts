@@ -1217,6 +1217,7 @@ export default {
     },
     settingMeta: {
       allPresent: 'Alle [...] Einstellungen sind vorhanden — klick auf eine Seitennotiz zum Bearbeiten.',
+      emptyHint: 'klicken zum Bearbeiten',
       documentation: {
         label: 'Dokumentation',
         placeholder: 'Beschreibe was dieser Testfall (oder dieses Keyword) macht — erscheint im HTML-Report.',

@@ -141,6 +141,38 @@ describe('FlowEditor section switch — converter outputs are prefix-disjoint', 
     expect(nodes.find((n) => n.id === 'kw0-tags')).toBeUndefined()
   })
 
+  it('test case with empty-string [Tags] entry still renders a side node', () => {
+    // The "+ [Tags]" affordance seeds `tags = ['']` so the side note
+    // appears even before the user types — presence is gated on
+    // length > 0, NOT on the joined string being non-blank.
+    const seeded: RobotForm = {
+      ...form,
+      testCases: [{ ...form.testCases[0], tags: [''] }],
+    } as RobotForm
+    const { nodes } = robotFormToFlow(seeded)
+    expect(nodes.find((n) => n.id === 'tc0-tags')).toBeDefined()
+  })
+
+  it('test case with seeded space [Documentation] still renders a side node', () => {
+    // The "+ [Documentation]" affordance seeds with a single space
+    // so the user lands in a focused panel; the side note must not
+    // be filtered out by a value-trim check.
+    const seeded: RobotForm = {
+      ...form,
+      testCases: [{ ...form.testCases[0], documentation: ' ' }],
+    } as RobotForm
+    const { nodes } = robotFormToFlow(seeded)
+    expect(nodes.find((n) => n.id === 'tc0-documentation')).toBeDefined()
+  })
+
+  it('test case with truly empty [Tags] (length 0) does NOT render a side node', () => {
+    // Counter-test for the regression: the empty default must still
+    // suppress the side note, otherwise plain test cases would gain
+    // unwanted decorative side notes.
+    const { nodes } = robotFormToFlow(form)
+    expect(nodes.find((n) => n.id === 'tc0-tags')).toBeUndefined()
+  })
+
   it('test case with [Setup] [Teardown] [Timeout] [Template] all get side nodes', () => {
     const tcForm: RobotForm = {
       ...form,

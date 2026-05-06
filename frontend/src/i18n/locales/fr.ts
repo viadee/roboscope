@@ -1217,6 +1217,7 @@ export default {
     },
     settingMeta: {
       allPresent: 'Tous les paramètres [...] sont attachés — cliquez sur une note latérale pour l\'éditer.',
+      emptyHint: 'cliquez pour éditer',
       documentation: {
         label: 'Documentation',
         placeholder: 'Décrivez ce que fait ce cas de test (ou ce keyword) — visible dans le rapport HTML.',
