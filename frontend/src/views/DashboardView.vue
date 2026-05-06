@@ -1,198 +1,227 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+/**
+ * Dashboard — landing card grid pointing into every navigable section
+ * of the app, plus a rotating tip-of-the-day card.
+ *
+ * The card grid replaces the previous KPIs / recent-runs / repo-grid
+ * mix: each card is a clickable shortcut into one of the navigation
+ * destinations (Repos, Explorer, Runs, Stats, …) so a fresh user can
+ * navigate the whole product without scanning the sidebar.
+ */
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { useStatsStore } from '@/stores/stats.store'
-import { useExecutionStore } from '@/stores/execution.store'
-import { useReposStore } from '@/stores/repos.store'
-import BaseSpinner from '@/components/ui/BaseSpinner.vue'
-import BaseBadge from '@/components/ui/BaseBadge.vue'
-import { formatDuration } from '@/utils/formatDuration'
-import { formatTimeAgo } from '@/utils/formatDate'
+import { useAuthStore } from '@/stores/auth.store'
+import { todaysTipKey } from '@/utils/dailyTip'
 
 const router = useRouter()
-const stats = useStatsStore()
-const execution = useExecutionStore()
-const repos = useReposStore()
+const auth = useAuthStore()
 const { t } = useI18n()
 
-function goToRun(runId: number) {
-  router.push({ path: '/runs', query: { run: String(runId) } })
+interface DashboardCard {
+  title: string
+  description: string
+  icon: string
+  to: string
+  /** Some cards (admin sections, recorder) only show when the user
+   *  has the right role / the feature is enabled. */
+  visible: boolean
+  /** Tinted variant — recorder + tip card stand out as "primary
+   *  actions" vs. the rest of the navigation grid. */
+  variant?: 'default' | 'accent' | 'tip'
 }
 
-function goToExplorer(repoId: number) {
-  router.push({ name: 'explorer', params: { repoId: String(repoId) } })
-}
+const cards = computed<DashboardCard[]>(() => [
+  {
+    title: t('nav.repos'),
+    description: t('dashboard.cards.reposDesc'),
+    icon: '📁',
+    to: '/repos',
+    visible: true,
+  },
+  {
+    title: t('nav.explorer'),
+    description: t('dashboard.cards.explorerDesc'),
+    icon: '🔍',
+    to: '/explorer',
+    visible: true,
+  },
+  {
+    title: t('nav.execution'),
+    description: t('dashboard.cards.runsDesc'),
+    icon: '▶',
+    to: '/runs',
+    visible: true,
+  },
+  {
+    title: t('nav.stats'),
+    description: t('dashboard.cards.statsDesc'),
+    icon: '📈',
+    to: '/stats',
+    visible: true,
+  },
+  {
+    title: t('nav.recorder'),
+    description: t('dashboard.cards.recorderDesc'),
+    icon: '⏺',
+    to: '/recordings/new',
+    visible: auth.hasMinRole('editor'),
+    variant: 'accent',
+  },
+  {
+    title: t('nav.environments'),
+    description: t('dashboard.cards.environmentsDesc'),
+    icon: '⚙',
+    to: '/environments',
+    visible: auth.hasMinRole('editor'),
+  },
+  {
+    title: t('nav.docs'),
+    description: t('dashboard.cards.docsDesc'),
+    icon: '📖',
+    to: '/docs',
+    visible: true,
+  },
+  {
+    title: t('nav.settings'),
+    description: t('dashboard.cards.settingsDesc'),
+    icon: '🔧',
+    to: '/settings',
+    visible: auth.hasMinRole('admin'),
+  },
+])
 
-onMounted(async () => {
-  await Promise.all([
-    stats.fetchAll(),
-    execution.fetchRuns({ page: 1 }),
-    repos.fetchRepos(),
-  ])
-})
+const visibleCards = computed(() => cards.value.filter((c) => c.visible))
+
+const tipKey = todaysTipKey()
+
+function go(to: string) {
+  router.push(to)
+}
 </script>
 
 <template>
   <div class="page-content">
     <div class="page-header">
       <h1>{{ t('dashboard.title') }}</h1>
+      <p class="text-muted">{{ t('dashboard.subtitle') }}</p>
     </div>
 
-    <BaseSpinner v-if="stats.loading" />
+    <div class="dashboard-grid">
+      <button
+        v-for="card in visibleCards"
+        :key="card.to"
+        type="button"
+        class="dashboard-card"
+        :class="['dashboard-card--' + (card.variant ?? 'default')]"
+        @click="go(card.to)"
+      >
+        <div class="dashboard-card__icon" aria-hidden="true">{{ card.icon }}</div>
+        <div class="dashboard-card__title">{{ card.title }}</div>
+        <p class="dashboard-card__desc">{{ card.description }}</p>
+        <div class="dashboard-card__chevron" aria-hidden="true">→</div>
+      </button>
 
-    <template v-else-if="stats.overview">
-      <!-- KPI Cards -->
-      <div class="grid grid-4 mb-4">
-        <div class="card kpi-card">
-          <div class="kpi-value">{{ stats.overview.total_runs }}</div>
-          <div class="kpi-label">{{ t('dashboard.runs30d') }}</div>
-        </div>
-        <div class="card kpi-card">
-          <div class="kpi-value" :class="stats.overview.success_rate >= 80 ? 'text-success' : 'text-danger'">
-            {{ stats.overview.success_rate }}%
-          </div>
-          <div class="kpi-label">{{ t('dashboard.successRate') }}</div>
-        </div>
-        <div class="card kpi-card">
-          <div class="kpi-value">{{ formatDuration(stats.overview.avg_duration_seconds) }}</div>
-          <div class="kpi-label">{{ t('dashboard.avgDuration') }}</div>
-        </div>
-        <div class="card kpi-card">
-          <div class="kpi-value">{{ stats.overview.active_repos }}</div>
-          <div class="kpi-label">{{ t('dashboard.activeRepos') }}</div>
-        </div>
+      <!-- Tip-of-the-day card. Static (no click navigation) — purely
+           informational; a fresh tip surfaces every calendar day. -->
+      <div class="dashboard-card dashboard-card--tip" data-testid="tip-of-the-day">
+        <div class="dashboard-card__icon" aria-hidden="true">💡</div>
+        <div class="dashboard-card__title">{{ t('tips.label') }}</div>
+        <p class="dashboard-card__desc">{{ t(tipKey) }}</p>
       </div>
-
-      <!-- Recent Runs -->
-      <div class="card mb-4">
-        <div class="card-header">
-          <h3>{{ t('dashboard.recentRuns') }}</h3>
-          <router-link to="/runs" class="text-sm">{{ t('dashboard.showAll') }}</router-link>
-        </div>
-        <div v-if="execution.runs.length" class="table-responsive">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>{{ t('common.id') }}</th>
-              <th>{{ t('dashboard.target') }}</th>
-              <th>{{ t('common.status') }}</th>
-              <th>{{ t('common.duration') }}</th>
-              <th>{{ t('common.created') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="run in execution.runs.slice(0, 10)"
-              :key="run.id"
-              class="clickable-row"
-              @click="goToRun(run.id)"
-            >
-              <td>#{{ run.id }}</td>
-              <td class="text-sm">{{ run.target_path }}</td>
-              <td><BaseBadge :status="run.status" /></td>
-              <td>{{ formatDuration(run.duration_seconds) }}</td>
-              <td class="text-muted text-sm">{{ formatTimeAgo(run.created_at) }}</td>
-            </tr>
-          </tbody>
-        </table>
-        </div>
-        <p v-else class="text-muted text-center p-4">{{ t('dashboard.noRuns') }}</p>
-      </div>
-
-      <!-- Repos Overview -->
-      <div class="card">
-        <div class="card-header">
-          <h3>{{ t('dashboard.repositories') }}</h3>
-          <router-link to="/repos" class="text-sm">{{ t('dashboard.manage') }}</router-link>
-        </div>
-        <div class="repo-grid" v-if="repos.repos.length">
-          <button
-            v-for="repo in repos.repos"
-            :key="repo.id"
-            type="button"
-            class="repo-item"
-            :title="t('dashboard.openInExplorer', { name: repo.name })"
-            data-testid="dashboard-repo-card"
-            @click="goToExplorer(repo.id)"
-          >
-            <strong>{{ repo.name }}</strong>
-            <span class="text-muted text-sm">{{ repo.default_branch }}</span>
-            <span class="text-muted text-sm">{{ formatTimeAgo(repo.last_synced_at) }}</span>
-          </button>
-        </div>
-        <p v-else class="text-muted text-center p-4">{{ t('dashboard.noRepos') }}</p>
-      </div>
-    </template>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.kpi-card {
-  text-align: center;
-  padding: 24px 16px;
+.page-header h1 {
+  margin-bottom: 4px;
+}
+.page-header p {
+  margin: 0 0 24px;
+  font-size: 14px;
 }
 
-.kpi-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.kpi-value.text-success { color: var(--color-success); }
-.kpi-value.text-danger { color: var(--color-danger); }
-
-.kpi-label {
-  font-size: 12px;
-  color: var(--color-text-muted);
-  margin-top: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.clickable-row {
-  cursor: pointer;
-  transition: background-color 0.15s;
-}
-
-.clickable-row:hover {
-  background: var(--color-bg-hover, #f8fafc);
-}
-
-.repo-grid {
+.dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
 }
 
-/* Repo card. Now a <button> so it's keyboard-focusable and the
-   click handler navigates to /explorer/:repoId. The button reset
-   strips the default UA styling so it renders identically to the
-   pre-button card layout, then we layer on a hover affordance. */
-.repo-item {
+.dashboard-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 12px;
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-sm);
+  gap: 8px;
+  padding: 22px 22px 50px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 12px;
   background: var(--color-bg-card, #fff);
+  text-align: left;
   font: inherit;
   color: inherit;
-  text-align: left;
   cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s, transform 0.05s;
+  transition: transform 0.12s, box-shadow 0.15s, border-color 0.15s;
+  min-height: 160px;
 }
-.repo-item:hover {
-  background: var(--color-bg-hover, #f8fafc);
+.dashboard-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(16, 25, 51, 0.10);
   border-color: var(--color-primary, #3B7DD8);
 }
-.repo-item:active {
-  transform: translateY(1px);
+.dashboard-card:focus-visible {
+  outline: 3px solid var(--color-primary, #3B7DD8);
+  outline-offset: 3px;
 }
-.repo-item:focus-visible {
-  outline: 2px solid var(--color-primary, #3B7DD8);
-  outline-offset: 2px;
+
+.dashboard-card__icon {
+  font-size: 28px;
+  line-height: 1;
+}
+.dashboard-card__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-navy, #1A2D50);
+}
+.dashboard-card__desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted, #5A6380);
+}
+.dashboard-card__chevron {
+  position: absolute;
+  right: 18px;
+  bottom: 14px;
+  font-size: 18px;
+  color: var(--color-primary, #3B7DD8);
+  opacity: 0.5;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.dashboard-card:hover .dashboard-card__chevron {
+  opacity: 1;
+  transform: translateX(3px);
+}
+
+.dashboard-card--accent {
+  background: linear-gradient(135deg, rgba(59, 125, 216, 0.06), rgba(212, 136, 62, 0.05));
+  border-color: var(--color-accent, #D4883E);
+}
+.dashboard-card--accent .dashboard-card__chevron {
+  color: var(--color-accent, #D4883E);
+}
+
+/* Tip-of-the-day — non-clickable, slightly different surface so it
+   reads as informational rather than a navigation target. */
+.dashboard-card--tip {
+  cursor: default;
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 6%, var(--color-bg-card, #fff));
+  border-color: color-mix(in srgb, var(--color-primary, #3B7DD8) 30%, var(--color-border, #e2e8f0));
+  padding-bottom: 22px;
+}
+.dashboard-card--tip:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: color-mix(in srgb, var(--color-primary, #3B7DD8) 30%, var(--color-border, #e2e8f0));
 }
 </style>
