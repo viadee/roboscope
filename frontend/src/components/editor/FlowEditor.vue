@@ -903,15 +903,24 @@ function addNodeFromPalette(step: RobotStep, library?: string) {
     ? props.form.testCases[activeItemIndex.value]?.steps
     : props.form.keywords[activeItemIndex.value]?.steps
   if (!list) return
-  list.push(step)
+  // When a node is selected, splice the new step in directly after
+  // it — the user's mental model is "extend from where I am" rather
+  // than "always append at the bottom". With no selection, fall
+  // back to the original push-to-end behavior.
+  const insertAt = selectedNodeData.value
+    ? selectedNodeData.value.stepIndex + 1
+    : list.length
+  list.splice(insertAt, 0, step)
   if (['if', 'for', 'while', 'try'].includes(step.type)) {
-    list.push({
+    list.splice(insertAt + 1, 0, {
       type: 'end', keyword: '', args: [], returnVars: [],
       condition: '', loopVar: '', loopFlavor: '', loopValues: [],
       exceptPattern: '', exceptVar: '', varScope: '', comment: '',
     })
   }
-  buildGraph()
+  // Move selection to the freshly-inserted node so the user can
+  // edit args / chain another insert without a second click.
+  rebuildAndReselect(stepNodeIdAt(insertAt))
 }
 
 // --- Move step up/down ---
