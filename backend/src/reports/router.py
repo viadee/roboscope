@@ -503,6 +503,40 @@ def get_report_asset(
         )
 
     media_type = mimetypes.guess_type(str(requested_path))[0] or "application/octet-stream"
+
+    # When serving an HTML file (report.html / log.html), inject a
+    # `<base href>` carrying a freshly-minted asset token so every
+    # relative link / asset URL inside the document inherits the
+    # auth context. Without this, Robot Framework's in-page JS
+    # constructs `location.href = "log.html#xxx"` and the browser
+    # navigates to `/api/v1/reports/X/assets/log.html` WITHOUT the
+    # `?at=…` query (RFC 3986 query-inheritance is observably
+    # unreliable when the source URL was built by JS rather than
+    # parsed from HTML), so the asset endpoint rejects it as
+    # unauthenticated. The injected `<base>` makes resolution
+    # deterministic for HTML-defined AND JS-driven navigation. */
+    if media_type == "text/html" or str(requested_path).lower().endswith(
+        (".html", ".htm")
+    ):
+        from src.reports.asset_tokens import mint_asset_token
+        try:
+            html_content = requested_path.read_text(
+                encoding="utf-8", errors="replace"
+            )
+        except OSError:
+            return FileResponse(str(requested_path), media_type=media_type)
+        fresh_token = mint_asset_token(report_id)
+        base_tag = (
+            f'<base href="/api/v1/reports/{report_id}/assets/?at={fresh_token}">'
+        )
+        if "<head>" in html_content:
+            html_content = html_content.replace("<head>", f"<head>{base_tag}", 1)
+        elif "<HEAD>" in html_content:
+            html_content = html_content.replace("<HEAD>", f"<HEAD>{base_tag}", 1)
+        else:
+            html_content = base_tag + html_content
+        return Response(content=html_content, media_type="text/html")
+
     return FileResponse(str(requested_path), media_type=media_type)
 
 
