@@ -1,7 +1,7 @@
 """Background tasks for repository operations."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy import select
@@ -14,6 +14,15 @@ from src.repos.service import clone_repository, due_repos, sync_repository
 from src.task_executor import TaskDispatchError, dispatch_task
 
 logger = logging.getLogger("roboscope.repos.tasks")
+
+# A repo whose `sync_status='syncing'` row hasn't been touched in this
+# many minutes is presumed stranded. The auto-sync scheduler resets
+# it back to 'error' on its next tick so the row stops being skipped
+# by `due_repos()` forever. Bigger than the longest realistic git
+# pull (Story REPO-3 caps pre_run_sync at 60s; the auto-sync task has
+# its own retries but completes well within minutes), small enough
+# that the user doesn't need to wait an hour for recovery.
+_STALE_SYNCING_AFTER_MINUTES = 10
 
 
 def clone_repo(repo_id: int, max_retries: int = 3) -> dict:
@@ -145,13 +154,45 @@ def auto_sync_due_repos() -> dict:
     scheduler logs them as ERROR + may suspend the job. We catch and
     log instead.
     """
-    from datetime import datetime, timezone
     now_utc = datetime.now(timezone.utc)
 
     dispatched: list[int] = []
     skipped: int = 0
+    recovered: int = 0
     try:
         with get_sync_session() as session:
+            # Recover stale 'syncing' rows BEFORE due_repos() runs —
+            # the filter excludes 'syncing' so a stranded row would
+            # otherwise be skipped forever and never recover without
+            # a backend restart. A row qualifies as stale when its
+            # `updated_at` is older than _STALE_SYNCING_AFTER_MINUTES,
+            # which means neither sync_repo's success/error write-back
+            # nor any other touch has happened since the optimistic
+            # flip. Reset to 'error' with a clear message so the UI
+            # surfaces *why* it's no longer in flight.
+            stale_cutoff = now_utc - timedelta(minutes=_STALE_SYNCING_AFTER_MINUTES)
+            stale_rows = session.execute(
+                select(Repository).where(
+                    Repository.sync_status == "syncing",
+                    Repository.updated_at < stale_cutoff,
+                )
+            ).scalars().all()
+            for stale in stale_rows:
+                logger.warning(
+                    "auto-sync: recovering stale 'syncing' row for repo %d (%s) — "
+                    "updated_at %s older than %d min",
+                    stale.id, stale.name, stale.updated_at,
+                    _STALE_SYNCING_AFTER_MINUTES,
+                )
+                stale.sync_status = "error"
+                stale.sync_error = (
+                    f"Sync stuck > {_STALE_SYNCING_AFTER_MINUTES} min — "
+                    "auto-recovered. Click Sync to retry."
+                )
+                recovered += 1
+            if stale_rows:
+                session.commit()
+
             due = due_repos(session, now=now_utc)
             for repo in due:
                 # Review fix M1 — flip status to `syncing` synchronously
@@ -175,12 +216,15 @@ def auto_sync_due_repos() -> dict:
                     repo.sync_status = "idle"
                     session.commit()
                     skipped += 1
-        if dispatched or skipped:
+        if dispatched or skipped or recovered:
             logger.info(
-                "auto-sync: dispatched %d, skipped %d (queue busy)",
-                len(dispatched), skipped,
+                "auto-sync: dispatched %d, skipped %d (queue busy), recovered %d stale",
+                len(dispatched), skipped, recovered,
             )
     except Exception:
         logger.exception("auto-sync tick crashed; will retry next 5min interval")
-        return {"dispatched": dispatched, "skipped": skipped, "error": True}
-    return {"dispatched": dispatched, "skipped": skipped}
+        return {
+            "dispatched": dispatched, "skipped": skipped,
+            "recovered": recovered, "error": True,
+        }
+    return {"dispatched": dispatched, "skipped": skipped, "recovered": recovered}

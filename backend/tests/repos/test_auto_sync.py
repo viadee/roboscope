@@ -207,3 +207,61 @@ class TestAutoSyncTask:
         result = auto_sync_due_repos()
         assert result["error"] is True
         assert result["dispatched"] == []
+
+    def test_recovers_stale_syncing_row(self, db_session: Session, admin_user):
+        """A row stuck on `sync_status='syncing'` whose updated_at is older
+        than the stale threshold is reset to 'error' on the next tick so
+        the user isn't blocked waiting for a backend restart. Auto-sync
+        OFF so the post-recovery `due_repos` pass doesn't re-flip the
+        row to 'syncing' and obscure what we're checking."""
+        from src.repos import tasks as tasks_module
+
+        # Force updated_at to clearly stale by setting it via UPDATE
+        # after creation (`onupdate` would otherwise overwrite to "now").
+        repo = _mk_repo(
+            db_session, admin_user, name="stuck",
+            sync_status="syncing", last_synced_at=None,
+            auto_sync=False,
+        )
+        old = datetime.now(timezone.utc) - timedelta(
+            minutes=tasks_module._STALE_SYNCING_AFTER_MINUTES + 5
+        )
+        from sqlalchemy import update
+        db_session.execute(
+            update(Repository).where(Repository.id == repo.id).values(updated_at=old)
+        )
+        db_session.commit()
+
+        @contextmanager
+        def reuse_test_session():
+            yield db_session
+
+        with patch("src.repos.tasks.get_sync_session", reuse_test_session):
+            result = auto_sync_due_repos()
+
+        assert result["recovered"] == 1
+        db_session.refresh(repo)
+        assert repo.sync_status == "error"
+        assert "stuck" in (repo.sync_error or "").lower()
+
+    def test_leaves_fresh_syncing_row_alone(self, db_session: Session, admin_user):
+        """A row that's only been 'syncing' for a few seconds is a real
+        in-flight sync — must NOT be reset, otherwise we'd race the
+        running sync_repo task. Auto-sync OFF so `due_repos` skips it
+        and we test the recovery path in isolation."""
+        repo = _mk_repo(
+            db_session, admin_user, name="inflight",
+            sync_status="syncing", last_synced_at=None,
+            auto_sync=False,
+        )
+
+        @contextmanager
+        def reuse_test_session():
+            yield db_session
+
+        with patch("src.repos.tasks.get_sync_session", reuse_test_session):
+            result = auto_sync_due_repos()
+
+        assert result["recovered"] == 0
+        db_session.refresh(repo)
+        assert repo.sync_status == "syncing"
