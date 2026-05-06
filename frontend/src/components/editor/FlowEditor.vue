@@ -368,38 +368,69 @@ function settingTarget(): RobotTestCase | RobotKeywordDef | undefined {
     : props.form.keywords[sectionIndex]
 }
 
-/** Two-way bound model for single-line / multi-line text settings
- *  (documentation, setup, teardown, template, timeout). Tags +
- *  arguments use `settingListModel` instead. */
-const settingTextModel = computed<string>({
-  get(): string {
-    const target = settingTarget()
-    if (!target || !selectedSettingMeta.value) return ''
-    const kind = selectedSettingMeta.value.kind
-    if (kind === 'tags') return target.tags.join(', ')
-    if (kind === 'arguments') {
-      return 'arguments' in target ? target.arguments.join(', ') : ''
-    }
-    if (kind === 'template') {
-      return 'template' in target ? target.template : ''
-    }
-    return target[kind as 'documentation' | 'setup' | 'teardown' | 'timeout']
+/** Local draft buffer for the side-note edit panel. The input is
+ *  v-modelled into this ref instead of into the underlying form
+ *  field, so each keystroke does NOT mutate `props.form` and the
+ *  deep watcher on `[() => props.form, activeSection]` doesn't fire
+ *  with `selectedNode.value = null` mid-typing. The draft is
+ *  committed back to the form on blur via `commitSettingDraft()`,
+ *  which mirrors the `cloneStep` pattern used by step-arg editing
+ *  (see FlowEditorStepIsolation.spec.ts).
+ *
+ *  When the user clicks a different side note, the watcher below
+ *  reseeds the draft with the new node's current value. */
+const settingDraft = ref('')
+
+function readDraftForCurrentSelection(): string {
+  const target = settingTarget()
+  if (!target || !selectedSettingMeta.value) return ''
+  const kind = selectedSettingMeta.value.kind
+  if (kind === 'tags') return target.tags.join(', ')
+  if (kind === 'arguments') {
+    return 'arguments' in target ? target.arguments.join(', ') : ''
+  }
+  if (kind === 'template') {
+    return 'template' in target ? target.template : ''
+  }
+  return target[kind as 'documentation' | 'setup' | 'teardown' | 'timeout']
+}
+
+watch(
+  () => selectedSettingMeta.value && [
+    selectedSettingMeta.value.section,
+    selectedSettingMeta.value.sectionIndex,
+    selectedSettingMeta.value.kind,
+  ].join('|'),
+  (key) => {
+    // Re-seed draft whenever the user switches to a different side
+    // note. `null` (no selection) leaves the draft alone — the
+    // panel isn't visible anyway.
+    if (key) settingDraft.value = readDraftForCurrentSelection()
   },
-  set(value: string) {
-    const target = settingTarget()
-    if (!target || !selectedSettingMeta.value) return
-    const kind = selectedSettingMeta.value.kind
-    if (kind === 'tags') {
-      target.tags = parseListInput(value)
-    } else if (kind === 'arguments' && 'arguments' in target) {
-      target.arguments = parseListInput(value)
-    } else if (kind === 'template' && 'template' in target) {
-      target.template = value
-    } else if (kind === 'documentation' || kind === 'setup' || kind === 'teardown' || kind === 'timeout') {
-      target[kind] = value
-    }
-  },
-})
+  { immediate: true },
+)
+
+/** Commit the draft to the form. Tags / Arguments parse the
+ *  comma-separated input back to a string[]; the other kinds are
+ *  single-string fields. After the form mutates, the deep watcher
+ *  fires and would clear the selection — `rebuildAndReselect()`
+ *  sets `suppressFitView` so the panel survives. */
+function commitSettingDraft() {
+  const target = settingTarget()
+  if (!target || !selectedSettingMeta.value) return
+  const value = settingDraft.value
+  const kind = selectedSettingMeta.value.kind
+  if (kind === 'tags') {
+    target.tags = parseListInput(value)
+  } else if (kind === 'arguments' && 'arguments' in target) {
+    target.arguments = parseListInput(value)
+  } else if (kind === 'template' && 'template' in target) {
+    target.template = value
+  } else if (kind === 'documentation' || kind === 'setup' || kind === 'teardown' || kind === 'timeout') {
+    target[kind] = value
+  }
+  rebuildAndReselect()
+}
 
 /** Split a comma- or whitespace-separated input into a clean list,
  *  trimming each entry and dropping empties. Used for [Tags] and
@@ -1836,19 +1867,19 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
           <label>{{ t(`flowEditor.settingMeta.${selectedSettingMeta.kind}.label`) }}</label>
           <textarea
             v-if="selectedSettingMeta.kind === 'documentation'"
-            v-model="settingTextModel"
+            v-model="settingDraft"
             class="flow-input flow-textarea"
             rows="8"
             :placeholder="t('flowEditor.settingMeta.documentation.placeholder')"
-            @blur="rebuildAndReselect()"
+            @blur="commitSettingDraft"
           ></textarea>
           <input
             v-else
-            v-model="settingTextModel"
+            v-model="settingDraft"
             type="text"
             class="flow-input"
             :placeholder="t(`flowEditor.settingMeta.${selectedSettingMeta.kind}.placeholder`)"
-            @blur="rebuildAndReselect()"
+            @blur="commitSettingDraft"
           />
         </div>
         <p class="flow-detail-hint">{{ t(`flowEditor.settingMeta.${selectedSettingMeta.kind}.hint`) }}</p>
