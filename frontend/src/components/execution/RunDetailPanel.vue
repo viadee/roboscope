@@ -50,7 +50,7 @@ const envName = computed(() => {
 
 const reportId = ref<number | null>(null)
 const loadingReport = ref(false)
-const activeTab = ref<'summary' | 'detailed' | 'html'>('summary')
+const activeTab = ref<'summary' | 'html'>('summary')
 
 const hasReport = computed(() => reportId.value !== null)
 const isRunFinished = computed(() =>
@@ -249,7 +249,11 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
       <BaseSpinner v-if="loadingReport" />
 
       <template v-else-if="hasReport && reports.activeReport">
-        <!-- Tab Navigation -->
+        <!-- Tab Navigation. Mirrors ReportDetailView: the standalone
+             "Detailbericht" tab is folded into the summary so the
+             keyword tree is one scroll away rather than a tab click;
+             HTML Report keeps its own tab because the iframe wants
+             its own viewport. -->
         <div class="tab-nav">
           <button
             class="tab-btn"
@@ -257,13 +261,6 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
             @click="activeTab = 'summary'"
           >
             {{ t('reportDetail.tabs.summary') }}
-          </button>
-          <button
-            class="tab-btn"
-            :class="{ active: activeTab === 'detailed' }"
-            @click="activeTab = 'detailed'"
-          >
-            {{ t('reportDetail.tabs.detailedReport') }}
           </button>
           <button
             class="tab-btn"
@@ -391,6 +388,13 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
               </div>
             </div>
           </div>
+
+          <!-- Detailed Keyword Tree (formerly its own tab — folded
+               into the summary so the deep view is one scroll away). -->
+          <div class="xml-view-card">
+            <h4 class="xml-view-heading">{{ t('reportDetail.tabs.detailedReport') }}</h4>
+            <ReportXmlView :report-id="reportId!" />
+          </div>
         </div>
 
         <!-- HTML Report Tab -->
@@ -402,13 +406,6 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
               sandbox="allow-scripts allow-same-origin"
               referrerpolicy="no-referrer"
             ></iframe>
-          </div>
-        </div>
-
-        <!-- Detailed Report Tab -->
-        <div v-show="activeTab === 'detailed'" class="tab-content">
-          <div class="xml-view-card">
-            <ReportXmlView :report-id="reportId!" />
           </div>
         </div>
       </template>
@@ -575,13 +572,24 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
   display: block;
 }
 
-/* XML View */
+/* XML View — sits at the bottom of the summary tab below the AI
+   analysis section. Inner scroll cap lets the keyword tree be tall
+   without pushing every other section off-screen. */
 .xml-view-card {
+  margin-top: 16px;
   max-height: 500px;
   overflow-y: auto;
   border: 1px solid var(--color-border, #e2e8f0);
   border-radius: var(--radius-sm, 6px);
   padding: 12px;
+}
+.xml-view-heading {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted, #5A6380);
 }
 
 .no-report-msg {
