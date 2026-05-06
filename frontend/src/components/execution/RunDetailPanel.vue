@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useReportsStore } from '@/stores/reports.store'
 import { useAiStore } from '@/stores/ai.store'
 import { getRunReport } from '@/api/execution.api'
@@ -48,9 +49,32 @@ const envName = computed(() => {
   return env?.name || '-'
 })
 
+const router = useRouter()
 const reportId = ref<number | null>(null)
 const loadingReport = ref(false)
 const activeTab = ref<'summary' | 'html'>('summary')
+
+/** Open the standalone /reports/<id> page in a new tab. The
+ *  inline panel is space-constrained — many users want to expand
+ *  the keyword tree and the AI analysis side-by-side, which only
+ *  fits in a full-width view. */
+function openReportInNewTab() {
+  if (reportId.value == null) return
+  const href = router.resolve({
+    name: 'report-detail',
+    params: { id: reportId.value },
+  }).href
+  window.open(href, '_blank', 'noopener,noreferrer')
+}
+
+/** Open the Robot HTML report in a new tab. The blob URL stays
+ *  alive for the lifetime of this panel; once the panel unmounts
+ *  the URL is revoked and the popup window goes blank. Acceptable
+ *  trade-off — users typically open the popup, scan it, and close. */
+function openHtmlReportInNewTab() {
+  if (!htmlReportUrl.value) return
+  window.open(htmlReportUrl.value, '_blank', 'noopener,noreferrer')
+}
 
 const hasReport = computed(() => reportId.value !== null)
 const isRunFinished = computed(() =>
@@ -392,13 +416,33 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
           <!-- Detailed Keyword Tree (formerly its own tab — folded
                into the summary so the deep view is one scroll away). -->
           <div class="xml-view-card">
-            <h4 class="xml-view-heading">{{ t('reportDetail.tabs.detailedReport') }}</h4>
+            <div class="xml-view-header">
+              <h4 class="xml-view-heading">{{ t('reportDetail.tabs.detailedReport') }}</h4>
+              <BaseButton
+                variant="ghost"
+                size="sm"
+                :title="t('reportDetail.openInNewTab')"
+                @click="openReportInNewTab"
+              >
+                ↗ {{ t('reportDetail.openInNewTab') }}
+              </BaseButton>
+            </div>
             <ReportXmlView :report-id="reportId!" />
           </div>
         </div>
 
         <!-- HTML Report Tab -->
         <div v-show="activeTab === 'html'" class="tab-content">
+          <div class="html-report-toolbar">
+            <BaseButton
+              variant="ghost"
+              size="sm"
+              :title="t('reportDetail.openInNewTab')"
+              @click="openHtmlReportInNewTab"
+            >
+              ↗ {{ t('reportDetail.openInNewTab') }}
+            </BaseButton>
+          </div>
           <div class="html-report-card">
             <iframe
               :src="htmlReportUrl"
@@ -583,13 +627,27 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
   border-radius: var(--radius-sm, 6px);
   padding: 12px;
 }
+.xml-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
 .xml-view-heading {
-  margin: 0 0 10px;
+  margin: 0;
   font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-text-muted, #5A6380);
+}
+/* Toolbar above the HTML iframe — gives the open-in-new-tab
+   affordance somewhere to live without overlapping the iframe. */
+.html-report-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
 }
 
 .no-report-msg {

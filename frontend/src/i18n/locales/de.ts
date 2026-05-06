@@ -569,6 +569,7 @@ export default {
     },
     downloadZip: 'ZIP herunterladen',
     reloadReport: 'Neu laden',
+    openInNewTab: 'In neuem Tab öffnen',
     noHtmlReport: 'Kein HTML-Report für diesen Lauf verfügbar.',
     loadingXml: 'XML-Daten werden geladen...',
     noXmlData: 'Keine XML-Daten verfügbar.',
