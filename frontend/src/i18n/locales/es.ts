@@ -1398,12 +1398,12 @@ export default {
       description: 'RoboScope soporta 4 idiomas: alemán, inglés, francés y español. ¡Cambie en cualquier momento!',
     },
     dashboard: {
-      title: 'Panel de control',
-      description: 'El panel le ofrece una vista rápida de los KPI de sus proyectos de prueba y la actividad reciente.',
+      title: 'Tarjetas de navegación',
+      description: 'El panel es una cuadrícula de tarjetas clicables — una por sección de la app. Elige Proyectos, Explorer, Ejecución, Estadísticas, Recorder, Entornos, Docs o Ajustes para ir directamente.',
     },
     dashboardRuns: {
-      title: 'Ejecuciones recientes',
-      description: 'Vea sus últimas ejecuciones de pruebas de un vistazo con estado y duración.',
+      title: 'Consejo del día',
+      description: 'Cada día aparece un nuevo consejo de RoboScope — 30 funciones en total, rotando en un ciclo de 30 días. Léelo ahora o salta al siguiente paso.',
     },
     projects: {
       title: 'Proyectos',

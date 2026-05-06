@@ -1398,12 +1398,12 @@ export default {
       description: 'RoboScope supports 4 languages: German, English, French, and Spanish. Switch anytime!',
     },
     dashboard: {
-      title: 'Dashboard',
-      description: 'The dashboard gives you a quick KPI overview of your test projects and recent activity.',
+      title: 'Navigation Cards',
+      description: 'The dashboard is a grid of clickable cards — one per app section. Pick Repos, Explorer, Runs, Stats, Recorder, Environments, Docs or Settings to jump straight there.',
     },
     dashboardRuns: {
-      title: 'Recent Runs',
-      description: 'See your latest test execution runs at a glance, with status and duration.',
+      title: 'Tip of the Day',
+      description: 'A new RoboScope tip surfaces every day — 30 features in total, rotating over a 30-day cycle. Read it now or skip to the next stop.',
     },
     projects: {
       title: 'Projects',

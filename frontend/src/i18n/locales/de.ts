@@ -1398,12 +1398,12 @@ export default {
       description: 'RoboScope unterstützt 4 Sprachen: Deutsch, Englisch, Französisch und Spanisch. Wechseln Sie jederzeit!',
     },
     dashboard: {
-      title: 'Dashboard',
-      description: 'Das Dashboard gibt Ihnen einen schnellen KPI-Überblick über Ihre Testprojekte und aktuelle Aktivitäten.',
+      title: 'Navigations-Karten',
+      description: 'Das Dashboard ist ein Grid aus klickbaren Karten — eine pro App-Bereich. Wähle Projekte, Explorer, Ausführungen, Statistiken, Recorder, Environments, Docs oder Einstellungen, um direkt dort zu landen.',
     },
     dashboardRuns: {
-      title: 'Letzte Läufe',
-      description: 'Sehen Sie Ihre letzten Testausführungen auf einen Blick mit Status und Dauer.',
+      title: 'Tipp des Tages',
+      description: 'Jeden Tag erscheint ein neuer RoboScope-Tipp — 30 Features insgesamt, in einem 30-Tage-Zyklus. Lies ihn jetzt oder überspringe zum nächsten Schritt.',
     },
     projects: {
       title: 'Projekte',

@@ -1398,12 +1398,12 @@ export default {
       description: 'RoboScope prend en charge 4 langues : allemand, anglais, français et espagnol. Changez à tout moment !',
     },
     dashboard: {
-      title: 'Tableau de bord',
-      description: "Le tableau de bord vous donne un aperçu rapide des KPI de vos projets de test et de l'activité récente.",
+      title: 'Cartes de navigation',
+      description: "Le tableau de bord est une grille de cartes cliquables — une par section de l'app. Choisissez Projets, Explorateur, Exécution, Statistiques, Recorder, Environnements, Docs ou Paramètres pour y aller directement.",
     },
     dashboardRuns: {
-      title: 'Exécutions récentes',
-      description: "Consultez vos dernières exécutions de tests d'un coup d'œil avec le statut et la durée.",
+      title: 'Astuce du jour',
+      description: 'Une nouvelle astuce RoboScope apparaît chaque jour — 30 fonctionnalités au total, rotation sur 30 jours. Lisez-la maintenant ou passez à l\'étape suivante.',
     },
     projects: {
       title: 'Projets',
