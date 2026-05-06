@@ -1204,6 +1204,7 @@ export default {
     arguments: 'Argumente',
     condition: 'Bedingung',
     returnVars: 'Rückgabevariablen',
+    returnNoValue: '(kein Wert)',
     comment: 'Kommentar',
     palette: 'Keywords',
     searchKeywords: 'Keywords suchen...',

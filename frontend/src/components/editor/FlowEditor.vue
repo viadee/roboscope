@@ -1480,6 +1480,28 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
               <span>{{ nodeProps.data.label }}</span>
             </div>
           </template>
+          <template #node-return="nodeProps">
+            <div class="flow-node-return-block" :class="{ 'flow-node--selected': selectedNode?.id === nodeProps.id }">
+              <div
+                class="flow-drag-handle"
+                draggable="true"
+                @mousedown.stop
+                @dragstart.stop="onNodeDragHandleStart($event, nodeProps.id)"
+              >&#x2630;</div>
+              <span class="flow-node-return-label">↵ RETURN</span>
+              <div
+                v-if="nodeProps.data.step?.args?.length"
+                class="flow-node-return-values"
+              >
+                <span
+                  v-for="(arg, i) in nodeProps.data.step.args"
+                  :key="i"
+                  class="flow-node-return-value"
+                >{{ arg }}</span>
+              </div>
+              <span v-else class="flow-node-return-empty">{{ t('flowEditor.returnNoValue') }}</span>
+            </div>
+          </template>
           <template #node-drop-indicator>
             <div class="flow-drop-indicator">
               <div class="flow-drop-dot" />
@@ -2395,13 +2417,65 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   gap: 6px;
 }
 
+/* RETURN node — distinct from BREAK / CONTINUE because it carries
+   payload (the keyword's return values) and reads as the public
+   "result" of a *** Keywords *** definition rather than a control-
+   flow break. Green-tinted background, leading ↵ glyph, each
+   return value rendered as its own value chip so the user can scan
+   them at a glance. */
+.flow-node-return-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #F0FDF4;
+  border: 2px solid #22C55E;
+  font-size: 13px;
+  min-width: 200px;
+  max-width: 420px;
+  flex-wrap: wrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+.flow-node-return-label {
+  font-weight: 700;
+  color: #166534;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 12px;
+}
+.flow-node-return-values {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.flow-node-return-value {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #fff;
+  border: 1px solid #BBF7D0;
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: #166534;
+  word-break: break-word;
+}
+.flow-node-return-empty {
+  font-size: 11px;
+  color: #166534;
+  font-style: italic;
+  opacity: 0.7;
+}
+
 /* Selected-node highlight — applied on the inline comment / flow-
-   control templates as well as bound through the `selected` prop on
-   KeywordNode / ControlNode (their scoped styles mirror this rule).
-   Thicker outline + slight primary-color tint so the active node
-   reads at a glance against the canvas. */
+   control / return templates as well as bound through the `selected`
+   prop on KeywordNode / ControlNode (their scoped styles mirror
+   this rule). Thicker outline + slight primary-color tint so the
+   active node reads at a glance against the canvas. */
 .flow-node-comment.flow-node--selected,
-.flow-node-flowctrl.flow-node--selected {
+.flow-node-flowctrl.flow-node--selected,
+.flow-node-return-block.flow-node--selected {
   outline: 3px solid var(--color-primary, #3B7DD8);
   outline-offset: 2px;
   background: color-mix(in srgb, var(--color-primary, #3B7DD8) 10%, var(--color-bg-card, #fff));

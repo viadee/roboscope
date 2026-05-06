@@ -612,7 +612,12 @@ function getNodeType(stepType: StepType): string {
       return 'assignment'
     case 'comment':
       return 'comment'
-    case 'return': case 'break': case 'continue':
+    case 'return':
+      // RETURN deserves a richer node than BREAK/CONTINUE — it's
+      // the public surface of a `*** Keywords ***` definition. Each
+      // arg is a return value and the visual makes that obvious.
+      return 'return'
+    case 'break': case 'continue':
       return 'flow-control'
     default:
       return 'keyword'

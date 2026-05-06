@@ -1204,6 +1204,7 @@ export default {
     arguments: 'Argumentos',
     condition: 'Condición',
     returnVars: 'Variables de retorno',
+    returnNoValue: '(sin valor)',
     comment: 'Comentario',
     palette: 'Palabras clave',
     searchKeywords: 'Buscar palabras clave...',

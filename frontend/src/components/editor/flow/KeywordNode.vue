@@ -68,12 +68,22 @@ function chipNameAt(index: number): string | null {
 }
 
 function chipTitleAt(index: number): string | undefined {
+  const value = props.data.step.args[index]
   const spec = props.data.argSpecs?.[index]
-  if (!spec || !spec.name) return undefined
-  let out = spec.name
-  if (spec.type) out += `: ${spec.type}`
-  if (spec.defaultValue != null) out += ` = ${spec.defaultValue}`
-  return out
+  // Always include the FULL arg value in the tooltip — `.flow-arg-value`
+  // truncates with ellipsis at 200 px, so a long regex / selector / URL
+  // is invisible without hover. Spec info (`name: type = default`)
+  // appended as a second line when available so the user gets both
+  // the typed slot meaning and the actual value.
+  const lines: string[] = []
+  if (value && value.length > 0) lines.push(value)
+  if (spec?.name) {
+    let specLine = spec.name
+    if (spec.type) specLine += `: ${spec.type}`
+    if (spec.defaultValue != null) specLine += ` = ${spec.defaultValue}`
+    lines.push(specLine)
+  }
+  return lines.length > 0 ? lines.join('\n') : undefined
 }
 
 // Story EDITOR-3 — small friendly-type icon prefixed inside the chip.
@@ -265,10 +275,15 @@ const candidateTooltip = computed(() =>
   opacity: 0.85;
 }
 .flow-arg-value {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 200px;
+  /* Used to be `white-space: nowrap` + `text-overflow: ellipsis` at
+     200px — long regex / URL / selector args got clipped invisibly,
+     and the surrounding chip didn't even hint that more text lived
+     behind. Wrap at the chip ceiling instead so the user sees the
+     full value (within reason); the title= tooltip still covers
+     extreme-length cases. */
+  word-break: break-word;
+  white-space: pre-wrap;
+  max-width: 240px;
 }
 .flow-arg-count {
   font-size: 10px;
