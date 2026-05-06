@@ -119,16 +119,19 @@ class TestDockerfileGeneration:
         assert "rfbrowser init" in df
         assert "playwright" in df.lower()
 
-    def test_batteries_skips_nodejs_and_rfbrowser_init(self):
-        df = generate_dockerfile("3.12", ["robotframework", "robotframework-browser-batteries"])
-        assert "nodejs" not in df
-        assert "rfbrowser init" not in df
-        # Story Playwright-fix-E (2026-04-27): batteries replaces the
-        # gRPC wrapper but still needs browser binaries. Pull them
-        # explicitly via the Python Playwright CLI on a slim base —
-        # avoids the rfbrowser-vs-Microsoft tag-publishing-lag trap.
+    def test_batteries_includes_nodejs_and_rfbrowser_init(self):
+        """Story Playwright-fix-E follow-up (2026-04-27 + later): the
+        original assumption that batteries was self-contained was
+        wrong — batteries replaces the gRPC server binary but does
+        NOT bundle browser binaries. Both variants now go through
+        the same nodejs + rfbrowser init pipeline so the browsers
+        match rfbrowser's Node-side Playwright wrapper."""
+        df = generate_dockerfile(
+            "3.12", ["robotframework", "robotframework-browser-batteries"]
+        )
+        assert "nodejs" in df
+        assert "rfbrowser init" in df
         assert "FROM python:3.12-slim" in df
-        assert "python -m playwright install --with-deps chromium" in df
 
     def test_no_browser_uses_slim_image(self):
         df = generate_dockerfile("3.12", ["robotframework", "robotframework-requests"])
