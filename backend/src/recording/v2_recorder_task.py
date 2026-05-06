@@ -37,7 +37,7 @@ from src.recording.v2_command_queue import (
     tear_down_session,
 )
 from src.recording.selector_schema import RecordedCommand, SelectorCandidate
-from src.recording.selector_verification import verify_candidates
+from src.recording.selector_verification import MatchInfo, verify_candidates
 from src.recording.v2_payload_translator import translate_payload
 
 logger = logging.getLogger("roboscope.recording.v2_recorder")
@@ -65,16 +65,39 @@ async def _verify_command_candidates(
     if not cmd.selector_candidates or frame_or_page is None:
         return cmd
 
-    async def _count(c: SelectorCandidate) -> int:
+    async def _resolve(c: SelectorCandidate) -> MatchInfo:
+        """Return total / visible / actionable counts for one
+        candidate. We loop over every match because Playwright's
+        is_visible() / is_enabled() are per-locator — a multi-match
+        locator answers True if the FIRST match is visible, which
+        would mis-classify a hidden-then-visible pair. Bounded at 50
+        matches so a runaway selector (e.g. `*`) doesn't stall the
+        recording session."""
         try:
-            return int(await frame_or_page.locator(c.value).count())
+            base = frame_or_page.locator(c.value)
+            total = int(await base.count())
         except Exception:
-            # Invalid selector syntax (some xpath / pw_locator exotica)
-            # — treat as "no match" so it gets dropped, not silently
-            # passed through unverified.
-            return 0
+            return MatchInfo(0, 0, 0)
+        if total == 0:
+            return MatchInfo(0, 0, 0)
+        visible = 0
+        actionable = 0
+        for i in range(min(total, 50)):
+            try:
+                nth = base.nth(i)
+                vis = bool(await nth.is_visible())
+                if vis:
+                    visible += 1
+                    en = bool(await nth.is_enabled())
+                    if en:
+                        actionable += 1
+            except Exception:
+                # Element detached mid-iteration / strict mode quirk
+                # — count it as a non-visible non-actionable match.
+                continue
+        return MatchInfo(total=total, visible=visible, actionable=actionable)
 
-    verified = await verify_candidates(cmd.selector_candidates, _count)
+    verified = await verify_candidates(cmd.selector_candidates, _resolve)
     # After re-sorting, index 0 is the best (verified > non-verified, then
     # quality_score desc). The original active index is meaningless now —
     # it referred to a position in the unsorted/un-pruned list. Resetting

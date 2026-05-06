@@ -20,7 +20,7 @@ const aiStore = useAiStore()
 const { t } = useI18n()
 
 const reportId = computed(() => Number(route.params.id))
-const activeTab = ref<'summary' | 'detailed' | 'html'>('summary')
+const activeTab = ref<'summary' | 'html'>('summary')
 
 onMounted(async () => {
   if (reportId.value) {
@@ -166,7 +166,12 @@ async function copyPatch(unifiedDiff: string) {
     <BaseSpinner v-if="reports.loading" />
 
     <template v-else-if="reports.activeReport">
-      <!-- Tab Navigation -->
+      <!-- Tab Navigation. The previous separate "Detailbericht" tab
+           used to host the keyword XML tree; it's now folded into the
+           summary tab below the AI analysis section so users can scan
+           top-line KPIs and step into the keyword call tree without
+           switching context. HTML Report stays separate because the
+           iframe is the only one that wants its own viewport. -->
       <div class="tab-nav">
         <button
           class="tab-btn"
@@ -174,13 +179,6 @@ async function copyPatch(unifiedDiff: string) {
           @click="activeTab = 'summary'"
         >
           {{ t('reportDetail.tabs.summary') }}
-        </button>
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'detailed' }"
-          @click="activeTab = 'detailed'"
-        >
-          {{ t('reportDetail.tabs.detailedReport') }}
         </button>
         <button
           class="tab-btn"
@@ -397,6 +395,15 @@ async function copyPatch(unifiedDiff: string) {
             </div>
           </div>
         </div>
+
+        <!-- Detailed Keyword Tree (formerly its own tab — folded into
+             the summary so the deep view is one scroll away). -->
+        <div class="card xml-view-card">
+          <div class="card-header">
+            <h3>{{ t('reportDetail.tabs.detailedReport') }}</h3>
+          </div>
+          <ReportXmlView :report-id="reportId" />
+        </div>
       </div>
 
       <!-- HTML Report Tab -->
@@ -420,12 +427,6 @@ async function copyPatch(unifiedDiff: string) {
         </div>
       </div>
 
-      <!-- Detailed Report Tab -->
-      <div v-show="activeTab === 'detailed'" class="tab-content">
-        <div class="card xml-view-card">
-          <ReportXmlView :report-id="reportId" />
-        </div>
-      </div>
     </template>
   </div>
 </template>
