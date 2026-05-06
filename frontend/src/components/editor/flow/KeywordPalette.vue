@@ -48,6 +48,13 @@ const props = defineProps<{
    *  uses this to visually dim non-imported keywords and signal
    *  that picking one will trigger an auto-import. */
   importedLibraries?: Set<string>
+  /** Library → keyword-usage tally for the currently-open file.
+   *  Computed by the parent (FlowEditor) by walking every
+   *  keyword / assignment step in form.testCases + form.keywords
+   *  and resolving each step's keyword to its declaring library.
+   *  Used to sort library categories so the libs the user is
+   *  actively working with bubble to the top. */
+  usageCounts?: Map<string, number>
 }>()
 
 const { t } = useI18n()
@@ -372,33 +379,38 @@ const allCategories = computed(() => {
     cats.push(...projCats)
   }
 
-  // Dynamic library keywords (from rf-mcp). These show as fully-
-  // available (not "examples") because the libdoc introspection
-  // confirmed they're installed.
+  // Library categories (dynamic from libdoc + static-fallback for
+  // libs not covered by dynamic). Collected first, sorted by usage,
+  // then appended — so the libs the user actually uses bubble to the
+  // top regardless of insertion order.
+  const libCats: KeywordCategory[] = []
   const dynamicLibNames = new Set<string>()
   for (const [lib, keywords] of dynamicLibraries.value) {
-    cats.push({
-      name: lib,
-      keywords: keywords.map(kw => kw.name),
-    })
+    libCats.push({ name: lib, keywords: keywords.map(kw => kw.name) })
     dynamicLibNames.add(lib)
   }
-
-  // Always-visible curated subsets for libs not covered by
-  // dynamic. BuiltIn is special: never tagged isExamples (RF
-  // auto-imports it so the "configure an environment" hint
-  // doesn't apply). The rest get the (examples) badge.
+  // Always-visible curated subsets for libs not covered by dynamic.
+  // BuiltIn is never tagged isExamples (RF auto-imports it so the
+  // "configure an environment" hint doesn't apply). The rest get
+  // the (examples) badge.
   for (const libName of _ALWAYS_VISIBLE_LIBS) {
     if (dynamicLibNames.has(libName)) continue
     const staticCat = categories.find(c => c.name === libName)
     if (staticCat && 'keywords' in staticCat) {
-      cats.push({
+      libCats.push({
         name: staticCat.name,
         keywords: staticCat.keywords,
         isExamples: libName !== 'BuiltIn',
       })
     }
   }
+  // Sort by usage count (desc) — Array.prototype.sort is stable, so
+  // libs with equal counts keep their existing relative order
+  // (dynamic libs first in their natural order, then the
+  // _ALWAYS_VISIBLE_LIBS fallback order).
+  const counts = props.usageCounts ?? new Map<string, number>()
+  libCats.sort((a, b) => (counts.get(b.name) ?? 0) - (counts.get(a.name) ?? 0))
+  cats.push(...libCats)
 
   // Always add Control category at the end
   const controlCat = categories.find(c => c.name === 'Control')

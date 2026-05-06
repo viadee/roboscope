@@ -269,7 +269,29 @@ const selectedNodeData = computed<FlowNodeData | null>(() => {
 // Story EDITOR-2 — keyword signature map (lowercase keyword name → raw
 // libdoc args). Reactive: rebuilds graph automatically when the
 // explorer-store cache resolves after a repo open.
-const { argsByName } = useKeywordSignatures()
+const { argsByName, getKeywordInfo } = useKeywordSignatures()
+
+// Library usage histogram for the currently-open file. Walks every
+// keyword / assignment step in test cases AND keyword definitions
+// and tallies which library each step.keyword resolves to. The
+// palette uses this to sort library categories descending so the
+// libs the user is actually working with bubble to the top.
+const libraryUsageCounts = computed<Map<string, number>>(() => {
+  const counts = new Map<string, number>()
+  const tally = (steps: RobotStep[]) => {
+    for (const step of steps) {
+      if (step.type !== 'keyword' && step.type !== 'assignment') continue
+      if (!step.keyword) continue
+      const info = getKeywordInfo(step.keyword)
+      const lib = info?.library
+      if (!lib) continue
+      counts.set(lib, (counts.get(lib) ?? 0) + 1)
+    }
+  }
+  for (const tc of props.form.testCases) tally(tc.steps)
+  for (const kw of props.form.keywords) tally(kw.steps)
+  return counts
+})
 
 function buildGraph() {
   const sc = props.sidecar ?? null
@@ -1361,6 +1383,7 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
         :repo-id="props.repoId"
         :file-path="props.filePath"
         :imported-libraries="importedLibraryNames"
+        :usage-counts="libraryUsageCounts"
         @add-node="addNodeFromPalette"
       />
 
