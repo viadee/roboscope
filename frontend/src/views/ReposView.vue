@@ -572,7 +572,7 @@ async function removeMember(member: ProjectMember) {
           <div v-if="repo.repo_type === 'git'" class="detail-row">
             <span class="label-with-help">
               {{ t('repos.autoSync') }}
-              <span class="info-tip" tabindex="0" :title="t('repos.autoSyncHelp')" :aria-label="t('repos.autoSyncHelp')">ⓘ</span>
+              <span class="info-tip" tabindex="0" :title="t('repos.autoSyncHelp')" :aria-label="t('repos.autoSyncHelp')">i</span>
             </span>
             <label v-if="auth.hasMinRole('editor')" class="auto-sync-toggle">
               <input
@@ -588,7 +588,7 @@ async function removeMember(member: ProjectMember) {
           <div v-if="repo.repo_type === 'git'" class="detail-row">
             <span class="label-with-help">
               {{ t('repos.preRunSync') }}
-              <span class="info-tip" tabindex="0" :title="t('repos.preRunSyncHelp')" :aria-label="t('repos.preRunSyncHelp')">ⓘ</span>
+              <span class="info-tip" tabindex="0" :title="t('repos.preRunSyncHelp')" :aria-label="t('repos.preRunSyncHelp')">i</span>
             </span>
             <label v-if="auth.hasMinRole('editor')" class="auto-sync-toggle">
               <input
@@ -649,7 +649,7 @@ async function removeMember(member: ProjectMember) {
             variant="secondary" size="sm" @click="syncRepo(repo.id)"
             :title="t('repos.syncHelp')"
           >
-            {{ t('repos.sync') }} <span class="info-tip-inline" aria-hidden="true">ⓘ</span>
+            {{ t('repos.sync') }} <span class="info-tip-inline" aria-hidden="true">i</span>
           </BaseButton>
           <BaseButton v-if="auth.hasMinRole('admin')" variant="danger" size="sm" @click="removeRepo(repo.id, repo.name)">
             {{ t('common.delete') }}
@@ -1010,30 +1010,52 @@ async function removeMember(member: ProjectMember) {
   gap: 5px;
 }
 .info-tip {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  line-height: 14px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
   font-size: 11px;
-  color: var(--color-text-muted);
+  font-weight: 700;
+  font-style: italic;
+  font-family: 'Times New Roman', Georgia, serif;
+  line-height: 1;
+  color: var(--color-text-muted, #5A6380);
+  background: transparent;
+  border: 1.5px solid var(--color-text-muted, #5A6380);
+  border-radius: 50%;
   cursor: help;
   user-select: none;
-  border-radius: 50%;
+  padding: 0;
+  /* Slight bottom shift so the lowercase "i" optically centers
+     inside the circle (the dot of the i throws off vertical-align). */
+  text-indent: 0;
 }
 .info-tip:hover,
 .info-tip:focus {
   color: var(--color-primary, #3B7DD8);
-  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 12%, transparent);
+  border-color: var(--color-primary, #3B7DD8);
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 14%, transparent);
   outline: none;
 }
-/* Variant for inline use inside a button label — same character but
-   no hover background since the button has its own hover styling
-   and the tooltip lives on the button itself. */
+/* Variant for inline use inside a button label — same circled "i"
+   but slightly transparent so it doesn't compete with the button
+   text; the button's own title carries the tooltip. */
 .info-tip-inline {
-  margin-left: 4px;
-  font-size: 11px;
-  opacity: 0.7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  font-style: italic;
+  font-family: 'Times New Roman', Georgia, serif;
+  line-height: 1;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  opacity: 0.65;
 }
 
 .repo-actions {
