@@ -141,6 +141,8 @@ export default {
     autoSyncYes: 'Ja (alle {minutes} Min.)',
     preRunSync: 'Pre-Run-Sync:',
     preRunSyncHelp: 'Holt vor jedem Testlauf in diesem Repository den neuesten Commit — kostet ein paar Sekunden pro Lauf.',
+    syncHelp: 'Manueller Sync — zieht jetzt sofort den neuesten Commit von der Remote. Nützlich, wenn du gegen einen frischen Push testen willst, ohne auf den Auto-Sync zu warten.',
+    autoSyncHelp: 'Hintergrund-Pull alle N Minuten, damit das lokale Arbeitsverzeichnis ungefähr aktuell bleibt. Wird übersprungen, wenn gerade schon ein Sync läuft.',
     syncError: 'Sync-Fehler:',
     syncing: 'Synchronisierung läuft...',
     path: 'Pfad:',

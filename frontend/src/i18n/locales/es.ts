@@ -141,6 +141,8 @@ export default {
     autoSyncYes: 'Sí (cada {minutes} min.)',
     preRunSync: 'Sincronizar antes de ejecutar:',
     preRunSyncHelp: 'Obtiene el último commit antes de cada ejecución de pruebas en este repositorio — añade unos segundos por ejecución.',
+    syncHelp: 'Sync manual — descarga el último commit desde el remoto ahora mismo. Útil para probar contra un push recién subido sin esperar al auto-sync.',
+    autoSyncHelp: 'Pull en segundo plano cada N minutos para mantener la copia local más o menos al día. Se omite si ya hay un sync en curso.',
     syncError: 'Error de sync:',
     syncing: 'Sincronizando...',
     path: 'Ruta:',

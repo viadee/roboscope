@@ -141,6 +141,8 @@ export default {
     autoSyncYes: 'Yes (every {minutes} min.)',
     preRunSync: 'Pre-run sync:',
     preRunSyncHelp: 'Always pulls the latest commit before running tests in this repository — adds a few seconds per run.',
+    syncHelp: 'Manual sync — pull the latest commit from the remote right now. Useful when you need to test against a brand-new push without waiting for auto-sync.',
+    autoSyncHelp: 'Background pull every N minutes so the local checkout stays roughly fresh. Skipped if a sync is already in flight.',
     syncError: 'Sync Error:',
     syncing: 'Syncing...',
     path: 'Path:',

@@ -570,7 +570,10 @@ async function removeMember(member: ProjectMember) {
             <span>{{ formatTimeAgo(repo.last_synced_at) }}</span>
           </div>
           <div v-if="repo.repo_type === 'git'" class="detail-row">
-            <span>{{ t('repos.autoSync') }}</span>
+            <span class="label-with-help">
+              {{ t('repos.autoSync') }}
+              <span class="info-tip" tabindex="0" :title="t('repos.autoSyncHelp')" :aria-label="t('repos.autoSyncHelp')">ⓘ</span>
+            </span>
             <label v-if="auth.hasMinRole('editor')" class="auto-sync-toggle">
               <input
                 type="checkbox"
@@ -583,7 +586,10 @@ async function removeMember(member: ProjectMember) {
             <span v-else>{{ repo.auto_sync ? t('repos.autoSyncYes', { minutes: repo.sync_interval_minutes }) : t('common.no') }}</span>
           </div>
           <div v-if="repo.repo_type === 'git'" class="detail-row">
-            <span :title="t('repos.preRunSyncHelp')">{{ t('repos.preRunSync') }}</span>
+            <span class="label-with-help">
+              {{ t('repos.preRunSync') }}
+              <span class="info-tip" tabindex="0" :title="t('repos.preRunSyncHelp')" :aria-label="t('repos.preRunSyncHelp')">ⓘ</span>
+            </span>
             <label v-if="auth.hasMinRole('editor')" class="auto-sync-toggle">
               <input
                 type="checkbox"
@@ -641,8 +647,9 @@ async function removeMember(member: ProjectMember) {
           <BaseButton
             v-if="auth.hasMinRole('editor') && repo.repo_type === 'git'"
             variant="secondary" size="sm" @click="syncRepo(repo.id)"
+            :title="t('repos.syncHelp')"
           >
-            {{ t('repos.sync') }}
+            {{ t('repos.sync') }} <span class="info-tip-inline" aria-hidden="true">ⓘ</span>
           </BaseButton>
           <BaseButton v-if="auth.hasMinRole('admin')" variant="danger" size="sm" @click="removeRepo(repo.id, repo.name)">
             {{ t('common.delete') }}
@@ -991,6 +998,42 @@ async function removeMember(member: ProjectMember) {
 
 .detail-row span:first-child {
   color: var(--color-text-muted);
+}
+
+/* Inline (i) icon next to a label — hover / focus surfaces the
+   browser's native title tooltip with the term's definition.
+   Tabindex=0 makes it keyboard-reachable so the explanation is
+   not mouse-only. */
+.label-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.info-tip {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  cursor: help;
+  user-select: none;
+  border-radius: 50%;
+}
+.info-tip:hover,
+.info-tip:focus {
+  color: var(--color-primary, #3B7DD8);
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 12%, transparent);
+  outline: none;
+}
+/* Variant for inline use inside a button label — same character but
+   no hover background since the button has its own hover styling
+   and the tooltip lives on the button itself. */
+.info-tip-inline {
+  margin-left: 4px;
+  font-size: 11px;
+  opacity: 0.7;
 }
 
 .repo-actions {
