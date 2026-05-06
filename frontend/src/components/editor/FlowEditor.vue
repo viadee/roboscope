@@ -266,6 +266,39 @@ const selectedNodeData = computed<FlowNodeData | null>(() => {
   return selectedNode.value.data as FlowNodeData
 })
 
+// User-resizable detail-panel width — drag the handle on the left
+// edge to widen / narrow. Lives in component-local state so the
+// chosen width survives selection changes inside this Explorer
+// session, and resets when the user navigates away (component
+// unmounts). Hard caps prevent the user dragging it off-screen.
+const PANEL_MIN_WIDTH = 240
+const PANEL_MAX_WIDTH = 720
+const detailPanelWidth = ref(300)
+const isResizingPanel = ref(false)
+
+function onPanelResizeStart(ev: PointerEvent) {
+  ev.preventDefault()
+  isResizingPanel.value = true
+  const startX = ev.clientX
+  const startWidth = detailPanelWidth.value
+  function onMove(e: PointerEvent) {
+    // Drag handle is on the LEFT edge — moving the pointer left
+    // grows the panel, moving right shrinks it.
+    const delta = startX - e.clientX
+    const next = Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, startWidth + delta))
+    detailPanelWidth.value = next
+  }
+  function onUp() {
+    isResizingPanel.value = false
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    window.removeEventListener('pointercancel', onUp)
+  }
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onUp)
+  window.addEventListener('pointercancel', onUp)
+}
+
 // Story EDITOR-2 — keyword signature map (lowercase keyword name → raw
 // libdoc args). Reactive: rebuilds graph automatically when the
 // explorer-store cache resolves after a repo open.
@@ -1472,10 +1505,19 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
       <div
         v-if="selectedNodeData"
         class="flow-detail-panel"
+        :class="{ 'flow-detail-panel--resizing': isResizingPanel }"
+        :style="{ width: detailPanelWidth + 'px' }"
         @drop.stop="onCanvasDrop"
         @dragover.stop.prevent="onCanvasDragOver"
         @dragleave.stop="onCanvasDragLeave"
       >
+        <div
+          class="flow-detail-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          :title="t('flowEditor.resizePanelHint')"
+          @pointerdown="onPanelResizeStart"
+        ></div>
         <div class="flow-detail-header">
           <h4>{{ selectedNodeData.stepType.toUpperCase().replace('_', ' ') }}</h4>
           <div class="flow-detail-actions">
@@ -2021,7 +2063,8 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   top: 12px;
   right: 12px;
   bottom: 12px;
-  width: 300px;
+  /* width is set inline via :style — defaults to 300px from
+     `detailPanelWidth` and is updated by the left-edge resizer. */
   background: #fff;
   border: 1px solid var(--color-border, #e2e8f0);
   border-radius: 10px;
@@ -2029,6 +2072,41 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   z-index: 10;
   overflow-y: auto;
+}
+/* Disable the smooth pointer-events / cursor flicker while the
+   user is actively dragging the resizer. */
+.flow-detail-panel--resizing,
+.flow-detail-panel--resizing * {
+  user-select: none;
+  cursor: ew-resize !important;
+}
+.flow-detail-resizer {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  z-index: 11;
+  background: transparent;
+  /* Larger invisible hit target than the visible accent below.
+     The accent itself is rendered via ::after so the user has a
+     visual cue of where the resize edge lives. */
+}
+.flow-detail-resizer::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: var(--color-border, #e2e8f0);
+  border-radius: 1px;
+  transition: background 0.15s;
+}
+.flow-detail-resizer:hover::after,
+.flow-detail-panel--resizing .flow-detail-resizer::after {
+  background: var(--color-primary, #3B7DD8);
 }
 .flow-detail-header {
   display: flex;

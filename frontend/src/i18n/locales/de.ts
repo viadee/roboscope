@@ -1182,6 +1182,7 @@ export default {
     examplesCategoryHint: 'Nur eine kuratierte Auswahl wird gezeigt, weil die dynamische Library-Introspektion keine Daten liefert — meist weil dem Repository kein Environment zugeordnet ist oder die Library im Environment nicht installiert ist. Ordne ein Environment zu, um die vollständige Keyword-Liste zu sehen.',
     currentFileCategoryBadge: 'aktuelle Datei',
     currentFileCategoryHint: 'Keywords aus der Datei, die du gerade bearbeitest.',
+    resizePanelHint: 'Ziehen, um das Detail-Panel zu verbreitern',
     startNodeLabel: 'Start',
     endNodeLabel: 'Ende',
     keyword: 'Keyword',

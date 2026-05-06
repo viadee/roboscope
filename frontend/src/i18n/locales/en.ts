@@ -1182,6 +1182,7 @@ export default {
     examplesCategoryHint: 'Curated subset shown because the dynamic library introspection returned no data — typically the repo has no environment configured, or the library is not installed in the environment. Configure an environment to see the full keyword list.',
     currentFileCategoryBadge: 'this file',
     currentFileCategoryHint: 'Keywords defined in the file you are currently editing.',
+    resizePanelHint: 'Drag to resize the detail panel',
     startNodeLabel: 'Start',
     endNodeLabel: 'End',
     keyword: 'Keyword',

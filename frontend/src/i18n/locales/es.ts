@@ -1182,6 +1182,7 @@ export default {
     examplesCategoryHint: 'Subconjunto curado mostrado porque la introspección dinámica de bibliotecas no devolvió datos — normalmente el repositorio no tiene un entorno configurado, o la biblioteca no está instalada en el entorno. Configura un entorno para ver la lista completa de palabras clave.',
     currentFileCategoryBadge: 'archivo actual',
     currentFileCategoryHint: 'Palabras clave definidas en el archivo que estás editando.',
+    resizePanelHint: 'Arrastra para redimensionar el panel de detalles',
     startNodeLabel: 'Inicio',
     endNodeLabel: 'Fin',
     keyword: 'Palabra clave',
