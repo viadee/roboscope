@@ -139,7 +139,13 @@ const SETTING_TAGS = /^\[(Setup|Tags|Teardown|Documentation|Arguments|Return|Tem
 const CONTROL_FLOW = /^\b(FOR|END|IF|ELSE IF|ELSE|TRY|EXCEPT|FINALLY|WHILE|BREAK|CONTINUE|RETURN|IN|IN RANGE|IN ENUMERATE|IN ZIP)\b/
 const BDD = /^(Given|When|Then|And|But)(?=\s)/i
 const ATOMS = /^\b(True|False|None|TRUE|FALSE|NONE|EMPTY|SPACE|NULL)\b/
-const ESCAPE_SEQ = /^\\[ntr\\$"'{}@%&xu]/
+// `#` is in the escape set so a `\#…` cell (RF's idiom for a literal
+// CSS-id selector starting with `#` — it would otherwise be parsed
+// as a line comment) gets tokenized as a single escape sequence
+// rather than letting `\` fall through and the next-char `#`
+// trigger the inline-comment regex below. Without this, the code
+// editor highlighted everything after `\#login-form` as a comment.
+const ESCAPE_SEQ = /^\\[ntr\\$"'{}@%&xu#]/
 const VAR_OPENER = /^[$@%&]\{/
 const NAMED_ARG = /^([A-Za-z_][\w]*)=/
 
