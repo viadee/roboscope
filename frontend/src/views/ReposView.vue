@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useReposStore } from '@/stores/repos.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -124,7 +124,38 @@ async function deleteAll() {
 onMounted(() => {
   repos.fetchRepos()
   envStore.fetchEnvironments()
+  document.addEventListener('click', onDocumentClickForInfoTip)
+  document.addEventListener('keydown', onKeydownForInfoTip)
 })
+
+onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClickForInfoTip)
+  document.removeEventListener('keydown', onKeydownForInfoTip)
+})
+
+// Click-to-open info tooltip for the Sync / Auto-Sync / Pre-Run-Sync
+// labels. `openTipKey` is a per-repo + per-term identifier so only
+// one popover shows at a time across the whole view. Outside-click
+// and Escape close the popover; clicking the same icon a second
+// time toggles it back off.
+const openTipKey = ref<string | null>(null)
+function toggleInfoTip(key: string, ev: MouseEvent) {
+  ev.stopPropagation()
+  openTipKey.value = openTipKey.value === key ? null : key
+}
+function onDocumentClickForInfoTip(ev: MouseEvent) {
+  if (!openTipKey.value) return
+  // Click landed inside the open popover (or on the trigger itself
+  // — but the trigger uses @click.stop) — let it pass.
+  const tgt = ev.target as HTMLElement | null
+  if (tgt?.closest('.info-popover')) return
+  openTipKey.value = null
+}
+function onKeydownForInfoTip(ev: KeyboardEvent) {
+  if (ev.key === 'Escape' && openTipKey.value) {
+    openTipKey.value = null
+  }
+}
 
 // Branch loading state
 const branchLoading = ref<number | null>(null)
@@ -572,7 +603,21 @@ async function removeMember(member: ProjectMember) {
           <div v-if="repo.repo_type === 'git'" class="detail-row">
             <span class="label-with-help">
               {{ t('repos.autoSync') }}
-              <span class="info-tip" tabindex="0" :title="t('repos.autoSyncHelp')" :aria-label="t('repos.autoSyncHelp')">i</span>
+              <span class="info-tip-wrap">
+                <button
+                  type="button"
+                  class="info-tip"
+                  :title="t('repos.autoSyncHelp')"
+                  :aria-label="t('repos.autoSyncHelp')"
+                  :aria-expanded="openTipKey === `${repo.id}-auto`"
+                  @click="toggleInfoTip(`${repo.id}-auto`, $event)"
+                >i</button>
+                <span
+                  v-if="openTipKey === `${repo.id}-auto`"
+                  class="info-popover"
+                  role="tooltip"
+                >{{ t('repos.autoSyncHelp') }}</span>
+              </span>
             </span>
             <label v-if="auth.hasMinRole('editor')" class="auto-sync-toggle">
               <input
@@ -588,7 +633,21 @@ async function removeMember(member: ProjectMember) {
           <div v-if="repo.repo_type === 'git'" class="detail-row">
             <span class="label-with-help">
               {{ t('repos.preRunSync') }}
-              <span class="info-tip" tabindex="0" :title="t('repos.preRunSyncHelp')" :aria-label="t('repos.preRunSyncHelp')">i</span>
+              <span class="info-tip-wrap">
+                <button
+                  type="button"
+                  class="info-tip"
+                  :title="t('repos.preRunSyncHelp')"
+                  :aria-label="t('repos.preRunSyncHelp')"
+                  :aria-expanded="openTipKey === `${repo.id}-pre`"
+                  @click="toggleInfoTip(`${repo.id}-pre`, $event)"
+                >i</button>
+                <span
+                  v-if="openTipKey === `${repo.id}-pre`"
+                  class="info-popover"
+                  role="tooltip"
+                >{{ t('repos.preRunSyncHelp') }}</span>
+              </span>
             </span>
             <label v-if="auth.hasMinRole('editor')" class="auto-sync-toggle">
               <input
@@ -644,13 +703,31 @@ async function removeMember(member: ProjectMember) {
           >
             {{ t('repos.members.title') }}
           </BaseButton>
-          <BaseButton
+          <span
             v-if="auth.hasMinRole('editor') && repo.repo_type === 'git'"
-            variant="secondary" size="sm" @click="syncRepo(repo.id)"
-            :title="t('repos.syncHelp')"
+            class="sync-btn-group"
           >
-            {{ t('repos.sync') }} <span class="info-tip-inline" aria-hidden="true">i</span>
-          </BaseButton>
+            <BaseButton
+              variant="secondary" size="sm"
+              :title="t('repos.syncHelp')"
+              @click="syncRepo(repo.id)"
+            >{{ t('repos.sync') }}</BaseButton>
+            <span class="info-tip-wrap">
+              <button
+                type="button"
+                class="info-tip"
+                :title="t('repos.syncHelp')"
+                :aria-label="t('repos.syncHelp')"
+                :aria-expanded="openTipKey === `${repo.id}-manual`"
+                @click="toggleInfoTip(`${repo.id}-manual`, $event)"
+              >i</button>
+              <span
+                v-if="openTipKey === `${repo.id}-manual`"
+                class="info-popover"
+                role="tooltip"
+              >{{ t('repos.syncHelp') }}</span>
+            </span>
+          </span>
           <BaseButton v-if="auth.hasMinRole('admin')" variant="danger" size="sm" @click="removeRepo(repo.id, repo.name)">
             {{ t('common.delete') }}
           </BaseButton>
@@ -1009,6 +1086,13 @@ async function removeMember(member: ProjectMember) {
   align-items: center;
   gap: 5px;
 }
+/* Wrapper provides the positioning anchor for .info-popover so the
+   popover sits next to the icon regardless of which row it's in. */
+.info-tip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
 .info-tip {
   display: inline-flex;
   align-items: center;
@@ -1024,11 +1108,9 @@ async function removeMember(member: ProjectMember) {
   background: transparent;
   border: 1.5px solid var(--color-text-muted, #5A6380);
   border-radius: 50%;
-  cursor: help;
+  cursor: pointer;
   user-select: none;
   padding: 0;
-  /* Slight bottom shift so the lowercase "i" optically centers
-     inside the circle (the dot of the i throws off vertical-align). */
   text-indent: 0;
 }
 .info-tip:hover,
@@ -1038,24 +1120,39 @@ async function removeMember(member: ProjectMember) {
   background: color-mix(in srgb, var(--color-primary, #3B7DD8) 14%, transparent);
   outline: none;
 }
-/* Variant for inline use inside a button label — same circled "i"
-   but slightly transparent so it doesn't compete with the button
-   text; the button's own title carries the tooltip. */
-.info-tip-inline {
+.info-tip[aria-expanded="true"] {
+  color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #3B7DD8);
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 18%, transparent);
+}
+/* Click-popover that surfaces the help text. Pinned right of the
+   icon, fixed max-width so long German strings wrap instead of
+   blowing out the card. z-index sits above the card surface. */
+.info-popover {
+  position: absolute;
+  left: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 30;
+  max-width: 320px;
+  width: max-content;
+  padding: 10px 12px;
+  background: var(--color-bg-card, #fff);
+  color: var(--color-text, #1A2D50);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.4;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(16, 25, 51, 0.18);
+  white-space: normal;
+}
+/* Group wrap for the manual Sync button + its info-tip so they
+   align inline rather than wrapping onto separate flex cells. */
+.sync-btn-group {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  margin-left: 6px;
-  font-size: 10px;
-  font-weight: 700;
-  font-style: italic;
-  font-family: 'Times New Roman', Georgia, serif;
-  line-height: 1;
-  border: 1.5px solid currentColor;
-  border-radius: 50%;
-  opacity: 0.65;
+  gap: 6px;
 }
 
 .repo-actions {
