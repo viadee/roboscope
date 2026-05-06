@@ -1204,6 +1204,8 @@ export default {
     arguments: 'Argumente',
     condition: 'Bedingung',
     returnVars: 'Rückgabevariablen',
+    returnValues: 'Rückgabewerte',
+    returnValuePlaceholder: '${result}, ${count}, "literal"…',
     returnNoValue: '(kein Wert)',
     docMeta: {
       label: 'Dokumentation',

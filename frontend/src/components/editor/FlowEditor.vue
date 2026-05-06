@@ -1102,6 +1102,23 @@ function removeLoopValue(index: number) {
   updateStepFromNode(props.form, selectedNodeData.value)
   rebuildAndReselect()
 }
+/** RETURN values are stored on `step.args` — each cell after the
+ *  `RETURN` keyword in the .robot file is one return value. The
+ *  detail-panel inputs in the `stepType === 'return'` branch
+ *  v-model into this array. New values seed empty so the user
+ *  starts in a clean field. */
+function addReturnValue() {
+  if (!selectedNodeData.value) return
+  selectedNodeData.value.step.args.push('')
+  updateStepFromNode(props.form, selectedNodeData.value)
+  rebuildAndReselect()
+}
+function removeReturnValue(index: number) {
+  if (!selectedNodeData.value) return
+  selectedNodeData.value.step.args.splice(index, 1)
+  updateStepFromNode(props.form, selectedNodeData.value)
+  rebuildAndReselect()
+}
 
 // --- Add node from palette ---
 
@@ -2050,6 +2067,34 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
             <button class="flow-btn-remove" @click="removeReturnVar(i)">&times;</button>
           </div>
           <button class="flow-btn-add" @click="addReturnVar">+ {{ t('flowEditor.addVar') }}</button>
+        </div>
+
+        <!-- RETURN values — the keyword-definition payload that flows
+             out of `*** Keywords ***`. Stored on `step.args` (each cell
+             after `RETURN  ` is one return value). Uses the same row
+             layout the keyword-arguments block uses, minus the type-
+             chip/SelectorPicker complexity since RETURN has no
+             signature to consult. The user can capture each value
+             into a calling-side variable via the call-site keyword's
+             "Return Variables" block above. -->
+        <div v-if="selectedNodeData.stepType === 'return'" class="flow-detail-row">
+          <label>{{ t('flowEditor.returnValues') }}</label>
+          <div v-for="(_, i) in selectedNodeData.step.args" :key="i" class="flow-arg-row">
+            <input
+              v-model="selectedNodeData.step.args[i]"
+              class="flow-input flow-input-sm"
+              :placeholder="t('flowEditor.returnValuePlaceholder')"
+              :data-testid="`return-value-${i}`"
+              @change="onStepFieldChange"
+            />
+            <button class="flow-btn-remove" @click="removeReturnValue(i)">&times;</button>
+          </div>
+          <button
+            type="button"
+            class="flow-btn-add"
+            data-testid="add-return-value"
+            @click="addReturnValue"
+          >+ {{ t('flowEditor.addValue') }}</button>
         </div>
 
         <!-- Condition (IF/ELSE IF/WHILE) -->
