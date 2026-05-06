@@ -56,6 +56,8 @@ export default {
     teams: 'Équipes',
     emergencyBypass: 'Bypass d\'urgence',
     more: 'Plus',
+    previewBadge: 'aperçu',
+    previewHint: 'Fonctionnalité en aperçu — l\'interface et le comportement peuvent changer sans préavis.',
   },
   auth: {
     tagline: 'Robot Framework Test Management',

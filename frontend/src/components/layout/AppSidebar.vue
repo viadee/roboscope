@@ -12,6 +12,10 @@ interface NavItem {
   labelKey: string
   icon: string
   badge?: number | undefined
+  /** Renders a small "preview" pill next to the label so users
+   *  know the feature is still in active development and may
+   *  change without notice. */
+  preview?: boolean
 }
 
 const route = useRoute()
@@ -44,8 +48,8 @@ const topNavItems = computed<NavItem[]>(() => {
 const moreNavItems = computed<NavItem[]>(() => {
   if (!auth.hasMinRole('admin')) return []
   return [
-    { path: '/admin/identity-providers', labelKey: 'nav.identityProviders', icon: '🔐' },
-    { path: '/admin/teams', labelKey: 'nav.teams', icon: '👥' },
+    { path: '/admin/identity-providers', labelKey: 'nav.identityProviders', icon: '🔐', preview: true },
+    { path: '/admin/teams', labelKey: 'nav.teams', icon: '👥', preview: true },
     { path: '/admin/emergency-bypass', labelKey: 'nav.emergencyBypass', icon: '⚠' },
     { path: '/settings', labelKey: 'nav.settings', icon: '🔧' },
   ]
@@ -125,6 +129,11 @@ function isActive(path: string): boolean {
           >
             <span class="nav-icon">{{ item.icon }}</span>
             <span class="nav-label" v-if="ui.sidebarOpen">{{ t(item.labelKey) }}</span>
+            <span
+              v-if="item.preview && ui.sidebarOpen"
+              class="nav-preview-badge"
+              :title="t('nav.previewHint')"
+            >{{ t('nav.previewBadge') }}</span>
           </router-link>
         </div>
       </template>
@@ -260,6 +269,24 @@ function isActive(path: string): boolean {
   border-radius: 10px;
   min-width: 20px;
   text-align: center;
+}
+
+/* "preview" pill on nav items whose feature is still in active
+   development. Distinct from .nav-badge (run-count style) — uses
+   the accent color and italic small caps so users instantly
+   recognise it as a status hint, not a counter. */
+.nav-preview-badge {
+  margin-left: auto;
+  background: color-mix(in srgb, var(--color-accent, #D4883E) 22%, transparent);
+  color: var(--color-accent, #D4883E);
+  font-size: 9px;
+  font-weight: 700;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
 }
 
 .nav-more-toggle {
