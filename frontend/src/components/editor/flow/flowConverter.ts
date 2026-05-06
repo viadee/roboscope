@@ -518,6 +518,60 @@ export function stepsToFlow(
   return { nodes, edges }
 }
 
+/**
+ * Settings that may attach to a test case or keyword as side-note
+ * nodes on the canvas. Each kind corresponds to a Robot Framework
+ * `[...]` setting and (for now) a string field on RobotTestCase /
+ * RobotKeywordDef. Order here drives the vertical stacking order
+ * to the LEFT of the Start node.
+ *
+ * `tags` and `arguments` store as string[] but the side-note
+ * displays them comma-separated; the detail panel converts back.
+ */
+export type SettingMetaKind =
+  | 'documentation'
+  | 'tags'
+  | 'arguments'
+  | 'setup'
+  | 'teardown'
+  | 'template'
+  | 'timeout'
+
+const TC_SETTING_KINDS: SettingMetaKind[] = [
+  'documentation', 'tags', 'setup', 'teardown', 'template', 'timeout',
+]
+const KW_SETTING_KINDS: SettingMetaKind[] = [
+  'documentation', 'arguments', 'tags', 'setup', 'teardown', 'timeout',
+]
+
+const KIND_LABELS: Record<SettingMetaKind, string> = {
+  documentation: '[Documentation]',
+  tags: '[Tags]',
+  arguments: '[Arguments]',
+  setup: '[Setup]',
+  teardown: '[Teardown]',
+  template: '[Template]',
+  timeout: '[Timeout]',
+}
+
+/** Read the raw value for a kind off the underlying form record. */
+function readSettingValue(
+  source: RobotTestCase | RobotKeywordDef,
+  kind: SettingMetaKind,
+): string {
+  switch (kind) {
+    case 'documentation': return source.documentation
+    case 'tags': return source.tags.join(', ')
+    case 'arguments':
+      return 'arguments' in source ? source.arguments.join(', ') : ''
+    case 'setup': return source.setup
+    case 'teardown': return source.teardown
+    case 'template':
+      return 'template' in source ? source.template : ''
+    case 'timeout': return source.timeout
+  }
+}
+
 /** Convert a single test case to flow graph. */
 export function testCaseToFlow(
   tc: RobotTestCase, index: number,
@@ -525,7 +579,7 @@ export function testCaseToFlow(
   signatures: SignatureMap | null = null,
 ): { nodes: Node[]; edges: Edge[] } {
   const out = stepsToFlow(tc.steps, tc.name, `tc${index}`, 'testcase', index, sidecar, signatures)
-  appendDocMetaNode(out.nodes, out.edges, `tc${index}`, tc.documentation, 'testcase', index)
+  appendSettingMetaNodes(out.nodes, out.edges, `tc${index}`, tc, 'testcase', index, TC_SETTING_KINDS)
   return out
 }
 
@@ -536,62 +590,73 @@ export function keywordDefToFlow(
   signatures: SignatureMap | null = null,
 ): { nodes: Node[]; edges: Edge[] } {
   const out = stepsToFlow(kw.steps, kw.name, `kw${index}`, 'keyword', index, sidecar, signatures)
-  appendDocMetaNode(out.nodes, out.edges, `kw${index}`, kw.documentation, 'keyword', index)
+  appendSettingMetaNodes(out.nodes, out.edges, `kw${index}`, kw, 'keyword', index, KW_SETTING_KINDS)
   return out
 }
 
 /**
- * Append a `[Documentation]` meta-node to the flow if the test
- * case / keyword has a non-empty doc. The node sits to the LEFT
- * of the Start node and connects via a dashed edge — visually
- * it reads as a "side note" attached to the whole flow rather
- * than as a step.
+ * Append `[…]` meta-nodes to the flow for each non-empty setting on
+ * the source (test case or keyword definition). The nodes stack
+ * vertically to the LEFT of the Start node and each connects via a
+ * dashed edge — visually they read as "side notes" attached to the
+ * whole flow rather than as steps.
  *
- * The detail panel listens for clicks on this node type and
- * switches into a docs-edit mode. Empty docs intentionally produce
+ * The detail panel listens for clicks on `setting-meta` nodes and
+ * switches into a kind-specific edit mode. Empty settings produce
  * no node — clutter-free for plain test cases.
  */
-function appendDocMetaNode(
+function appendSettingMetaNodes(
   nodes: Node[],
   edges: Edge[],
   prefix: string,
-  documentation: string,
+  source: RobotTestCase | RobotKeywordDef,
   section: 'testcase' | 'keyword',
   sectionIndex: number,
+  kinds: SettingMetaKind[],
 ): void {
-  if (!documentation || !documentation.trim()) return
   const startNode = nodes.find((n) => n.id === `${prefix}-start`)
   if (!startNode) return
-  const id = `${prefix}-doc`
-  // Position to the LEFT of the Start node. Start sits at NODE_X.
-  // Push the meta a card-width away so the dashed edge has room to
-  // breathe without overlapping the canvas controls.
-  nodes.push({
-    id,
-    type: 'doc-meta',
-    position: { x: NODE_X - 280, y: startNode.position.y },
-    data: {
-      label: '[Documentation]',
-      text: documentation,
-      section,
-      sectionIndex,
-    },
-    selectable: true,
-    draggable: false,
-  })
-  edges.push({
-    id: `${prefix}-doc-edge`,
-    source: id,
-    target: `${prefix}-start`,
-    // Connect doc-meta's RIGHT handle → Start's LEFT handle so the
-    // dashed edge runs horizontally between them rather than the
-    // default Bottom→Top route (which crossed the whole canvas).
-    sourceHandle: 'right',
-    targetHandle: 'left',
-    type: 'default',
-    style: { strokeDasharray: '6 4', stroke: '#9AA5BF', strokeWidth: 1.5 },
-    animated: false,
-  })
+  let stackIdx = 0
+  // Side-note pitch is wider than step pitch (80) to leave a clear
+  // visual gap between consecutive side notes. The CSS clamps each
+  // side-note body to two lines + a hard max-height so a long
+  // [Documentation] preview can't grow into the [Tags] node below.
+  const META_PITCH = 96
+  for (const kind of kinds) {
+    const value = readSettingValue(source, kind)
+    if (!value || !value.trim()) continue
+    const id = `${prefix}-${kind}`
+    // Position to the LEFT of the Start node, stacked vertically.
+    // Each kind sits at a fixed row offset from the start.
+    nodes.push({
+      id,
+      type: 'setting-meta',
+      position: { x: NODE_X - 280, y: startNode.position.y + stackIdx * META_PITCH },
+      data: {
+        kind,
+        label: KIND_LABELS[kind],
+        text: value,
+        section,
+        sectionIndex,
+      },
+      selectable: true,
+      draggable: false,
+    })
+    edges.push({
+      id: `${prefix}-${kind}-edge`,
+      source: id,
+      target: `${prefix}-start`,
+      // Connect side note's RIGHT handle → Start's LEFT handle so the
+      // dashed edge runs horizontally between them rather than the
+      // default Bottom→Top route (which crossed the whole canvas).
+      sourceHandle: 'right',
+      targetHandle: 'left',
+      type: 'default',
+      style: { strokeDasharray: '6 4', stroke: '#9AA5BF', strokeWidth: 1.5 },
+      animated: false,
+    })
+    stackIdx++
+  }
 }
 
 // --- Converter: Full RobotForm → Nodes + Edges ---

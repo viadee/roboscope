@@ -37,6 +37,8 @@ import {
   NODE_X,
   type RobotForm,
   type RobotStep,
+  type RobotTestCase,
+  type RobotKeywordDef,
   type FlowNodeData,
 } from './flow/flowConverter'
 
@@ -263,102 +265,189 @@ async function handleAddKeyword(): Promise<void> {
 const selectedNode = ref<Node | null>(null)
 const selectedNodeData = computed<FlowNodeData | null>(() => {
   if (!selectedNode.value) return null
-  // Doc-meta and Start nodes carry different data shapes than steps
-  // (`{label, text, section, sectionIndex}` for doc-meta; `{label}`
-  // only for Start). They're handled by `selectedDocMeta` /
-  // `selectedStart` below — returning null here keeps the
-  // step-detail-panel template from dereferencing missing
-  // `stepType` / `step` fields and crashing.
-  if (selectedNode.value.type === 'doc-meta') return null
+  // setting-meta and Start nodes carry different data shapes than
+  // steps (`{kind,label,text,section,sectionIndex}` for setting-meta;
+  // `{label}` only for Start). They're handled by
+  // `selectedSettingMeta` / `selectedStart` below — returning null
+  // here keeps the step-detail-panel template from dereferencing
+  // missing `stepType` / `step` fields and crashing.
+  if (selectedNode.value.type === 'setting-meta') return null
   if (selectedNode.value.type === 'start') return null
   return selectedNode.value.data as FlowNodeData
 })
 
 /** Truthy when the user clicked the Start node — surfaces a
- *  section-level settings panel (currently the Documentation
- *  add/edit affordance; future: Tags, Setup, Teardown, …). The
- *  panel sits in the same detail-panel container as step edits;
- *  switching between Start clicks and step clicks just swaps the
- *  template branch. */
+ *  section-level settings panel with "+ [X]" buttons for each
+ *  missing setting kind (Documentation, Tags, Setup, Teardown,
+ *  Template, Timeout, Arguments). The panel sits in the same
+ *  detail-panel container as step edits; switching between Start
+ *  clicks and step clicks just swaps the template branch. */
 const selectedStart = computed<boolean>(() =>
   selectedNode.value?.type === 'start',
 )
 
-/** Truthy when the user clicked a `[Documentation]` side-note node.
- *  Drives a separate detail-panel branch with a textarea bound to
- *  the underlying test case / keyword's `documentation` field. */
-const selectedDocMeta = computed<{
-  text: string
+/** Kinds the test-case section settings panel may surface. */
+type SettingKind =
+  | 'documentation'
+  | 'tags'
+  | 'arguments'
+  | 'setup'
+  | 'teardown'
+  | 'template'
+  | 'timeout'
+
+const TC_KINDS: SettingKind[] = [
+  'documentation', 'tags', 'setup', 'teardown', 'template', 'timeout',
+]
+const KW_KINDS: SettingKind[] = [
+  'documentation', 'arguments', 'tags', 'setup', 'teardown', 'timeout',
+]
+
+const KIND_LABELS: Record<SettingKind, string> = {
+  documentation: '[Documentation]',
+  tags: '[Tags]',
+  arguments: '[Arguments]',
+  setup: '[Setup]',
+  teardown: '[Teardown]',
+  template: '[Template]',
+  timeout: '[Timeout]',
+}
+
+/** Active section's currently-selected source record (TC or KW). */
+function activeSettingSource(): RobotTestCase | RobotKeywordDef | undefined {
+  return activeSection.value === 'testcases'
+    ? props.form.testCases[activeItemIndex.value]
+    : props.form.keywords[activeItemIndex.value]
+}
+
+/** True iff the kind has no value yet on the active record. Drives
+ *  the "+ [X]" affordance row in the section settings panel; once
+ *  the user adds a value, the side note replaces the button so the
+ *  affordance hides. */
+function canAddSetting(kind: SettingKind): boolean {
+  const source = activeSettingSource()
+  if (!source) return false
+  if (kind === 'tags') return source.tags.length === 0
+  if (kind === 'arguments') {
+    return 'arguments' in source ? source.arguments.length === 0 : false
+  }
+  if (kind === 'template') {
+    return 'template' in source ? !source.template : false
+  }
+  // documentation, setup, teardown, timeout — single-string fields
+  return !source[kind as 'documentation' | 'setup' | 'teardown' | 'timeout']
+}
+
+/** Available kinds for the active record (TC vs KW). */
+const sectionKinds = computed<SettingKind[]>(() =>
+  activeSection.value === 'testcases' ? TC_KINDS : KW_KINDS,
+)
+
+/** Truthy when the user clicked a `[…]` side-note node. Drives a
+ *  kind-aware detail-panel branch with the right input control bound
+ *  to the underlying test case / keyword's setting field. */
+const selectedSettingMeta = computed<{
+  kind: SettingKind
   section: 'testcase' | 'keyword'
   sectionIndex: number
 } | null>(() => {
-  if (!selectedNode.value || selectedNode.value.type !== 'doc-meta') return null
+  if (!selectedNode.value || selectedNode.value.type !== 'setting-meta') return null
   const d = selectedNode.value.data as {
-    text: string
+    kind: SettingKind
     section: 'testcase' | 'keyword'
     sectionIndex: number
   }
-  return { text: d.text, section: d.section, sectionIndex: d.sectionIndex }
+  return { kind: d.kind, section: d.section, sectionIndex: d.sectionIndex }
 })
 
-/** Two-way bound model for the doc-meta textarea. Reads / writes
- *  the underlying form's documentation field directly so changes
- *  flow through the existing `update:step`-style watcher chain. */
-const docMetaModel = computed<string>({
+function settingTarget(): RobotTestCase | RobotKeywordDef | undefined {
+  if (!selectedSettingMeta.value) return undefined
+  const { section, sectionIndex } = selectedSettingMeta.value
+  return section === 'testcase'
+    ? props.form.testCases[sectionIndex]
+    : props.form.keywords[sectionIndex]
+}
+
+/** Two-way bound model for single-line / multi-line text settings
+ *  (documentation, setup, teardown, template, timeout). Tags +
+ *  arguments use `settingListModel` instead. */
+const settingTextModel = computed<string>({
   get(): string {
-    if (!selectedDocMeta.value) return ''
-    const { section, sectionIndex } = selectedDocMeta.value
-    if (section === 'testcase') {
-      return props.form.testCases[sectionIndex]?.documentation ?? ''
+    const target = settingTarget()
+    if (!target || !selectedSettingMeta.value) return ''
+    const kind = selectedSettingMeta.value.kind
+    if (kind === 'tags') return target.tags.join(', ')
+    if (kind === 'arguments') {
+      return 'arguments' in target ? target.arguments.join(', ') : ''
     }
-    return props.form.keywords[sectionIndex]?.documentation ?? ''
+    if (kind === 'template') {
+      return 'template' in target ? target.template : ''
+    }
+    return target[kind as 'documentation' | 'setup' | 'teardown' | 'timeout']
   },
   set(value: string) {
-    if (!selectedDocMeta.value) return
-    const { section, sectionIndex } = selectedDocMeta.value
-    const target = section === 'testcase'
-      ? props.form.testCases[sectionIndex]
-      : props.form.keywords[sectionIndex]
-    if (target) target.documentation = value
+    const target = settingTarget()
+    if (!target || !selectedSettingMeta.value) return
+    const kind = selectedSettingMeta.value.kind
+    if (kind === 'tags') {
+      target.tags = parseListInput(value)
+    } else if (kind === 'arguments' && 'arguments' in target) {
+      target.arguments = parseListInput(value)
+    } else if (kind === 'template' && 'template' in target) {
+      target.template = value
+    } else if (kind === 'documentation' || kind === 'setup' || kind === 'teardown' || kind === 'timeout') {
+      target[kind] = value
+    }
   },
 })
 
-function deleteDocMeta() {
-  if (!selectedDocMeta.value) return
-  docMetaModel.value = ''
+/** Split a comma- or whitespace-separated input into a clean list,
+ *  trimming each entry and dropping empties. Used for [Tags] and
+ *  [Arguments] which serialize as separator-joined cells in .robot. */
+function parseListInput(raw: string): string[] {
+  return raw
+    .split(/,\s*|\n+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+}
+
+function deleteSettingMeta() {
+  if (!selectedSettingMeta.value) return
+  const target = settingTarget()
+  if (!target) return
+  const kind = selectedSettingMeta.value.kind
+  if (kind === 'tags') target.tags = []
+  else if (kind === 'arguments' && 'arguments' in target) target.arguments = []
+  else if (kind === 'template' && 'template' in target) target.template = ''
+  else if (kind === 'documentation' || kind === 'setup' || kind === 'teardown' || kind === 'timeout') {
+    target[kind] = ''
+  }
   selectedNode.value = null
   rebuildAndReselect()
 }
 
-/** True when the active test case / keyword has no documentation
- *  yet — drives the "+ [Documentation]" affordance in the tab
- *  strip. Once a doc is added, the side node makes the affordance
- *  redundant so it hides. */
-const canAddDocMeta = computed<boolean>(() => {
-  const target = activeSection.value === 'testcases'
-    ? props.form.testCases[activeItemIndex.value]
-    : props.form.keywords[activeItemIndex.value]
-  return !!target && !target.documentation
-})
-
-function addDocMeta() {
-  const target = activeSection.value === 'testcases'
-    ? props.form.testCases[activeItemIndex.value]
-    : props.form.keywords[activeItemIndex.value]
+function addSetting(kind: SettingKind) {
+  const target = activeSettingSource()
   if (!target) return
-  // Seed with a single space so the side node renders + the
-  // detail panel auto-selects on the user's first interaction.
-  // The first keystroke replaces it.
-  target.documentation = ' '
+  // Seed with a single space (or single-element list for chips) so
+  // the side node renders immediately + the detail panel auto-
+  // selects on the user's first interaction. The first keystroke
+  // replaces the placeholder.
+  if (kind === 'tags') target.tags = [' ']
+  else if (kind === 'arguments' && 'arguments' in target) target.arguments = [' ']
+  else if (kind === 'template' && 'template' in target) target.template = ' '
+  else if (kind === 'documentation' || kind === 'setup' || kind === 'teardown' || kind === 'timeout') {
+    target[kind] = ' '
+  }
   rebuildAndReselect()
-  // Auto-select the freshly-added doc-meta side node so the user
-  // lands directly in the textarea.
+  // Auto-select the freshly-added side node so the user lands
+  // directly in the input.
   nextTick(() => {
     const prefix = activeSection.value === 'testcases'
       ? `tc${activeItemIndex.value}`
       : `kw${activeItemIndex.value}`
-    const docNode = nodes.value.find((n) => n.id === `${prefix}-doc`)
-    if (docNode) selectedNode.value = docNode
+    const node = nodes.value.find((n) => n.id === `${prefix}-${kind}`)
+    if (node) selectedNode.value = node
   })
 }
 
@@ -1554,10 +1643,13 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
           </template>
           <template #node-start="nodeProps"><StartEndNode v-bind="nodeProps" type="start" /></template>
           <template #node-end="nodeProps"><StartEndNode v-bind="nodeProps" type="end" /></template>
-          <template #node-doc-meta="nodeProps">
+          <template #node-setting-meta="nodeProps">
             <div
               class="flow-node-doc-meta"
-              :class="{ 'flow-node--selected': selectedNode?.id === nodeProps.id }"
+              :class="[
+                `flow-node-doc-meta--${nodeProps.data.kind}`,
+                { 'flow-node--selected': selectedNode?.id === nodeProps.id }
+              ]"
             >
               <div class="flow-node-doc-meta__body">
                 <span class="flow-node-doc-meta__label">{{ nodeProps.data.label }}</span>
@@ -1660,21 +1752,31 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
         <div class="flow-detail-header">
           <h4>{{ activeSection === 'testcases' ? t('flowEditor.testCaseSettings') : t('flowEditor.keywordSettings') }}</h4>
         </div>
-        <div class="flow-detail-row">
-          <button
-            v-if="canAddDocMeta"
-            type="button"
-            class="flow-btn-add"
-            :title="t('flowEditor.docMeta.addTitle')"
-            data-testid="flow-add-doc-meta"
-            @click="addDocMeta"
-          >+ [Documentation]</button>
-          <p v-else class="flow-detail-hint">{{ t('flowEditor.docMeta.alreadyPresent') }}</p>
+        <div class="flow-detail-row flow-settings-add-row">
+          <!-- One "+ [X]" button per kind that has no value yet. The
+               existing kinds are already represented by side-note
+               nodes, so showing "+ [X]" only for the missing ones
+               keeps the panel clutter-free. The whole-row hint
+               appears once every kind is filled in. -->
+          <template v-for="kind in sectionKinds" :key="kind">
+            <button
+              v-if="canAddSetting(kind)"
+              type="button"
+              class="flow-btn-add"
+              :title="t(`flowEditor.settingMeta.${kind}.addTitle`)"
+              :data-testid="`flow-add-${kind}`"
+              @click="addSetting(kind)"
+            >+ {{ KIND_LABELS[kind] }}</button>
+          </template>
+          <p
+            v-if="sectionKinds.every((k) => !canAddSetting(k))"
+            class="flow-detail-hint"
+          >{{ t('flowEditor.settingMeta.allPresent') }}</p>
         </div>
       </div>
 
       <div
-        v-else-if="selectedDocMeta"
+        v-else-if="selectedSettingMeta"
         class="flow-detail-panel"
         :class="{ 'flow-detail-panel--resizing': isResizingPanel }"
         :style="{ width: detailPanelWidth + 'px' }"
@@ -1687,22 +1789,35 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
           @pointerdown="onPanelResizeStart"
         ></div>
         <div class="flow-detail-header">
-          <h4>[Documentation]</h4>
+          <h4>{{ KIND_LABELS[selectedSettingMeta.kind] }}</h4>
           <div class="flow-detail-actions">
-            <button class="flow-action-btn flow-action-delete" @click="deleteDocMeta" :title="t('flowEditor.docMeta.removeTitle')">&times;</button>
+            <button
+              class="flow-action-btn flow-action-delete"
+              @click="deleteSettingMeta"
+              :title="t(`flowEditor.settingMeta.${selectedSettingMeta.kind}.removeTitle`)"
+            >&times;</button>
           </div>
         </div>
         <div class="flow-detail-row">
-          <label>{{ t('flowEditor.docMeta.label') }}</label>
+          <label>{{ t(`flowEditor.settingMeta.${selectedSettingMeta.kind}.label`) }}</label>
           <textarea
-            v-model="docMetaModel"
+            v-if="selectedSettingMeta.kind === 'documentation'"
+            v-model="settingTextModel"
             class="flow-input flow-textarea"
             rows="8"
-            :placeholder="t('flowEditor.docMeta.placeholder')"
+            :placeholder="t('flowEditor.settingMeta.documentation.placeholder')"
             @blur="rebuildAndReselect()"
           ></textarea>
+          <input
+            v-else
+            v-model="settingTextModel"
+            type="text"
+            class="flow-input"
+            :placeholder="t(`flowEditor.settingMeta.${selectedSettingMeta.kind}.placeholder`)"
+            @blur="rebuildAndReselect()"
+          />
         </div>
-        <p class="flow-detail-hint">{{ t('flowEditor.docMeta.hint') }}</p>
+        <p class="flow-detail-hint">{{ t(`flowEditor.settingMeta.${selectedSettingMeta.kind}.hint`) }}</p>
       </div>
 
       <div
@@ -2625,7 +2740,14 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   border: 1px dashed var(--color-border, #e2e8f0);
   border-radius: 6px;
   font-size: 12px;
-  max-width: 240px;
+  width: 240px;
+  /* Hard cap on rendered height so a long [Documentation] preview
+     can't grow into the [Tags] / [Setup] node stacked below it. The
+     stacking pitch in flowConverter.ts is 96px; this cap (76px) plus
+     border (2px) + a 18px breathing gap stays inside the pitch. The
+     full text remains readable in the detail panel after a click. */
+  max-height: 76px;
+  overflow: hidden;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
@@ -2653,15 +2775,27 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   line-height: 1.4;
   color: var(--color-text, #1A2D50);
   font-style: italic;
-  /* Cap to 4 visible lines so a long doc doesn't dominate the
-     side margin; the full text is still readable in the detail
-     panel after a click. */
+  /* Cap to 2 visible lines so a long doc doesn't dominate the
+     side margin AND can't push the node taller than the META_PITCH
+     stacking distance set in flowConverter.ts. The full text is
+     still readable in the detail panel after a click. */
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-word;
   white-space: pre-wrap;
+}
+/* Single-value kinds (Setup, Teardown, Timeout, Template,
+   Arguments, Tags) are short — render them on one line for a
+   compact look. Documentation keeps the 2-line clamp above. */
+.flow-node-doc-meta--setup .flow-node-doc-meta__text,
+.flow-node-doc-meta--teardown .flow-node-doc-meta__text,
+.flow-node-doc-meta--timeout .flow-node-doc-meta__text,
+.flow-node-doc-meta--template .flow-node-doc-meta__text,
+.flow-node-doc-meta--arguments .flow-node-doc-meta__text,
+.flow-node-doc-meta--tags .flow-node-doc-meta__text {
+  -webkit-line-clamp: 1;
 }
 .flow-node-doc-meta.flow-node--selected {
   outline: 3px solid var(--color-primary, #3B7DD8);
