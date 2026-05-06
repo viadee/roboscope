@@ -139,89 +139,61 @@ const de: DocsContent = [
         title: '\u00DCbersicht',
         content: `
 <p>
-  Das Dashboard ist die Startseite nach der Anmeldung und bietet einen
-  kompakten \u00DCberblick \u00FCber den aktuellen Stand Ihrer Testautomatisierung.
-  Alle Kennzahlen werden beim Laden der Seite in Echtzeit berechnet.
+  Das Dashboard ist die Startseite nach der Anmeldung. Es ist ein Karten-Grid,
+  das in jeden navigierbaren Bereich von RoboScope verlinkt \u2014 Projekte, Explorer,
+  Ausf\u00FChrungen, Statistiken, Recorder, Environments, Docs und Einstellungen \u2014
+  damit ein neuer Benutzer alles erreicht, ohne die Sidebar abzusuchen.
 </p>
 <p>
-  Die Seite gliedert sich in drei Abschnitte: <strong>KPI-Karten</strong>,
-  <strong>Letzte Ausf\u00FChrungen</strong> und <strong>Repository-\u00DCbersicht</strong>.
+  Neben den Navigationskarten zeigt eine <strong>Tipp des Tages</strong>-Karte
+  einen von 30 RoboScope-spezifischen Tipps, der t\u00E4glich rotiert. Tiefer
+  gehende Kennzahlen (Run-Anzahl, Erfolgsquote, Laufzeit-Trends) leben auf
+  der <strong>Statistik</strong>-Seite; aktuelle Runs auf der <strong>Ausf\u00FChrungs</strong>-Seite.
 </p>`
       },
       {
-        id: 'dashboard-kpis',
-        title: 'KPI-Karten',
+        id: 'dashboard-cards',
+        title: 'Navigations-Karten',
         content: `
 <p>
-  Am oberen Rand des Dashboards werden vier Kennzahlen als Karten dargestellt:
+  Jede Karte ist ein klickbarer Shortcut. Beim Hover erscheint ein animierter
+  Pfeil und die Karte hebt sich leicht an.
 </p>
 <table>
-  <thead>
-    <tr><th>Karte</th><th>Beschreibung</th></tr>
-  </thead>
+  <thead><tr><th>Karte</th><th>Wohin sie f\u00FChrt</th></tr></thead>
   <tbody>
-    <tr>
-      <td><strong>Runs (30 Tage)</strong></td>
-      <td>Gesamtzahl der Testl\u00E4ufe in den letzten 30 Tagen</td>
-    </tr>
-    <tr>
-      <td><strong>Erfolgsquote</strong></td>
-      <td>Anteil der erfolgreichen Runs in Prozent (30-Tage-Zeitraum)</td>
-    </tr>
-    <tr>
-      <td><strong>Durchschn. Laufzeit</strong></td>
-      <td>Mittlere Ausf\u00FChrungsdauer aller abgeschlossenen Runs</td>
-    </tr>
-    <tr>
-      <td><strong>Aktive Repos</strong></td>
-      <td>Anzahl der eingebundenen Git-Repositories</td>
-    </tr>
+    <tr><td><strong>Projekte</strong></td><td>Git- oder lokale Projekte konfigurieren, Sync-Pl\u00E4ne setzen, Berechtigungen verwalten.</td></tr>
+    <tr><td><strong>Explorer</strong></td><td>Dateibaum durchst\u00F6bern, Robot-Tests visuell oder als Code bearbeiten.</td></tr>
+    <tr><td><strong>Ausf\u00FChrung</strong></td><td>Tests ausl\u00F6sen, Live-Fortschritt verfolgen, wiederkehrende Runs planen.</td></tr>
+    <tr><td><strong>Statistiken</strong></td><td>Pass/Fail-Trends, Flaky Tests, Self-Healing-Rate.</td></tr>
+    <tr><td><strong>Recorder</strong></td><td>Browser-Interaktionen aufnehmen, Robot-Tests automatisch generieren. (Editor-Rolle aufw\u00E4rts.)</td></tr>
+    <tr><td><strong>Environments</strong></td><td>Python-Venvs verwalten, pip-Pakete installieren, Docker-Images bauen. (Editor-Rolle aufw\u00E4rts.)</td></tr>
+    <tr><td><strong>Docs</strong></td><td>Diese Dokumentation, voll durchsuchbar in vier Sprachen.</td></tr>
+    <tr><td><strong>Einstellungen</strong></td><td>AI-Provider, Retention, Secrets, Audit-Log, Compliance. (Admin-Rolle.)</td></tr>
   </tbody>
 </table>
 <p>
-  Die Karten sind farblich codiert und zeigen bei \u00C4nderungen gegen\u00FCber dem
-  vorherigen Zeitraum einen Trend-Indikator an.
-</p>`
-      },
-      {
-        id: 'dashboard-recent-runs',
-        title: 'Letzte Ausf\u00FChrungen',
-        content: `
-<p>
-  Unterhalb der KPI-Karten befindet sich eine Tabelle mit den j\u00FCngsten
-  Testl\u00E4ufen. Jede Zeile zeigt:
-</p>
-<ul>
-  <li><strong>Status-Badge</strong> \u2014 Farbige Kennzeichnung (passed, failed, running, pending, error, cancelled, timeout)</li>
-  <li><strong>Repository-Name</strong> \u2014 Welches Repository ausgef\u00FChrt wurde</li>
-  <li><strong>Zielpfad</strong> \u2014 Die ausgef\u00FChrte Datei oder das Verzeichnis</li>
-  <li><strong>Dauer</strong> \u2014 Wie lange der Run gedauert hat</li>
-  <li><strong>Zeitstempel</strong> \u2014 Wann der Run gestartet wurde</li>
-</ul>
-<p>
-  Ein Klick auf eine Zeile navigiert direkt zur <strong>Ausf\u00FChrungs-Detailseite</strong>
-  des jeweiligen Runs.
-</p>`
-      },
-      {
-        id: 'dashboard-repos',
-        title: 'Repository-\u00DCbersicht',
-        content: `
-<p>
-  Die Repository-\u00DCbersicht zeigt alle eingebundenen Repositories als kompakte
-  Karten. Jede Karte enth\u00E4lt:
-</p>
-<ul>
-  <li>Den Repository-Namen und die URL</li>
-  <li>Den aktiven Branch</li>
-  <li>Den Zeitpunkt der letzten Synchronisation</li>
-  <li>Einen Schnellzugriff zum \u00D6ffnen im Explorer</li>
-</ul>
-<p>
-  Von hier aus k\u00F6nnen Sie mit einem Klick direkt in den
-  <strong>Explorer</strong> eines Repositories wechseln.
+  Karten respektieren die Rolle: Recorder + Environments brauchen Editor oder
+  h\u00F6her; Einstellungen braucht Admin.
 </p>`,
-        tip: 'Wenn noch keine Repositories angelegt sind, wird stattdessen eine Anleitung zum Hinzuf\u00FCgen angezeigt.'
+        tip: 'Neu bei RoboScope? Starte bei der Projekte-Karte \u2014 ein Default-Projekt "Robot Framework Examples" wird beim ersten Start automatisch geseedet, damit du gleich etwas zum Spielen hast.'
+      },
+      {
+        id: 'dashboard-tip',
+        title: 'Tipp des Tages',
+        content: `
+<p>
+  Eine kleine <strong>\u{1F4A1} Tipp des Tages</strong>-Karte sitzt im Grid und
+  zeigt einen von 30 kurzen RoboScope-spezifischen Tipps. Tipps rotieren in
+  einem 30-Tage-Zyklus \u2014 jeder Kalendertag w\u00E4hlt einen neuen \u2014 sodass
+  h\u00E4ufige Nutzer jeden Tag ein neues Feature lernen.
+</p>
+<p>
+  Die Tipps fokussieren sich auf RoboScope-Features (Flow Editor Palette,
+  Recorder Selector Picker, Self-Healing Keywords, Stats Heal-Rate, Repos
+  Auto-Sync, Run-Detail-Panel, \u2026) \u2014 keine generischen Robot-Framework-Tipps.
+  Texte sind in EN/DE/FR/ES verf\u00FCgbar.
+</p>`
       }
     ]
   },

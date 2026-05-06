@@ -148,94 +148,61 @@ const en: DocsContent = [
         title: 'Dashboard Overview',
         content: `
 <p>
-  The <strong>Dashboard</strong> is the default landing page after login. It provides
-  a high-level overview of your testing activity and repository health, helping you
-  quickly assess the current state of your project.
+  The <strong>Dashboard</strong> is the default landing page after login. It is a
+  card grid pointing into every navigable section of RoboScope so a fresh user can
+  reach Repositories, Explorer, Runs, Statistics, Recorder, Environments, Docs and
+  Settings without scanning the sidebar.
 </p>
 <p>
-  The Dashboard is divided into three sections: <strong>KPI Cards</strong> at the top,
-  a <strong>Recent Runs</strong> table in the middle, and a <strong>Repository Summary</strong>
-  at the bottom.
+  Alongside the navigation cards a static <strong>Tip of the day</strong> card
+  rotates through 30 RoboScope-specific tips daily. The deeper KPI metrics
+  (run counts, success rate, duration trends) live on the <strong>Statistics</strong>
+  page; recent runs and run history live on the <strong>Runs</strong> page.
 </p>`
       },
       {
-        id: 'kpi-cards',
-        title: 'KPI Cards',
+        id: 'navigation-cards',
+        title: 'Navigation Cards',
         content: `
 <p>
-  Four key performance indicator cards are displayed at the top of the Dashboard:
+  Each card is a clickable shortcut. Hovering reveals an animated chevron and the
+  card lifts slightly to confirm the affordance.
 </p>
 <table>
-  <thead>
-    <tr><th>Card</th><th>Description</th></tr>
-  </thead>
+  <thead><tr><th>Card</th><th>What it points to</th></tr></thead>
   <tbody>
-    <tr>
-      <td><strong>Runs (30d)</strong></td>
-      <td>Total number of test runs executed in the last 30 days.</td>
-    </tr>
-    <tr>
-      <td><strong>Success Rate</strong></td>
-      <td>Percentage of runs that completed with all tests passing (last 30 days).</td>
-    </tr>
-    <tr>
-      <td><strong>Avg Duration</strong></td>
-      <td>Average wall-clock time of completed test runs over the last 30 days.</td>
-    </tr>
-    <tr>
-      <td><strong>Active Repos</strong></td>
-      <td>Number of repositories that have had at least one run in the last 30 days.</td>
-    </tr>
+    <tr><td><strong>Projects</strong></td><td>Configure Git or local projects, set sync schedules, manage permissions.</td></tr>
+    <tr><td><strong>Explorer</strong></td><td>Browse the file tree, edit Robot tests visually or in code.</td></tr>
+    <tr><td><strong>Execution</strong></td><td>Trigger executions, watch live progress, schedule recurring runs.</td></tr>
+    <tr><td><strong>Statistics</strong></td><td>Pass/fail trends, flaky tests, self-healing rate.</td></tr>
+    <tr><td><strong>Recorder</strong></td><td>Record interactions in a browser, generate Robot tests automatically. (Editor role and above.)</td></tr>
+    <tr><td><strong>Environments</strong></td><td>Manage Python virtual envs, install pip packages, build Docker images. (Editor role and above.)</td></tr>
+    <tr><td><strong>Docs</strong></td><td>This documentation, fully searchable in four languages.</td></tr>
+    <tr><td><strong>Settings</strong></td><td>AI providers, retention, secrets, audit log, compliance settings. (Admin role.)</td></tr>
   </tbody>
 </table>
 <p>
-  Each card uses the RoboScope design system: white background, blue accent for positive
-  trends, and amber for warnings. The values update automatically when navigating to
-  the Dashboard.
+  Cards visible to a given user respect their role: Recorder + Environments need
+  Editor or above; Settings needs Admin.
 </p>`,
-        tip: 'KPI cards reflect the last 30 days of activity. For longer time ranges, use the Statistics page.'
+        tip: 'New to RoboScope? Start with the Projects card — a default "Robot Framework Examples" git project is seeded on first start so you have something to play with right away.'
       },
       {
-        id: 'recent-runs',
-        title: 'Recent Runs Table',
+        id: 'tip-of-the-day',
+        title: 'Tip of the Day',
         content: `
 <p>
-  Below the KPI cards, a table lists the most recent test runs across all repositories.
-  Each row shows:
+  A small <strong>💡 Tip of the day</strong> card sits inside the grid, surfacing
+  one of 30 short RoboScope-specific tips. Tips rotate over a 30-day cycle —
+  every calendar day picks a new one — so frequent users learn a new feature
+  every time they open the dashboard.
 </p>
-<ul>
-  <li><strong>Run ID</strong> &mdash; A unique identifier for the run.</li>
-  <li><strong>Repository</strong> &mdash; The repository name the run was triggered against.</li>
-  <li><strong>Status</strong> &mdash; A colored badge indicating the run state: <code>passed</code>, <code>failed</code>, <code>running</code>, <code>pending</code>, <code>error</code>, <code>cancelled</code>, or <code>timeout</code>.</li>
-  <li><strong>Duration</strong> &mdash; How long the run took (or how long it has been running).</li>
-  <li><strong>Triggered by</strong> &mdash; The user who started the run.</li>
-  <li><strong>Date</strong> &mdash; Timestamp of when the run was initiated.</li>
-</ul>
 <p>
-  Clicking a row navigates to the detailed <strong>Run Details</strong> page where you
-  can inspect output logs, retry, or cancel the run.
+  Tips focus on RoboScope features specifically (Flow Editor palette, Recorder
+  selector picker, Self-Healing keywords, Stats heal-rate, Repos auto-sync,
+  Run-Detail panel, …) — not generic Robot Framework tips. The tip text is
+  available in all four locales (EN/DE/FR/ES).
 </p>`
-      },
-      {
-        id: 'repo-summary',
-        title: 'Repository Overview',
-        content: `
-<p>
-  The bottom section of the Dashboard shows a summary of all registered repositories.
-  For each repository, you can see:
-</p>
-<ul>
-  <li>Repository name and type (Git or Local).</li>
-  <li>Number of test files detected.</li>
-  <li>Last sync timestamp.</li>
-  <li>Latest run status badge.</li>
-</ul>
-<p>
-  This provides a quick glance at which repositories are healthy and which may need
-  attention. Clicking a repository name takes you to the <strong>Explorer</strong> view
-  for that repository.
-</p>`,
-        tip: 'If a repository shows a stale sync timestamp, navigate to Repositories and trigger a manual sync.'
       }
     ]
   },
