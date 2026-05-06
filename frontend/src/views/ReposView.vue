@@ -555,7 +555,11 @@ async function removeMember(member: ProjectMember) {
               @change="toggleSelect(repo.id)"
               @click.stop
             />
-            <div>
+            <router-link
+              :to="`/explorer/${repo.id}`"
+              class="repo-title-link"
+              :title="t('dashboard.openInExplorer', { name: repo.name })"
+            >
               <h3>
                 {{ repo.name }}
                 <BaseBadge :variant="repo.repo_type === 'git' ? 'info' : 'default'" style="margin-left: 8px; vertical-align: middle;">
@@ -563,7 +567,7 @@ async function removeMember(member: ProjectMember) {
                 </BaseBadge>
               </h3>
               <p class="text-muted text-sm">{{ repo.repo_type === 'git' ? repo.git_url : repo.local_path }}</p>
-            </div>
+            </router-link>
           </div>
         </div>
         <div class="repo-details">
@@ -1065,6 +1069,39 @@ async function removeMember(member: ProjectMember) {
   flex-direction: column;
   gap: 6px;
   margin-bottom: 16px;
+}
+
+/* Project name + url/path act as a deep-link to /explorer/{id}.
+   Strip the default underline and inherit the surrounding text
+   color so the card header looks unchanged at rest; hover surfaces
+   the affordance with a primary-color name + underline on the
+   subtitle. */
+.repo-title-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+.repo-title-link h3 {
+  margin: 0;
+  transition: color 0.15s;
+}
+.repo-title-link p {
+  margin: 4px 0 0;
+  word-break: break-all;
+}
+.repo-title-link:hover h3,
+.repo-title-link:focus-visible h3 {
+  color: var(--color-primary, #3B7DD8);
+}
+.repo-title-link:hover p,
+.repo-title-link:focus-visible p {
+  text-decoration: underline;
+}
+.repo-title-link:focus-visible {
+  outline: 2px solid var(--color-primary, #3B7DD8);
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 
 .detail-row {
