@@ -1205,6 +1205,13 @@ export default {
     condition: 'Condición',
     returnVars: 'Variables de retorno',
     returnNoValue: '(sin valor)',
+    docMeta: {
+      label: 'Documentación',
+      placeholder: 'Describe qué hace este caso de prueba (o keyword) — visible en el informe HTML.',
+      hint: 'El texto multilínea se guarda como filas de continuación `...` en el archivo .robot.',
+      addTitle: 'Añadir una nota [Documentation] a este caso / keyword',
+      removeTitle: 'Quitar la documentación',
+    },
     comment: 'Comentario',
     palette: 'Palabras clave',
     searchKeywords: 'Buscar palabras clave...',

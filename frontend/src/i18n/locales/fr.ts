@@ -1205,6 +1205,13 @@ export default {
     condition: 'Condition',
     returnVars: 'Variables de retour',
     returnNoValue: '(aucune valeur)',
+    docMeta: {
+      label: 'Documentation',
+      placeholder: 'Décrivez ce que fait ce cas de test (ou ce keyword) — visible dans le rapport HTML.',
+      hint: 'Le texte multi-ligne est conservé sous forme de lignes de continuation `...` dans le fichier .robot.',
+      addTitle: 'Ajouter une note [Documentation] à ce cas de test / keyword',
+      removeTitle: 'Supprimer la documentation',
+    },
     comment: 'Commentaire',
     palette: 'Mots-clés',
     searchKeywords: 'Rechercher des mots-clés...',

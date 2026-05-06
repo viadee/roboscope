@@ -263,8 +263,92 @@ async function handleAddKeyword(): Promise<void> {
 const selectedNode = ref<Node | null>(null)
 const selectedNodeData = computed<FlowNodeData | null>(() => {
   if (!selectedNode.value) return null
+  // Doc-meta nodes carry a different data shape (`{label, text,
+  // section, sectionIndex}`) — they're handled by `selectedDocMeta`
+  // below. Returning null here keeps the step-detail-panel template
+  // from dereferencing missing `stepType` / `step` fields and
+  // crashing.
+  if (selectedNode.value.type === 'doc-meta') return null
   return selectedNode.value.data as FlowNodeData
 })
+
+/** Truthy when the user clicked a `[Documentation]` side-note node.
+ *  Drives a separate detail-panel branch with a textarea bound to
+ *  the underlying test case / keyword's `documentation` field. */
+const selectedDocMeta = computed<{
+  text: string
+  section: 'testcase' | 'keyword'
+  sectionIndex: number
+} | null>(() => {
+  if (!selectedNode.value || selectedNode.value.type !== 'doc-meta') return null
+  const d = selectedNode.value.data as {
+    text: string
+    section: 'testcase' | 'keyword'
+    sectionIndex: number
+  }
+  return { text: d.text, section: d.section, sectionIndex: d.sectionIndex }
+})
+
+/** Two-way bound model for the doc-meta textarea. Reads / writes
+ *  the underlying form's documentation field directly so changes
+ *  flow through the existing `update:step`-style watcher chain. */
+const docMetaModel = computed<string>({
+  get(): string {
+    if (!selectedDocMeta.value) return ''
+    const { section, sectionIndex } = selectedDocMeta.value
+    if (section === 'testcase') {
+      return props.form.testCases[sectionIndex]?.documentation ?? ''
+    }
+    return props.form.keywords[sectionIndex]?.documentation ?? ''
+  },
+  set(value: string) {
+    if (!selectedDocMeta.value) return
+    const { section, sectionIndex } = selectedDocMeta.value
+    const target = section === 'testcase'
+      ? props.form.testCases[sectionIndex]
+      : props.form.keywords[sectionIndex]
+    if (target) target.documentation = value
+  },
+})
+
+function deleteDocMeta() {
+  if (!selectedDocMeta.value) return
+  docMetaModel.value = ''
+  selectedNode.value = null
+  rebuildAndReselect()
+}
+
+/** True when the active test case / keyword has no documentation
+ *  yet — drives the "+ [Documentation]" affordance in the tab
+ *  strip. Once a doc is added, the side node makes the affordance
+ *  redundant so it hides. */
+const canAddDocMeta = computed<boolean>(() => {
+  const target = activeSection.value === 'testcases'
+    ? props.form.testCases[activeItemIndex.value]
+    : props.form.keywords[activeItemIndex.value]
+  return !!target && !target.documentation
+})
+
+function addDocMeta() {
+  const target = activeSection.value === 'testcases'
+    ? props.form.testCases[activeItemIndex.value]
+    : props.form.keywords[activeItemIndex.value]
+  if (!target) return
+  // Seed with a single space so the side node renders + the
+  // detail panel auto-selects on the user's first interaction.
+  // The first keystroke replaces it.
+  target.documentation = ' '
+  rebuildAndReselect()
+  // Auto-select the freshly-added doc-meta side node so the user
+  // lands directly in the textarea.
+  nextTick(() => {
+    const prefix = activeSection.value === 'testcases'
+      ? `tc${activeItemIndex.value}`
+      : `kw${activeItemIndex.value}`
+    const docNode = nodes.value.find((n) => n.id === `${prefix}-doc`)
+    if (docNode) selectedNode.value = docNode
+  })
+}
 
 // User-resizable detail-panel width — drag the handle on the left
 // edge to widen / narrow. Lives in component-local state so the
@@ -1329,6 +1413,18 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
             @click="handleAddKeyword"
           >+ {{ t('flowEditor.addKeyword') }}</button>
         </template>
+        <!-- Add a `[Documentation]` side note to the active item if
+             it doesn't have one yet. The button only renders when
+             the doc is currently empty so the affordance disappears
+             once a doc-meta side node is on the canvas. -->
+        <button
+          v-if="canAddDocMeta"
+          type="button"
+          class="flow-item-tab flow-item-tab--add-doc"
+          :title="t('flowEditor.docMeta.addTitle')"
+          data-testid="flow-add-doc-meta"
+          @click="addDocMeta"
+        >+ [Documentation]</button>
       </div>
     </div>
 
@@ -1458,6 +1554,19 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
           </template>
           <template #node-start="nodeProps"><StartEndNode v-bind="nodeProps" type="start" /></template>
           <template #node-end="nodeProps"><StartEndNode v-bind="nodeProps" type="end" /></template>
+          <template #node-doc-meta="nodeProps">
+            <div
+              class="flow-node-doc-meta"
+              :class="{ 'flow-node--selected': selectedNode?.id === nodeProps.id }"
+            >
+              <span class="flow-node-doc-meta__bracket" aria-hidden="true">[</span>
+              <div class="flow-node-doc-meta__body">
+                <span class="flow-node-doc-meta__label">{{ nodeProps.data.label }}</span>
+                <p class="flow-node-doc-meta__text">{{ nodeProps.data.text }}</p>
+              </div>
+              <span class="flow-node-doc-meta__bracket" aria-hidden="true">]</span>
+            </div>
+          </template>
           <template #node-comment="nodeProps">
             <div class="flow-node-comment" :class="{ 'flow-node--selected': selectedNode?.id === nodeProps.id }">
               <div
@@ -1525,7 +1634,39 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
            a step was selected — the panel intercepted the
            dragover but had no preventDefault. -->
       <div
-        v-if="selectedNodeData"
+        v-if="selectedDocMeta"
+        class="flow-detail-panel"
+        :class="{ 'flow-detail-panel--resizing': isResizingPanel }"
+        :style="{ width: detailPanelWidth + 'px' }"
+      >
+        <div
+          class="flow-detail-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          :title="t('flowEditor.resizePanelHint')"
+          @pointerdown="onPanelResizeStart"
+        ></div>
+        <div class="flow-detail-header">
+          <h4>[Documentation]</h4>
+          <div class="flow-detail-actions">
+            <button class="flow-action-btn flow-action-delete" @click="deleteDocMeta" :title="t('flowEditor.docMeta.removeTitle')">&times;</button>
+          </div>
+        </div>
+        <div class="flow-detail-row">
+          <label>{{ t('flowEditor.docMeta.label') }}</label>
+          <textarea
+            v-model="docMetaModel"
+            class="flow-input flow-textarea"
+            rows="8"
+            :placeholder="t('flowEditor.docMeta.placeholder')"
+            @blur="rebuildAndReselect()"
+          ></textarea>
+        </div>
+        <p class="flow-detail-hint">{{ t('flowEditor.docMeta.hint') }}</p>
+      </div>
+
+      <div
+        v-else-if="selectedNodeData"
         class="flow-detail-panel"
         :class="{ 'flow-detail-panel--resizing': isResizingPanel }"
         :style="{ width: detailPanelWidth + 'px' }"
@@ -2202,6 +2343,17 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
 .flow-input:focus {
   border-color: var(--color-primary, #3B7DD8);
 }
+.flow-textarea {
+  font-family: var(--font-sans, sans-serif);
+  resize: vertical;
+  line-height: 1.45;
+}
+.flow-detail-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--color-text-muted, #5A6380);
+  font-style: italic;
+}
 .flow-input-sm {
   flex: 1;
 }
@@ -2415,6 +2567,76 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* `[Documentation]` side-note attached to a test case / keyword
+   header. Two oversized brackets bracket the doc body, framing it
+   visually as an annotation rather than a step. The connecting
+   edge from this node to the Start node is dashed (set in
+   flowConverter.ts) so the user reads it as "linked metadata".
+   Click to edit in the detail panel. */
+.flow-node-doc-meta {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 4px;
+  background: color-mix(in srgb, var(--color-text-muted, #5A6380) 6%, var(--color-bg-card, #fff));
+  border: 1px dashed var(--color-border, #e2e8f0);
+  border-radius: 6px;
+  font-size: 12px;
+  max-width: 240px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.flow-node-doc-meta:hover {
+  border-color: var(--color-primary, #3B7DD8);
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 6%, var(--color-bg-card, #fff));
+}
+.flow-node-doc-meta__bracket {
+  font-size: 36px;
+  font-weight: 300;
+  line-height: 0.85;
+  color: var(--color-text-muted, #5A6380);
+  font-family: 'Times New Roman', Georgia, serif;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+.flow-node-doc-meta__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.flow-node-doc-meta__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted, #5A6380);
+}
+.flow-node-doc-meta__text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text, #1A2D50);
+  font-style: italic;
+  /* Cap to 4 visible lines so a long doc doesn't dominate the
+     side margin; the full text is still readable in the detail
+     panel after a click. */
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.flow-node-doc-meta.flow-node--selected {
+  outline: 3px solid var(--color-primary, #3B7DD8);
+  outline-offset: 2px;
+  border-color: var(--color-primary, #3B7DD8);
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 10%, var(--color-bg-card, #fff));
 }
 
 /* RETURN node — distinct from BREAK / CONTINUE because it carries

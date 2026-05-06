@@ -524,7 +524,9 @@ export function testCaseToFlow(
   sidecar: RecordedFlow | null = null,
   signatures: SignatureMap | null = null,
 ): { nodes: Node[]; edges: Edge[] } {
-  return stepsToFlow(tc.steps, tc.name, `tc${index}`, 'testcase', index, sidecar, signatures)
+  const out = stepsToFlow(tc.steps, tc.name, `tc${index}`, 'testcase', index, sidecar, signatures)
+  appendDocMetaNode(out.nodes, out.edges, `tc${index}`, tc.documentation, 'testcase', index)
+  return out
 }
 
 /** Convert a single keyword definition to flow graph. */
@@ -533,7 +535,58 @@ export function keywordDefToFlow(
   sidecar: RecordedFlow | null = null,
   signatures: SignatureMap | null = null,
 ): { nodes: Node[]; edges: Edge[] } {
-  return stepsToFlow(kw.steps, kw.name, `kw${index}`, 'keyword', index, sidecar, signatures)
+  const out = stepsToFlow(kw.steps, kw.name, `kw${index}`, 'keyword', index, sidecar, signatures)
+  appendDocMetaNode(out.nodes, out.edges, `kw${index}`, kw.documentation, 'keyword', index)
+  return out
+}
+
+/**
+ * Append a `[Documentation]` meta-node to the flow if the test
+ * case / keyword has a non-empty doc. The node sits to the LEFT
+ * of the Start node and connects via a dashed edge — visually
+ * it reads as a "side note" attached to the whole flow rather
+ * than as a step.
+ *
+ * The detail panel listens for clicks on this node type and
+ * switches into a docs-edit mode. Empty docs intentionally produce
+ * no node — clutter-free for plain test cases.
+ */
+function appendDocMetaNode(
+  nodes: Node[],
+  edges: Edge[],
+  prefix: string,
+  documentation: string,
+  section: 'testcase' | 'keyword',
+  sectionIndex: number,
+): void {
+  if (!documentation || !documentation.trim()) return
+  const startNode = nodes.find((n) => n.id === `${prefix}-start`)
+  if (!startNode) return
+  const id = `${prefix}-doc`
+  // Position to the LEFT of the Start node. Start sits at NODE_X.
+  // Push the meta a card-width away so the dashed edge has room to
+  // breathe without overlapping the canvas controls.
+  nodes.push({
+    id,
+    type: 'doc-meta',
+    position: { x: NODE_X - 280, y: startNode.position.y },
+    data: {
+      label: '[Documentation]',
+      text: documentation,
+      section,
+      sectionIndex,
+    },
+    selectable: true,
+    draggable: false,
+  })
+  edges.push({
+    id: `${prefix}-doc-edge`,
+    source: id,
+    target: `${prefix}-start`,
+    type: 'default',
+    style: { strokeDasharray: '6 4', stroke: '#9AA5BF', strokeWidth: 1.5 },
+    animated: false,
+  })
 }
 
 // --- Converter: Full RobotForm → Nodes + Edges ---

@@ -1205,6 +1205,13 @@ export default {
     condition: 'Condition',
     returnVars: 'Return Variables',
     returnNoValue: '(no value)',
+    docMeta: {
+      label: 'Documentation',
+      placeholder: 'Describe what this test case (or keyword) does — visible in the HTML report.',
+      hint: 'Multi-line text is preserved as `...` continuation rows in the saved .robot file.',
+      addTitle: 'Add a [Documentation] side note to this test case / keyword',
+      removeTitle: 'Remove the documentation',
+    },
     comment: 'Comment',
     palette: 'Keywords',
     searchKeywords: 'Search keywords...',

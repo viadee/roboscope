@@ -1205,6 +1205,13 @@ export default {
     condition: 'Bedingung',
     returnVars: 'Rückgabevariablen',
     returnNoValue: '(kein Wert)',
+    docMeta: {
+      label: 'Dokumentation',
+      placeholder: 'Beschreibe was dieser Testfall (oder dieses Keyword) macht — erscheint im HTML-Report.',
+      hint: 'Mehrzeiliger Text wird beim Speichern als `...`-Folgezeilen in der .robot-Datei abgelegt.',
+      addTitle: 'Eine [Documentation] Seitennotiz zu diesem Testfall / Keyword hinzufügen',
+      removeTitle: 'Dokumentation entfernen',
+    },
     comment: 'Kommentar',
     palette: 'Keywords',
     searchKeywords: 'Keywords suchen...',
