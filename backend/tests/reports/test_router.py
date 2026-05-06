@@ -510,17 +510,19 @@ class TestReportAssetEndpoint:
         # matters is that we don't return /etc/passwd contents.
         assert resp.status_code in (403, 404)
 
-    def test_html_report_base_href_contains_asset_token(
+    def test_html_endpoint_redirects_to_asset_url_with_token(
         self, client, admin_user, db_session, tmp_path,
     ):
-        """The injected `<base>` tag must include an asset token so
-        iframe-loaded asset requests inherit auth via query param.
+        """The /html endpoint authenticates the caller and 302-redirects
+        to /assets/report.html?at=<asset_token>.
 
-        SECURITY-3 superseded REPORT-1's JWT-in-base-href: the token
-        is now a purpose-built `?at=…` (HMAC-signed, report-scoped,
-        no user identity) instead of the user's JWT. This test was
-        updated accordingly; the deeper end-to-end coverage lives in
-        `test_asset_tokens.py::TestHtmlEndpointUsesAssetToken`.
+        Why a redirect instead of streaming the HTML inline (the previous
+        behaviour, see SECURITY-3 + REPORT-1 history): Robot Framework's
+        in-page click handlers do `location.href = "log.html#xxx"` which
+        resolves against the iframe's URL. With the old blob-URL +
+        injected `<base>` approach the JS-driven navigation went to a
+        404. Loading the report directly from the asset URL means
+        relative navigation lands on the sibling log.html.
         """
         out = tmp_path / "out"
         out.mkdir()
@@ -539,7 +541,21 @@ class TestReportAssetEndpoint:
         resp = client.get(
             f"/api/v1/reports/{report.id}/html",
             headers=auth_header(admin_user),
+            follow_redirects=False,
         )
-        assert resp.status_code == 200
-        body = resp.text
-        assert f'<base href="/api/v1/reports/{report.id}/assets/?at=' in body
+        assert resp.status_code == 302
+        location = resp.headers["location"]
+        assert location.startswith(
+            f"/api/v1/reports/{report.id}/assets/report.html?at="
+        )
+        # The asset token in the redirect must actually grant access to
+        # the asset endpoint — round-trip the redirect.
+        from urllib.parse import urlparse, parse_qs
+        token = parse_qs(urlparse(location).query).get("at", [""])[0]
+        assert token, "asset token missing from redirect URL"
+        followup = client.get(
+            f"/api/v1/reports/{report.id}/assets/report.html?at={token}"
+        )
+        assert followup.status_code == 200
+        # Body is the raw report HTML, no <base href> injection now.
+        assert "<title>R</title>" in followup.text

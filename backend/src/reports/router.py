@@ -399,7 +399,27 @@ def get_report_html(
     credentials: HTTPAuthorizationCredentials | None = Depends(optional_bearer),
     db: Session = Depends(get_db),
 ):
-    """Serve the original Robot Framework HTML report with injected base tag."""
+    """Resolve the report's HTML URL.
+
+    The endpoint authenticates the caller (JWT via Authorization header
+    OR `?token=<jwt>` query) and 302-redirects to the asset URL
+    `/reports/{id}/assets/report.html?at=<asset_token>` so the browser
+    follows up directly. The asset token is short-lived (1 h) and
+    report-scoped (Story SECURITY-3).
+
+    Why a redirect instead of streaming the HTML inline with a
+    `<base href>` injection (the previous implementation): when the
+    iframe is loaded from a Blob URL (or any URL that the report's
+    own JS doesn't see as `log.html`'s sibling), Robot Framework's
+    in-page click handlers do `window.location.href = "log.html#xxx"`
+    which resolves against the IFRAME'S URL — the `<base href>` only
+    affects HTML link resolution, not JS-driven navigation. Result:
+    clicking a test row navigated the iframe to a 404.
+
+    Serving the report from the asset URL means subsequent
+    `location.href = "log.html"` calls resolve to
+    `/reports/{id}/assets/log.html`, which IS the right file.
+    """
     _user, _raw_token = _authenticate_flexible(token, credentials, db)
 
     report = get_report(db, report_id)
@@ -419,41 +439,13 @@ def get_report_html(
             detail="HTML report file not found on disk",
         )
 
-    # Read and inject <base> tag so relative asset references resolve to the asset endpoint.
-    # Also inject a script to fix fragment-only links (href="#...") which would otherwise
-    # navigate to the base URL + fragment, causing 404 errors.
-    # Story SECURITY-3: embed a purpose-built short-lived asset
-    # token (HMAC-signed, report-scoped, no user identity) instead
-    # of the user's JWT. RFC 3986 §5.2.2 — relative URLs without
-    # a query inherit the base's query, so `?at=…` propagates to
-    # every <img> / <link> the iframe-loaded HTML resolves.
+    from fastapi.responses import RedirectResponse
     from src.reports.asset_tokens import mint_asset_token
-    html_content = html_path.read_text(encoding="utf-8", errors="replace")
     asset_token = mint_asset_token(report_id)
-    base_tag = (
-        f'<base href="/api/v1/reports/{report_id}/assets/?at={asset_token}">'
+    return RedirectResponse(
+        url=f"/api/v1/reports/{report_id}/assets/report.html?at={asset_token}",
+        status_code=status.HTTP_302_FOUND,
     )
-    fragment_fix_script = (
-        "<script>"
-        "document.addEventListener('click',function(e){"
-        "var a=e.target.closest('a[href^=\"#\"]');"
-        "if(a){e.preventDefault();"
-        "var hash=a.getAttribute('href');"
-        "if(a.onclick)a.onclick(e);"
-        "window.location.hash=hash.substring(1);}"
-        "});"
-        "</script>"
-    )
-    injected = base_tag + fragment_fix_script
-    if "<head>" in html_content:
-        html_content = html_content.replace("<head>", f"<head>{injected}", 1)
-    elif "<HEAD>" in html_content:
-        html_content = html_content.replace("<HEAD>", f"<HEAD>{injected}", 1)
-    else:
-        # Prepend if no <head> tag found
-        html_content = injected + html_content
-
-    return Response(content=html_content, media_type="text/html")
 
 
 @router.get("/{report_id}/assets/{file_path:path}")

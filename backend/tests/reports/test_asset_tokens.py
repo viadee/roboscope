@@ -131,7 +131,11 @@ class TestAssetEndpointAcceptsAssetToken:
 
 
 class TestHtmlEndpointUsesAssetToken:
-    def test_base_href_uses_at_query(self, client, admin_user, db_session, tmp_path):
+    def test_redirect_url_carries_at_query(self, client, admin_user, db_session, tmp_path):
+        """The /html endpoint now 302-redirects to the asset URL with an
+        `?at=<asset_token>` query (no JWT in the redirect URL — that
+        would leak the user's session into iframe history). The user's
+        original auth header is still required ON the /html call."""
         out = tmp_path / "out"
         out.mkdir()
         html_path = out / "report.html"
@@ -149,10 +153,11 @@ class TestHtmlEndpointUsesAssetToken:
         resp = client.get(
             f"/api/v1/reports/{report.id}/html",
             headers=auth_header(admin_user),
+            follow_redirects=False,
         )
-        assert resp.status_code == 200
-        body = resp.text
-        # New: an `at=` asset token is embedded.
-        assert f'<base href="/api/v1/reports/{report.id}/assets/?at=' in body
+        assert resp.status_code == 302
+        location = resp.headers["location"]
+        # New: an `at=` asset token is embedded in the redirect URL.
+        assert f"/api/v1/reports/{report.id}/assets/report.html?at=" in location
         # Old: the JWT is no longer in the iframe URL.
-        assert "?token=" not in body
+        assert "token=" not in location.split("?", 1)[1].replace("at=", "")
