@@ -368,7 +368,13 @@ test.describe('Explorer — E2E', () => {
     // Click sample.robot
     await page.locator('.node-name', { hasText: 'sample.robot' }).click();
     await page.waitForTimeout(500);
-    // Visual editor should be visible (default tab)
+    // The Robot editor opens on the Flow tab by default — switch to
+    // Visual. Tab text comes from `robotEditor.visualTab` in i18n;
+    // matches "Visual Editor" (EN) / "Visueller Editor" (DE) /
+    // "Éditeur Visuel" (FR) / "Editor Visual" (ES) — case-insensitive.
+    const visualTab = page.locator('button.tab-btn', { hasText: /(visual|visuel)/i });
+    await expect(visualTab.first()).toBeVisible({ timeout: 5_000 });
+    await visualTab.first().click();
     await expect(page.locator('.visual-editor')).toBeVisible({ timeout: 5_000 });
   }
 
