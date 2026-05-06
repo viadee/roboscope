@@ -887,7 +887,7 @@ const flatNodes = computed(() => {
 </script>
 
 <template>
-  <div class="page-content">
+  <div class="page-content explorer-page">
     <div class="page-header">
       <h1>{{ t('explorer.title') }}</h1>
       <div class="flex gap-2 items-center">
@@ -1335,11 +1335,32 @@ const flatNodes = computed(() => {
   color: #fff;
 }
 
+/* Page-level flex column so the inner explorer-layout can flex
+   to fill the remaining height (header + search + repo-warning
+   chrome above it have variable heights, so a fixed `100vh - 200px`
+   left a permanent body scrollbar on shorter desktops). The page
+   takes its full container height; the layout below grows. */
+.page-content.explorer-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  /* Inner panels (tree-panel + preview-panel) already manage their
+     own overflow, so the page itself never needs to scroll — block
+     the body / main-content scrollbar from appearing. */
+  overflow: hidden;
+}
+
 .explorer-layout {
   display: grid;
   grid-template-columns: 300px 1fr;
   gap: 16px;
-  height: calc(100vh - 200px);
+  flex: 1;
+  /* min-height: 0 is the canonical fix for "flex-child with internal
+     overflow scrolls the wrong layer" — without it grid + auto
+     content makes this row push the page taller than its parent
+     and the body / main-content scrollbar reappears. */
+  min-height: 0;
 }
 
 /* --- Tree Panel --- */
