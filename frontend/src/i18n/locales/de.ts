@@ -666,6 +666,7 @@ export default {
       unmute: 'Quarantäne aufheben',
     },
     healRate: {
+      heading: 'Self-Healing-Rate',
       total: 'selbstgeheilte Selektoren im Zeitraum',
       healedOf: '{healed} von {total} Runs geheilt',
       confirmed: 'bestätigt',

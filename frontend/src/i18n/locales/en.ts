@@ -666,6 +666,7 @@ export default {
       unmute: 'Unmute',
     },
     healRate: {
+      heading: 'Self-healing rate',
       total: 'self-healed selectors in window',
       healedOf: '{healed} of {total} runs healed',
       confirmed: 'confirmed',

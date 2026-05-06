@@ -666,6 +666,7 @@ export default {
       unmute: 'Lever la quarantaine',
     },
     healRate: {
+      heading: 'Taux d\'auto-guérison',
       total: 'sélecteurs auto-guéris sur la fenêtre',
       healedOf: '{healed} runs sur {total} ont été guéris',
       confirmed: 'confirmés',

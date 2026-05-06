@@ -316,44 +316,6 @@ function formatDate(d: string | null) {
           </div>
         </div>
 
-        <!-- Story SH-6 — heal-rate KPI card -->
-        <div v-if="stats.healRate && stats.healRate.total_runs_in_window > 0" class="card heal-kpi mb-4">
-          <div class="heal-kpi__body">
-            <div class="heal-kpi__value">
-              🩹 <span class="heal-kpi__big">{{ stats.healRate.total_heals }}</span>
-              <span class="heal-kpi__label">{{ t('stats.healRate.total') }}</span>
-            </div>
-            <p class="heal-kpi__sub">
-              {{ t('stats.healRate.healedOf', {
-                healed: stats.healRate.runs_with_heals,
-                total: stats.healRate.total_runs_in_window,
-              }) }}
-            </p>
-            <div class="heal-kpi__badges">
-              <span class="heal-kpi__badge heal-kpi__badge--confirmed">
-                🩹 {{ stats.healRate.confirmed_heals }} {{ t('stats.healRate.confirmed') }}
-              </span>
-              <span
-                v-if="stats.healRate.suspect_heals > 0"
-                class="heal-kpi__badge heal-kpi__badge--suspect"
-              >
-                ⚠️ {{ stats.healRate.suspect_heals }} {{ t('stats.healRate.suspect') }}
-              </span>
-            </div>
-          </div>
-          <div class="heal-kpi__sparkline" aria-hidden="true">
-            <div
-              v-for="p in stats.healRate.trend"
-              :key="p.date"
-              class="heal-kpi__bar"
-              :title="`${p.date}: ${p.heals} (🩹 ${p.confirmed} · ⚠️ ${p.suspect})`"
-              :style="{
-                height: (p.heals === 0 ? 2 : Math.min(100, 8 + p.heals * 12)) + '%',
-              }"
-            ></div>
-          </div>
-        </div>
-
         <!-- Success Rate Trend -->
         <div class="card mb-4">
           <div class="card-header">
@@ -478,6 +440,52 @@ function formatDate(d: string | null) {
             </tbody>
           </table>
           <p v-else class="text-muted text-center p-4">{{ t('stats.noFlaky') }}</p>
+        </div>
+
+        <!-- Story SH-6 — heal-rate KPI card. Moved to the bottom of
+             the overview so it doesn't dominate the page; styled like
+             every other card (no purple accent / gradient) so it
+             reads as one of N rather than as a hero metric. -->
+        <div v-if="stats.healRate && stats.healRate.total_runs_in_window > 0" class="card heal-kpi mt-4">
+          <div class="card-header">
+            <h3>{{ t('stats.healRate.heading') }}</h3>
+          </div>
+          <div class="heal-kpi__row">
+            <div class="heal-kpi__body">
+              <div class="heal-kpi__value">
+                🩹 <span class="heal-kpi__big">{{ stats.healRate.total_heals }}</span>
+                <span class="heal-kpi__label">{{ t('stats.healRate.total') }}</span>
+              </div>
+              <p class="heal-kpi__sub">
+                {{ t('stats.healRate.healedOf', {
+                  healed: stats.healRate.runs_with_heals,
+                  total: stats.healRate.total_runs_in_window,
+                }) }}
+              </p>
+              <div class="heal-kpi__badges">
+                <span class="heal-kpi__badge heal-kpi__badge--confirmed">
+                  🩹 {{ stats.healRate.confirmed_heals }} {{ t('stats.healRate.confirmed') }}
+                </span>
+                <span
+                  v-if="stats.healRate.suspect_heals > 0"
+                  class="heal-kpi__badge heal-kpi__badge--suspect"
+                >
+                  ⚠️ {{ stats.healRate.suspect_heals }} {{ t('stats.healRate.suspect') }}
+                </span>
+              </div>
+            </div>
+            <div class="heal-kpi__sparkline" aria-hidden="true">
+              <div
+                v-for="p in stats.healRate.trend"
+                :key="p.date"
+                class="heal-kpi__bar"
+                :title="`${p.date}: ${p.heals} (🩹 ${p.confirmed} · ⚠️ ${p.suspect})`"
+                :style="{
+                  height: (p.heals === 0 ? 2 : Math.min(100, 8 + p.heals * 12)) + '%',
+                }"
+              ></div>
+            </div>
+          </div>
         </div>
       </template>
     </div>
@@ -1406,14 +1414,15 @@ function formatDate(d: string | null) {
   font-size: 12px;
 }
 
-/* Story SH-6 — heal-rate KPI card */
-.heal-kpi {
+/* Story SH-6 — heal-rate card. Neutral styling that matches the
+   other cards in StatsView (no gradient, no accent border, no
+   purple text); sits at the bottom of the overview tab as one of
+   N stats rather than as a hero metric. */
+.heal-kpi__row {
   display: flex;
   align-items: stretch;
   gap: 20px;
-  padding: 18px 22px;
-  background: linear-gradient(135deg, #faf5ff 0%, #fdf4ff 100%);
-  border-left: 4px solid #a855f7;
+  padding: 16px 20px;
 }
 .heal-kpi__body { flex: 1; }
 .heal-kpi__value {
@@ -1421,20 +1430,20 @@ function formatDate(d: string | null) {
   align-items: baseline;
   gap: 10px;
   font-size: 15px;
-  color: #6b21a8;
+  color: var(--color-text);
 }
 .heal-kpi__big {
-  font-size: 36px;
+  font-size: 32px;
   font-weight: 700;
-  color: #581c87;
+  color: var(--color-navy, #1A2D50);
 }
 .heal-kpi__label {
-  color: #7e22ce;
+  color: var(--color-text-muted);
   font-size: 13px;
 }
 .heal-kpi__sub {
   margin: 4px 0 10px;
-  color: #6b21a8;
+  color: var(--color-text-muted);
   font-size: 13px;
 }
 .heal-kpi__badges {
@@ -1463,14 +1472,15 @@ function formatDate(d: string | null) {
   min-width: 180px;
   height: 64px;
   padding: 0 4px;
-  border-left: 1px dashed rgba(168, 85, 247, 0.3);
+  border-left: 1px dashed var(--color-border);
 }
 .heal-kpi__bar {
   flex: 1;
-  background: linear-gradient(180deg, #a855f7 0%, #7e22ce 100%);
+  background: var(--color-primary, #3B7DD8);
   border-radius: 2px 2px 0 0;
   min-height: 2px;
   transition: height 0.2s ease;
+  opacity: 0.7;
 }
 
 /* Story FLAKY-1 — quarantine column + row styling */

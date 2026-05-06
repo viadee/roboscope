@@ -666,6 +666,7 @@ export default {
       unmute: 'Quitar cuarentena',
     },
     healRate: {
+      heading: 'Tasa de auto-reparación',
       total: 'selectores autoreparados en el intervalo',
       healedOf: '{healed} de {total} runs reparados',
       confirmed: 'confirmados',
