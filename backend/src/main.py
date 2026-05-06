@@ -103,6 +103,57 @@ async def lifespan(app: FastAPI):
             else:
                 logger.warning("Examples directory not found: %s", examples_dir)
 
+    # Seed "Robot Framework Examples" git project — public reference
+    # suite living at github.com/raffelino/robot-framework-examples.
+    # Covers the typical RF libraries + language concepts; first-time
+    # users get a working playground without configuring a Git URL by
+    # hand. Auto-sync is OFF by default so we don't surprise the user
+    # with background pulls; the manual Sync button still works.
+    with SessionLocal() as session:
+        from src.repos.models import Repository
+        from sqlalchemy import select
+        from src.task_executor import dispatch_task
+
+        EXAMPLES_REPO_NAME = "Robot Framework Examples"
+        EXAMPLES_REPO_URL = (
+            "https://github.com/raffelino/robot-framework-examples.git"
+        )
+        result = session.execute(
+            select(Repository).where(Repository.name == EXAMPLES_REPO_NAME)
+        )
+        if result.scalar_one_or_none() is None:
+            workspace = Path(settings.WORKSPACE_DIR)
+            workspace.mkdir(parents=True, exist_ok=True)
+            repo = Repository(
+                name=EXAMPLES_REPO_NAME,
+                repo_type="git",
+                git_url=EXAMPLES_REPO_URL,
+                default_branch="main",
+                local_path=str(workspace / "robot-framework-examples"),
+                auto_sync=False,
+                sync_interval_minutes=60,
+                pre_run_sync=False,
+                created_by=1,
+            )
+            session.add(repo)
+            session.commit()
+            logger.info(
+                "Seeded '%s' project (git): %s", EXAMPLES_REPO_NAME, EXAMPLES_REPO_URL,
+            )
+            # Kick off the initial clone in the background so the
+            # project shows up in the UI immediately and the working
+            # tree fills in within a few seconds.
+            try:
+                from src.repos.tasks import sync_repo
+                dispatch_task(sync_repo, repo.id)
+                logger.info("Dispatched initial clone for repo %d", repo.id)
+            except Exception:
+                logger.exception(
+                    "Initial clone dispatch failed for %s — user can "
+                    "click Sync manually to retry",
+                    EXAMPLES_REPO_NAME,
+                )
+
     # Reset stuck background tasks from previous runs
     with SessionLocal() as session:
         from src.environments.models import Environment, EnvironmentPackage
