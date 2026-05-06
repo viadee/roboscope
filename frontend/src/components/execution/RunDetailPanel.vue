@@ -54,14 +54,14 @@ const reportId = ref<number | null>(null)
 const loadingReport = ref(false)
 const activeTab = ref<'summary' | 'html'>('summary')
 
-/** Open the standalone /reports/<id> page in a new tab. The
- *  inline panel is space-constrained — many users want to expand
- *  the keyword tree and the AI analysis side-by-side, which only
- *  fits in a full-width view. */
+/** Open the keyword-tree pop-out — `/reports/<id>/detailed` — in a
+ *  new tab. The route uses MinimalLayout (no sidebar / header) and
+ *  renders ONLY the keyword tree so the user gets exactly the
+ *  one component they wanted to inspect, full-width. */
 function openReportInNewTab() {
   if (reportId.value == null) return
   const href = router.resolve({
-    name: 'report-detail',
+    name: 'report-detailed',
     params: { id: reportId.value },
   }).href
   window.open(href, '_blank', 'noopener,noreferrer')

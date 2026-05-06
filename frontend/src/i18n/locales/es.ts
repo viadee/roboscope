@@ -570,6 +570,7 @@ export default {
     downloadZip: 'Descargar ZIP',
     reloadReport: 'Recargar',
     openInNewTab: 'Abrir en nueva pestaña',
+    notFound: 'No se encontró ningún informe con id {id}.',
     noHtmlReport: 'No hay informe HTML disponible para esta ejecución.',
     loadingXml: 'Cargando datos XML...',
     noXmlData: 'No hay datos XML disponibles.',

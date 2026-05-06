@@ -570,6 +570,7 @@ export default {
     downloadZip: 'Download ZIP',
     reloadReport: 'Reload',
     openInNewTab: 'Open in new tab',
+    notFound: 'No report found for id {id}.',
     noHtmlReport: 'No HTML report available for this run.',
     loadingXml: 'Loading XML data...',
     noXmlData: 'No XML data available.',

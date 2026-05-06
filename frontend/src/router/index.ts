@@ -51,6 +51,15 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      // Pop-out for the keyword tree only — opened from the run
+      // detail panel via "↗ In neuem Tab öffnen". Renders without
+      // sidebar/header so the user gets a clean full-width deep view.
+      path: '/reports/:id/detailed',
+      name: 'report-detailed',
+      component: () => import('@/views/ReportDetailedView.vue'),
+      meta: { requiresAuth: true, layout: 'minimal' },
+    },
+    {
       path: '/test-history',
       name: 'test-history',
       component: () => import('@/views/TestHistoryView.vue'),
