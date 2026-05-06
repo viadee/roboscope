@@ -244,12 +244,46 @@ export function applySelectorSwap(
  * Detects whether `step.args[0]` is a value the user typed by hand
  * rather than one of the recorded selector candidates. Used to gate a
  * confirmation prompt before overwriting a custom selector during swap.
+ *
+ * Why the value-stripping: the recorder emits selectors with two
+ * decorations that are NOT mirrored in the sidecar candidate values —
+ *
+ * 1. **iframe wrapping** — events captured in an iframe get prefixed
+ *    with `iframe[src*="<host>"] >>> ` so the replay locates the
+ *    right document. The sidecar stores the inner selector
+ *    (`text="Zustimmen"`) without the iframe prefix.
+ * 2. **disambiguation suffix** — when a multi-match locator gets
+ *    `>> nth=0` appended for strict-mode safety, the sidecar may
+ *    still hold the un-disambiguated value depending on when the
+ *    snapshot was taken vs. the verifier ran.
+ *
+ * Both lived only on the emit side. Without stripping, a recorded
+ * `Click text="Zustimmen"` inside a Sourcepoint consent iframe shows
+ * up as `iframe[src*="…"] >>> text="Zustimmen"` in the .robot but
+ * `text="Zustimmen"` in the sidecar — match fails, the picker shows
+ * "eigener Wert, nicht aus der Aufzeichnung", which is wrong.
  */
+const _IFRAME_PREFIX_RE = /^iframe\[[^\]]+\]\s*>>>\s*/
+const _NTH_SUFFIX_RE = /\s*>>\s*nth=\d+\s*$/
+function _stripSelectorDecorations(value: string): string {
+  return value
+    .replace(_IFRAME_PREFIX_RE, '')
+    .replace(_NTH_SUFFIX_RE, '')
+    .trim()
+}
+
 export function isCustomSelectorValue(step: RobotStep, cmd: RecordedCommand): boolean {
   if (cmd.selector_candidates.length === 0) return false
   const current = step.args[0] ?? ''
   if (current === '') return false
-  return !cmd.selector_candidates.some((c) => c.value === current)
+  if (cmd.selector_candidates.some((c) => c.value === current)) return false
+  // Compare again after stripping iframe-wrapping + nth-disambiguation,
+  // both of which the emitter adds but the sidecar typically doesn't.
+  const stripped = _stripSelectorDecorations(current)
+  if (stripped === current) return true
+  return !cmd.selector_candidates.some(
+    (c) => _stripSelectorDecorations(c.value) === stripped,
+  )
 }
 
 // --- Layout constants ---

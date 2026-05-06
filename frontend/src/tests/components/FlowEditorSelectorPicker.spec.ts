@@ -276,4 +276,31 @@ describe('isCustomSelectorValue', () => {
     const cmd: RecordedCommand = { ...sidecar.commands[0], selector_candidates: [] }
     expect(isCustomSelectorValue(step, cmd)).toBe(false)
   })
+
+  it('returns false when args[0] is iframe-wrapped around a candidate', () => {
+    // Recordings inside an iframe (Sourcepoint consent banner etc.)
+    // get prefixed with `iframe[src*="<host>"] >>>` at emit time but
+    // the sidecar candidate stays unwrapped. The picker would
+    // otherwise wrongly flag the recorder-emitted value as "custom".
+    const step = mkStep({
+      args: ['iframe[src*="message-eu.sp-prod.net"] >>> text=Welcome'],
+    })
+    expect(isCustomSelectorValue(step, sidecar.commands[0])).toBe(false)
+  })
+
+  it('returns false when args[0] has the >> nth=0 disambiguation suffix', () => {
+    // Multi-match selectors get `>> nth=0` appended for strict-mode
+    // safety. Some sidecars retain the un-disambiguated value.
+    const step = mkStep({ args: ['text=Welcome >> nth=0'] })
+    expect(isCustomSelectorValue(step, sidecar.commands[0])).toBe(false)
+  })
+
+  it('still returns true for a genuinely typed value with iframe prefix', () => {
+    // The iframe prefix alone shouldn't make any value pass — only
+    // the inner part has to match a candidate.
+    const step = mkStep({
+      args: ['iframe[src*="example.com"] >>> #manual-id'],
+    })
+    expect(isCustomSelectorValue(step, sidecar.commands[0])).toBe(true)
+  })
 })

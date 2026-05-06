@@ -529,12 +529,34 @@ def get_report_asset(
         base_tag = (
             f'<base href="/api/v1/reports/{report_id}/assets/?at={fresh_token}">'
         )
+        # Robot's report.html uses fragment-only links like
+        # `<a href="#totals">`. With our base href those resolve to
+        # `<base>/?at=…#totals` — the asset endpoint receives an empty
+        # file_path and 404s ("File not found"). Intercept clicks on
+        # fragment-only anchors and just update window.location.hash
+        # so the browser scrolls without re-fetching the directory.
+        fragment_fix_script = (
+            "<script>"
+            "document.addEventListener('click',function(e){"
+            "var a=e.target&&e.target.closest&&e.target.closest('a[href^=\"#\"]');"
+            "if(a){"
+            "var hash=a.getAttribute('href');"
+            "if(hash&&hash!=='#'){"
+            "e.preventDefault();"
+            "if(typeof a.onclick==='function')a.onclick(e);"
+            "window.location.hash=hash.substring(1);"
+            "}"
+            "}"
+            "});"
+            "</script>"
+        )
+        injected = base_tag + fragment_fix_script
         if "<head>" in html_content:
-            html_content = html_content.replace("<head>", f"<head>{base_tag}", 1)
+            html_content = html_content.replace("<head>", f"<head>{injected}", 1)
         elif "<HEAD>" in html_content:
-            html_content = html_content.replace("<HEAD>", f"<HEAD>{base_tag}", 1)
+            html_content = html_content.replace("<HEAD>", f"<HEAD>{injected}", 1)
         else:
-            html_content = base_tag + html_content
+            html_content = injected + html_content
         return Response(content=html_content, media_type="text/html")
 
     return FileResponse(str(requested_path), media_type=media_type)
