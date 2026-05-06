@@ -545,6 +545,19 @@ function parseRobotToForm(content: string): boolean {
           }
           continue
         }
+        // Continuation `...` — fold into the previous setting's
+        // value (newline-separated for Documentation; space-separated
+        // would also be valid but newlines preserve readability in
+        // the textarea). Without this, a multi-line `Documentation`
+        // produced N rows with `...` as the key.
+        if (trimmed.startsWith('...')) {
+          const cont = trimmed.slice(3).trim()
+          const last = newForm.settings[newForm.settings.length - 1]
+          if (last && last.key !== '#') {
+            last.value = last.value ? `${last.value}\n${cont}` : cont
+          }
+          continue
+        }
         const parts = trimmed.split(/  +|\t+/).filter(p => p !== '')
         if (parts.length >= 1) {
           newForm.settings.push({ key: parts[0], value: parts[1] || '', args: parts.slice(2) })
@@ -556,6 +569,15 @@ function parseRobotToForm(content: string): boolean {
         if (!trimmed || trimmed.startsWith('#')) {
           if (trimmed.startsWith('#')) {
             newForm.variables.push({ name: '#', value: trimmed })
+          }
+          continue
+        }
+        // Continuation: append to the previous variable's value.
+        if (trimmed.startsWith('...')) {
+          const cont = trimmed.slice(3).trim()
+          const last = newForm.variables[newForm.variables.length - 1]
+          if (last && last.name !== '#') {
+            last.value = last.value ? `${last.value}${SEP}${cont}` : cont
           }
           continue
         }
@@ -727,6 +749,35 @@ async function lazyLoadKeywordArgs() {
   }
 }
 
+/**
+ * Multi-line settings (`[Documentation]`, `[Tags]`, …) parse with the
+ * `...` continuation marker — each successive `...` line concatenates
+ * its cells onto the parent setting. Our parser folds those into one
+ * string with `\n` separators (so the form-edit textarea is sane). At
+ * serialize time we MUST reverse the fold: dump the first line after
+ * the setting tag, then emit each remaining line as a `...` row.
+ *
+ * Without this, a multi-line `[Documentation]` got crammed into a
+ * single output line containing literal `\n` characters. RF's lexer
+ * sees those newlines as line breaks and treats every continuation
+ * line as a NEW test case header at column 0 — the original test
+ * loses all of its body and disappears on the next reload.
+ *
+ * Edge cases:
+ *   - Empty string → emit nothing (caller already guards on truthy).
+ *   - Single line → just `[setting]    line` (no continuation).
+ *   - Multi-line → `[setting]    line0` followed by `...    lineN`.
+ */
+function emitMultilineSetting(tag: string, value: string): string[] {
+  const parts = value.split('\n')
+  const out: string[] = []
+  out.push(SEP + tag + SEP + parts[0])
+  for (let i = 1; i < parts.length; i++) {
+    out.push(SEP + '...' + SEP + parts[i])
+  }
+  return out
+}
+
 // --- Main Serializer ---
 function serializeFormToRobot(): string {
   const lines: string[] = []
@@ -738,6 +789,22 @@ function serializeFormToRobot(): string {
     lines.push('*** Settings ***')
     for (const s of form.settings) {
       if (s.key === '#') { lines.push(s.value); continue }
+      // Settings whose value contains literal `\n` (typically
+      // Documentation continued across multiple `...` lines on disk)
+      // need to be split back out — see emitMultilineSetting() in
+      // the test-case path. Without this, the saved file ends up
+      // with raw newlines mid-cell and RF re-parses each
+      // continuation line as a new top-level setting.
+      if (s.value && s.value.includes('\n')) {
+        const parts = s.value.split('\n')
+        let firstLine = s.key + SEP + parts[0]
+        for (const a of s.args) firstLine += SEP + a
+        lines.push(firstLine)
+        for (let i = 1; i < parts.length; i++) {
+          lines.push('...' + SEP + parts[i])
+        }
+        continue
+      }
       let line = s.key
       if (s.value) line += SEP + s.value
       for (const a of s.args) line += SEP + a
@@ -768,7 +835,7 @@ function serializeFormToRobot(): string {
       // round-trip after a save → file-switch → reload cycle.
       const tcName = tc.name.trim() || `Test Case ${tcIdx + 1}`
       lines.push(tcName)
-      if (tc.documentation) lines.push(SEP + '[Documentation]' + SEP + tc.documentation)
+      if (tc.documentation) lines.push(...emitMultilineSetting('[Documentation]', tc.documentation))
       if (tc.tags.length > 0) lines.push(SEP + '[Tags]' + SEP + tc.tags.join(SEP))
       if (tc.setup) lines.push(SEP + '[Setup]' + SEP + tc.setup)
       if (tc.teardown) lines.push(SEP + '[Teardown]' + SEP + tc.teardown)
@@ -790,7 +857,7 @@ function serializeFormToRobot(): string {
       const kwName = kw.name.trim() || `Keyword ${kwIdx + 1}`
       lines.push(kwName)
       if (kw.arguments.length) lines.push(SEP + '[Arguments]' + SEP + kw.arguments.join(SEP))
-      if (kw.documentation) lines.push(SEP + '[Documentation]' + SEP + kw.documentation)
+      if (kw.documentation) lines.push(...emitMultilineSetting('[Documentation]', kw.documentation))
       if (kw.tags.length > 0) lines.push(SEP + '[Tags]' + SEP + kw.tags.join(SEP))
       if (kw.setup) lines.push(SEP + '[Setup]' + SEP + kw.setup)
       if (kw.teardown) lines.push(SEP + '[Teardown]' + SEP + kw.teardown)
@@ -816,10 +883,14 @@ function switchTab(tab: 'visual' | 'flow' | 'code') {
     parseError.value = null
     nextTick(() => initCodeEditor())
   } else {
-    // Switching to visual or flow — parse from code editor if coming from code tab
+    // Switching to visual or flow — parse from code editor if coming
+    // from code tab. Previously a parse failure silently rejected the
+    // tab switch and stranded the user on Code; better to switch
+    // anyway and let the parse-error banner explain the problem so
+    // the user knows WHY the visual / flow view is empty.
     if (activeTab.value === 'code') {
       const currentCode = getCodeEditorContent()
-      if (!parseRobotToForm(currentCode)) return
+      parseRobotToForm(currentCode)
       destroyCodeEditor()
     }
     activeTab.value = tab
