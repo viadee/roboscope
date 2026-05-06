@@ -2011,11 +2011,16 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   position: relative;
 }
 
-/* Editable detail panel */
+/* Editable detail panel — pinned to the right of the canvas, full
+   height minus a 12px gutter top/bottom so the user can see the
+   full form without an inner scrollbar that competed with the
+   browser scroll. The previous max-height: 80% capped it at ~4/5
+   of the canvas which forced internal scrolling on tall forms. */
 .flow-detail-panel {
   position: absolute;
   top: 12px;
   right: 12px;
+  bottom: 12px;
   width: 300px;
   background: #fff;
   border: 1px solid var(--color-border, #e2e8f0);
@@ -2023,7 +2028,6 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   padding: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   z-index: 10;
-  max-height: 80%;
   overflow-y: auto;
 }
 .flow-detail-header {
