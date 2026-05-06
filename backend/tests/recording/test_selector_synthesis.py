@@ -266,3 +266,139 @@ class TestQualityFloor:
         assert len(cands) == 1
         assert cands[0].strategy == "xpath"
         assert cands[0].quality_score == 25
+
+
+class TestParentContextCss:
+    """Strict-mode multi-match prevention via parent-scoped CSS.
+
+    A bare `button.submit-btn` matches every submit button on the
+    page. The synthesis layer now also emits `#nav-main button.submit-btn`
+    when an ancestor has a stable id, which usually disambiguates
+    without resorting to nth-match positional indexing.
+    """
+
+    def test_stable_ancestor_id_yields_parent_scoped_css(self) -> None:
+        cands = synthesise_selectors(
+            _snap(
+                attributes={"class": "submit-btn"},
+                ancestors=[
+                    AncestorRef(tag="form", attributes={"id": "checkout-form"}),
+                    AncestorRef(tag="div", attributes={}),
+                ],
+            )
+        )
+        css = [c for c in cands if c.strategy == "css"]
+        assert any('#checkout-form button.submit-btn' == c.value for c in css)
+
+    def test_stable_ancestor_testid_yields_parent_scoped_css(self) -> None:
+        cands = synthesise_selectors(
+            _snap(
+                attributes={"class": "row-action"},
+                ancestors=[
+                    AncestorRef(
+                        tag="section",
+                        attributes={"data-testid": "user-list"},
+                    ),
+                ],
+            )
+        )
+        css = [c for c in cands if c.strategy == "css"]
+        assert any('[data-testid="user-list"] button.row-action' == c.value for c in css)
+
+    def test_no_stable_ancestor_no_parent_scope(self) -> None:
+        """Plain ancestors with autogen ids leave no parent-context candidate."""
+        cands = synthesise_selectors(
+            _snap(
+                attributes={"class": "submit-btn"},
+                ancestors=[
+                    AncestorRef(tag="div", attributes={"id": "K8aB9cD1eF2gH3iJ4kL5m"}),
+                ],
+            )
+        )
+        # Only the bare `button.submit-btn` (and absolute xpath) remain.
+        css = [c for c in cands if c.strategy == "css"]
+        for c in css:
+            assert ' ' not in c.value or c.value.startswith('button.')
+
+
+class TestShadowDom:
+    """Shadow-DOM aware selectors via the `_shadow_chain` strategy.
+
+    When the captured element lives in an open shadow root we emit
+    a Playwright-chained `<host>` >> `<inner>` candidate so the
+    selector explicitly pierces the boundary. Browser library
+    accepts the `>>` syntax verbatim; relying on Playwright's
+    implicit shadow piercing alone leaves the recording fragile to
+    different selector engines.
+    """
+
+    def test_shadow_chain_emitted_when_in_shadow_dom(self) -> None:
+        cands = synthesise_selectors(
+            _snap(
+                attributes={"class": "edit-icon"},
+                aria_name="Edit profile",
+                in_shadow_dom=True,
+                ancestors=[
+                    AncestorRef(
+                        tag="profile-card",
+                        attributes={"id": "card-42"},
+                        is_shadow_host=True,
+                    ),
+                    AncestorRef(tag="body", attributes={}),
+                ],
+            )
+        )
+        chained = [c for c in cands if c.strategy == "css" and " >> " in c.value]
+        assert len(chained) >= 1
+        # Host selector pins the shadow boundary; inner selector
+        # disambiguates within it.
+        assert any(c.value.startswith("#card-42 >> ") for c in chained)
+
+    def test_no_shadow_chain_when_not_in_shadow_dom(self) -> None:
+        cands = synthesise_selectors(
+            _snap(
+                attributes={"class": "btn"},
+                in_shadow_dom=False,
+                ancestors=[AncestorRef(tag="div", attributes={"id": "main"})],
+            )
+        )
+        chained = [c for c in cands if c.strategy == "css" and " >> " in c.value]
+        assert chained == []
+
+    def test_shadow_chain_uses_testid_inner_when_available(self) -> None:
+        cands = synthesise_selectors(
+            _snap(
+                attributes={"data-testid": "save-btn"},
+                in_shadow_dom=True,
+                ancestors=[
+                    AncestorRef(
+                        tag="my-dialog",
+                        attributes={"data-testid": "settings-dialog"},
+                        is_shadow_host=True,
+                    ),
+                ],
+            )
+        )
+        chained = [c for c in cands if c.strategy == "css" and " >> " in c.value]
+        assert any(
+            c.value == '[data-testid="settings-dialog"] >> [data-testid="save-btn"]'
+            for c in chained
+        )
+
+    def test_shadow_chain_handles_no_stable_host_attrs(self) -> None:
+        """Shadow host with only a tag still emits a chain (weak but useful)."""
+        cands = synthesise_selectors(
+            _snap(
+                attributes={"id": "real-btn"},
+                in_shadow_dom=True,
+                ancestors=[
+                    AncestorRef(
+                        tag="custom-card",
+                        attributes={},
+                        is_shadow_host=True,
+                    ),
+                ],
+            )
+        )
+        chained = [c for c in cands if c.strategy == "css" and " >> " in c.value]
+        assert any(c.value == "custom-card >> #real-btn" for c in chained)

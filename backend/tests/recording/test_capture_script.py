@@ -84,3 +84,38 @@ class TestHelperFunction:
         a = capture_script_for_session(1)
         b = capture_script_for_session(42)
         assert a == b == CAPTURE_SCRIPT
+
+
+class TestShadowDomAwareness:
+    """Pin the surface contract for shadow-DOM aware capture.
+
+    The actual runtime behaviour belongs in a Playwright e2e test;
+    here we just make sure the wiring stays in place — every event
+    handler must use the retargeted `realTarget(ev)` and the
+    snapshot must record the per-ancestor + element-level shadow
+    flags that the synthesis layer reads."""
+
+    def test_real_target_helper_defined(self) -> None:
+        # The retargeting helper is the gateway for all event paths.
+        # If it's renamed or removed this test fires immediately.
+        assert "function realTarget(" in CAPTURE_SCRIPT
+        assert "composedPath" in CAPTURE_SCRIPT
+
+    def test_click_uses_real_target(self) -> None:
+        # Bare `ev.target` for a click inside an open shadow root
+        # surfaces the host, not the inner element. Every click
+        # listener must go through `realTarget(ev)` instead.
+        assert "snapshot(realTarget(ev))" in CAPTURE_SCRIPT
+
+    def test_cross_shadow_walker_defined(self) -> None:
+        # The ancestor walk has to jump from a node whose
+        # `parentElement` is null to its shadow host so the chain
+        # crosses the boundary. `crossShadow(el)` is the helper.
+        assert "function crossShadow(" in CAPTURE_SCRIPT
+        assert "ShadowRoot" in CAPTURE_SCRIPT
+
+    def test_snapshot_emits_shadow_flags(self) -> None:
+        # Per-ancestor + element-level flags so the synthesis layer
+        # knows when to emit a `host >> inner` chained selector.
+        assert "is_shadow_host" in CAPTURE_SCRIPT
+        assert "in_shadow_dom" in CAPTURE_SCRIPT

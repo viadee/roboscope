@@ -29,7 +29,15 @@ def _element_from_payload(raw: dict[str, Any] | None) -> ElementSnapshot | None:
     if not raw:
         return None
     ancestors = [
-        AncestorRef(tag=a.get("tag", ""), attributes=dict(a.get("attributes") or {}))
+        AncestorRef(
+            tag=a.get("tag", ""),
+            attributes=dict(a.get("attributes") or {}),
+            # SHADOW-DOM — propagate the per-ancestor flag so synthesis
+            # can pin the chained-locator host. Defaults to False so
+            # snapshots from older capture scripts (no flag) keep
+            # working; new captures opt in via the boolean.
+            is_shadow_host=bool(a.get("is_shadow_host", False)),
+        )
         for a in (raw.get("ancestors") or [])
     ]
     return ElementSnapshot(
@@ -39,6 +47,7 @@ def _element_from_payload(raw: dict[str, Any] | None) -> ElementSnapshot | None:
         aria_role=raw.get("aria_role"),
         aria_name=raw.get("aria_name"),
         ancestors=ancestors,
+        in_shadow_dom=bool(raw.get("in_shadow_dom", False)),
     )
 
 

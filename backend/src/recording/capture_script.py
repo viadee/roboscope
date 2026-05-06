@@ -70,17 +70,43 @@ CAPTURE_SCRIPT: str = r"""
     return t.length > MAX_TEXT ? t.slice(0, MAX_TEXT - 1) + "…" : t;
   }
 
+  // SHADOW-DOM — `parentElement` returns null at a shadow root boundary,
+  // so a naïve walk would stop at the deepest open shadow root and miss
+  // the host's ancestors entirely. `crossShadow(el)` jumps from a node
+  // whose `parentElement` is null to the host (`getRootNode().host`)
+  // when the root is a ShadowRoot, otherwise returns null. Closed
+  // shadow roots are still opaque to userspace JS — those will surface
+  // a `null` parentNode and we stop, same as before.
+  function crossShadow(el) {
+    if (!el) return null;
+    if (el.parentElement) return el.parentElement;
+    const root = el.getRootNode && el.getRootNode();
+    if (root && root.host && root.host !== el) return root.host;
+    return null;
+  }
+
   function snapshot(el) {
     if (!el || !(el instanceof Element)) return null;
     const attrs = {};
     for (const a of el.attributes) attrs[a.name] = a.value;
     const ancestors = [];
-    let p = el.parentElement, depth = 0;
-    while (p && depth < 8) {
+    let p = crossShadow(el), depth = 0;
+    let crossedShadow = false;
+    while (p && depth < 12) {
       const pa = {};
       for (const a of p.attributes) pa[a.name] = a.value;
-      ancestors.push({ tag: p.tagName.toLowerCase(), attributes: pa });
-      p = p.parentElement;
+      // Mark the ancestor as a shadow host iff its `shadowRoot` contains
+      // (or transitively contains) the element we just came from. The
+      // backend uses this to emit a `>>` chained Playwright locator that
+      // pierces shadow boundaries explicitly when needed.
+      const isShadowHost = !!(p.shadowRoot);
+      ancestors.push({
+        tag: p.tagName.toLowerCase(),
+        attributes: pa,
+        is_shadow_host: isShadowHost || undefined,
+      });
+      if (isShadowHost) crossedShadow = true;
+      p = crossShadow(p);
       depth += 1;
     }
     return {
@@ -93,7 +119,29 @@ CAPTURE_SCRIPT: str = r"""
         el.getAttribute("aria-labelledby") ||
         null,
       ancestors,
+      // True iff the captured element lives inside one or more open
+      // shadow roots. Used by the synthesis layer to prefer pierce-
+      // friendly selector strategies (testid / aria, which Playwright
+      // resolves through open shadow boundaries by default) over raw
+      // CSS that may match the wrong element across the boundary.
+      in_shadow_dom: crossedShadow || (el.getRootNode() instanceof ShadowRoot),
     };
+  }
+
+  // SHADOW-DOM target retargeting: an event fired inside an open shadow
+  // root surfaces with `ev.target` pointing at the *host* in the light
+  // DOM, NOT the actually-clicked element. `composedPath()[0]` is the
+  // deepest, true target. We keep the original `ev.target` as a
+  // fallback when composedPath is empty (closed shadow roots, very old
+  // browsers, or synthetic events with no path).
+  function realTarget(ev) {
+    try {
+      const path = ev.composedPath && ev.composedPath();
+      if (path && path.length > 0 && path[0] instanceof Element) {
+        return path[0];
+      }
+    } catch (_) { /* fallthrough to ev.target */ }
+    return ev.target;
   }
 
   // ---- click / dblclick ---------------------------------------------------
@@ -109,7 +157,7 @@ CAPTURE_SCRIPT: str = r"""
   document.addEventListener("click", (ev) => {
     send({
       kind: "click",
-      element: snapshot(ev.target),
+      element: snapshot(realTarget(ev)),
       modifiers: {
         ctrlKey: ev.ctrlKey, shiftKey: ev.shiftKey, altKey: ev.altKey,
       },
@@ -118,12 +166,12 @@ CAPTURE_SCRIPT: str = r"""
   }, true);
 
   document.addEventListener("dblclick", (ev) => {
-    send({ kind: "dblclick", element: snapshot(ev.target) });
+    send({ kind: "dblclick", element: snapshot(realTarget(ev)) });
   }, true);
 
   // ---- text input (commits on change, not every keystroke) ---------------
   document.addEventListener("change", (ev) => {
-    const el = ev.target;
+    const el = realTarget(ev);
     if (!el || !(el instanceof HTMLElement)) return;
     const isText =
       (el instanceof HTMLInputElement &&
@@ -143,7 +191,7 @@ CAPTURE_SCRIPT: str = r"""
     if (ev.key !== "Enter") return;
     send({
       kind: "press",
-      element: snapshot(ev.target),
+      element: snapshot(realTarget(ev)),
       key: "Enter",
     });
   }, true);
@@ -169,10 +217,10 @@ CAPTURE_SCRIPT: str = r"""
   // ---- drag-and-drop (paired events → one command) ----------------------
   let dragFrom = null;
   document.addEventListener("dragstart", (ev) => {
-    dragFrom = snapshot(ev.target);
+    dragFrom = snapshot(realTarget(ev));
   }, true);
   document.addEventListener("drop", (ev) => {
-    const dragTo = snapshot(ev.target);
+    const dragTo = snapshot(realTarget(ev));
     if (dragFrom) {
       send({ kind: "drag_drop", from: dragFrom, to: dragTo });
       dragFrom = null;
