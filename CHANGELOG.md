@@ -2,7 +2,137 @@
 
 ## [Unreleased]
 
-Work in progress on `feat/recorder-and-bmad` branch.
+## [0.9.0] — 2026-05-06
+
+Headline: a substantial round of UX polish + stabilization driven
+by hands-on user testing — Flow Editor, Recorder, Reports, Repos
+and Dashboard all touched.
+
+### Dashboard rebuild
+
+The landing page is now a card grid pointing into every navigable
+section of the app (Repos, Explorer, Runs, Stats, Recorder,
+Environments, Docs, Settings) plus a "Tip of the day" card that
+rotates through 30 RoboScope-specific tips daily. The previous
+KPIs / recent-runs / repo-grid layout is retired — KPIs and
+recent-runs live under their dedicated views (Stats, Runs).
+
+### Default "Robot Framework Examples" git project
+
+First-time users get a ready-to-use reference suite seeded on
+startup: <https://github.com/raffelino/robot-framework-examples>
+— public repo, Apache-2.0, 61 headless tests covering BuiltIn,
+Collections, String, DateTime, OperatingSystem, Process,
+RequestsLibrary, Browser (headless), DatabaseLibrary plus
+control-flow + templates + setup/teardown + variables-file +
+custom-library concepts. Auto-sync is off by default; manual sync
+button still works.
+
+### Recorder — visibility-aware selector verification
+
+The Story S.3 verifier evolved beyond uniqueness:
+
+- `LocatorFactory` now returns `MatchInfo(total, visible, actionable)`
+  rather than a plain count. Playwright resolves each candidate's
+  visibility + enabled state in one `evaluate_all` round-trip per
+  candidate (was N×2 RPC calls before — pushed e2e budgets past
+  30 s).
+- Candidates rank by `actionable_rank` (0 = gold, 1 = visible-only,
+  2 = hidden, 3 = unverified-multi) then quality_score — gold
+  candidates always sort before disambiguated multi-match ones.
+- Penalty schedule: visible-but-disabled −5; total ≥ 1 visible 0
+  −25 (kept as fallback for auto-heal but always loses to a
+  visible alternative).
+- Page-level scrolls (no element captured) are dropped — Browser
+  library's `Scroll To Element` requires a selector and crashed
+  replay with "expected 1 argument, got 0".
+- Targeted-keyword-without-selector lines are now emitted as pure
+  RF comments (`# RBSCOPE: dropped …`) instead of
+  `<Keyword>    # WARNING:` (which RF parsed as a zero-arg call
+  and crashed at replay).
+
+### Reports — clickable HTML report + Detailbericht merge
+
+- Run-Detail panel and standalone `/reports/<id>` view now ship
+  the keyword tree (formerly the "Detailbericht" tab) inside the
+  summary tab so the deep view is one scroll away rather than a
+  tab click. HTML Report keeps its own tab.
+- The HTML report's iframe loads from
+  `/api/v1/reports/{id}/assets/report.html?at=<token>` (302 from
+  the legacy `/html` endpoint) so JS-driven navigation
+  (`location.href = "log.html#xxx"`) lands at the right path.
+- HTML files served by the asset endpoint get a `<base href>`
+  injection carrying a freshly minted asset token + a
+  fragment-fix script for `<a href="#…">` clicks. Clicking on a
+  test row now opens its log, no more "authentication required".
+- Two new "↗ open in new tab" affordances: one on the
+  Detailbericht header (opens `/reports/<id>/detailed`, a minimal
+  layout that renders ONLY the keyword tree), one on the HTML
+  Report tab (pops the iframe URL out).
+
+### Repos — UX and stability
+
+- Clicking a repo name or URL/path in the Repos card now jumps
+  straight into the Explorer for that project.
+- New `(i)` info pills next to Sync / Auto-Sync / Pre-Run-Sync
+  with click-toggle popovers explaining each term.
+- Auto-recovery for stale `sync_status='syncing'` rows: the
+  5-min auto-sync tick now scans for rows with
+  `updated_at < now − 10 min` and resets them to `error` with a
+  clear message so the user is no longer stuck waiting for a
+  backend restart.
+
+### Flow Editor — many small fixes
+
+- Backspace (Mac) / Delete (Win/Linux) on a selected node deletes
+  it.
+- Library palette categories sort by usage in the current file —
+  the libs you use most bubble to the top.
+- Project: category for the currently-open file is pinned to the
+  top of the palette and badged "this file".
+- Switching files auto-collapses the palette; explorer keyword
+  refresh re-collapses too — palette always opens condensed.
+- Selected element gets a thicker primary-color outline + halo +
+  10 % tint background.
+- "+" palette add inserts directly after the selected node, not
+  at the bottom.
+- Adding the first return-variable to a `keyword` step
+  auto-promotes it to `assignment` syntax (`${var}=  Keyword …`);
+  removing the last var flips it back.
+- Detail panel spans the full canvas height; left-edge resizer
+  lets the user widen it for keywords with many arguments.
+- Library auto-imports trigger after save (not before), and the
+  RF-bundled set (Collections, String, DateTime, …) is no longer
+  filtered from libdoc introspection — explicitly imported
+  bundled libs now show their full keyword surface, not the
+  curated 10-keyword "(examples)" subset.
+- Keyword doc modal renders libdoc HTML output directly; doc cap
+  raised from 200 → 4000 chars; `doc_format` field now flows
+  through search-keywords schema → router → store → modal.
+
+### Code Editor
+
+- `\#` is now treated as a single escape token; the inline
+  comment regex no longer eats the rest of the line after a
+  backslashed hash.
+
+### Stats / Heal-rate
+
+- Heal-rate KPI card moved from the top of Overview to the bottom
+  (under Flaky Tests). Lila gradient and accent border replaced
+  with the standard card chrome — the card reads as one of N
+  stats rather than a hero metric.
+
+### Navigation
+
+- Identity Providers and Teams entries are marked `preview` in
+  the sidebar (small accent pill) — features are still in active
+  development.
+
+---
+
+Older work that landed during the same release window
+(`feat/recorder-and-bmad` branch) follows.
 
 ### Recorder quality (loop session 2026-04-29 evening)
 
