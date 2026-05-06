@@ -1403,13 +1403,13 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
           @pane-click="onPaneClick"
         >
           <template #node-keyword="nodeProps">
-            <KeywordNode v-bind="nodeProps" :reorder-enabled="true" @reorder-drag-start="onNodeDragHandleStart($event, nodeProps.id)" />
+            <KeywordNode v-bind="nodeProps" :reorder-enabled="true" :selected="selectedNode?.id === nodeProps.id" @reorder-drag-start="onNodeDragHandleStart($event, nodeProps.id)" />
           </template>
           <template #node-assignment="nodeProps">
-            <KeywordNode v-bind="nodeProps" :reorder-enabled="true" @reorder-drag-start="onNodeDragHandleStart($event, nodeProps.id)" />
+            <KeywordNode v-bind="nodeProps" :reorder-enabled="true" :selected="selectedNode?.id === nodeProps.id" @reorder-drag-start="onNodeDragHandleStart($event, nodeProps.id)" />
           </template>
           <template #node-control="nodeProps">
-            <ControlNode v-bind="nodeProps" :reorder-enabled="true" @reorder-drag-start="onNodeDragHandleStart($event, nodeProps.id)" />
+            <ControlNode v-bind="nodeProps" :reorder-enabled="true" :selected="selectedNode?.id === nodeProps.id" @reorder-drag-start="onNodeDragHandleStart($event, nodeProps.id)" />
           </template>
           <template #node-control-frame="nodeProps">
             <ControlGroupNode v-bind="nodeProps" />
@@ -1417,7 +1417,7 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
           <template #node-start="nodeProps"><StartEndNode v-bind="nodeProps" type="start" /></template>
           <template #node-end="nodeProps"><StartEndNode v-bind="nodeProps" type="end" /></template>
           <template #node-comment="nodeProps">
-            <div class="flow-node-comment">
+            <div class="flow-node-comment" :class="{ 'flow-node--selected': selectedNode?.id === nodeProps.id }">
               <div
                 class="flow-drag-handle"
                 draggable="true"
@@ -1428,7 +1428,7 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
             </div>
           </template>
           <template #node-flow-control="nodeProps">
-            <div class="flow-node-flowctrl">
+            <div class="flow-node-flowctrl" :class="{ 'flow-node--selected': selectedNode?.id === nodeProps.id }">
               <div
                 class="flow-drag-handle"
                 draggable="true"
@@ -2302,6 +2302,19 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* Selected-node highlight — applied on the inline comment / flow-
+   control templates as well as bound through the `selected` prop on
+   KeywordNode / ControlNode (their scoped styles mirror this rule).
+   Thicker outline + slight primary-color tint so the active node
+   reads at a glance against the canvas. */
+.flow-node-comment.flow-node--selected,
+.flow-node-flowctrl.flow-node--selected {
+  outline: 3px solid var(--color-primary, #3B7DD8);
+  outline-offset: 2px;
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 10%, var(--color-bg-card, #fff));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary, #3B7DD8) 18%, transparent);
 }
 
 /* Drag handle on nodes */

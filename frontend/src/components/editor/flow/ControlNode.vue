@@ -7,6 +7,10 @@ import type { FlowNodeData } from './flowConverter'
 const props = defineProps<{
   data: FlowNodeData
   reorderEnabled?: boolean
+  /** Set by the parent FlowEditor when the user has clicked this
+   *  node — paints the thicker outline + primary tint so the
+   *  active node reads at a glance against the canvas. */
+  selected?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -66,6 +70,7 @@ const iconMap: Record<string, string> = {
 <template>
   <div
     class="flow-node flow-node-control"
+    :class="{ 'flow-node--selected': selected }"
     :style="{ borderColor: colorMap[data.stepType] || '#888' }"
   >
     <Handle type="target" :position="Position.Top" />
@@ -112,6 +117,15 @@ const iconMap: Record<string, string> = {
   background: #FFFBF0;
   border: 2px solid #E8A838;
   border-style: dashed;
+}
+/* Selected-node highlight — outline + tint, mirrors KeywordNode and
+   the inline comment/flow-control nodes in FlowEditor.vue. */
+.flow-node--selected {
+  outline: 3px solid var(--color-primary, #3B7DD8);
+  outline-offset: 2px;
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 10%, #FFFBF0);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary, #3B7DD8) 18%, transparent),
+              0 2px 6px rgba(0, 0, 0, 0.1);
 }
 .flow-node-header {
   display: flex;

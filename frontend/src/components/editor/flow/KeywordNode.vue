@@ -11,6 +11,10 @@ import type { FlowNodeData } from './flowConverter'
 const props = defineProps<{
   data: FlowNodeData
   reorderEnabled?: boolean
+  /** Set by the parent FlowEditor when the user has clicked this
+   *  node — paints the thicker outline + primary tint so the
+   *  active node reads at a glance against the canvas. */
+  selected?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -97,7 +101,7 @@ const candidateTooltip = computed(() =>
 </script>
 
 <template>
-  <div class="flow-node flow-node-keyword">
+  <div class="flow-node flow-node-keyword" :class="{ 'flow-node--selected': selected }">
     <Handle type="target" :position="Position.Top" />
     <div class="flow-node-header">
       <div
@@ -166,6 +170,16 @@ const candidateTooltip = computed(() =>
 .flow-node-keyword {
   background: #fff;
   border: 2px solid var(--color-primary, #3B7DD8);
+}
+/* Selected-node highlight — outline + tint so the active node
+   stands out from the others. Mirrors the rule on inline
+   comment / flow-control nodes inside FlowEditor.vue. */
+.flow-node--selected {
+  outline: 3px solid var(--color-primary, #3B7DD8);
+  outline-offset: 2px;
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 10%, var(--color-bg-card, #fff));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary, #3B7DD8) 18%, transparent),
+              0 2px 6px rgba(0, 0, 0, 0.1);
 }
 .flow-node-header {
   display: flex;
