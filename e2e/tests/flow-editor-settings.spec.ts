@@ -176,4 +176,55 @@ test.describe('Flow Editor — [...] settings as side notes', () => {
     // Documentation IS attached too — that affordance is also hidden.
     await expect(page.locator('[data-testid="flow-add-documentation"]')).toHaveCount(0);
   });
+
+  test('typing into a side-note input keeps the detail panel open (no draft → form leak)', async ({ page }) => {
+    // Regression: previously the v-model on `settingTextModel`
+    // wrote to props.form on every keystroke, firing the deep
+    // watcher and clearing `selectedNode`. The detail panel closed
+    // after one character. Fix uses a local `settingDraft` ref
+    // committed only on blur.
+    await openFlowEditor(page, repoId);
+
+    // Click the [Documentation] side note — panel opens.
+    await page.locator('.vue-flow__node[data-id="tc0-documentation"]').click();
+    await page.waitForTimeout(300);
+
+    const textarea = page.locator('.flow-detail-panel textarea');
+    await expect(textarea).toBeVisible({ timeout: 4_000 });
+
+    // Type a five-character string. If the deep-watcher tear-down
+    // regression returned, the textarea would unmount on the very
+    // first character and the next `.fill` would fail.
+    await textarea.fill('Hello');
+
+    // Panel still visible mid-edit.
+    await expect(textarea).toBeVisible();
+    await expect(textarea).toHaveValue('Hello');
+  });
+
+  test('typing into a [Tags] input keeps the panel open and commits on blur', async ({ page }) => {
+    await openFlowEditor(page, repoId);
+
+    // Click the [Tags] side note.
+    await page.locator('.vue-flow__node[data-id="tc0-tags"]').click();
+    await page.waitForTimeout(300);
+
+    const tagsInput = page.locator('.flow-detail-panel input[type="text"]');
+    await expect(tagsInput).toBeVisible({ timeout: 4_000 });
+
+    // Replace whatever was there with a fresh comma-separated list.
+    await tagsInput.fill('alpha, beta, gamma');
+    // Mid-edit panel survival.
+    await expect(tagsInput).toBeVisible();
+    await expect(tagsInput).toHaveValue('alpha, beta, gamma');
+
+    // Blur commits the draft back to the form. The side-note text
+    // updates to reflect the new value (also mid-test sanity check
+    // that parseListInput did its job — three comma-separated tags).
+    await tagsInput.blur();
+    await page.waitForTimeout(400);
+    await expect(
+      page.locator('.vue-flow__node[data-id="tc0-tags"]')
+    ).toContainText('alpha, beta, gamma');
+  });
 });
