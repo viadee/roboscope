@@ -62,18 +62,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v5
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
+      - name: Install backend deps
+        run: cd backend && uv pip install --system -e ".[dev]"
       - name: Install frontend + e2e deps
         run: |
           cd frontend && npm ci
           cd ../e2e && npm ci
           npx playwright install --with-deps chromium
-      - name: Build frontend
-        run: cd frontend && npm run build
+      # `phase4-accessibility.spec.ts` hits Login / SsoError /
+      # FirstLogin via `page.goto('http://localhost:5173/...')`, so
+      # both servers must be running. Background-start the same way
+      # `e2e.yml` does, then poll until ready.
+      - name: Start backend server
+        env:
+          SECRET_KEY: ci-test-secret-key-not-for-production
+        run: |
+          cd backend
+          python -m uvicorn src.main:app --host 127.0.0.1 --port 8000 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/health && echo "Backend ready" && break || sleep 1
+          done
+      - name: Start frontend dev server
+        run: |
+          cd frontend
+          npm run dev &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:5173 && echo "Frontend ready" && break || sleep 1
+          done
       - name: Run Phase 4 axe specs
         run: cd e2e && npx playwright test phase4-accessibility.spec.ts
 

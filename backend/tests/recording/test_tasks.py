@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import threading
 import time
+from contextlib import contextmanager
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -25,7 +26,29 @@ from src.repos.models import Repository
 
 
 @pytest.fixture
-def recording_id(db_session: Session, admin_user) -> int:
+def reuse_test_session_for_recording(db_session: Session):
+    """Re-route `src.recording.tasks.get_sync_session` to the test's
+    transactional session so recorder threads see the recording row
+    the test fixture inserted (and which never gets committed past
+    the SAVEPOINT — see conftest.py).
+
+    Without this the recorder thread opens a fresh production-engine
+    connection that can't see the test's data; on a clean CI DB it
+    logs "Recording N not found" and early-returns before any
+    listener is registered, hanging the test on
+    `_wait_for_registration`. Mirrors the pattern in
+    `test_auto_sync.py::TestAutoSyncTask`."""
+
+    @contextmanager
+    def _reuse():
+        yield db_session
+
+    with patch("src.recording.tasks.get_sync_session", _reuse):
+        yield
+
+
+@pytest.fixture
+def recording_id(db_session: Session, admin_user, reuse_test_session_for_recording) -> int:
     """Create a PENDING recording row and return its id."""
     repo = Repository(
         name="tasks-test-repo",
