@@ -356,19 +356,26 @@ class TestInstallPackageBrowserHook:
 class TestGenerateDockerfileBrowser:
     def test_with_browser_package_runs_rfbrowser_init_on_python_slim(self):
         """Story Playwright-fix-E (2026-04-27): rfbrowser-aware images
-        always start from python-slim; the matching Playwright browser
-        binaries get pulled by `python -m playwright install` rather
-        than relying on a Microsoft-published base image. rfbrowser
+        always start from python-slim and pull browsers via the
+        canonical `rfbrowser init` flow. rfbrowser auto-aligns the
+        browser binary to the Node-side Playwright wrapper's
+        version, so a separate `python -m playwright install` step
+        is no longer needed (it landed browsers in the wrong path
+        for Browser library's Node-side resolver anyway). rfbrowser
         ships ahead of Microsoft's image releases (e.g. rfbrowser
-        19.14.2 needs Playwright 1.59.1, MS only has up to 1.58.0)."""
+        19.14.2 needs Playwright 1.59.1, MS only has up to 1.58.0),
+        which is why we don't anchor on the MS base image."""
         df = generate_dockerfile("3.12", ["robotframework", "robotframework-browser==18.0.0"])
         assert "FROM python:3.12-slim" in df
         assert "rfbrowser init" in df
         assert "nodejs" in df  # rfbrowser init requires npm
-        # Browser binaries pulled explicitly via Python Playwright CLI.
-        assert "python -m playwright install --with-deps chromium" in df
+        # Linux apt libs Chromium needs at runtime — laid down by
+        # `npx playwright install-deps chromium` AFTER rfbrowser init.
+        assert "npx playwright install-deps chromium" in df
         # Microsoft Playwright base image is no longer used as anchor.
         assert "mcr.microsoft.com/playwright" not in df
+        # The earlier manual install path is gone.
+        assert "python -m playwright install" not in df
 
     def test_without_browser_package_uses_python_slim(self):
         df = generate_dockerfile("3.12", ["robotframework", "requests"])

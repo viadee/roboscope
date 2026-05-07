@@ -52,33 +52,35 @@ class TestTagDerivation:
         )
 
     def test_dockerfile_uses_python_slim_and_installs_playwright_browsers(
-        self, monkeypatch
+        self,
     ) -> None:
-        """Story Playwright-fix-E (2026-04-27): rfbrowser ships ahead
-        of Microsoft's published image tags (rfbrowser 19.14.2 needs
-        Playwright 1.59.1, MS only has up to 1.58.0-noble). Solution:
-        always python:<ver>-slim base + run `python -m playwright
-        install --with-deps chromium` to pull the matching browsers
-        ourselves. `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` keeps the
-        Python and Node halves looking in the same place."""
-        from src.environments import service
+        """Story Playwright-fix-E (2026-04-27, verified by real-build
+        smoke): the generator now ALWAYS starts from
+        `python:<ver>-slim` and runs `rfbrowser init` to lay down
+        browsers compatible with rfbrowser's Node-side Playwright,
+        followed by `npx playwright install-deps chromium` for the
+        Linux apt libs Chromium needs at runtime.
 
-        monkeypatch.setattr(
-            service, "rfbrowser_node_playwright_version",
-            lambda *a, **kw: "1.59.1",
-        )
+        The earlier `python -m playwright install --with-deps` /
+        `ENV PLAYWRIGHT_BROWSERS_PATH` / explicit `'playwright==X.Y.Z'`
+        force-pin path was replaced — rfbrowser auto-aligns the
+        browser binary to its wrapper's Playwright version, removing
+        the manual pin step entirely. This test pins the new
+        contract."""
         df = generate_dockerfile(
             python_version="3.12",
             packages=["robotframework", "robotframework-browser"],
         )
         assert "FROM python:3.12-slim" in df
         assert "mcr.microsoft.com/playwright" not in df
-        assert "ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright" in df
-        assert "python -m playwright install --with-deps chromium" in df
-        # Pin still derived from rfbrowser, not backend.
-        assert "'playwright==1.59.1'" in df
+        # rfbrowser init is the canonical browser-install path now.
+        assert "RUN rfbrowser init" in df
+        assert "npx playwright install-deps chromium" in df
         # Defensive: the old hardcoded v1.52.0 literal must never reappear.
         assert "v1.52.0-noble" not in df
+        # The old manual install path is gone.
+        assert "python -m playwright install" not in df
+        assert "ENV PLAYWRIGHT_BROWSERS_PATH" not in df
 
     def test_dockerfile_uses_python_slim_when_no_browser(self) -> None:
         df = generate_dockerfile(
@@ -101,80 +103,33 @@ class TestTagDerivation:
         # we don't double-install playwright.
         assert "playwright==" not in df
 
-    def test_dockerfile_force_pins_playwright_at_node_derived_version(
-        self, monkeypatch
-    ) -> None:
-        """Force-pin must match the node-derived version (= the
-        rfbrowser-wrapper's expected playwright), not the backend's."""
-        from src.environments import service
-
-        monkeypatch.setattr(
-            service, "rfbrowser_node_playwright_version",
-            lambda *a, **kw: "1.59.1",
-        )
-        df = generate_dockerfile(
-            python_version="3.12",
-            packages=["robotframework-browser"],
-        )
-        assert "'playwright==1.59.1'" in df, (
-            "Dockerfile must force-pin to the rfbrowser-derived "
-            "playwright version, NOT the backend's."
-        )
-        # And it must come AFTER the user package install.
-        install_block_end = df.find("robotframework-browser")
-        pin_index = df.find("'playwright==1.59.1'")
-        assert install_block_end < pin_index
-
     def test_batteries_path_pins_to_node_version_and_installs_browsers(
-        self, monkeypatch
+        self,
     ) -> None:
-        from src.environments import service
-
-        monkeypatch.setattr(
-            service, "rfbrowser_node_playwright_version",
-            lambda *a, **kw: "1.59.1",
-        )
+        """Batteries variant takes the same rfbrowser-init path as the
+        standard browser. The earlier "batteries is self-contained"
+        assumption was wrong — batteries only swaps the gRPC server
+        binary, the browser binaries are still missing from the wheel.
+        """
         df = generate_dockerfile(
             python_version="3.12",
             packages=["robotframework-browser-batteries"],
         )
         assert "FROM python:3.12-slim" in df
-        assert "'playwright==1.59.1'" in df
-        assert "python -m playwright install --with-deps chromium" in df
+        assert "RUN rfbrowser init" in df
+        assert "npx playwright install-deps chromium" in df
 
-    def test_standard_browser_pins_and_runs_rfbrowser_init(
-        self, monkeypatch
+    def test_standard_browser_runs_rfbrowser_init(
+        self,
     ) -> None:
-        from src.environments import service
-
-        monkeypatch.setattr(
-            service, "rfbrowser_node_playwright_version",
-            lambda *a, **kw: "1.59.1",
-        )
         df = generate_dockerfile(
             python_version="3.12",
             packages=["robotframework-browser"],
         )
         assert "FROM python:3.12-slim" in df
-        assert "'playwright==1.59.1'" in df
-        # Standard browser still needs rfbrowser init for the Node side.
+        # Standard browser uses rfbrowser init for the Node side.
         assert "RUN rfbrowser init" in df
-
-    def test_falls_back_to_backend_version_when_pypi_unreachable(
-        self, monkeypatch
-    ) -> None:
-        from src.environments import service
-
-        monkeypatch.setattr(
-            service, "rfbrowser_node_playwright_version",
-            lambda *a, **kw: None,
-        )
-        df = generate_dockerfile(
-            python_version="3.12",
-            packages=["robotframework-browser-batteries"],
-        )
-        backend_pin = playwright_pinned_version()
-        assert f"'playwright=={backend_pin}'" in df
+        assert "npx playwright install-deps chromium" in df
 
 
 # ---------------------------------------------------------------------------
@@ -235,19 +190,19 @@ def test_derived_docker_tag_is_pullable() -> None:
 
 @pytest.mark.integration
 def test_freshly_built_image_chromium_launch(tmp_path) -> None:
-    """Ultimate proof: generate a Dockerfile that installs Playwright
-    explicitly, build the image, run a real `chromium.launch()` inside
-    it. Heavier than the version-match test (needs build + chromium
-    boot) but catches edge cases like a broken overlay install."""
+    """Ultimate proof: build the image and prove Chromium launches
+    inside it. Story Playwright-fix-E moved browser provisioning
+    from `python -m playwright install` (lays browsers in
+    `~/.cache/ms-playwright`) to `rfbrowser init` (lays browsers
+    inside `Browser/wrapper/.../`). Raw `playwright.chromium.launch()`
+    no longer finds the binaries — the canonical access path is
+    Browser library (which is what every Robot test uses)."""
     if not _docker_available():
         pytest.skip("docker daemon not reachable on this host")
 
-    # Force playwright as an explicit dep so the layered install lands
-    # it on the default Python path — robotframework-browser-batteries
-    # bundles browsers but doesn't re-expose the `playwright` module.
     df_content = generate_dockerfile(
         python_version="3.12",
-        packages=["robotframework-browser", f"playwright=={version('playwright')}"],
+        packages=["robotframework-browser"],
     )
     dockerfile = tmp_path / "Dockerfile"
     dockerfile.write_text(df_content, encoding="utf-8")
@@ -269,16 +224,20 @@ def test_freshly_built_image_chromium_launch(tmp_path) -> None:
         )
 
     try:
+        # Smoke via Browser library — the canonical path real users
+        # take. rfbrowser init populates `Browser/wrapper/.../` with
+        # the matching browsers; the gRPC handshake here proves the
+        # version match end-to-end.
         run = subprocess.run(
             [
                 "docker", "run", "--rm", image_tag,
                 "python", "-c",
-                "from playwright.sync_api import sync_playwright\n"
-                "with sync_playwright() as pw:\n"
-                "    b = pw.chromium.launch(headless=True)\n"
-                "    page = b.new_context().new_page()\n"
-                "    page.goto('about:blank')\n"
-                "    b.close()\n"
+                "from Browser import Browser\n"
+                "b = Browser()\n"
+                "b.new_browser(browser='chromium', headless=True)\n"
+                "b.new_context()\n"
+                "b.new_page('about:blank')\n"
+                "b.close_browser('ALL')\n"
                 "print('LAUNCH_OK')\n",
             ],
             capture_output=True, text=True, timeout=180,
