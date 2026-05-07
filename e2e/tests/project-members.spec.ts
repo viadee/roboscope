@@ -79,10 +79,11 @@ test.describe('Project Member Management', () => {
     await membersButton.click();
     await expect(page.locator('.modal-header h3')).toContainText('Mitglieder', { timeout: 5_000 });
 
-    // Close dialog — scope to the modal so we don't match the
+    // Close dialog — scope to `.modal` so we don't match the
     // default-password banner's "× Schließen" dismiss button at
     // the top of the page (same accessible name, different scope).
-    await page.locator('.modal-content').getByRole('button', { name: 'Schließen' }).click();
+    // BaseModal uses `.modal-backdrop > .modal`, NOT `.modal-content`.
+    await page.locator('.modal').getByRole('button', { name: 'Schließen' }).click();
     await expect(page.locator('.modal-header h3')).not.toBeVisible({ timeout: 3_000 });
   });
 
