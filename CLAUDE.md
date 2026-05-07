@@ -112,6 +112,38 @@ Swagger: `http://localhost:8000/api/v1/docs`
   - Doesn't attach the built ZIPs to a Release — they live in workflow artifacts with `retention-days: 7`. After 7 days they're gone unless someone downloaded them or the run was re-triggered.
 - **Implication for `release-publish`**: after merging the release branch into `main`, the workflow runs automatically on the resulting push. Wait for it to finish, then `gh release create v<x.y.z>` + `gh release upload v<x.y.z> <zip>` for each platform — pulling the ZIPs from the just-completed workflow run is the easiest source. A future hardening pass could add a tag-trigger that auto-creates the Release and attaches the artifacts, but it's not wired today.
 
+### release-publish checklist (manual steps until tag-trigger lands)
+
+The skill at `.claude/skills/release-publish/SKILL.md` is the canonical playbook; this section is the operational TL;DR with all the gotchas we discovered during 0.9.0.
+
+**Pre-merge gates** (everything below must be done on the `release-<x.y.z>` branch first):
+
+1. Backend `pytest` green (or only `-m integration` deselected) — full run takes ~70 min, covers ~1980 tests.
+2. Frontend `vitest run` green + `vue-tsc --noEmit` clean + `npm run build` succeeds.
+3. E2E `flow-editor-settings.spec.ts` + `explorer.spec.ts` green at minimum (ideally the whole `e2e/tests/` suite, take-screenshots/take-demo-video are skipped in CI).
+4. CHANGELOG entry for the new version exists at the top under `[Unreleased]` becoming `[<x.y.z>] — <date>`.
+5. Version bumped in `backend/pyproject.toml` AND `frontend/package.json` (single source for the version is split across the two stacks).
+6. SECURITY.md updated if any new third-party advisory landed during the cycle.
+7. `git fetch origin main && git merge origin/main` on the release branch — resolve the version-bump style conflicts (CHANGELOG, CLAUDE.md, backend/pyproject.toml, frontend/package.json + lock) so `release-publish` doesn't have to.
+
+**Publish steps**:
+
+1. `git checkout main && git merge --no-ff release-<x.y.z>` then `git push origin main`. The push triggers `build.yml`.
+2. Watch the CI run — `rtk gh run list --workflow build.yml --branch main -L 1` then `rtk gh run watch <id>` for the latest. All four jobs (`test-unit` matrix, `build-offline`, `build-offline-windows`, `build-online`) must succeed.
+3. `git tag v<x.y.z> && git push origin v<x.y.z>`. **The tag push does NOT re-trigger the pipeline**, so this is purely metadata for `gh release create`.
+4. `gh release create v<x.y.z> --notes-file <(awk '/^## \[<x.y.z>\]/,/^## \[/ { if (/^## \[/ && !/<x.y.z>/) exit; print }' CHANGELOG.md)` — extracts the version's CHANGELOG section as the release body. Sanity-check the output before creating.
+5. Download the 5 ZIPs from the workflow run (`rtk gh run download <run-id> -D /tmp/release-<x.y.z>`) — they expire in 7 days, so this is the time-pressure step.
+6. Upload them: `gh release upload v<x.y.z> /tmp/release-<x.y.z>/roboscope-offline-<platform>/roboscope_offline_<platform>.zip` for each of `linux`, `macos-arm64`, `macos-x86_64`, `windows`, plus `roboscope.zip` from the online artifact.
+7. Verify the GitHub Release page shows all 5 attached ZIPs + the CHANGELOG section as body. That's the user-facing release.
+8. Bump `[Unreleased]` back into the CHANGELOG on `main` for the next cycle (PR or direct push depending on branch protection).
+
+**Common failure modes and fixes**:
+
+- **CI fails on `test-unit`**: most likely a stale test from a refactor — see the Playwright-fix-E rfbrowser test alignment we did for 0.9.0 as the template (assert what the generator emits today, not the historical artifact).
+- **Merge conflicts on `main`**: nearly always CHANGELOG.md (entries for the same version chained from a prior backport branch) or `frontend/package-lock.json` (regenerate locally with `npm install --package-lock-only`, don't try to hand-merge it).
+- **Workflow artifacts expired before upload**: re-run `build.yml` via `gh workflow run build.yml --ref main`. It rebuilds against the same commit so the binaries match the tag.
+- **`gh release upload` complains "release not found"**: the tag exists locally but wasn't pushed yet — `git push origin v<x.y.z>` first.
+
 ## Milestone: Enterprise-Readiness (current)
 
 Done: Phase 1 CI/CD (API tokens, webhooks, git-trigger) · Phase 2 Audit/Compliance (audit log, retention, secrets encryption) · Phase 3 Visual Flow Editor (Vue Flow).

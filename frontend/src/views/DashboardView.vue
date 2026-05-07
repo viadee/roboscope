@@ -26,9 +26,10 @@ interface DashboardCard {
   /** Some cards (admin sections, recorder) only show when the user
    *  has the right role / the feature is enabled. */
   visible: boolean
-  /** Tinted variant — recorder + tip card stand out as "primary
-   *  actions" vs. the rest of the navigation grid. */
-  variant?: 'default' | 'accent' | 'tip'
+  /** Tip card uses a tinted variant so it reads as informational
+   *  rather than a navigation target. Navigation cards all share
+   *  the default surface. */
+  variant?: 'default' | 'tip'
 }
 
 const cards = computed<DashboardCard[]>(() => [
@@ -66,7 +67,6 @@ const cards = computed<DashboardCard[]>(() => [
     icon: '⏺',
     to: '/recordings/new',
     visible: auth.hasMinRole('editor'),
-    variant: 'accent',
   },
   {
     title: t('nav.environments'),
@@ -201,14 +201,6 @@ function go(to: string) {
 .dashboard-card:hover .dashboard-card__chevron {
   opacity: 1;
   transform: translateX(3px);
-}
-
-.dashboard-card--accent {
-  background: linear-gradient(135deg, rgba(59, 125, 216, 0.06), rgba(212, 136, 62, 0.05));
-  border-color: var(--color-accent, #D4883E);
-}
-.dashboard-card--accent .dashboard-card__chevron {
-  color: var(--color-accent, #D4883E);
 }
 
 /* Tip-of-the-day — non-clickable, slightly different surface so it
