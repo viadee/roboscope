@@ -11,7 +11,8 @@
 #   linux        — Linux x86_64
 #   macos-arm64  — macOS Apple Silicon (ARM64)
 #   macos-x86_64 — macOS Intel (x86_64)
-#   windows      — Windows x86_64
+#
+# For Windows, use scripts/build-windows.ps1 on a Windows host.
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -24,42 +25,33 @@ if [ -z "$PLATFORM" ]; then
   echo "  linux        — Linux x86_64"
   echo "  macos-arm64  — macOS Apple Silicon (ARM64)"
   echo "  macos-x86_64 — macOS Intel (x86_64)"
-  echo "  windows      — Windows x86_64"
+  echo ""
+  echo "For Windows, use: powershell -File scripts/build-windows.ps1"
   exit 1
 fi
 
 UV_BASE="https://github.com/astral-sh/uv/releases/latest/download"
-IS_WINDOWS=false
 
 case "$PLATFORM" in
   linux)
     UV_ARCHIVE="uv-x86_64-unknown-linux-gnu.tar.gz"
-    UV_ARCHIVE_TYPE="tar"
     UV_BIN_NAME="uv-linux-x86_64"
     WHEEL_PLATFORM="manylinux2014_x86_64"
     ;;
   macos-arm64)
     UV_ARCHIVE="uv-aarch64-apple-darwin.tar.gz"
-    UV_ARCHIVE_TYPE="tar"
     UV_BIN_NAME="uv-macos-arm64"
     WHEEL_PLATFORM="macosx_11_0_arm64"
     ;;
   macos-x86_64)
     UV_ARCHIVE="uv-x86_64-apple-darwin.tar.gz"
-    UV_ARCHIVE_TYPE="tar"
     UV_BIN_NAME="uv-macos-x86_64"
     WHEEL_PLATFORM="macosx_11_0_x86_64"
     ;;
-  windows)
-    UV_ARCHIVE="uv-x86_64-pc-windows-msvc.zip"
-    UV_ARCHIVE_TYPE="zip"
-    UV_BIN_NAME="uv-windows.exe"
-    WHEEL_PLATFORM="win_amd64"
-    IS_WINDOWS=true
-    ;;
   *)
     echo "Unknown platform: $PLATFORM"
-    echo "Supported: linux, macos-arm64, macos-x86_64, windows"
+    echo "Supported: linux, macos-arm64, macos-x86_64"
+    echo "For Windows, use: powershell -File scripts/build-windows.ps1"
     exit 1
     ;;
 esac
@@ -113,17 +105,10 @@ echo "    README: $DIST/README.md"
 echo "==> Downloading uv binary for $PLATFORM..."
 mkdir -p "$DIST/uv-bin"
 
-if [ "$UV_ARCHIVE_TYPE" = "tar" ]; then
-  curl -fsSL "$UV_BASE/$UV_ARCHIVE" | tar -xz -C "$DIST/uv-bin" --strip-components=1 2>/dev/null \
-    && mv "$DIST/uv-bin/uv" "$DIST/uv-bin/$UV_BIN_NAME" \
-    && echo "    uv binary: $UV_BIN_NAME" \
-    || echo "    WARN: failed to download uv binary for $PLATFORM"
-else
-  curl -fsSL "$UV_BASE/$UV_ARCHIVE" -o "$DIST/uv-bin/$UV_ARCHIVE" 2>/dev/null \
-    && (cd "$DIST/uv-bin" && unzip -qo "$UV_ARCHIVE" uv.exe && mv uv.exe "$UV_BIN_NAME" && rm -f "$UV_ARCHIVE") \
-    && echo "    uv binary: $UV_BIN_NAME" \
-    || echo "    WARN: failed to download uv binary for $PLATFORM"
-fi
+curl -fsSL "$UV_BASE/$UV_ARCHIVE" | tar -xz -C "$DIST/uv-bin" --strip-components=1 2>/dev/null \
+  && mv "$DIST/uv-bin/uv" "$DIST/uv-bin/$UV_BIN_NAME" \
+  && echo "    uv binary: $UV_BIN_NAME" \
+  || echo "    WARN: failed to download uv binary for $PLATFORM"
 
 # ── 4. Download Python wheels for offline install ─────────────
 echo "==> Downloading Python wheels for $PLATFORM ($WHEEL_PLATFORM)..."
@@ -163,16 +148,7 @@ for dep in data['project']['dependencies']:
 
 DEPS_FILE=$(mktemp)
 _read_deps > "$DEPS_FILE"
-
-# Windows: uvicorn[standard] includes uvloop which is Unix-only; strip extras
-WIN_DEPS_FILE=$(mktemp)
-sed 's/uvicorn\[standard\]/uvicorn/' "$DEPS_FILE" > "$WIN_DEPS_FILE"
-
-if [ "$IS_WINDOWS" = true ]; then
-  REQ_FILE="$WIN_DEPS_FILE"
-else
-  REQ_FILE="$DEPS_FILE"
-fi
+REQ_FILE="$DEPS_FILE"
 
 # Download platform-specific binary wheels
 for pyver in 3.10 3.11 3.12 3.13 3.14; do
@@ -189,14 +165,12 @@ for pyver in 3.10 3.11 3.12 3.13 3.14; do
     2>&1 | grep -i "error\|saved" || true
 done
 
-# For Unix platforms, also download for host platform (catches deps missed by cross-platform pass)
-if [ "$IS_WINDOWS" = false ]; then
-  echo "    Downloading wheels for host platform..."
-  python3 -m pip download \
-    -r "$REQ_FILE" \
-    -d "$DIST/wheels" \
-    2>/dev/null || true
-fi
+# Also download for host platform (catches pure-python deps missed by cross-platform pass)
+echo "    Downloading wheels for host platform..."
+python3 -m pip download \
+  -r "$REQ_FILE" \
+  -d "$DIST/wheels" \
+  2>/dev/null || true
 
 # Ensure conditional transitive deps are included
 # (e.g., tomli is needed by alembic on Python <3.11 but not on 3.12+,
@@ -208,7 +182,7 @@ done
 
 # Save requirements for install scripts
 cp "$REQ_FILE" "$DIST/requirements.txt"
-rm -f "$DEPS_FILE" "$WIN_DEPS_FILE"
+rm -f "$DEPS_FILE"
 echo "    Wheels: $(ls "$DIST/wheels" | wc -l | tr -d ' ') packages"
 
 # ── 5. Create .env template ──────────────────────────────────
@@ -236,12 +210,10 @@ LOG_LEVEL=INFO
 # VENVS_DIR=~/.roboscope/venvs
 ENVEOF
 
-# ── 6. Create platform-specific install/start/stop scripts ───
-if [ "$IS_WINDOWS" = false ]; then
-  # Unix (Linux / macOS) scripts
-  UV_BIN_UNIX="uv-bin/$UV_BIN_NAME"
+# ── 6. Create install/start/stop scripts ─────────────────────
+UV_BIN_UNIX="uv-bin/$UV_BIN_NAME"
 
-  cat > "$DIST/install-mac-and-linux.sh" << INSTALLEOF
+cat > "$DIST/install-mac-and-linux.sh" << INSTALLEOF
 #!/usr/bin/env bash
 set -euo pipefail
 cd "\$(dirname "\$0")"
@@ -270,9 +242,9 @@ echo ""
 echo "==> RoboScope installed successfully!"
 echo "    Start with: ./start-mac-and-linux.sh"
 INSTALLEOF
-  chmod +x "$DIST/install-mac-and-linux.sh"
+chmod +x "$DIST/install-mac-and-linux.sh"
 
-  cat > "$DIST/start-mac-and-linux.sh" << 'STARTEOF'
+cat > "$DIST/start-mac-and-linux.sh" << 'STARTEOF'
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -315,9 +287,9 @@ echo ""
 
 python -m uvicorn src.main:app --host "${HOST:-0.0.0.0}" --port "${PORT}"
 STARTEOF
-  chmod +x "$DIST/start-mac-and-linux.sh"
+chmod +x "$DIST/start-mac-and-linux.sh"
 
-  cat > "$DIST/stop-mac-and-linux.sh" << 'STOPEOF'
+cat > "$DIST/stop-mac-and-linux.sh" << 'STOPEOF'
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -362,99 +334,7 @@ fi
 
 echo "    RoboScope stopped."
 STOPEOF
-  chmod +x "$DIST/stop-mac-and-linux.sh"
-
-else
-  # Windows scripts
-  cat > "$DIST/install-windows.bat" << 'BATEOF'
-@echo off
-echo ==> Installing RoboScope...
-
-cd /d "%~dp0"
-
-:: Create virtual environment with uv
-uv-bin\uv-windows.exe venv .venv
-
-:: Install dependencies offline
-uv-bin\uv-windows.exe pip install --python .venv\Scripts\python.exe --no-index --find-links=wheels -r requirements.txt
-
-if not exist .env copy .env.example .env
-
-echo.
-echo ==> RoboScope installed successfully!
-echo     Start with: start-windows.bat
-BATEOF
-
-  cat > "$DIST/start-windows.bat" << 'BATEOF'
-@echo off
-cd /d "%~dp0"
-
-:: Load port from .env if present
-set PORT=8145
-if exist .env (
-    for /f "usebackq tokens=1,2 delims==" %%a in (".env") do (
-        if "%%a"=="PORT" set PORT=%%b
-    )
-)
-
-:: Check if port is already in use
-netstat -ano | findstr ":%PORT% " | findstr "LISTENING" >nul 2>&1
-if %errorlevel%==0 (
-    echo Error: Port %PORT% is already in use.
-    echo.
-    echo Process using port %PORT%:
-    netstat -ano | findstr ":%PORT% " | findstr "LISTENING"
-    echo.
-    echo Options:
-    echo   1. Stop the other process:  stop-windows.bat
-    echo   2. Change the port in .env: PORT=9000
-    exit /b 1
-)
-
-if not exist .venv (
-    echo Error: Run install-windows.bat first.
-    exit /b 1
-)
-
-call .venv\Scripts\activate.bat
-
-echo ==> Starting RoboScope...
-echo     URL: http://localhost:%PORT%
-echo     API: http://localhost:%PORT%/api/v1/docs
-echo     Default login: admin@roboscope.local / admin123
-echo.
-
-python -m uvicorn src.main:app --host 0.0.0.0 --port %PORT%
-BATEOF
-
-  cat > "$DIST/stop-windows.bat" << 'BATEOF'
-@echo off
-cd /d "%~dp0"
-
-:: Load port from .env if present
-set PORT=8145
-if exist .env (
-    for /f "usebackq tokens=1,2 delims==" %%a in (".env") do (
-        if "%%a"=="PORT" set PORT=%%b
-    )
-)
-
-echo ==> Stopping RoboScope on port %PORT%...
-
-set FOUND=0
-for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":%PORT% " ^| findstr "LISTENING"') do (
-    echo     Stopping PID %%p...
-    taskkill /PID %%p /F >nul 2>&1
-    set FOUND=1
-)
-
-if %FOUND%==0 (
-    echo     No process found on port %PORT%.
-) else (
-    echo     RoboScope stopped.
-)
-BATEOF
-fi
+chmod +x "$DIST/stop-mac-and-linux.sh"
 
 # ── 7. Create ZIP ─────────────────────────────────────────────
 echo ""
@@ -466,15 +346,8 @@ echo "==> Build complete!"
 echo "    Distribution: $ROOT/dist/$ZIP_NAME"
 echo "    Directory:    $DIST"
 echo ""
-if [ "$IS_WINDOWS" = false ]; then
-  PLATFORM_DISPLAY="$(echo "$PLATFORM" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
-  echo "To deploy on $PLATFORM_DISPLAY:"
-  echo "  1. Extract $ZIP_NAME"
-  echo "  2. Run ./install-mac-and-linux.sh"
-  echo "  3. Run ./start-mac-and-linux.sh"
-else
-  echo "To deploy on Windows:"
-  echo "  1. Extract $ZIP_NAME"
-  echo "  2. Run install-windows.bat"
-  echo "  3. Run start-windows.bat"
-fi
+PLATFORM_DISPLAY="$(echo "$PLATFORM" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
+echo "To deploy on $PLATFORM_DISPLAY:"
+echo "  1. Extract $ZIP_NAME"
+echo "  2. Run ./install-mac-and-linux.sh"
+echo "  3. Run ./start-mac-and-linux.sh"

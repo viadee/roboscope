@@ -421,6 +421,19 @@ on top of the Phase-4 SSO/Teams + Recorder + BMAD foundation):
   RequestsLibrary, DatabaseLibrary, JSONLibrary, Browser); 26 tests
   green via `uv run robot examples/`. Initial commit ready, not
   pushed.
+## [0.8.2] - 2026-03-26
+
+### Features
+- **YouTube Demo Videos on Landing Page** — Embedded YouTube demo videos (DE/EN) on the landing/login page for new users
+
+### Fixes
+- **Windows Offline Build** — Split Windows build to native PowerShell script (`build-windows.ps1`) running on Windows host, fixing missing `tzdata` and other Windows-conditional dependencies that could not be resolved when cross-building on Linux CI
+- Fix test venv directory creation in rfbrowser tests for CI
+
+### Build
+- New `scripts/build-windows.ps1` and `scripts/test-install-windows.ps1` for native Windows builds
+- CI workflow now runs Windows offline build on `windows-latest` instead of `ubuntu-latest`
+- `build-mac-and-linux.sh` simplified to only handle Linux/macOS platforms
 
 ## [0.8.1] - 2026-03-26
 
