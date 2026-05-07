@@ -96,6 +96,22 @@ Swagger: `http://localhost:8000/api/v1/docs`
 - i18n complete in EN/DE/FR/ES (app + in-app docs). Every user-facing string must have 4 locale entries.
 - Conventional commits; PR-based.
 
+## Release pipeline
+
+`.github/workflows/build.yml` is the only CI pipeline that builds distributions.
+
+- **Triggers**: `push: branches: [main]` and `workflow_dispatch` only. **Tag pushes do NOT trigger it** — this is the surprise that bit us during the 0.9.0 readiness check.
+- **Jobs**:
+  - `test-unit` — Python 3.12 + 3.13 matrix; runs `pytest` (backend) and `vitest` (frontend, on the 3.12 leg only).
+  - `build-offline` — matrix `[linux, macos-arm64, macos-x86_64]` → uploads `roboscope_offline_<platform>.zip` workflow artifacts.
+  - `build-offline-windows` — runs on `windows-latest` (PowerShell `build-windows.ps1` + `test-install-windows.ps1`) → uploads `roboscope_offline_windows.zip`.
+  - `build-online` → uploads `roboscope.zip` (lightweight online variant).
+- **What CI does NOT do** (still part of the manual `release-publish` flow):
+  - Doesn't tag releases.
+  - Doesn't create a GitHub Release.
+  - Doesn't attach the built ZIPs to a Release — they live in workflow artifacts with `retention-days: 7`. After 7 days they're gone unless someone downloaded them or the run was re-triggered.
+- **Implication for `release-publish`**: after merging the release branch into `main`, the workflow runs automatically on the resulting push. Wait for it to finish, then `gh release create v<x.y.z>` + `gh release upload v<x.y.z> <zip>` for each platform — pulling the ZIPs from the just-completed workflow run is the easiest source. A future hardening pass could add a tag-trigger that auto-creates the Release and attaches the artifacts, but it's not wired today.
+
 ## Milestone: Enterprise-Readiness (current)
 
 Done: Phase 1 CI/CD (API tokens, webhooks, git-trigger) · Phase 2 Audit/Compliance (audit log, retention, secrets encryption) · Phase 3 Visual Flow Editor (Vue Flow).
