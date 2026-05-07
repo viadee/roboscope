@@ -730,6 +730,71 @@ Recording 21
 </p>`
       },
       {
+        id: 'recorder-selector-verification',
+        title: 'Selector verification &amp; Shadow DOM',
+        content: `
+<p>
+  Every captured action ships with a list of selector candidates &mdash;
+  <code>data-testid</code>, <code>role + name</code>, <code>text</code>,
+  <code>css</code> (id, class, parent-scoped), <code>xpath</code>, and a
+  Shadow-DOM-aware <code>host &gt;&gt; inner</code> chain when applicable.
+  RoboScope ranks them so the active candidate is the one that survives
+  Playwright's strict-mode contract at replay.
+</p>
+<h4>Visibility-aware uniqueness</h4>
+<p>
+  At capture time the verifier resolves each candidate against the live
+  page in a single <code>evaluate_all</code> round-trip and returns
+  <code>{ total, visible, actionable }</code> counts:
+</p>
+<ul>
+  <li><strong>actionable = 1</strong> &mdash; gold; exactly one
+  visible + clickable match.</li>
+  <li><strong>visible = 1</strong> &mdash; verified, light penalty
+  (-5); element is visible but disabled (e.g. read-only input).</li>
+  <li><strong>visible &ge; 2</strong> &mdash; multi-match; rewritten
+  to a strategy-specific <code>:nth-match(1)</code> /
+  <code>... &gt;&gt; nth=0</code> form so strict-mode replay still
+  picks one element. Penalty -15 so a parent-context-disambiguated
+  alternative outranks it whenever one exists.</li>
+  <li><strong>visible = 0, total &ge; 1</strong> &mdash; element is
+  hidden; kept as a desperate fallback (penalty -25) so a future
+  auto-heal can try it but a visible alternative always wins.</li>
+  <li><strong>total = 0</strong> &mdash; selector points at nothing,
+  dropped.</li>
+</ul>
+<h4>Parent-context disambiguation</h4>
+<p>
+  A bare <code>button.submit-btn</code> matching every submit
+  button on the page is the most common Playwright strict-mode
+  failure at replay. The CSS strategy now also emits an ancestor-
+  scoped variant whenever a stable id / data-testid exists on an
+  ancestor &mdash; e.g. <code>#checkout-form button.submit-btn</code>
+  &mdash; with quality bonus +10 over the bare chain. The verifier
+  prefers it whenever it disambiguates.
+</p>
+<h4>Shadow DOM</h4>
+<p>
+  The capture script uses <code>ev.composedPath()[0]</code> for
+  every event so a click inside an open shadow root captures the
+  *real* clicked element, not the host in the light DOM. The
+  ancestor walk crosses shadow boundaries via the host node, and
+  each ancestor carries an <code>is_shadow_host</code> flag.
+</p>
+<p>
+  When the captured element lives inside one or more open shadow
+  roots, the synthesis emits a Playwright-chained
+  <code>&lt;host-selector&gt; &gt;&gt; &lt;inner&gt;</code> candidate
+  (e.g. <code>my-dialog &gt;&gt; [data-testid=&quot;save-btn&quot;]</code>).
+  This pierces the shadow boundary explicitly &mdash; relying on
+  Playwright's implicit piercing is engine-dependent and easy to
+  misconfigure on the Browser-library / RF runner side. Closed
+  shadow roots are still opaque to userspace JS, so closed-root
+  elements fall back to the captured-host selector.
+</p>`,
+        tip: 'In the recorder UI a green ✓ indicator next to a selector means it resolves to a single visible + actionable element on the live page. Multiple candidates are shown sorted by rank — the picker lets you swap to a different one if the auto-pick does not match your intent.'
+      },
+      {
         id: 'recorder-extension',
         title: 'Chrome Extension',
         content: `

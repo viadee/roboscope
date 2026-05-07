@@ -725,6 +725,77 @@ Recording 21
 </p>`
       },
       {
+        id: 'recorder-selector-verification',
+        title: 'V\u00E9rification des s\u00E9lecteurs &amp; Shadow DOM',
+        content: `
+<p>
+  Chaque action captur\u00E9e est livr\u00E9e avec une liste de s\u00E9lecteurs candidats
+  &mdash; <code>data-testid</code>, <code>role + name</code>, <code>text</code>,
+  <code>css</code> (id, classe, parent-scoped), <code>xpath</code> et une
+  cha\u00EEne <code>host &gt;&gt; inner</code> compatible Shadow DOM lorsque
+  c\u2019est applicable. RoboScope les classe pour que le candidat actif
+  survive au contrat de mode strict de Playwright lors du replay.
+</p>
+<h4>Unicit\u00E9 sensible \u00E0 la visibilit\u00E9</h4>
+<p>
+  \u00C0 la capture, le v\u00E9rificateur r\u00E9sout chaque candidat sur la page en
+  direct dans un seul aller-retour <code>evaluate_all</code> et renvoie
+  <code>{ total, visible, actionable }</code>:
+</p>
+<ul>
+  <li><strong>actionable = 1</strong> &mdash; or; exactement une
+  correspondance visible + cliquable.</li>
+  <li><strong>visible = 1</strong> &mdash; v\u00E9rifi\u00E9, l\u00E9g\u00E8re p\u00E9nalit\u00E9
+  (-5); l\u2019\u00E9l\u00E9ment est visible mais d\u00E9sactiv\u00E9 (par ex. champ en
+  lecture seule).</li>
+  <li><strong>visible &ge; 2</strong> &mdash; multi-correspondance;
+  r\u00E9\u00E9crit en <code>:nth-match(1)</code> /
+  <code>... &gt;&gt; nth=0</code> selon la strat\u00E9gie pour qu\u2019un
+  replay en mode strict choisisse quand m\u00EAme un \u00E9l\u00E9ment. P\u00E9nalit\u00E9
+  -15 pour qu\u2019un alternatif d\u00E9sambigu\u00E9 par parent-context passe
+  devant si disponible.</li>
+  <li><strong>visible = 0, total &ge; 1</strong> &mdash; \u00E9l\u00E9ment
+  cach\u00E9; conserv\u00E9 en filet de secours (-25) pour qu\u2019un futur
+  auto-heal puisse l\u2019essayer, mais toute alternative visible
+  l\u2019emporte.</li>
+  <li><strong>total = 0</strong> &mdash; s\u00E9lecteur ne pointe sur
+  rien, abandonn\u00E9.</li>
+</ul>
+<h4>D\u00E9sambigu\u00EFsation par contexte parent</h4>
+<p>
+  Un <code>button.submit-btn</code> nu correspondant \u00E0 chaque bouton
+  Submit de la page est la cause la plus fr\u00E9quente d\u2019\u00E9chec en mode
+  strict de Playwright au replay. La strat\u00E9gie CSS \u00E9met donc aussi
+  une variante port\u00E9e par un anc\u00EAtre d\u00E8s qu\u2019un anc\u00EAtre stable
+  porte un id / data-testid &mdash; par ex.
+  <code>#checkout-form button.submit-btn</code> &mdash; avec un
+  bonus de qualit\u00E9 +10 sur la cha\u00EEne nue. Le v\u00E9rificateur la
+  pr\u00E9f\u00E8re d\u00E8s qu\u2019elle d\u00E9sambigue.
+</p>
+<h4>Shadow DOM</h4>
+<p>
+  Le script de capture utilise <code>ev.composedPath()[0]</code>
+  pour chaque \u00E9v\u00E9nement, afin qu\u2019un clic dans une shadow root
+  ouverte capture le *vrai* \u00E9l\u00E9ment cliqu\u00E9 et non l\u2019h\u00F4te du
+  light DOM. La marche d\u2019anc\u00EAtres traverse les fronti\u00E8res
+  shadow via le n\u0153ud h\u00F4te; chaque anc\u00EAtre porte un drapeau
+  <code>is_shadow_host</code>.
+</p>
+<p>
+  Quand l\u2019\u00E9l\u00E9ment captur\u00E9 vit dans une (ou plusieurs) shadow roots
+  ouvertes, la synth\u00E8se \u00E9met un candidat Playwright cha\u00EEn\u00E9
+  <code>&lt;host-selector&gt; &gt;&gt; &lt;inner&gt;</code> (par ex.
+  <code>my-dialog &gt;&gt; [data-testid=&quot;save-btn&quot;]</code>).
+  Cela traverse explicitement la fronti\u00E8re shadow &mdash; se
+  reposer sur le piercing implicite de Playwright d\u00E9pend du
+  moteur et est facile \u00E0 mal configurer c\u00F4t\u00E9 Browser library /
+  ex\u00E9cuteur RF. Les shadow roots ferm\u00E9es restent opaques pour le
+  JS userspace, donc les \u00E9l\u00E9ments en root ferm\u00E9e retombent sur
+  le s\u00E9lecteur de l\u2019h\u00F4te captur\u00E9.
+</p>`,
+        tip: 'Dans l\u2019interface du recorder, un \u2713 vert \u00E0 c\u00F4t\u00E9 d\u2019un s\u00E9lecteur indique qu\u2019il r\u00E9sout vers un seul \u00E9l\u00E9ment visible + actionnable sur la page en direct. Plusieurs candidats apparaissent tri\u00E9s par rang \u2014 le s\u00E9lecteur permet de basculer vers un autre si l\u2019auto-choix ne correspond pas \u00E0 votre intention.'
+      },
+      {
         id: 'recorder-extension',
         title: 'Extension Chrome',
         content: `

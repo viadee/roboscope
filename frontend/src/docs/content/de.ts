@@ -706,6 +706,77 @@ Recording 21
 </p>`
       },
       {
+        id: 'recorder-selector-verification',
+        title: 'Selektor-Verifikation &amp; Shadow DOM',
+        content: `
+<p>
+  Jede aufgenommene Aktion erh\u00E4lt eine Liste von Selektor-Kandidaten &mdash;
+  <code>data-testid</code>, <code>role + name</code>, <code>text</code>,
+  <code>css</code> (id, Klasse, parent-scoped), <code>xpath</code> und eine
+  Shadow-DOM-aware <code>host &gt;&gt; inner</code>-Kette wo passend.
+  RoboScope rankt sie so, dass der aktive Kandidat die Strict-Mode-Regel
+  von Playwright bei Replay \u00FCbersteht.
+</p>
+<h4>Sichtbarkeits-bewusste Eindeutigkeit</h4>
+<p>
+  Beim Capture l\u00F6st der Verifier jeden Kandidaten gegen die Live-Seite in
+  einem einzigen <code>evaluate_all</code>-Roundtrip auf und liefert
+  <code>{ total, visible, actionable }</code>:
+</p>
+<ul>
+  <li><strong>actionable = 1</strong> &mdash; Gold; genau ein
+  sichtbarer + klickbarer Treffer.</li>
+  <li><strong>visible = 1</strong> &mdash; verifiziert, kleine
+  Strafe (-5); Element ist sichtbar aber deaktiviert
+  (z. B. read-only Input).</li>
+  <li><strong>visible &ge; 2</strong> &mdash; Multi-Match; in eine
+  strategie-spezifische <code>:nth-match(1)</code> /
+  <code>... &gt;&gt; nth=0</code>-Form umgeschrieben, damit Strict-
+  Mode-Replay trotzdem genau ein Element trifft. Strafe -15, sodass
+  ein Parent-kontextualisierter Alternativ-Kandidat vorbeizieht,
+  wenn vorhanden.</li>
+  <li><strong>visible = 0, total &ge; 1</strong> &mdash; Element ist
+  versteckt; nur als Notnagel behalten (-25), damit ein sp\u00E4terer
+  Auto-Heal es ausprobieren kann, aber jede sichtbare Alternative
+  gewinnt.</li>
+  <li><strong>total = 0</strong> &mdash; Selektor zeigt auf nichts,
+  f\u00E4llt raus.</li>
+</ul>
+<h4>Parent-Kontext-Disambiguierung</h4>
+<p>
+  Ein nacktes <code>button.submit-btn</code>, das jeden Submit-Button
+  auf der Seite trifft, ist die h\u00E4ufigste Strict-Mode-Failure-Quelle
+  bei Replay. Die CSS-Strategie emittiert daher zus\u00E4tzlich eine
+  Vorfahren-gescopte Variante, sobald ein Vorfahre eine stabile id /
+  data-testid tr\u00E4gt &mdash; z. B.
+  <code>#checkout-form button.submit-btn</code> &mdash; mit
+  Quality-Bonus +10 gegen\u00FCber der nackten Klassen-Kette. Der
+  Verifier bevorzugt sie, wann immer sie disambiguiert.
+</p>
+<h4>Shadow DOM</h4>
+<p>
+  Das Capture-Skript nutzt f\u00FCr jedes Event
+  <code>ev.composedPath()[0]</code>, damit ein Klick in einer Open
+  Shadow Root das *echte* angeklickte Element erfasst, nicht den
+  Host im Light-DOM. Der Vorfahren-Walk \u00FCberquert Shadow-Grenzen
+  \u00FCber den Host-Knoten; jeder Vorfahre tr\u00E4gt ein
+  <code>is_shadow_host</code>-Flag.
+</p>
+<p>
+  Lebt das erfasste Element in einer (oder mehreren) Open Shadow
+  Roots, emittiert die Synthese einen Playwright-chained
+  <code>&lt;host-selector&gt; &gt;&gt; &lt;inner&gt;</code>-Kandidaten
+  (z. B. <code>my-dialog &gt;&gt; [data-testid=&quot;save-btn&quot;]</code>).
+  Das durchst\u00F6\u00DFt die Shadow-Grenze explizit &mdash; sich auf
+  Playwrights implizites Piercing zu verlassen ist Engine-abh\u00E4ngig
+  und auf Browser-Library / RF-Runner-Seite leicht falsch
+  konfigurierbar. Closed Shadow Roots bleiben f\u00FCr Userspace-JS
+  undurchsichtig, deshalb fallen Closed-Root-Elemente auf den
+  erfassten Host-Selektor zur\u00FCck.
+</p>`,
+        tip: 'In der Recorder-UI bedeutet ein gr\u00FCnes \u2713 neben einem Selektor, dass er auf der Live-Seite genau ein sichtbares + klickbares Element aufl\u00F6st. Mehrere Kandidaten erscheinen nach Rang sortiert \u2014 der Picker erlaubt, auf einen anderen umzuschalten, falls die Auto-Wahl nicht passt.'
+      },
+      {
         id: 'recorder-extension',
         title: 'Chrome-Erweiterung',
         content: `

@@ -744,6 +744,76 @@ Recording 21
 </p>`
       },
       {
+        id: 'recorder-selector-verification',
+        title: 'Verificaci\u00F3n de selectores &amp; Shadow DOM',
+        content: `
+<p>
+  Cada acci\u00F3n capturada se env\u00EDa con una lista de selectores candidatos
+  &mdash; <code>data-testid</code>, <code>role + name</code>, <code>text</code>,
+  <code>css</code> (id, clase, parent-scoped), <code>xpath</code>, y una
+  cadena <code>host &gt;&gt; inner</code> aware de Shadow DOM cuando aplica.
+  RoboScope los clasifica para que el candidato activo sobreviva al
+  contrato de modo estricto de Playwright en el replay.
+</p>
+<h4>Unicidad consciente de la visibilidad</h4>
+<p>
+  Al capturar, el verificador resuelve cada candidato contra la p\u00E1gina
+  en vivo en un \u00FAnico viaje <code>evaluate_all</code> y devuelve
+  <code>{ total, visible, actionable }</code>:
+</p>
+<ul>
+  <li><strong>actionable = 1</strong> &mdash; oro; exactamente una
+  coincidencia visible + cliqueable.</li>
+  <li><strong>visible = 1</strong> &mdash; verificado, penalizaci\u00F3n
+  ligera (-5); el elemento es visible pero est\u00E1 deshabilitado
+  (ej. input read-only).</li>
+  <li><strong>visible &ge; 2</strong> &mdash; multi-coincidencia;
+  reescrito a un <code>:nth-match(1)</code> /
+  <code>... &gt;&gt; nth=0</code> seg\u00FAn la estrategia para que el
+  replay en modo estricto siga eligiendo un elemento. Penalizaci\u00F3n
+  -15 para que una alternativa desambiguada por contexto-padre
+  gane cuando exista.</li>
+  <li><strong>visible = 0, total &ge; 1</strong> &mdash; elemento
+  oculto; mantenido como red de seguridad (-25) para que un futuro
+  auto-heal pueda probarlo, pero cualquier alternativa visible
+  gana siempre.</li>
+  <li><strong>total = 0</strong> &mdash; el selector apunta a nada,
+  descartado.</li>
+</ul>
+<h4>Desambiguaci\u00F3n por contexto padre</h4>
+<p>
+  Un <code>button.submit-btn</code> desnudo que coincida con todos
+  los botones Submit de la p\u00E1gina es la causa m\u00E1s com\u00FAn de fallo
+  de modo estricto de Playwright en el replay. La estrategia CSS
+  ahora tambi\u00E9n emite una variante con scope de ancestro siempre
+  que un ancestro estable tenga id / data-testid &mdash; ej.
+  <code>#checkout-form button.submit-btn</code> &mdash; con un
+  bonus de calidad +10 sobre la cadena desnuda. El verificador la
+  prefiere siempre que desambig\u00FCe.
+</p>
+<h4>Shadow DOM</h4>
+<p>
+  El script de captura usa <code>ev.composedPath()[0]</code> en
+  cada evento para que un clic dentro de una shadow root abierta
+  capture el elemento *real* clicado, no el host en el light DOM.
+  La caminata de ancestros cruza fronteras shadow v\u00EDa el nodo
+  host; cada ancestro lleva una bandera <code>is_shadow_host</code>.
+</p>
+<p>
+  Cuando el elemento capturado vive dentro de una (o varias)
+  shadow roots abiertas, la s\u00EDntesis emite un candidato Playwright
+  encadenado <code>&lt;host-selector&gt; &gt;&gt; &lt;inner&gt;</code>
+  (ej. <code>my-dialog &gt;&gt; [data-testid=&quot;save-btn&quot;]</code>).
+  Esto atraviesa expl\u00EDcitamente la frontera shadow &mdash; depender
+  del piercing impl\u00EDcito de Playwright depende del motor y es
+  f\u00E1cil de configurar mal en el lado Browser library / runner RF.
+  Las shadow roots cerradas siguen siendo opacas para el JS
+  userspace, as\u00ED que los elementos en root cerrada caen al
+  selector del host capturado.
+</p>`,
+        tip: 'En la UI del recorder, una \u2713 verde junto a un selector significa que resuelve a un \u00FAnico elemento visible + accionable en la p\u00E1gina en vivo. Varios candidatos aparecen ordenados por rango \u2014 el selector permite cambiar a otro si la elecci\u00F3n autom\u00E1tica no coincide con su intenci\u00F3n.'
+      },
+      {
         id: 'recorder-extension',
         title: 'Extensi\u00F3n de Chrome',
         content: `
