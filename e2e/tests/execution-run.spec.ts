@@ -244,8 +244,10 @@ test.describe('Execution Run — UI Tests', () => {
     // Should have "Zur Ausführung" button
     await expect(page.getByRole('button', { name: 'Zur Ausführung' })).toBeVisible();
 
-    // Close overlay
-    await page.getByRole('button', { name: 'Schließen' }).click();
+    // Close overlay — `exact: true` so the default-password banner's
+    // "× Schließen" dismiss button (aria-label only, not text)
+    // doesn't co-match the run-overlay close button.
+    await page.getByRole('button', { name: 'Schließen', exact: true }).click();
   });
 
   test('UI: execution page shows Output button for completed runs', async ({ page }) => {

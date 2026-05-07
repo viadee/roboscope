@@ -119,6 +119,16 @@ test.describe('IdP Providers List View', () => {
       });
       const runnerTokens = await runnerLogin.json();
 
+      // Mark the runner's first-login-complete flag BEFORE we
+      // navigate; otherwise the router intercept bounces us to
+      // /welcome instead of letting the role-guard kick in and
+      // redirect to /dashboard. The test's intent is the
+      // role-guard, not the first-login flow.
+      await request.patch(`${API}/auth/me/first-login-complete`, {
+        headers: { Authorization: `Bearer ${runnerTokens.access_token}` },
+        data: { value: true },
+      });
+
       await page.goto('/login');
       await page.evaluate((tokens) => {
         localStorage.setItem('access_token', tokens.access_token);

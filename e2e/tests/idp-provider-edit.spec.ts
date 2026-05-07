@@ -92,6 +92,12 @@ test.describe('IdP Provider Edit View', () => {
     await page.getByTestId('run-dry-run-btn').click();
     await expect(page.getByTestId('dry-run-panel')).toBeVisible({ timeout: 15000 });
 
+    // Wait for the dry-run to FINISH — `lastDryRunAtForm` is set
+    // only after the request resolves, and the stale banner is
+    // gated on it. The button re-enables when not loading; that's
+    // the cleanest "done" signal.
+    await expect(page.getByTestId('run-dry-run-btn')).toBeEnabled({ timeout: 30000 });
+
     // Panel not stale immediately after
     await expect(page.locator('[data-testid="dry-run-stale-banner"]')).toHaveCount(0);
 
