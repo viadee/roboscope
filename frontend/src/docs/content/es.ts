@@ -157,97 +157,64 @@ const es: DocsContent = [
         content: `
 <p>
   El <strong>Panel de control</strong> es la p\u00E1gina de inicio predeterminada
-  despu\u00E9s de iniciar sesi\u00F3n. Proporciona una visi\u00F3n general de alto
-  nivel de su actividad de pruebas y el estado de los repositorios, ayud\u00E1ndole
-  a evaluar r\u00E1pidamente el estado actual de su proyecto.
+  despu\u00E9s de iniciar sesi\u00F3n. Es una cuadr\u00EDcula de tarjetas que apunta a cada
+  secci\u00F3n navegable de RoboScope, para que un usuario nuevo pueda llegar a
+  Repositorios, Explorador, Ejecuciones, Estad\u00EDsticas, Grabador, Entornos,
+  Documentaci\u00F3n y Ajustes sin escanear la barra lateral.
 </p>
 <p>
-  El Panel de control se divide en tres secciones: <strong>Tarjetas KPI</strong>
-  en la parte superior, una tabla de <strong>Ejecuciones recientes</strong> en el
-  centro y un <strong>Resumen de repositorios</strong> en la parte inferior.
+  Junto a las tarjetas de navegaci\u00F3n, una tarjeta <strong>Consejo del d\u00EDa</strong>
+  rota diariamente entre 30 consejos espec\u00EDficos de RoboScope. Las m\u00E9tricas KPI
+  m\u00E1s profundas (recuentos de ejecuciones, tasa de \u00E9xito, tendencias de duraci\u00F3n)
+  viven en la p\u00E1gina <strong>Estad\u00EDsticas</strong>; las ejecuciones recientes y
+  el historial viven en la p\u00E1gina <strong>Ejecuciones</strong>.
 </p>`
       },
       {
-        id: 'kpi-cards',
-        title: 'Tarjetas KPI',
+        id: 'navigation-cards',
+        title: 'Tarjetas de navegaci\u00F3n',
         content: `
 <p>
-  Se muestran cuatro tarjetas de indicadores clave de rendimiento en la parte
-  superior del Panel de control:
+  Cada tarjeta es un atajo cliqueable. Al pasar el cursor aparece un chevron
+  animado y la tarjeta se eleva ligeramente para confirmar la affordance.
 </p>
 <table>
-  <thead>
-    <tr><th>Tarjeta</th><th>Descripci\u00F3n</th></tr>
-  </thead>
+  <thead><tr><th>Tarjeta</th><th>Apunta a</th></tr></thead>
   <tbody>
-    <tr>
-      <td><strong>Ejecuciones (30d)</strong></td>
-      <td>N\u00FAmero total de ejecuciones de pruebas realizadas en los \u00FAltimos 30 d\u00EDas.</td>
-    </tr>
-    <tr>
-      <td><strong>Tasa de \u00E9xito</strong></td>
-      <td>Porcentaje de ejecuciones completadas con todas las pruebas aprobadas (\u00FAltimos 30 d\u00EDas).</td>
-    </tr>
-    <tr>
-      <td><strong>Duraci\u00F3n media</strong></td>
-      <td>Tiempo medio de reloj de las ejecuciones de pruebas completadas en los \u00FAltimos 30 d\u00EDas.</td>
-    </tr>
-    <tr>
-      <td><strong>Repos activos</strong></td>
-      <td>N\u00FAmero de repositorios que han tenido al menos una ejecuci\u00F3n en los \u00FAltimos 30 d\u00EDas.</td>
-    </tr>
+    <tr><td><strong>Proyectos</strong></td><td>Configurar proyectos Git o locales, programar sincronizaci\u00F3n, gestionar permisos.</td></tr>
+    <tr><td><strong>Explorador</strong></td><td>Navegar el \u00E1rbol de archivos, editar tests Robot visualmente o en c\u00F3digo.</td></tr>
+    <tr><td><strong>Ejecuci\u00F3n</strong></td><td>Lanzar ejecuciones, seguir el progreso en vivo, programar ejecuciones recurrentes.</td></tr>
+    <tr><td><strong>Estad\u00EDsticas</strong></td><td>Tendencias pass/fail, tests \u00ABflaky\u00BB, tasa de auto-reparaci\u00F3n.</td></tr>
+    <tr><td><strong>Grabador</strong></td><td>Grabar interacciones en un navegador, generar tests Robot autom\u00E1ticamente. (Rol Editor o superior.)</td></tr>
+    <tr><td><strong>Entornos</strong></td><td>Gestionar venvs Python, instalar paquetes pip, construir im\u00E1genes Docker. (Rol Editor o superior.)</td></tr>
+    <tr><td><strong>Documentaci\u00F3n</strong></td><td>Esta documentaci\u00F3n, completamente buscable en cuatro idiomas.</td></tr>
+    <tr><td><strong>Ajustes</strong></td><td>Proveedores IA, retenci\u00F3n, secretos, registro de auditor\u00EDa, cumplimiento. (Rol Admin.)</td></tr>
   </tbody>
 </table>
 <p>
-  Cada tarjeta utiliza el sistema de dise\u00F1o de RoboScope: fondo blanco, acento
-  azul para tendencias positivas y \u00E1mbar para advertencias. Los valores se
-  actualizan autom\u00E1ticamente al navegar al Panel de control.
+  Las tarjetas visibles para un usuario respetan su rol: Grabador + Entornos
+  necesitan Editor o superior; Ajustes necesita Admin.
 </p>`,
-        tip: 'Las tarjetas KPI reflejan los \u00FAltimos 30 d\u00EDas de actividad. Para rangos de tiempo m\u00E1s largos, use la p\u00E1gina de Estad\u00EDsticas.'
+        tip: '\u00BFNuevo en RoboScope? Empiece por la tarjeta Proyectos \u2014 un proyecto Git por defecto \u00ABRobot Framework Examples\u00BB se inicializa al primer arranque, as\u00ED tiene algo con lo que jugar al instante.'
       },
       {
-        id: 'recent-runs',
-        title: 'Tabla de ejecuciones recientes',
+        id: 'tip-of-the-day',
+        title: 'Consejo del d\u00EDa',
         content: `
 <p>
-  Debajo de las tarjetas KPI, una tabla enumera las ejecuciones de pruebas m\u00E1s
-  recientes en todos los repositorios. Cada fila muestra:
+  Una peque\u00F1a tarjeta <strong>\u{1F4A1} Consejo del d\u00EDa</strong> se sit\u00FAa dentro
+  de la cuadr\u00EDcula, mostrando uno de los 30 breves consejos espec\u00EDficos de
+  RoboScope. Los consejos rotan en un ciclo de 30 d\u00EDas \u2014 cada d\u00EDa calendario
+  elige uno nuevo \u2014 para que los usuarios frecuentes aprendan una caracter\u00EDstica
+  nueva cada vez que abren el panel.
 </p>
-<ul>
-  <li><strong>ID de ejecuci\u00F3n</strong> &mdash; Un identificador \u00FAnico para la ejecuci\u00F3n.</li>
-  <li><strong>Repositorio</strong> &mdash; El nombre del repositorio contra el que se lanz\u00F3 la ejecuci\u00F3n.</li>
-  <li><strong>Estado</strong> &mdash; Una insignia de color que indica el estado de la ejecuci\u00F3n: <code>passed</code>, <code>failed</code>, <code>running</code>, <code>pending</code>, <code>error</code>, <code>cancelled</code> o <code>timeout</code>.</li>
-  <li><strong>Duraci\u00F3n</strong> &mdash; Cu\u00E1nto tiempo tard\u00F3 la ejecuci\u00F3n (o cu\u00E1nto tiempo lleva ejecut\u00E1ndose).</li>
-  <li><strong>Iniciado por</strong> &mdash; El usuario que inici\u00F3 la ejecuci\u00F3n.</li>
-  <li><strong>Fecha</strong> &mdash; Marca de tiempo de cu\u00E1ndo se inici\u00F3 la ejecuci\u00F3n.</li>
-</ul>
 <p>
-  Al hacer clic en una fila, se navega a la p\u00E1gina de <strong>Detalles de
-  la ejecuci\u00F3n</strong> donde puede inspeccionar los registros de salida,
-  reintentar o cancelar la ejecuci\u00F3n.
+  Los consejos se enfocan espec\u00EDficamente en las funcionalidades de RoboScope
+  (paleta del Editor de Flujo, selector del Grabador, palabras clave de
+  auto-reparaci\u00F3n, tasa de reparaci\u00F3n de Stats, auto-sync de repos, panel de
+  Detalles de Ejecuci\u00F3n, \u2026) \u2014 no consejos gen\u00E9ricos de Robot Framework. El
+  texto de los consejos est\u00E1 disponible en las cuatro localizaciones (EN/DE/FR/ES).
 </p>`
-      },
-      {
-        id: 'repo-summary',
-        title: 'Resumen de repositorios',
-        content: `
-<p>
-  La secci\u00F3n inferior del Panel de control muestra un resumen de todos los
-  repositorios registrados. Para cada repositorio, puede ver:
-</p>
-<ul>
-  <li>Nombre del repositorio y tipo (Git o Local).</li>
-  <li>N\u00FAmero de archivos de prueba detectados.</li>
-  <li>Marca de tiempo de la \u00FAltima sincronizaci\u00F3n.</li>
-  <li>Insignia de estado de la \u00FAltima ejecuci\u00F3n.</li>
-</ul>
-<p>
-  Esto proporciona una visi\u00F3n r\u00E1pida de qu\u00E9 repositorios est\u00E1n
-  en buen estado y cu\u00E1les pueden necesitar atenci\u00F3n. Al hacer clic en el
-  nombre de un repositorio, se accede a la vista del <strong>Explorador</strong>
-  de ese repositorio.
-</p>`,
-        tip: 'Si un repositorio muestra una marca de tiempo de sincronizaci\u00F3n obsoleta, navegue a Repositorios y lance una sincronizaci\u00F3n manual.'
       }
     ]
   },
@@ -554,9 +521,11 @@ const es: DocsContent = [
 </p>
 <h4>Tipos de nodos</h4>
 <ul>
-  <li><strong>Nodos Inicio/Fin</strong> &mdash; Nodos redondeados que muestran el nombre del caso de prueba, marcando el inicio y fin de cada flujo.</li>
+  <li><strong>Nodos Inicio/Fin</strong> &mdash; Nodos redondeados que marcan el inicio y fin de cada flujo. El nodo Inicio muestra el nombre del caso de prueba / palabra clave; haga clic para abrir un panel de ajustes con botones <strong>+ [&hellip;]</strong> para cada ajuste a\u00FAn no adjunto.</li>
   <li><strong>Nodos de palabra clave</strong> (azul) &mdash; Representan llamadas a palabras clave. Haga clic en un nodo para ver sus argumentos en el panel de detalles a la derecha.</li>
   <li><strong>Nodos de control</strong> (borde punteado) &mdash; Representan estructuras de control como <code>IF</code>, <code>FOR</code>, <code>WHILE</code> y <code>TRY/EXCEPT</code>. Codificados por color seg\u00FAn tipo (\u00E1mbar para IF, violeta para FOR/WHILE, turquesa para TRY, rojo para EXCEPT). Las etiquetas de las aristas muestran condiciones de ramificaci\u00F3n (true/false).</li>
+  <li><strong>Nodo RETURN</strong> (verde, glifo &uarr;) &mdash; Marca el punto de retorno de una definici\u00F3n de palabra clave. Cada valor de retorno se renderiza como un chip; haga clic en el nodo y use el panel <strong>Valores de retorno</strong> para a\u00F1adir / quitar celdas.</li>
+  <li><strong>Notas laterales</strong> (borde punteado, vista previa en cursiva) &mdash; Ajustes de caso de prueba / palabra clave renderizados a la izquierda del nodo Inicio. Vea la siguiente secci\u00F3n.</li>
 </ul>
 <h4>Paleta de palabras clave</h4>
 <p>
@@ -576,6 +545,72 @@ const es: DocsContent = [
   formulario del Visual Editor como el c\u00F3digo bruto <code>.robot</code>.
 </p>`,
         tip: 'Use el MiniMap en la esquina inferior derecha del lienzo para navegar por suites de pruebas grandes. El panel de controles permite hacer zoom y ajustar la vista.'
+      },
+      {
+        id: 'flow-editor-settings',
+        title: 'Ajustes de caso de prueba &amp; palabra clave (notas laterales)',
+        content: `
+<p>
+  Robot Framework permite adjuntar <strong>ajustes
+  <code>[&hellip;]</code></strong> a un caso de prueba
+  (<code>[Documentation]</code>, <code>[Tags]</code>, <code>[Setup]</code>,
+  <code>[Teardown]</code>, <code>[Template]</code>, <code>[Timeout]</code>) y
+  a una definición de palabra clave (los mismos más
+  <code>[Arguments]</code>). El editor de flujo muestra cada ajuste
+  poblado como su propia <strong>nota lateral</strong> apilada
+  verticalmente a la izquierda del nodo Inicio, conectada por una
+  arista discontinua.
+</p>
+<p>
+  Cada nota lateral muestra una etiqueta como <code>[Tags]</code> y
+  una breve vista previa en cursiva del valor (la documentación
+  multilínea se limita a dos líneas para que una
+  <code>[Documentation]</code> larga no desborde sobre la siguiente).
+  Haga clic en una nota lateral para abrir un panel de detalles
+  específico del tipo:
+</p>
+<ul>
+  <li><strong>[Documentation]</strong> &mdash; área de texto multilínea.
+  El texto multilínea se conserva como filas de continuación
+  <code>...</code> en el archivo <code>.robot</code> guardado.</li>
+  <li><strong>[Tags]</strong> / <strong>[Arguments]</strong> &mdash;
+  entrada separada por comas. <code>${'${name}'}=default</code> es una
+  especificación de argumento válida; <code>${'@{name}'}</code>
+  funciona para varargs.</li>
+  <li><strong>[Setup]</strong> / <strong>[Teardown]</strong> &mdash;
+  nombre de la palabra clave a invocar antes / después del cuerpo.
+  Sobrescribe Test Setup / Teardown a nivel de Suite solo para este
+  caso de prueba.</li>
+  <li><strong>[Template]</strong> (solo casos de prueba) &mdash;
+  convierte el cuerpo en un bucle guiado por datos donde cada fila
+  es una llamada a la palabra clave template.</li>
+  <li><strong>[Timeout]</strong> &mdash; tiempo máximo antes de
+  abortar (ej. <code>30s</code>, <code>5 minutes</code>).</li>
+</ul>
+<h4>Añadir un ajuste</h4>
+<p>
+  Haga clic en el nodo Inicio para abrir el panel
+  <strong>Ajustes del caso de prueba</strong> /
+  <strong>Ajustes de la palabra clave</strong>. Para cada tipo aún
+  no adjunto aparece un botón <strong>+ [&hellip;]</strong>; haga
+  clic en él y la nota lateral aparece con un placeholder atenuado
+  «haz clic para editar», listo para entrada. Una vez que cada tipo
+  está rellenado, el panel cae a una pista que apunta a las notas
+  laterales.
+</p>
+<h4>Quitar un ajuste</h4>
+<p>
+  Abra el panel de detalles de la nota lateral y use el botón
+  <strong>&times;</strong> en el encabezado. La nota lateral
+  desaparece del lienzo en cuanto el valor subyacente se vacía.
+</p>
+<p>
+  Las ediciones se almacenan en buffer localmente y se confirman al
+  formulario en el <strong>blur</strong> &mdash; teclear ya no
+  dispara un deep-watcher por cada pulsación, el panel sobrevive a
+  ediciones multi-carácter intactas.
+</p>`,
+        tip: 'Una nota lateral es solo una visualización de la línea [Documentation] / [Tags] / etc. subyacente — el serializador round-trip siempre produce la sintaxis .robot canónica, así que un archivo editado en la pestaña Flow y guardado se ve idéntico a uno escrito a mano.'
       },
       {
         id: 'explorer-search',

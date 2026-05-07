@@ -523,9 +523,11 @@ const en: DocsContent = [
 </p>
 <h4>Node Types</h4>
 <ul>
-  <li><strong>Start / End Nodes</strong> &mdash; Round nodes displaying the test case name, marking the beginning and end of each flow.</li>
+  <li><strong>Start / End Nodes</strong> &mdash; Round nodes marking the beginning and end of each flow. The Start node shows the test case / keyword name; click it to open a section-settings panel with <strong>+ [&hellip;]</strong> buttons for any setting that isn&rsquo;t already attached.</li>
   <li><strong>Keyword Nodes</strong> (blue) &mdash; Represent keyword calls. Click a node to see its arguments in the detail panel on the right.</li>
   <li><strong>Control Nodes</strong> (dashed border) &mdash; Represent control structures like <code>IF</code>, <code>FOR</code>, <code>WHILE</code>, and <code>TRY/EXCEPT</code>. Color-coded by type (amber for IF, violet for FOR/WHILE, teal for TRY, red for EXCEPT). Edge labels show branch conditions (true/false).</li>
+  <li><strong>RETURN Node</strong> (green, &uarr; glyph) &mdash; Marks a keyword definition&rsquo;s return point. Each return value renders as a value chip; click the node and use the <strong>Return Values</strong> panel to add/remove cells.</li>
+  <li><strong>Side notes</strong> (dashed border, italic preview) &mdash; Test-case / keyword settings rendered as &ldquo;side notes&rdquo; to the left of Start. See the next section.</li>
 </ul>
 <h4>Keyword Palette</h4>
 <p>
@@ -545,6 +547,61 @@ const en: DocsContent = [
   <code>.robot</code> code.
 </p>`,
         tip: 'Use the MiniMap in the bottom-right corner of the flow canvas to navigate large test suites. The Controls panel lets you zoom in/out and fit the view.'
+      },
+      {
+        id: 'flow-editor-settings',
+        title: 'Test-case &amp; Keyword Settings (side notes)',
+        content: `
+<p>
+  Robot Framework lets you attach <strong><code>[&hellip;]</code> settings</strong>
+  to a test case (<code>[Documentation]</code>, <code>[Tags]</code>, <code>[Setup]</code>,
+  <code>[Teardown]</code>, <code>[Template]</code>, <code>[Timeout]</code>) and to a
+  keyword definition (the same plus <code>[Arguments]</code>). The Flow Editor
+  surfaces every populated setting as its own <strong>side note</strong> stacked
+  vertically to the left of the Start node, connected by a dashed edge.
+</p>
+<p>
+  Each side note shows a label like <code>[Tags]</code> and a short italic preview
+  of the value (multi-line documentation is clamped to two lines so a long
+  <code>[Documentation]</code> can&rsquo;t crowd the next side note below).
+  Click a side note to open a kind-aware detail panel:
+</p>
+<ul>
+  <li><strong>[Documentation]</strong> &mdash; multi-line textarea. Multi-line
+  text is preserved as <code>...</code> continuation rows in the saved
+  <code>.robot</code> file.</li>
+  <li><strong>[Tags]</strong> / <strong>[Arguments]</strong> &mdash; comma-
+  separated input. <code>${'${name}'}=default</code> is a valid argument spec;
+  <code>${'@{name}'}</code> works for varargs.</li>
+  <li><strong>[Setup]</strong> / <strong>[Teardown]</strong> &mdash; keyword
+  name to call before / after the body. Overrides Suite-level Test Setup /
+  Teardown for this test case only.</li>
+  <li><strong>[Template]</strong> (test cases only) &mdash; turns the test body
+  into a data-driven loop where each row is one call to the template keyword.</li>
+  <li><strong>[Timeout]</strong> &mdash; max runtime before forced abort
+  (e.g. <code>30s</code>, <code>5 minutes</code>).</li>
+</ul>
+<h4>Adding a setting</h4>
+<p>
+  Click the Start node to open the <strong>Test-case settings</strong> /
+  <strong>Keyword settings</strong> panel. For every kind that isn&rsquo;t
+  attached yet a <strong>+ [&hellip;]</strong> button appears; click it and the
+  side note shows up on the canvas with a dimmed &ldquo;click to edit&rdquo;
+  placeholder, ready for input. Once every kind is filled in the panel falls
+  back to a hint pointing at the side notes.
+</p>
+<h4>Removing a setting</h4>
+<p>
+  Open the side note&rsquo;s detail panel and use the <strong>&times;</strong>
+  button in the header. The side note disappears from the canvas as soon as the
+  underlying value clears.
+</p>
+<p>
+  Edits are buffered locally and committed back to the form on <strong>blur</strong>
+  &mdash; typing into the input no longer fires a deep watcher on every
+  keystroke, so the panel survives multi-character edits intact.
+</p>`,
+        tip: 'A side note is just a visualisation of the underlying [Documentation] / [Tags] / etc. line — the round-trip serializer always produces the canonical .robot syntax, so a file edited in the Flow tab and saved looks identical to one written by hand.'
       },
       {
         id: 'explorer-search',

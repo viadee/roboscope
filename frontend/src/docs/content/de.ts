@@ -152,7 +152,7 @@ const de: DocsContent = [
 </p>`
       },
       {
-        id: 'dashboard-cards',
+        id: 'navigation-cards',
         title: 'Navigations-Karten',
         content: `
 <p>
@@ -179,7 +179,7 @@ const de: DocsContent = [
         tip: 'Neu bei RoboScope? Starte bei der Projekte-Karte \u2014 ein Default-Projekt "Robot Framework Examples" wird beim ersten Start automatisch geseedet, damit du gleich etwas zum Spielen hast.'
       },
       {
-        id: 'dashboard-tip',
+        id: 'tip-of-the-day',
         title: 'Tipp des Tages',
         content: `
 <p>
@@ -499,9 +499,11 @@ const de: DocsContent = [
 </p>
 <h4>Knotentypen</h4>
 <ul>
-  <li><strong>Start-/End-Knoten</strong> &mdash; Runde Knoten, die den Testfallnamen anzeigen und Anfang und Ende jedes Flows markieren.</li>
+  <li><strong>Start-/End-Knoten</strong> &mdash; Runde Knoten, die Anfang und Ende jedes Flows markieren. Der Start-Knoten zeigt den Testfall- bzw. Keyword-Namen; per Klick \u00F6ffnet sich ein Section-Settings-Panel mit <strong>+ [&hellip;]</strong>-Buttons f\u00FCr jede noch nicht angef\u00FCgte Einstellung.</li>
   <li><strong>Keyword-Knoten</strong> (blau) &mdash; Repr\u00E4sentieren Keyword-Aufrufe. Klicken Sie auf einen Knoten, um seine Argumente im Detail-Panel rechts zu sehen.</li>
   <li><strong>Kontrollstruktur-Knoten</strong> (gestrichelter Rand) &mdash; Repr\u00E4sentieren Kontrollstrukturen wie <code>IF</code>, <code>FOR</code>, <code>WHILE</code> und <code>TRY/EXCEPT</code>. Farbcodiert nach Typ (Amber f\u00FCr IF, Violett f\u00FCr FOR/WHILE, Teal f\u00FCr TRY, Rot f\u00FCr EXCEPT). Edge-Labels zeigen Verzweigungsbedingungen (true/false).</li>
+  <li><strong>RETURN-Knoten</strong> (gr\u00FCn, &uarr;-Glyph) &mdash; Markiert den R\u00FCckgabepunkt einer Keyword-Definition. Jeder R\u00FCckgabewert wird als Value-Chip dargestellt; per Klick lassen sich im <strong>R\u00FCckgabewerte</strong>-Panel Zellen hinzuf\u00FCgen / entfernen.</li>
+  <li><strong>Seitennotizen</strong> (gestrichelter Rand, kursive Vorschau) &mdash; Testfall- bzw. Keyword-Einstellungen, links neben dem Start-Knoten gerendert. Siehe n\u00E4chster Abschnitt.</li>
 </ul>
 <h4>Keyword-Palette</h4>
 <p>
@@ -521,6 +523,66 @@ const de: DocsContent = [
   als auch den rohen <code>.robot</code>-Code aktualisieren.
 </p>`,
         tip: 'Nutzen Sie die MiniMap in der unteren rechten Ecke der Flow-Canvas, um in gro\u00DFen Test-Suites zu navigieren. Das Controls-Panel erm\u00F6glicht Zoom und Ansichtsanpassung.'
+      },
+      {
+        id: 'flow-editor-settings',
+        title: 'Testfall- &amp; Keyword-Einstellungen (Seitennotizen)',
+        content: `
+<p>
+  In Robot Framework lassen sich an einen Testfall <strong><code>[&hellip;]</code>-
+  Einstellungen</strong> anh\u00E4ngen (<code>[Documentation]</code>, <code>[Tags]</code>,
+  <code>[Setup]</code>, <code>[Teardown]</code>, <code>[Template]</code>,
+  <code>[Timeout]</code>) und an eine Keyword-Definition dieselben plus
+  <code>[Arguments]</code>. Der Flow-Editor zeigt jede gef\u00FCllte Einstellung
+  als eigene <strong>Seitennotiz</strong>, vertikal gestapelt links vom
+  Start-Knoten und \u00FCber eine gestrichelte Kante verbunden.
+</p>
+<p>
+  Jede Seitennotiz zeigt ein Label wie <code>[Tags]</code> und eine kurze
+  kursive Vorschau des Werts (mehrzeilige Dokumentation wird auf zwei Zeilen
+  geclamped, damit eine lange <code>[Documentation]</code> die Notiz darunter
+  nicht verdr\u00E4ngt). Klicken Sie eine Seitennotiz an, um ein typabh\u00E4ngiges
+  Detail-Panel zu \u00F6ffnen:
+</p>
+<ul>
+  <li><strong>[Documentation]</strong> &mdash; mehrzeiliges Textfeld. Mehrzeiliger
+  Text wird beim Speichern als <code>...</code>-Folgezeilen in der
+  <code>.robot</code>-Datei abgelegt.</li>
+  <li><strong>[Tags]</strong> / <strong>[Arguments]</strong> &mdash;
+  komma-separierte Eingabe. <code>${'${name}'}=default</code> ist eine
+  g\u00FCltige Argument-Spec; <code>${'@{name}'}</code> funktioniert f\u00FCr Varargs.</li>
+  <li><strong>[Setup]</strong> / <strong>[Teardown]</strong> &mdash; Keyword-
+  Name, der vor / nach dem Body l\u00E4uft. \u00DCberschreibt das Suite-Level Test
+  Setup / Teardown nur f\u00FCr diesen Testfall.</li>
+  <li><strong>[Template]</strong> (nur Testf\u00E4lle) &mdash; macht den Body zu
+  einer datengetriebenen Schleife, in der jede Zeile ein Aufruf des Template-
+  Keywords mit der Zeile als Argumente ist.</li>
+  <li><strong>[Timeout]</strong> &mdash; maximale Laufzeit, danach wird
+  abgebrochen (z. B. <code>30s</code>, <code>5 minutes</code>).</li>
+</ul>
+<h4>Einstellung hinzuf\u00FCgen</h4>
+<p>
+  Klicken Sie auf den Start-Knoten, um das <strong>Testfall-Einstellungen</strong>-
+  bzw. <strong>Keyword-Einstellungen</strong>-Panel zu \u00F6ffnen. F\u00FCr jeden Typ,
+  der noch nicht angef\u00FCgt ist, erscheint ein <strong>+ [&hellip;]</strong>-
+  Button; klick \u2014 und die Seitennotiz erscheint mit gedimmtem
+  \u201Eklicken zum Bearbeiten\u201C-Platzhalter, bereit zur Eingabe. Sobald jede
+  Einstellung gef\u00FCllt ist, f\u00E4llt das Panel auf einen Hinweis zur\u00FCck, der auf
+  die Seitennotizen verweist.
+</p>
+<h4>Einstellung entfernen</h4>
+<p>
+  \u00D6ffnen Sie das Detail-Panel der Seitennotiz und nutzen Sie den
+  <strong>&times;</strong>-Button im Header. Die Seitennotiz verschwindet
+  vom Canvas, sobald der zugrundeliegende Wert geleert ist.
+</p>
+<p>
+  Eingaben werden lokal gepuffert und erst bei <strong>blur</strong> in das
+  Form zur\u00FCckgeschrieben &mdash; Tippen feuert keinen Deep-Watcher pro
+  Tastendruck mehr ab, das Panel bleibt w\u00E4hrend mehrteiliger Eingaben
+  ge\u00F6ffnet.
+</p>`,
+        tip: 'Eine Seitennotiz ist nur eine Visualisierung der zugrundeliegenden [Documentation] / [Tags] / etc.-Zeile \u2014 der Round-Trip-Serialisierer produziert immer die kanonische .robot-Syntax, eine im Flow-Tab bearbeitete und gespeicherte Datei sieht also identisch aus zu einer von Hand geschriebenen.'
       },
       {
         id: 'explorer-search',

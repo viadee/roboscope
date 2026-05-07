@@ -153,93 +153,63 @@ const fr: DocsContent = [
         content: `
 <p>
   Le <strong>Tableau de bord</strong> est la page d\u2019accueil par d\u00E9faut apr\u00E8s la connexion.
-  Il fournit une vue d\u2019ensemble de votre activit\u00E9 de test et de la sant\u00E9 de vos d\u00E9p\u00F4ts,
-  vous aidant \u00E0 \u00E9valuer rapidement l\u2019\u00E9tat actuel de votre projet.
+  C\u2019est une grille de cartes qui pointe vers chaque section navigable de RoboScope, pour
+  qu\u2019un nouvel utilisateur atteigne D\u00E9p\u00F4ts, Explorateur, Ex\u00E9cutions, Statistiques,
+  Enregistreur, Environnements, Documentation et Param\u00E8tres sans parcourir la barre lat\u00E9rale.
 </p>
 <p>
-  Le tableau de bord est divis\u00E9 en trois sections\u00A0: les <strong>cartes KPI</strong> en haut,
-  un tableau des <strong>ex\u00E9cutions r\u00E9centes</strong> au milieu, et un
-  <strong>r\u00E9sum\u00E9 des d\u00E9p\u00F4ts</strong> en bas.
+  \u00C0 c\u00F4t\u00E9 des cartes de navigation, une carte <strong>Astuce du jour</strong> tourne
+  quotidiennement entre 30 astuces sp\u00E9cifiques \u00E0 RoboScope. Les KPI plus profonds
+  (nombre d\u2019ex\u00E9cutions, taux de r\u00E9ussite, tendances de dur\u00E9e) vivent sur la page
+  <strong>Statistiques</strong>\u00A0; les ex\u00E9cutions r\u00E9centes et l\u2019historique vivent
+  sur la page <strong>Ex\u00E9cutions</strong>.
 </p>`
       },
       {
-        id: 'kpi-cards',
-        title: 'Cartes KPI',
+        id: 'navigation-cards',
+        title: 'Cartes de navigation',
         content: `
 <p>
-  Quatre cartes d\u2019indicateurs cl\u00E9s de performance sont affich\u00E9es en haut du tableau de bord\u00A0:
+  Chaque carte est un raccourci cliquable. Au survol, un chevron anim\u00E9 appara\u00EEt et
+  la carte se l\u00E8ve l\u00E9g\u00E8rement pour confirmer l\u2019affordance.
 </p>
 <table>
-  <thead>
-    <tr><th>Carte</th><th>Description</th></tr>
-  </thead>
+  <thead><tr><th>Carte</th><th>Pointe vers</th></tr></thead>
   <tbody>
-    <tr>
-      <td><strong>Ex\u00E9cutions (30j)</strong></td>
-      <td>Nombre total d\u2019ex\u00E9cutions de tests au cours des 30 derniers jours.</td>
-    </tr>
-    <tr>
-      <td><strong>Taux de r\u00E9ussite</strong></td>
-      <td>Pourcentage d\u2019ex\u00E9cutions dont tous les tests ont r\u00E9ussi (30 derniers jours).</td>
-    </tr>
-    <tr>
-      <td><strong>Dur\u00E9e moyenne</strong></td>
-      <td>Dur\u00E9e moyenne des ex\u00E9cutions termin\u00E9es au cours des 30 derniers jours.</td>
-    </tr>
-    <tr>
-      <td><strong>D\u00E9p\u00F4ts actifs</strong></td>
-      <td>Nombre de d\u00E9p\u00F4ts ayant eu au moins une ex\u00E9cution dans les 30 derniers jours.</td>
-    </tr>
+    <tr><td><strong>Projets</strong></td><td>Configurer des projets Git ou locaux, planifier la synchronisation, g\u00E9rer les permissions.</td></tr>
+    <tr><td><strong>Explorateur</strong></td><td>Parcourir l\u2019arborescence de fichiers, \u00E9diter des tests Robot visuellement ou en code.</td></tr>
+    <tr><td><strong>Ex\u00E9cution</strong></td><td>D\u00E9clencher des ex\u00E9cutions, suivre la progression en direct, planifier des ex\u00E9cutions r\u00E9currentes.</td></tr>
+    <tr><td><strong>Statistiques</strong></td><td>Tendances pass/fail, tests \u00AB\u00A0flaky\u00A0\u00BB, taux d\u2019auto-r\u00E9paration.</td></tr>
+    <tr><td><strong>Enregistreur</strong></td><td>Enregistrer les interactions dans un navigateur, g\u00E9n\u00E9rer des tests Robot automatiquement. (R\u00F4le \u00C9diteur ou sup\u00E9rieur.)</td></tr>
+    <tr><td><strong>Environnements</strong></td><td>G\u00E9rer les venvs Python, installer des paquets pip, construire des images Docker. (R\u00F4le \u00C9diteur ou sup\u00E9rieur.)</td></tr>
+    <tr><td><strong>Documentation</strong></td><td>Cette documentation, enti\u00E8rement recherchable en quatre langues.</td></tr>
+    <tr><td><strong>Param\u00E8tres</strong></td><td>Fournisseurs IA, r\u00E9tention, secrets, journal d\u2019audit, conformit\u00E9. (R\u00F4le Admin.)</td></tr>
   </tbody>
 </table>
 <p>
-  Chaque carte utilise le syst\u00E8me de design RoboScope\u00A0: fond blanc, accent bleu pour les
-  tendances positives et ambre pour les avertissements. Les valeurs se mettent \u00E0 jour
-  automatiquement lors de la navigation vers le tableau de bord.
+  Les cartes visibles pour un utilisateur respectent son r\u00F4le\u00A0: Enregistreur +
+  Environnements n\u00E9cessitent \u00C9diteur ou sup\u00E9rieur\u00A0; Param\u00E8tres n\u00E9cessite Admin.
 </p>`,
-        tip: 'Les cartes KPI refl\u00E8tent les 30 derniers jours d\u2019activit\u00E9. Pour des p\u00E9riodes plus longues, utilisez la page Statistiques.'
+        tip: 'Nouveau sur RoboScope\u00A0? Commencez par la carte Projets \u2014 un projet Git par d\u00E9faut \u00AB\u00A0Robot Framework Examples\u00A0\u00BB est seed\u00E9 au premier d\u00E9marrage, vous avez donc imm\u00E9diatement de quoi exp\u00E9rimenter.'
       },
       {
-        id: 'recent-runs',
-        title: 'Tableau des ex\u00E9cutions r\u00E9centes',
+        id: 'tip-of-the-day',
+        title: 'Astuce du jour',
         content: `
 <p>
-  Sous les cartes KPI, un tableau liste les ex\u00E9cutions de tests les plus r\u00E9centes
-  de tous les d\u00E9p\u00F4ts. Chaque ligne affiche\u00A0:
+  Une petite carte <strong>\u{1F4A1} Astuce du jour</strong> se trouve dans la grille,
+  affichant l\u2019une des 30 br\u00E8ves astuces sp\u00E9cifiques \u00E0 RoboScope. Les astuces
+  tournent sur un cycle de 30 jours \u2014 chaque jour calendaire en choisit une nouvelle \u2014
+  pour que les utilisateurs r\u00E9guliers d\u00E9couvrent une nouvelle fonctionnalit\u00E9 \u00E0 chaque
+  ouverture du tableau de bord.
 </p>
-<ul>
-  <li><strong>ID d\u2019ex\u00E9cution</strong> &mdash; Un identifiant unique pour l\u2019ex\u00E9cution.</li>
-  <li><strong>D\u00E9p\u00F4t</strong> &mdash; Le nom du d\u00E9p\u00F4t concern\u00E9.</li>
-  <li><strong>Statut</strong> &mdash; Un badge color\u00E9 indiquant l\u2019\u00E9tat\u00A0: <code>passed</code>, <code>failed</code>, <code>running</code>, <code>pending</code>, <code>error</code>, <code>cancelled</code> ou <code>timeout</code>.</li>
-  <li><strong>Dur\u00E9e</strong> &mdash; Le temps d\u2019ex\u00E9cution (ou le temps \u00E9coul\u00E9 si en cours).</li>
-  <li><strong>D\u00E9clench\u00E9 par</strong> &mdash; L\u2019utilisateur qui a lanc\u00E9 l\u2019ex\u00E9cution.</li>
-  <li><strong>Date</strong> &mdash; Horodatage du lancement de l\u2019ex\u00E9cution.</li>
-</ul>
 <p>
-  Cliquer sur une ligne ouvre la page de <strong>D\u00E9tails de l\u2019ex\u00E9cution</strong> o\u00F9 vous
-  pouvez inspecter les journaux de sortie, relancer ou annuler l\u2019ex\u00E9cution.
+  Les astuces se concentrent sp\u00E9cifiquement sur les fonctionnalit\u00E9s de RoboScope
+  (palette de l\u2019\u00E9diteur de flux, s\u00E9lecteur de l\u2019enregistreur, mots-cl\u00E9s
+  d\u2019auto-r\u00E9paration, taux de r\u00E9paration des Stats, auto-sync des d\u00E9p\u00F4ts, panneau
+  D\u00E9tails d\u2019ex\u00E9cution, \u2026) \u2014 pas des astuces g\u00E9n\u00E9riques sur Robot Framework.
+  Le texte des astuces est disponible dans les quatre locales (EN/DE/FR/ES).
 </p>`
-      },
-      {
-        id: 'repo-summary',
-        title: 'Aper\u00E7u des d\u00E9p\u00F4ts',
-        content: `
-<p>
-  La section inf\u00E9rieure du tableau de bord affiche un r\u00E9sum\u00E9 de tous les d\u00E9p\u00F4ts
-  enregistr\u00E9s. Pour chaque d\u00E9p\u00F4t, vous pouvez voir\u00A0:
-</p>
-<ul>
-  <li>Nom et type du d\u00E9p\u00F4t (Git ou Local).</li>
-  <li>Nombre de fichiers de test d\u00E9tect\u00E9s.</li>
-  <li>Horodatage de la derni\u00E8re synchronisation.</li>
-  <li>Badge de statut de la derni\u00E8re ex\u00E9cution.</li>
-</ul>
-<p>
-  Cela permet d\u2019identifier rapidement les d\u00E9p\u00F4ts en bonne sant\u00E9 et ceux n\u00E9cessitant
-  une attention particuli\u00E8re. Cliquer sur le nom d\u2019un d\u00E9p\u00F4t ouvre la vue
-  <strong>Explorateur</strong> pour ce d\u00E9p\u00F4t.
-</p>`,
-        tip: 'Si un d\u00E9p\u00F4t affiche un horodatage de synchronisation obsol\u00E8te, acc\u00E9dez aux D\u00E9p\u00F4ts et lancez une synchronisation manuelle.'
       }
     ]
   },
@@ -536,9 +506,11 @@ const fr: DocsContent = [
 </p>
 <h4>Types de n\u0153uds</h4>
 <ul>
-  <li><strong>N\u0153uds D\u00E9but/Fin</strong> &mdash; N\u0153uds arrondis affichant le nom du cas de test, marquant le d\u00E9but et la fin de chaque flux.</li>
+  <li><strong>N\u0153uds D\u00E9but/Fin</strong> &mdash; N\u0153uds arrondis marquant le d\u00E9but et la fin de chaque flux. Le n\u0153ud D\u00E9but affiche le nom du cas de test / mot-cl\u00E9\u00A0; cliquez dessus pour ouvrir un panneau de param\u00E8tres avec des boutons <strong>+ [&hellip;]</strong> pour chaque param\u00E8tre non encore attach\u00E9.</li>
   <li><strong>N\u0153uds Keyword</strong> (bleu) &mdash; Repr\u00E9sentent les appels de mots-cl\u00E9s. Cliquez sur un n\u0153ud pour voir ses arguments dans le panneau de d\u00E9tails \u00E0 droite.</li>
   <li><strong>N\u0153uds de contr\u00F4le</strong> (bordure en pointill\u00E9s) &mdash; Repr\u00E9sentent les structures de contr\u00F4le comme <code>IF</code>, <code>FOR</code>, <code>WHILE</code> et <code>TRY/EXCEPT</code>. Code couleur par type (ambre pour IF, violet pour FOR/WHILE, sarcelle pour TRY, rouge pour EXCEPT). Les \u00E9tiquettes des ar\u00EAtes montrent les conditions de branchement (true/false).</li>
+  <li><strong>N\u0153ud RETURN</strong> (vert, glyphe &uarr;) &mdash; Marque le point de retour d\u2019une d\u00E9finition de mot-cl\u00E9. Chaque valeur de retour est rendue comme un chip\u00A0; cliquez sur le n\u0153ud et utilisez le panneau <strong>Valeurs de retour</strong> pour ajouter / supprimer des cellules.</li>
+  <li><strong>Notes lat\u00E9rales</strong> (bordure en pointill\u00E9s, aper\u00E7u en italique) &mdash; Param\u00E8tres de cas de test / mot-cl\u00E9 rendus \u00E0 gauche du n\u0153ud D\u00E9but. Voir la section suivante.</li>
 </ul>
 <h4>Palette de mots-cl\u00E9s</h4>
 <p>
@@ -558,6 +530,69 @@ const fr: DocsContent = [
   le formulaire du Visual Editor et le code brut <code>.robot</code>.
 </p>`,
         tip: 'Utilisez la MiniMap dans le coin inf\u00E9rieur droit du canevas pour naviguer dans les grandes suites de tests. Le panneau Controls permet de zoomer et d\u2019ajuster la vue.'
+      },
+      {
+        id: 'flow-editor-settings',
+        title: 'Param\u00E8tres de cas de test &amp; mot-cl\u00E9 (notes lat\u00E9rales)',
+        content: `
+<p>
+  Robot Framework permet d\u2019attacher des <strong>param\u00E8tres
+  <code>[&hellip;]</code></strong> \u00E0 un cas de test
+  (<code>[Documentation]</code>, <code>[Tags]</code>, <code>[Setup]</code>,
+  <code>[Teardown]</code>, <code>[Template]</code>, <code>[Timeout]</code>) et
+  \u00E0 une d\u00E9finition de mot-cl\u00E9 (les m\u00EAmes plus <code>[Arguments]</code>).
+  L\u2019\u00E9diteur de flux affiche chaque param\u00E8tre rempli comme sa propre
+  <strong>note lat\u00E9rale</strong> empil\u00E9e verticalement \u00E0 gauche du n\u0153ud
+  D\u00E9but, reli\u00E9e par une ar\u00EAte en pointill\u00E9s.
+</p>
+<p>
+  Chaque note lat\u00E9rale affiche une \u00E9tiquette comme <code>[Tags]</code> et
+  un bref aper\u00E7u en italique de la valeur (la documentation multi-ligne
+  est limit\u00E9e \u00E0 deux lignes pour qu\u2019une longue <code>[Documentation]</code>
+  ne d\u00E9borde pas sur la note suivante). Cliquez sur une note lat\u00E9rale
+  pour ouvrir un panneau de d\u00E9tails adapt\u00E9 au type :
+</p>
+<ul>
+  <li><strong>[Documentation]</strong> &mdash; zone de texte multi-ligne.
+  Le texte multi-ligne est conserv\u00E9 sous forme de lignes de continuation
+  <code>...</code> dans le fichier <code>.robot</code> sauvegard\u00E9.</li>
+  <li><strong>[Tags]</strong> / <strong>[Arguments]</strong> &mdash; entr\u00E9e
+  s\u00E9par\u00E9e par des virgules. <code>${'${name}'}=defaut</code> est une
+  sp\u00E9cification d\u2019argument valide ; <code>${'@{name}'}</code> fonctionne
+  pour les varargs.</li>
+  <li><strong>[Setup]</strong> / <strong>[Teardown]</strong> &mdash; nom
+  du mot-cl\u00E9 \u00E0 appeler avant / apr\u00E8s le corps. Remplace Test Setup /
+  Teardown du niveau Suite uniquement pour ce cas de test.</li>
+  <li><strong>[Template]</strong> (cas de test uniquement) &mdash;
+  transforme le corps en boucle pilot\u00E9e par les donn\u00E9es o\u00F9 chaque ligne
+  est un appel au mot-cl\u00E9 template.</li>
+  <li><strong>[Timeout]</strong> &mdash; dur\u00E9e maximale avant abandon
+  forc\u00E9 (par ex. <code>30s</code>, <code>5 minutes</code>).</li>
+</ul>
+<h4>Ajouter un param\u00E8tre</h4>
+<p>
+  Cliquez sur le n\u0153ud D\u00E9but pour ouvrir le panneau
+  <strong>Param\u00E8tres du cas de test</strong> /
+  <strong>Param\u00E8tres du mot-cl\u00E9</strong>. Pour chaque type non encore
+  attach\u00E9, un bouton <strong>+ [&hellip;]</strong> appara\u00EEt ; cliquez
+  dessus, la note lat\u00E9rale appara\u00EEt avec un placeholder att\u00E9nu\u00E9
+  \u00AB&nbsp;cliquez pour \u00E9diter&nbsp;\u00BB, pr\u00EAt pour l\u2019entr\u00E9e. Une fois tous
+  les types remplis, le panneau retombe sur un indice pointant vers
+  les notes lat\u00E9rales.
+</p>
+<h4>Supprimer un param\u00E8tre</h4>
+<p>
+  Ouvrez le panneau de d\u00E9tails de la note lat\u00E9rale et utilisez le bouton
+  <strong>&times;</strong> dans l\u2019en-t\u00EAte. La note lat\u00E9rale dispara\u00EEt
+  du canevas d\u00E8s que la valeur sous-jacente est vid\u00E9e.
+</p>
+<p>
+  Les \u00E9ditions sont mises en m\u00E9moire tampon localement et valid\u00E9es dans
+  le formulaire au <strong>blur</strong> &mdash; taper ne d\u00E9clenche plus
+  un deep-watcher \u00E0 chaque touche, le panneau survit aux \u00E9ditions
+  multi-caract\u00E8res intactes.
+</p>`,
+        tip: 'Une note lat\u00E9rale n\u2019est qu\u2019une visualisation de la ligne [Documentation] / [Tags] / etc. sous-jacente \u2014 le s\u00E9rialiseur round-trip produit toujours la syntaxe .robot canonique, donc un fichier \u00E9dit\u00E9 dans l\u2019onglet Flow et sauvegard\u00E9 est identique \u00E0 un fichier \u00E9crit \u00E0 la main.'
       },
       {
         id: 'explorer-search',
