@@ -203,6 +203,10 @@ Contributions are welcome! Please:
 
 Please follow the existing code style (Ruff for Python, ESLint for TypeScript) and include tests for new features.
 
+## Security
+
+Found a security issue? Please **don't** open a public issue. See [SECURITY.md](SECURITY.md) for the disclosure process and our supported-versions / known-advisories list.
+
 ## License
 
 Licensed under the [Apache License 2.0](LICENSE).

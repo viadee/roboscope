@@ -8,6 +8,18 @@ Headline: a substantial round of UX polish + stabilization driven
 by hands-on user testing — Flow Editor, Recorder, Reports, Repos
 and Dashboard all touched.
 
+### Security
+
+- New `SECURITY.md` documenting the disclosure process, supported
+  versions, and known third-party advisories. Three open Dependabot
+  alerts on `fastmcp 2.14.x` (transitive via `rf-mcp`) are
+  documented as not exploitable in RoboScope's usage — none of
+  the vulnerable APIs (`OpenAPIProvider`, `OAuthProxy`,
+  `gemini-cli`) are reached. Tracked for the bump in #35.
+- `picomatch` advisory (GHSA-3v7f-55p6-f55p) closed via top-level
+  override pinning `>= 4.0.4`; `follow-redirects` advisory closed
+  by the axios 1.16 bump merged from main.
+
 ### Dashboard rebuild
 
 The landing page is now a card grid pointing into every navigable
