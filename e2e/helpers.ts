@@ -21,9 +21,14 @@ const PASSWORD = 'admin123';
  */
 async function markFirstLoginComplete(page: Page, accessToken: string): Promise<void> {
   try {
-    await page.request.post(`${API}/auth/first-login/complete`, {
+    // Real endpoint: `PATCH /auth/me/first-login-complete` with
+    // body `{ value: true }`. Must match `auth/router.py::
+    // patch_first_login_complete` exactly — a 404 here would
+    // silently leave the flag unset and the router-redirect to
+    // /welcome would re-fail every E2E test that relies on us.
+    await page.request.patch(`${API}/auth/me/first-login-complete`, {
       headers: { Authorization: `Bearer ${accessToken}` },
-      data: {},
+      data: { value: true },
     });
   } catch {
     /* endpoint not present on this build → harmless */
