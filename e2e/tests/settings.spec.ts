@@ -7,6 +7,9 @@ test.describe('Settings Page', () => {
   });
 
   test('should load settings page with heading', async ({ page }) => {
+    // Settings is nested under the collapsible "Mehr" group as of
+    // 0.9.0 — expand it before clicking the entry.
+    await page.locator('.nav-more-toggle').click();
     await page.locator('.nav-item', { hasText: 'Einstellungen' }).click();
     await page.waitForURL('**/settings');
 

@@ -186,8 +186,9 @@ test.describe('Execution Run — UI Tests', () => {
     await page.locator('select').first().selectOption({ index: 1 }); // first repo
     await page.getByPlaceholder('tests/ oder tests/login.robot').fill('calculator/basic_math.robot');
 
-    // Start run
-    await page.getByRole('button', { name: 'Starten' }).click();
+    // Start run — use `exact: true` so the tour-trigger button
+    // (`aria-label="Tutorial starten"`) doesn't co-match.
+    await page.getByRole('button', { name: 'Starten', exact: true }).click();
 
     // Handle environment setup dialog if it appears
     const envDialog = page.getByText('Umgebung einrichten?');
