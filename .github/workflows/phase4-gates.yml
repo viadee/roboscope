@@ -95,6 +95,13 @@ jobs:
         run: cd backend && uv pip install --system -e ".[dev]"
       - name: Install frontend deps
         run: cd frontend && npm ci
+      # Several backend tests launch a real Chromium via Playwright
+      # (recording/heal e2e specs, fingerprint walker against a live
+      # DOM). Install the browser binary BEFORE pytest runs or those
+      # tests fail with "Executable doesn't exist". Stays under
+      # backend/ since uv installed playwright there.
+      - name: Install Playwright Chromium for backend tests
+        run: cd backend && python -m playwright install --with-deps chromium
       - name: Backend tests
         run: cd backend && pytest -v --tb=short
         env:

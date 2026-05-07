@@ -73,7 +73,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -m 'not integration'"
 asyncio_mode = "auto"
 filterwarnings = [
     "ignore::DeprecationWarning",

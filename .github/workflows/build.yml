@@ -35,6 +35,11 @@ jobs:
       - name: Install backend dependencies
         run: cd backend && uv pip install --system -e ".[dev]"
 
+      # Backend recording/heal e2e specs launch a real Chromium via
+      # Playwright, install the browser before pytest runs.
+      - name: Install Playwright Chromium for backend tests
+        run: cd backend && python -m playwright install --with-deps chromium
+
       - name: Run backend tests
         run: cd backend && pytest -v --tb=short
         env:
