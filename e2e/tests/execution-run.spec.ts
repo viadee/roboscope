@@ -244,10 +244,13 @@ test.describe('Execution Run — UI Tests', () => {
     // Should have "Zur Ausführung" button
     await expect(page.getByRole('button', { name: 'Zur Ausführung' })).toBeVisible();
 
-    // Close overlay — scope to `.run-overlay-success` so we don't
-    // also match the default-password banner's `× Schließen`
-    // dismiss button (same accessible name, different scope).
-    await page.locator('.run-overlay-success')
+    // Close overlay — scope to the run-overlay BaseModal (which
+    // contains `.run-overlay-success`) so we don't also match the
+    // default-password banner's `× Schließen` dismiss button.
+    // The close button lives in BaseModal's footer slot, NOT
+    // inside `.run-overlay-success`, so target the modal as a
+    // whole via `:has()`.
+    await page.locator('.modal:has(.run-overlay-success)')
       .getByRole('button', { name: 'Schließen' })
       .click();
   });
