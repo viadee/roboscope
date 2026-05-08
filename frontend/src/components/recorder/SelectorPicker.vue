@@ -151,7 +151,14 @@ function startEdit(originalIndex: number) {
   editingIndex.value = originalIndex
   editValue.value = c.value
   editStrategy.value = c.strategy
-  nextTick(() => editInputRef.value?.focus())
+  nextTick(() => {
+    // Guard the call entirely — in vitest + JSDOM the template ref
+    // can resolve to a wrapper object whose `focus` is undefined,
+    // surfacing as an unhandled rejection that fails CI even when
+    // every test case passes. `?.focus?.()` short-circuits cleanly
+    // in both prod and test.
+    editInputRef.value?.focus?.()
+  })
 }
 
 function commitEdit() {
@@ -179,7 +186,12 @@ function startAdd() {
   addOpen.value = true
   addValue.value = ''
   addStrategy.value = 'css'
-  nextTick(() => addInputRef.value?.focus())
+  nextTick(() => {
+    // See the comment on `startEdit` — guard the focus call so a
+    // JSDOM ref-resolution quirk doesn't surface as an unhandled
+    // rejection in the vitest run.
+    addInputRef.value?.focus?.()
+  })
 }
 
 function commitAdd() {
