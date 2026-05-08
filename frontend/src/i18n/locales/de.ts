@@ -1245,6 +1245,17 @@ export default {
       removeTitle: 'Dokumentation entfernen',
       alreadyPresent: 'Eine [Documentation] ist bereits vorhanden — klick auf die Seitennotiz zum Bearbeiten.',
     },
+    debug: {
+      btnLabel: 'Bis hier ausführen',
+      btnTitle: 'Diesen Test bis zum gewählten Schritt ausführen und dort im Debug-Modus pausieren',
+      unresolvedLine: 'Quellzeile dieses Schritts konnte nicht aufgelöst werden — bitte die Datei speichern und erneut versuchen.',
+      startFailed: 'Debug-Sitzung konnte nicht gestartet werden.',
+      unsavedHintTitle: 'Vor dem Debug speichern',
+      unsavedHint: 'Du hast ungespeicherte Änderungen. Speichere die Datei zuerst, damit der Breakpoint mit der Datei auf der Festplatte übereinstimmt.',
+      confirmReplaceTitle: 'Aktive Debug-Sitzung ersetzen?',
+      confirmReplace: 'Eine Debug-Sitzung für diese Datei pausiert in Zeile {lineFrom}. Trennen und stattdessen in Zeile {lineTo} starten?',
+      confirmReplaceConfirm: 'Trennen und starten',
+    },
     settingMeta: {
       allPresent: 'Alle [...] Einstellungen sind vorhanden — klick auf eine Seitennotiz zum Bearbeiten.',
       emptyHint: 'klicken zum Bearbeiten',
@@ -1932,5 +1943,6 @@ export default {
     tip28: 'Ein hängengebliebenes Repo zeigt eine Auto-Recovery-Meldung in den Projekten — einmal Sync klicken setzt es zurück.',
     tip29: 'Mit dem Doc-Icon an einem Keyword in der Flow-Editor-Palette siehst du die volle libdoc-Beschreibung in einem Popover.',
     tip30: 'Die Dashboard-Karten sind klickbare Shortcuts in jeden Bereich von RoboScope — Projekte, Explorer, Ausführungen, Statistiken und mehr von einem Screen aus.',
+    tip31: 'Klick im Flow Editor auf einen Schritt eines gespeicherten Tests und dann auf „Bis hier ausführen" — der Test startet im Debug-Modus und pausiert genau in dieser Zeile. Variablen-Scopes, Call-Stack und Step-Controls erscheinen im Overlay.',
   },
 }

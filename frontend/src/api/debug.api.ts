@@ -1,8 +1,18 @@
 import apiClient from './client'
 
-export interface StartDebugRequest {
+export interface StartFromRunRequest {
   run_id: number
 }
+
+/** DEBUG-3 — Flow-Editor "run up to selection" invocation shape. */
+export interface StartFromStepRequest {
+  file: string         // repo-relative path
+  test_name: string    // exact name from `*** Test Cases ***`
+  line: number         // 1-based; must be inside the test, not the header
+  repo_id: number
+}
+
+export type StartDebugRequest = StartFromRunRequest | StartFromStepRequest
 
 export interface DebugSessionStartResponse {
   session_id: string
@@ -54,6 +64,15 @@ export async function startDebugSession(
     payload,
   )
   return response.data
+}
+
+/** DEBUG-3 — Flow-Editor variant. The backend dispatches on body shape;
+ *  this helper just narrows the type so callers don't have to think
+ *  about which fields belong where. */
+export async function startDebugFromStep(
+  payload: StartFromStepRequest,
+): Promise<DebugSessionStartResponse> {
+  return startDebugSession(payload)
 }
 
 export async function postControl(sessionId: string, command: DebugControl): Promise<void> {

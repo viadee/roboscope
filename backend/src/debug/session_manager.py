@@ -155,6 +155,30 @@ class DebugSessionManager:
             return None
         return self._sessions.get(sid)
 
+    def find_by_user_step(
+        self,
+        *,
+        user_id: int,
+        repo_id: int,
+        robot_file: str,
+        breakpoint_line: int,
+    ) -> _ActiveSession | None:
+        """DEBUG-3 dedup helper — same-step click silently resumes.
+
+        Linear scan over active sessions; in practice a single user
+        has at most one or two debug sessions running, so the cost is
+        negligible compared to maintaining a parallel index.
+        """
+        for rec in self._sessions.values():
+            if (
+                rec.user_id == user_id
+                and rec.repo_id == repo_id
+                and rec.robot_file == robot_file
+                and rec.breakpoint_line == breakpoint_line
+            ):
+                return rec
+        return None
+
     # -- start / stop -----------------------------------------------------
 
     async def start(

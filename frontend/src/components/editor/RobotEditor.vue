@@ -69,6 +69,7 @@ interface RobotStep {
   varScope: string       // var: scope (LOCAL|TEST|TASK|SUITE|GLOBAL)
   comment: string        // comment: text
   rbs_id?: string        // RECORDER-IDMAP — see flow/flowConverter.ts
+  _lineNumber?: number   // DEBUG-3 — 1-based source line; set by parseRobotToForm
 }
 
 interface RobotTestCase {
@@ -672,7 +673,15 @@ function parseRobotToForm(content: string): boolean {
           }
 
           // Parse structured step
-          currentItem.steps.push(parseStepLine(bodyTrimmed))
+          // Story DEBUG-3 — annotate with the 1-based source line so
+          // the Flow Editor's "Run up to here" debug button can pass
+          // the right line to the backend's debug-launch endpoint.
+          // The annotation is metadata only; the serializer writes
+          // each step on its own line, so a save-and-reparse keeps
+          // the numbers in sync.
+          const parsed = parseStepLine(bodyTrimmed)
+          parsed._lineNumber = i + 1
+          currentItem.steps.push(parsed)
         }
         continue
       }

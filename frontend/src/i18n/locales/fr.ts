@@ -1245,6 +1245,17 @@ export default {
       removeTitle: 'Supprimer la documentation',
       alreadyPresent: 'Une [Documentation] est déjà attachée — cliquez sur la note latérale pour l\'éditer.',
     },
+    debug: {
+      btnLabel: 'Exécuter jusqu\'ici',
+      btnTitle: 'Exécuter ce test jusqu\'à l\'étape sélectionnée et mettre en pause en mode debug',
+      unresolvedLine: 'Impossible de résoudre la ligne source de cette étape — enregistrez le fichier et réessayez.',
+      startFailed: 'Impossible de démarrer la session de debug.',
+      unsavedHintTitle: 'Enregistrer avant de déboguer',
+      unsavedHint: 'Vous avez des modifications non enregistrées. Enregistrez d\'abord le fichier pour que le point d\'arrêt corresponde à la source sur disque.',
+      confirmReplaceTitle: 'Remplacer la session de debug active ?',
+      confirmReplace: 'Une session de debug pour ce fichier est en pause à la ligne {lineFrom}. La déconnecter et en démarrer une nouvelle à la ligne {lineTo} ?',
+      confirmReplaceConfirm: 'Déconnecter et démarrer',
+    },
     settingMeta: {
       allPresent: 'Tous les paramètres [...] sont attachés — cliquez sur une note latérale pour l\'éditer.',
       emptyHint: 'cliquez pour éditer',
@@ -1932,5 +1943,6 @@ export default {
     tip28: 'Un dépôt bloqué en sync affiche un message d’auto-recovery dans les Projets — un clic sur Sync le réinitialise.',
     tip29: 'Survolez l’icône doc d’un keyword dans la palette du Flow Editor pour voir la description libdoc complète dans un popover.',
     tip30: 'Les cartes du dashboard sont des raccourcis cliquables vers chaque section de RoboScope — Projets, Explorateur, Exécutions, Stats et plus depuis un seul écran.',
+    tip31: 'Dans le Flow Editor, cliquez sur n\'importe quelle étape d\'un test enregistré puis sur « Exécuter jusqu\'ici » — le test démarre en mode debug et se met en pause à cette ligne. Scopes de variables, pile d\'appels et contrôles de pas apparaissent dans un overlay.',
   },
 }

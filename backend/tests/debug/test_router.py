@@ -338,3 +338,283 @@ class TestState:
         assert body["session_id"] == sid
         assert body["paused"] is False
         assert body["scopes"] == []
+
+
+# ---------------------------------------------------------------------------
+# DEBUG-3 — step-shape body ({file, test_name, line, repo_id})
+# ---------------------------------------------------------------------------
+
+
+def _make_repo_with_test(
+    db, user, tmp_path: Path, *, test_name: str = "Login Test"
+) -> tuple[Repository, Path]:
+    """Set up a repo + venv'd env with a `.robot` file that contains the
+    named test. Returns (repo, repo-relative-test-path).
+    """
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(exist_ok=True)
+    target = repo_root / "tests.robot"
+    # 4-line test: header on line 2, body lines 3-4. Line 1 is the
+    # section header. Means line 3 is the first executable body line
+    # and line 2 is the test-header line we MUST reject.
+    target.write_text(
+        "*** Test Cases ***\n"
+        f"{test_name}\n"
+        "    Log    starting\n"
+        "    Log    finished\n",
+        encoding="utf-8",
+    )
+
+    venv_dir = tmp_path / "venv2"
+    venv_dir.mkdir(exist_ok=True)
+    bin_dir = venv_dir / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    (bin_dir / "python").write_text("# placeholder", encoding="utf-8")
+
+    env = Environment(
+        name=f"env-{user.id}",
+        python_version="3.12",
+        venv_path=str(venv_dir),
+        created_by=user.id,
+    )
+    db.add(env)
+    db.flush()
+
+    repo = Repository(
+        name=f"repo-step-{user.id}",
+        repo_type="local",
+        local_path=str(repo_root),
+        environment_id=env.id,
+        created_by=user.id,
+    )
+    db.add(repo)
+    db.flush()
+    db.commit()
+    return repo, target.relative_to(repo_root)
+
+
+class TestStartFromStepHappyPath:
+    def test_runner_can_start_from_step(
+        self, client: TestClient, db_session, runner_user, tmp_path
+    ):
+        repo, rel_path = _make_repo_with_test(db_session, runner_user, tmp_path)
+        resp = client.post(
+            "/api/v1/debug/sessions",
+            json={
+                "file": str(rel_path),
+                "test_name": "Login Test",
+                "line": 3,
+                "repo_id": repo.id,
+            },
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 201, resp.text
+        body = resp.json()
+        assert body["test_name"] == "Login Test"
+        assert body["breakpoint_line"] == 3
+        # Audit picked up the new ``source`` discriminator.
+        rows = (
+            db_session.query(AuditLog)
+            .filter(AuditLog.action == AuditEventType.DEBUG_SESSION_STARTED.value)
+            .all()
+        )
+        assert len(rows) == 1
+        import json as _json
+        details = _json.loads(rows[0].detail) if rows[0].detail else {}
+        assert details.get("source") == "flow_editor"
+
+
+class TestStartFromStepValidation:
+    def test_rejects_test_header_line(
+        self, client: TestClient, db_session, runner_user, tmp_path
+    ):
+        """AC4: line == test-case header line is a 422; RF won't break there."""
+        repo, rel_path = _make_repo_with_test(db_session, runner_user, tmp_path)
+        # The `Login Test` name lives on line 2 (header line above).
+        resp = client.post(
+            "/api/v1/debug/sessions",
+            json={
+                "file": str(rel_path),
+                "test_name": "Login Test",
+                "line": 2,
+                "repo_id": repo.id,
+            },
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 422
+        assert "header" in resp.text.lower()
+
+    def test_rejects_unknown_test_name(
+        self, client: TestClient, db_session, runner_user, tmp_path
+    ):
+        repo, rel_path = _make_repo_with_test(db_session, runner_user, tmp_path)
+        resp = client.post(
+            "/api/v1/debug/sessions",
+            json={
+                "file": str(rel_path),
+                "test_name": "Nonexistent Test",
+                "line": 3,
+                "repo_id": repo.id,
+            },
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 422
+        assert "not found" in resp.text.lower()
+
+    def test_rejects_line_outside_test(
+        self, client: TestClient, db_session, runner_user, tmp_path
+    ):
+        repo, rel_path = _make_repo_with_test(db_session, runner_user, tmp_path)
+        # Line 1 is the section header, before the test starts.
+        resp = client.post(
+            "/api/v1/debug/sessions",
+            json={
+                "file": str(rel_path),
+                "test_name": "Login Test",
+                "line": 1,
+                "repo_id": repo.id,
+            },
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 422
+
+    def test_rejects_missing_file(
+        self, client: TestClient, db_session, runner_user, tmp_path
+    ):
+        repo, _ = _make_repo_with_test(db_session, runner_user, tmp_path)
+        resp = client.post(
+            "/api/v1/debug/sessions",
+            json={
+                "file": "no-such-file.robot",
+                "test_name": "Login Test",
+                "line": 3,
+                "repo_id": repo.id,
+            },
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 422
+
+    def test_rejects_path_traversal(
+        self, client: TestClient, db_session, runner_user, tmp_path
+    ):
+        """A `../../etc/passwd` payload must NOT escape the repo root."""
+        repo, _ = _make_repo_with_test(db_session, runner_user, tmp_path)
+        resp = client.post(
+            "/api/v1/debug/sessions",
+            json={
+                "file": "../../../../etc/passwd",
+                "test_name": "Login Test",
+                "line": 3,
+                "repo_id": repo.id,
+            },
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 422
+
+    def test_rejects_mixed_run_and_step_shape(
+        self, client: TestClient, db_session, runner_user, tmp_path
+    ):
+        """Body must be exactly one shape — neither both nor empty."""
+        repo, rel_path = _make_repo_with_test(db_session, runner_user, tmp_path)
+        resp = client.post(
+            "/api/v1/debug/sessions",
+            json={
+                "run_id": 1,
+                "file": str(rel_path),
+                "test_name": "Login Test",
+                "line": 3,
+                "repo_id": repo.id,
+            },
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 422
+
+    def test_rejects_empty_body(
+        self, client: TestClient, runner_user
+    ):
+        resp = client.post(
+            "/api/v1/debug/sessions",
+            json={},
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 422
+
+
+class TestStartFromStepRBAC:
+    def test_viewer_is_forbidden(
+        self, client: TestClient, db_session, viewer_user, tmp_path
+    ):
+        repo, rel_path = _make_repo_with_test(db_session, viewer_user, tmp_path)
+        resp = client.post(
+            "/api/v1/debug/sessions",
+            json={
+                "file": str(rel_path),
+                "test_name": "Login Test",
+                "line": 3,
+                "repo_id": repo.id,
+            },
+            headers=auth_header(viewer_user),
+        )
+        assert resp.status_code == 403
+
+
+class TestStartFromStepDedup:
+    def test_same_file_and_line_returns_existing(
+        self, client: TestClient, db_session, runner_user, tmp_path
+    ):
+        """AC6 silent-resume: clicking the same step twice yields 409."""
+        repo, rel_path = _make_repo_with_test(db_session, runner_user, tmp_path)
+        body = {
+            "file": str(rel_path),
+            "test_name": "Login Test",
+            "line": 3,
+            "repo_id": repo.id,
+        }
+        first = client.post(
+            "/api/v1/debug/sessions",
+            json=body,
+            headers=auth_header(runner_user),
+        )
+        assert first.status_code == 201
+        sid = first.json()["session_id"]
+
+        second = client.post(
+            "/api/v1/debug/sessions",
+            json=body,
+            headers=auth_header(runner_user),
+        )
+        assert second.status_code == 409
+        assert second.json()["detail"]["session_id"] == sid
+
+    def test_different_line_does_NOT_dedup(
+        self, client: TestClient, db_session, runner_user, tmp_path
+    ):
+        """AC6 different-step semantics: a different line in the same file
+        is NOT a dedup match — two parallel sessions exist (the frontend
+        is responsible for stopping the first before starting the second
+        via a confirm-modal). The backend just allows both to coexist."""
+        repo, rel_path = _make_repo_with_test(db_session, runner_user, tmp_path)
+        first = client.post(
+            "/api/v1/debug/sessions",
+            json={
+                "file": str(rel_path),
+                "test_name": "Login Test",
+                "line": 3,
+                "repo_id": repo.id,
+            },
+            headers=auth_header(runner_user),
+        )
+        assert first.status_code == 201
+
+        second = client.post(
+            "/api/v1/debug/sessions",
+            json={
+                "file": str(rel_path),
+                "test_name": "Login Test",
+                "line": 4,
+                "repo_id": repo.id,
+            },
+            headers=auth_header(runner_user),
+        )
+        assert second.status_code == 201
+        assert second.json()["session_id"] != first.json()["session_id"]

@@ -54,6 +54,15 @@ export interface RobotStep {
    * Optional / blank for any step that wasn't recorded.
    */
   rbs_id?: string
+  /**
+   * Story DEBUG-3 — 1-based source line of this step inside the
+   * `.robot` file as parsed. Set by `parseRobotToForm`; omitted on
+   * steps the user added in the editor (no source line yet — they
+   * become real line numbers on the next save+parse roundtrip).
+   * The Flow Editor's "Run up to here" debug button reads this to
+   * tell the backend where to break.
+   */
+  _lineNumber?: number
 }
 
 export interface RobotTestCase {
@@ -308,6 +317,10 @@ function cloneStep(step: RobotStep): RobotStep {
     args: [...step.args],
     returnVars: [...step.returnVars],
     loopValues: [...step.loopValues],
+    // _lineNumber is a primitive — covered by `...step`. Listed here
+    // explicitly so a future contributor sees that DEBUG-3 metadata
+    // intentionally rides through the clone.
+    _lineNumber: step._lineNumber,
   }
 }
 

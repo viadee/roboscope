@@ -12,6 +12,7 @@ import { useDebugStore } from '@/stores/debug.store'
 
 vi.mock('@/api/debug.api', () => ({
   startDebugSession: vi.fn(),
+  startDebugFromStep: vi.fn(),
   postControl: vi.fn(),
   getDebugState: vi.fn(),
   disconnectViaBeacon: vi.fn(),
@@ -171,6 +172,175 @@ describe('debug.store', () => {
       expect(debugApi.postControl).toHaveBeenCalledWith('sess-X', 'disconnect')
       expect(store.sessionId).toBeNull()
       expect(store.isActive).toBe(false)
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // DEBUG-3 — Flow Editor "run up to here" + classifyStepClick
+  // -------------------------------------------------------------------------
+
+  describe('startFromStep', () => {
+    it('adopts the start response from a step click', async () => {
+      vi.mocked(debugApi.startDebugFromStep).mockResolvedValueOnce({
+        session_id: 'sess-step-1',
+        robot_file: 'tests/login.robot',
+        breakpoint_line: 12,
+        test_name: 'Login Works',
+      })
+      const store = useDebugStore()
+      const { resp, resumed } = await store.startFromStep({
+        file: 'tests/login.robot',
+        test_name: 'Login Works',
+        line: 12,
+        repo_id: 4,
+      })
+      expect(resumed).toBe(false)
+      expect(resp.session_id).toBe('sess-step-1')
+      expect(store.sessionId).toBe('sess-step-1')
+      expect(store.robotFile).toBe('tests/login.robot')
+      expect(store.breakpointLine).toBe(12)
+    })
+
+    it('treats a 409 dedup as silent resume', async () => {
+      // Build an axios-style error so extractErrorStatus reads 409.
+      const err = Object.assign(new Error('conflict'), {
+        response: {
+          status: 409,
+          data: {
+            detail: {
+              session_id: 'existing-sid',
+              robot_file: 'tests.robot',
+              breakpoint_line: 5,
+              test_name: 'Sample',
+            },
+          },
+        },
+      })
+      vi.mocked(debugApi.startDebugFromStep).mockRejectedValueOnce(err)
+
+      const store = useDebugStore()
+      const { resumed, resp } = await store.startFromStep({
+        file: 'tests.robot',
+        test_name: 'Sample',
+        line: 5,
+        repo_id: 1,
+      })
+      expect(resumed).toBe(true)
+      expect(resp.session_id).toBe('existing-sid')
+      expect(store.sessionId).toBe('existing-sid')
+    })
+
+    it('rethrows non-409 errors', async () => {
+      vi.mocked(debugApi.startDebugFromStep).mockRejectedValueOnce(
+        Object.assign(new Error('boom'), { response: { status: 500 } }),
+      )
+      const store = useDebugStore()
+      await expect(
+        store.startFromStep({
+          file: 'tests.robot',
+          test_name: 'Sample',
+          line: 5,
+          repo_id: 1,
+        }),
+      ).rejects.toThrow()
+    })
+  })
+
+  describe('classifyStepClick', () => {
+    it('returns idle when no session is active', () => {
+      const store = useDebugStore()
+      expect(store.classifyStepClick('any.robot', 1)).toBe('idle')
+    })
+
+    it('returns same for an exact file+line match', async () => {
+      vi.mocked(debugApi.startDebugFromStep).mockResolvedValueOnce({
+        session_id: 's1',
+        robot_file: 'tests.robot',
+        breakpoint_line: 7,
+        test_name: 'X',
+      })
+      const store = useDebugStore()
+      await store.startFromStep({
+        file: 'tests.robot', test_name: 'X', line: 7, repo_id: 1,
+      })
+      expect(store.classifyStepClick('tests.robot', 7)).toBe('same')
+    })
+
+    it('returns different when the line differs', async () => {
+      vi.mocked(debugApi.startDebugFromStep).mockResolvedValueOnce({
+        session_id: 's1',
+        robot_file: 'tests.robot',
+        breakpoint_line: 7,
+        test_name: 'X',
+      })
+      const store = useDebugStore()
+      await store.startFromStep({
+        file: 'tests.robot', test_name: 'X', line: 7, repo_id: 1,
+      })
+      expect(store.classifyStepClick('tests.robot', 9)).toBe('different')
+    })
+
+    it('returns idle once the session is terminated', async () => {
+      vi.mocked(debugApi.startDebugFromStep).mockResolvedValueOnce({
+        session_id: 's1',
+        robot_file: 'tests.robot',
+        breakpoint_line: 7,
+        test_name: 'X',
+      })
+      const store = useDebugStore()
+      await store.startFromStep({
+        file: 'tests.robot', test_name: 'X', line: 7, repo_id: 1,
+      })
+      // Simulate a terminated event landing on the WS channel.
+      store.handleWsEvent({
+        topic: 's1' === store.sessionId ? `debug:session:${store.sessionId}` : '',
+        kind: 'terminated',
+        body: {},
+      })
+      // `classifyStepClick` checks state.terminated, which the WS
+      // handler flipped to true.
+      expect(store.classifyStepClick('tests.robot', 7)).toBe('idle')
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // DEBUG-3 — parser line annotation contract (not a store test, but
+  // pinned next to the other DEBUG-3 unit coverage so the related
+  // pieces are visible together).
+  // -------------------------------------------------------------------------
+
+  describe('cloneStep carries _lineNumber (DEBUG-3 contract)', () => {
+    it('preserves _lineNumber across the FlowConverter clone path', async () => {
+      const { robotFormToFlow } = await import('@/components/editor/flow/flowConverter')
+      const form = {
+        settings: [],
+        variables: [],
+        testCases: [{
+          name: 'T',
+          documentation: '', tags: [],
+          setup: '', teardown: '', timeout: '', template: '',
+          steps: [
+            {
+              type: 'keyword' as const,
+              keyword: 'Log', args: ['hi'], returnVars: [],
+              condition: '', loopVar: '', loopFlavor: '', loopValues: [],
+              exceptPattern: '', exceptVar: '', varScope: '', comment: '',
+              _lineNumber: 42,
+            },
+          ],
+        }],
+        keywords: [],
+        preambleLines: [],
+      }
+      const { nodes } = robotFormToFlow(form, null, new Map())
+      const stepNode = nodes.find(n => n.type === 'keyword')
+      expect(stepNode).toBeDefined()
+      // The clone in flowConverter.ts must carry _lineNumber
+      // through. If it doesn't, the Run-up-to-here button can't
+      // resolve the breakpoint line.
+      expect(
+        (stepNode!.data as { step: { _lineNumber?: number } }).step._lineNumber,
+      ).toBe(42)
     })
   })
 })

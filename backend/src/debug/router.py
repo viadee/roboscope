@@ -110,6 +110,121 @@ def _resolve_failing_location(run: ExecutionRun) -> FailingKeywordLocation | Non
     return find_first_failing_keyword(output_xml)
 
 
+def _validate_step_invocation(
+    repo: Repository,
+    file_relative: str,
+    test_name: str,
+    line: int,
+) -> str:
+    """DEBUG-3 input validation.
+
+    Returns the absolute path to the file. Raises 422 on any
+    semantic violation:
+
+    * file does not exist on disk under the repo
+    * test_name is not present in the file
+    * line is not inside the named test (or equals the test-case
+      header line — RF won't break on a test-name row).
+    """
+    abs_path = (
+        file_relative
+        if os.path.isabs(file_relative)
+        else str(Path(repo.local_path) / file_relative)
+    )
+    file_path = Path(abs_path)
+    # Guard against path-traversal: the resolved file must live under
+    # repo.local_path. Without this, a payload like "../../etc/passwd"
+    # would route through the debug-launch path. ``resolve()`` follows
+    # symlinks, but the repo root itself is administrator-controlled
+    # so this is a reasonable boundary.
+    try:
+        repo_root = Path(repo.local_path).resolve()
+        if not str(file_path.resolve()).startswith(str(repo_root)):
+            raise HTTPException(
+                status_code=422,
+                detail="File is not inside the repository",
+            )
+    except OSError as e:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Could not resolve repository root: {e}",
+        ) from e
+
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(
+            status_code=422,
+            detail=f"Robot file does not exist on disk: {file_relative}",
+        )
+    try:
+        text = file_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Could not read robot file: {e}",
+        ) from e
+
+    # Walk the file: locate the named test, capture its header + body
+    # range, then validate the requested line.
+    lines = text.splitlines()
+    in_tests = False
+    test_header_line: int | None = None
+    test_body_end: int | None = None  # inclusive last-body line
+    for idx, raw in enumerate(lines, start=1):
+        stripped = raw.strip()
+        if stripped.startswith("***"):
+            if "Test Cases" in stripped or "Tasks" in stripped:
+                in_tests = True
+                continue
+            else:
+                # Hit another section: if we were inside `our` test
+                # we've now passed its body.
+                if test_header_line is not None and test_body_end is None:
+                    test_body_end = idx - 1
+                in_tests = False
+                continue
+        if not in_tests:
+            continue
+        # Test-case-name row: column-0 non-empty.
+        if raw and not raw.startswith((" ", "\t")) and stripped:
+            if test_header_line is not None and test_body_end is None:
+                # Hit the next test name → previous test ended.
+                test_body_end = idx - 1
+            if stripped == test_name:
+                test_header_line = idx
+
+    if test_header_line is not None and test_body_end is None:
+        # File ended while in our test → body extends to last line.
+        test_body_end = len(lines)
+
+    if test_header_line is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Test case '{test_name}' not found in {file_relative}",
+        )
+
+    # AC4: reject the test-case header line itself; RF won't break there.
+    if line == test_header_line:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Line {line} is the test-case header for '{test_name}' — "
+                "Robot Framework only stops on executable keyword lines"
+            ),
+        )
+
+    if line < test_header_line or (test_body_end is not None and line > test_body_end):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Line {line} is not inside test case '{test_name}' "
+                f"(test runs from line {test_header_line + 1} to "
+                f"{test_body_end if test_body_end is not None else 'end-of-file'})"
+            ),
+        )
+
+    return abs_path
+
+
 def _fallback_first_executable_line(robot_file: str) -> int:
     """When ``output.xml`` doesn't carry a keyword line, point the
     breakpoint at the first non-blank, non-comment line under the
@@ -162,12 +277,36 @@ async def start_session(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> DebugSessionStartResponse:
-    """Spawn a debug session for a previously-failed run.
+    """Spawn a debug session.
 
-    AC2 + AC6: dedup on ``(user_id, run_id)`` returns the existing
-    session id with HTTP 409 so the user can reconnect instead of
-    spawning a redundant subprocess.
+    Two invocation shapes (validated by ``StartDebugSessionRequest``):
+
+    * **DEBUG-2** — ``{run_id}``: re-run a failed run, breakpoint
+      pulled from ``output.xml``.
+    * **DEBUG-3** — ``{file, test_name, line, repo_id}``: run up to a
+      step the user clicked in the Flow Editor.
+
+    Dedup (AC6, both shapes):
+
+    * Run-shape dedup by ``(user_id, run_id)`` — second start returns
+      the existing session id with HTTP 409.
+    * Step-shape dedup by ``(user_id, repo_id, file, line)`` — same
+      file+line click while a session is paused there returns 409 with
+      the same payload so the frontend can silently reconnect.
     """
+    if payload.is_step_shape:
+        return await _start_from_step(payload, request, user, db)
+    return await _start_from_run(payload, request, user, db)
+
+
+async def _start_from_run(
+    payload: StartDebugSessionRequest,
+    request: Request,
+    user: User,
+    db: Session,
+) -> DebugSessionStartResponse:
+    """DEBUG-2 entry point — locate breakpoint via ``output.xml``."""
+    assert payload.run_id is not None  # validator guarantees this
     run = db.get(ExecutionRun, payload.run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
@@ -235,6 +374,7 @@ async def start_session(
             "file": _make_repo_relative(repo.local_path, robot_file_abs),
             "line": bp_line,
             "test_name": test_name,
+            "source": "run",
         },
         ip_address=get_client_ip(request),
     )
@@ -262,6 +402,118 @@ async def start_session(
         robot_file=_make_repo_relative(repo.local_path, robot_file_abs),
         breakpoint_line=bp_line,
         test_name=test_name,
+    )
+
+
+async def _start_from_step(
+    payload: StartDebugSessionRequest,
+    request: Request,
+    user: User,
+    db: Session,
+) -> DebugSessionStartResponse:
+    """DEBUG-3 entry point — Flow Editor "run up to selection".
+
+    Validates the file/test_name/line semantics inline (422s are
+    user-friendly), dedups on (user_id, repo_id, file, line) so a
+    second click at the same step silently reconnects.
+    """
+    assert payload.file is not None
+    assert payload.test_name is not None
+    assert payload.line is not None
+    assert payload.repo_id is not None
+
+    repo = db.get(Repository, payload.repo_id)
+    if repo is None:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    _ensure_runner(db, user, repo)
+
+    # File / test / line validation (422s with descriptive detail).
+    robot_file_abs = _validate_step_invocation(
+        repo=repo,
+        file_relative=payload.file,
+        test_name=payload.test_name,
+        line=payload.line,
+    )
+
+    # Dedup at file+line scope — clicking the same step twice silently
+    # reconnects. A different step in the same file is NOT a dedup
+    # match here; the frontend handles that via a confirm-modal that
+    # stops the current session before issuing a new POST.
+    existing = session_manager.find_by_user_step(
+        user_id=user.id,
+        repo_id=repo.id,
+        robot_file=robot_file_abs,
+        breakpoint_line=payload.line,
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "A debug session for this step already exists",
+                "session_id": existing.session_id,
+                "robot_file": existing.robot_file,
+                "breakpoint_line": existing.breakpoint_line,
+                "test_name": existing.test_name,
+            },
+        )
+
+    # The Flow-Editor path needs an environment too. Take the repo's
+    # default env (the form has no per-run override yet).
+    env_id = repo.environment_id
+    if env_id is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Repository has no default environment — install one first",
+        )
+    env = db.get(Environment, env_id)
+    if env is None or not env.venv_path:
+        raise HTTPException(
+            status_code=422,
+            detail="Repository environment has no venv yet — install packages first",
+        )
+    env_python = get_python_path(env.venv_path)
+
+    log_event(
+        db,
+        AuditEventType.DEBUG_SESSION_STARTED,
+        user_id=user.id,
+        username=user.username if hasattr(user, "username") else None,
+        resource_id=repo.id,
+        detail={
+            "run_id": None,
+            "repo_id": repo.id,
+            "file": _make_repo_relative(repo.local_path, robot_file_abs),
+            "line": payload.line,
+            "test_name": payload.test_name,
+            "source": "flow_editor",
+        },
+        ip_address=get_client_ip(request),
+    )
+    db.commit()
+
+    try:
+        record = await session_manager.start(
+            user_id=user.id,
+            run_id=None,
+            repo_id=repo.id,
+            robot_file=robot_file_abs,
+            breakpoint_line=payload.line,
+            test_name=payload.test_name,
+            env_python_path=env_python,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.exception("debug session start failed (step shape)")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not start debug session: {e}",
+        ) from e
+
+    return DebugSessionStartResponse(
+        session_id=record.session_id,
+        robot_file=_make_repo_relative(repo.local_path, robot_file_abs),
+        breakpoint_line=payload.line,
+        test_name=payload.test_name,
     )
 
 
