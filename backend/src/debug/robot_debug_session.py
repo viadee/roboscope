@@ -34,8 +34,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import re
 import signal
+import socket
 import sys
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -83,29 +83,21 @@ class DebugState:
 
 
 # ---------------------------------------------------------------------------
-# Port-line parser
+# Port helpers
 # ---------------------------------------------------------------------------
 
-# RobotCode's `debug-launch --tcp 127.0.0.1:0 -w` prints the bound
-# address on stdout in a form like:
-#   `Listening on 127.0.0.1:54321`
-# The exact wording is documented at robotcode.io/03_reference/cli;
-# we tolerate ipv4/ipv6 and arbitrary surrounding text so a future
-# version drift on the message doesn't break us — extract the
-# port from the first `:<digits>` after a quoted/lone host token.
-_PORT_RE = re.compile(r"(?:127\.0\.0\.1|\blocalhost|\[::1\]):(\d{1,5})\b")
 
+def _allocate_free_port() -> int:
+    """Bind 127.0.0.1:0 to get a kernel-assigned free port, then close.
 
-def _parse_port(line: str) -> int | None:
-    """Return the port from a RobotCode startup line, or ``None``
-    if the line doesn't carry a recognisable address."""
-    m = _PORT_RE.search(line)
-    if not m:
-        return None
-    port = int(m.group(1))
-    if 1 <= port <= 65535:
-        return port
-    return None
+    The TOCTOU window between us closing the socket and robotcode
+    binding the same port is acceptable for a local single-user dev
+    tool. Modern RobotCode rejects ``--tcp 127.0.0.1:0`` (validates
+    1<=port<=65535), so we have to allocate ahead of time.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return int(s.getsockname()[1])
 
 
 # ---------------------------------------------------------------------------
@@ -161,11 +153,19 @@ class RobotDebugSession:
 
         self._proc: asyncio.subprocess.Process | None = None
         self._client: DapClient | None = None
+        # Backgrounded launch request — see ``_handshake`` for why we
+        # fire-and-don't-await it.
+        self._launch_fut: asyncio.Task[Any] | None = None
         self.state = DebugState()
-        # Boot-time stdout buffer — surfaced in the error message when
-        # the port-announcement times out so the user can see what
-        # robotcode actually printed (vs. a generic "did not announce").
+        # Stdout/stderr drainage — robotcode communicates over the DAP
+        # TCP socket once we connect, but its boot output and any RF
+        # ``Log``/``print`` keyword writes still go to the merged
+        # stdout pipe. We pump them into a 200-line ring buffer so:
+        # (a) the pipe never fills and blocks robotcode mid-test,
+        # (b) we have the last 20 lines on hand for a meaningful error
+        # message if the spawn fails before listening.
         self._boot_log: list[str] = []
+        self._output_pump_task: asyncio.Task[None] | None = None
         # Bounded queue so a slow consumer (the WebSocket forwarder)
         # never lets the read pump backpressure us into OOM.
         self.events: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=512)
@@ -219,15 +219,17 @@ class RobotDebugSession:
     # -- spawn + handshake -------------------------------------------------
 
     async def _spawn(self) -> None:
-        """Launch ``robotcode debug-launch --tcp 127.0.0.1:0 -w``
-        in the project's env. Parse the bound port from stdout
-        within ``port_parse_timeout`` seconds, then connect TCP."""
+        """Launch ``robotcode debug-launch --tcp 127.0.0.1:<port>`` in
+        the project's env, then poll-connect TCP until the DAP server
+        is accepting. The target ``.robot`` file + test name go to the
+        DAP server via the ``launch`` request payload (``_launch_args``),
+        not as CLI args — modern RobotCode's debug-launch CLI takes only
+        transport/mode options.
+        """
         env_dir = Path(self.env_python_path).parent
         # On Windows scripts live in `Scripts/`, on POSIX in `bin/`.
-        # We're spawning a console-app; resolve once via PATH order.
         rcode = env_dir / "robotcode"
         if not rcode.exists():
-            # Try `Scripts/robotcode.exe` for Windows venvs.
             rcode_win = env_dir.parent / "Scripts" / "robotcode.exe"
             if rcode_win.exists():
                 rcode = rcode_win
@@ -235,28 +237,18 @@ class RobotDebugSession:
                 raise DebugSessionStartFailed(
                     f"`robotcode` binary not found in environment "
                     f"({env_dir} or its Scripts/). Install "
-                    f"`robotcode-debugger` into the project's env."
+                    f"`robotcode[debugger]` into the project's env."
                 )
 
-        argv = [
-            str(rcode),
-            "debug-launch",
-            "--tcp",
-            "127.0.0.1:0",
-            "-w",
-            "--",
-        ]
-        if self.test_name:
-            argv += ["--test", self.test_name]
+        # Pre-allocate a free port — modern RobotCode rejects port 0.
+        port = _allocate_free_port()
+        argv = [str(rcode), "debug-launch", "--tcp", f"127.0.0.1:{port}"]
         argv += self._extra_args
-        argv.append(self.robot_path)
 
         # POSIX: spawn in a fresh process group so cleanup can reap the
         # entire subprocess tree (RobotCode → Robot Framework → Browser
         # library wrapper → Playwright → Chromium) via os.killpg, not
-        # just the immediate child. Without this, orphaned grandchildren
-        # routinely outlive the session and can block the next port-0
-        # bind by holding shared state under ~/.cache/robotcode/.
+        # just the immediate child.
         spawn_kwargs: dict[str, Any] = {
             "stdout": asyncio.subprocess.PIPE,
             "stderr": asyncio.subprocess.STDOUT,
@@ -272,60 +264,84 @@ class RobotDebugSession:
                 f"failed to spawn robotcode: {e}"
             ) from e
 
-        # Wait for the port-binding line on stdout. RobotCode emits
-        # other startup chatter; parse line-by-line.
-        port = await self._read_port_from_stdout()
-        if port is None:
-            self._raise_port_failure()
+        # Drain stdout in the background — both for diagnostics on
+        # connect-failure AND so the pipe doesn't fill once the test
+        # starts emitting Log keyword output.
+        self._output_pump_task = asyncio.create_task(
+            self._pump_subprocess_output(),
+            name=f"debug-stdout-pump-{port}",
+        )
 
-        # Connect the DAP client.
+        # Poll-connect to the DAP server. RobotCode prints nothing when
+        # ready (verified empirically against robotcode>=0.x), so we
+        # can't wait on stdout — we have to retry-connect until the
+        # socket accepts.
         try:
-            reader, writer = await asyncio.open_connection("127.0.0.1", port)
-        except OSError as e:
-            raise DebugSessionStartFailed(
-                f"could not connect to robotcode on port {port}: {e}"
-            ) from e
+            reader, writer = await self._connect_with_retry(port)
+        except DebugSessionStartFailed:
+            raise
+
         self._client = DapClient(reader, writer)
         self._wire_event_handlers(self._client)
         self._client.start()
 
-    async def _read_port_from_stdout(self) -> int | None:
+    async def _pump_subprocess_output(self) -> None:
+        """Background task that drains the merged stdout/stderr pipe
+        line-by-line into the ring buffer. Runs for the life of the
+        session; cancelled in cleanup."""
         if self._proc is None or self._proc.stdout is None:
-            return None
+            return
+        try:
+            while True:
+                line_bytes = await self._proc.stdout.readline()
+                if not line_bytes:
+                    return  # EOF — process exited
+                line = line_bytes.decode("utf-8", errors="replace").rstrip()
+                if line:
+                    self._boot_log.append(line)
+                    if len(self._boot_log) > 200:
+                        self._boot_log = self._boot_log[-200:]
+                logger.debug("[robotcode] %s", line)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            logger.exception("subprocess output pump crashed")
+
+    async def _connect_with_retry(
+        self, port: int,
+    ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+        """Repeatedly try to connect to the DAP server until it accepts
+        or the timeout fires. Surfaces a diagnostic failure that
+        includes the last 20 lines of robotcode stdout.
+        """
         deadline = asyncio.get_running_loop().time() + self._port_parse_timeout
-        while True:
-            remaining = deadline - asyncio.get_running_loop().time()
-            if remaining <= 0:
-                return None
+        last_err: OSError | None = None
+        while asyncio.get_running_loop().time() < deadline:
+            if self._proc is not None and self._proc.returncode is not None:
+                # Process exited — give the output pump a beat to drain
+                # final bytes before raising.
+                await asyncio.sleep(0.05)
+                self._raise_port_failure()
             try:
-                line_bytes = await asyncio.wait_for(
-                    self._proc.stdout.readline(), timeout=remaining
-                )
-            except TimeoutError:
-                return None
-            if not line_bytes:
-                # EOF — robotcode exited before announcing a port.
-                # `_raise_port_failure` will surface the captured tail.
-                return None
-            line = line_bytes.decode("utf-8", errors="replace").rstrip()
-            if line:
-                self._boot_log.append(line)
-                # Cap retention so a chatty process can't OOM us.
-                if len(self._boot_log) > 200:
-                    self._boot_log = self._boot_log[-200:]
-            logger.debug("[robotcode] %s", line)
-            port = _parse_port(line)
-            if port is not None:
-                return port
+                return await asyncio.open_connection("127.0.0.1", port)
+            except (ConnectionRefusedError, OSError) as e:
+                last_err = e
+                await asyncio.sleep(0.1)
+        # Timeout — still not accepting. Drain a final beat then raise.
+        await asyncio.sleep(0.05)
+        if last_err is not None:
+            logger.debug("last connect error before timeout: %s", last_err)
+        self._raise_port_failure()
+        raise AssertionError("unreachable")  # for type-checker
 
     def _raise_port_failure(self) -> None:
         """Build a diagnostic error including the captured boot output.
 
-        The plain "did not announce" message is useless to a user who
-        doesn't know what robotcode normally prints; including the
-        last ~20 lines makes it possible to spot common causes (missing
-        package, syntax error in the test, hung language server)
-        without re-running with backend DEBUG logging.
+        The plain "did not announce" / "could not connect" message is
+        useless to a user who doesn't know what robotcode normally
+        prints. Including the last ~20 lines lets users spot the
+        common causes (wrong CLI flag, missing package, missing test
+        name, broken venv) without re-running with backend DEBUG.
         """
         rc = self._proc.returncode if self._proc is not None else None
         tail_lines = self._boot_log[-20:]
@@ -336,14 +352,40 @@ class RobotDebugSession:
                 f"Last output:\n{tail}"
             )
         raise DebugSessionStartFailed(
-            "robotcode did not announce a TCP port within "
+            "robotcode did not start a TCP listener within "
             f"{self._port_parse_timeout} s. Last output from robotcode:\n{tail}"
         )
 
     async def _handshake(self) -> None:
+        """Drive the DAP launch sequence per spec order.
+
+        Per DAP (microsoft.github.io/debug-adapter-protocol):
+
+        1. Send ``initialize`` request, await capabilities response.
+        2. Send ``launch`` request — fire-and-DON'T-await. DAP servers
+           commonly defer the launch response until after
+           ``configurationDone``; awaiting here deadlocks.
+        3. Wait for the ``initialized`` event. The server emits this
+           when ready to accept configuration requests.
+        4. Send ``setBreakpoints`` for each file.
+        5. Send ``configurationDone`` — test execution begins.
+
+        Sending ``setBreakpoints`` BEFORE ``initialized`` arrives is
+        what the integration test exists to catch — modern RobotCode
+        rejects it with ``Unknown Command 'setBreakpoints'``.
+        """
         if self._client is None:
             raise DebugSessionStartFailed("DAP client not initialized")
+
+        initialized_event = asyncio.Event()
+
+        def _on_initialized(_body: dict[str, Any]) -> None:
+            initialized_event.set()
+
+        self._client.on_event("initialized", _on_initialized)
+
         try:
+            # 1. Initialize.
             await self._client.request(
                 "initialize",
                 {
@@ -356,17 +398,45 @@ class RobotDebugSession:
                     "supportsRunInTerminalRequest": False,
                 },
             )
-            for bp in _group_by_file(self.breakpoints):
+
+            # 2. Fire launch — fire-and-don't-await. Cancelled in
+            # ``_cleanup_silently``; failures surface via the event
+            # stream / pending future error.
+            self._launch_fut = asyncio.ensure_future(
+                self._client.request("launch", self._launch_args())
+            )
+
+            # 3. Wait for `initialized` event before any breakpoints.
+            try:
+                await asyncio.wait_for(initialized_event.wait(), timeout=15.0)
+            except TimeoutError as e:
+                # Surface launch_fut state if it errored — common cause
+                # of "no initialized event" is a malformed launch
+                # payload that the launcher rejected synchronously.
+                launch_err = ""
+                if self._launch_fut is not None and self._launch_fut.done():
+                    fut_exc = self._launch_fut.exception()
+                    if fut_exc is not None:
+                        launch_err = f" (launch request failed: {fut_exc})"
+                tail = "\n".join(self._boot_log[-20:]) or "(no output)"
+                raise DebugSessionStartFailed(
+                    f"DAP server did not emit `initialized` event within 15 s"
+                    f"{launch_err}. Last output from robotcode:\n{tail}"
+                ) from e
+
+            # 4. Set breakpoints.
+            for bp_file, bp_lines in _group_by_file(self.breakpoints):
                 await self._client.request(
                     "setBreakpoints",
                     {
-                        "source": {"path": bp[0]},
-                        "breakpoints": [{"line": ln} for ln in bp[1]],
-                        "lines": list(bp[1]),
+                        "source": {"path": bp_file},
+                        "breakpoints": [{"line": ln} for ln in bp_lines],
+                        "lines": list(bp_lines),
                     },
                 )
+
+            # 5. Configuration done — test execution begins.
             await self._client.request("configurationDone", {})
-            await self._client.request("launch", self._launch_args())
         except DapApplicationError as e:
             raise DebugSessionStartFailed(
                 f"DAP handshake step `{e.command}` failed: {e.message}"
@@ -377,8 +447,32 @@ class RobotDebugSession:
             ) from e
 
     def _launch_args(self) -> dict[str, Any]:
+        """Build the DAP ``launch`` payload for RobotCode's launcher.
+
+        RobotCode's ``debug-launch`` is a *launcher* — on receiving
+        ``launch`` it spawns a child ``robotcode debug`` process that
+        actually runs the test, then proxies DAP traffic. The minimum
+        set of fields the launcher needs:
+
+        * ``request`` — discriminator, always "launch".
+        * ``python`` — interpreter path the launcher uses for the
+          child run (must be the project's env Python so RF imports
+          resolve).
+        * ``cwd`` — working directory; we pass the robot file's
+          parent so relative ``Resource`` imports work.
+        * ``target`` — the ``.robot`` file to run.
+        * ``console: "internalConsole"`` — without this RobotCode
+          tries to dispatch a ``runInTerminal`` request to us, which
+          we don't handle. Internal console makes the launcher spawn
+          the child itself.
+        * ``args: ["--test", "<name>"]`` — filter to one test case.
+        """
         args: dict[str, Any] = {
+            "request": "launch",
+            "python": self.env_python_path,
+            "cwd": str(Path(self.robot_path).parent),
             "target": self.robot_path,
+            "console": "internalConsole",
             "noDebug": False,
         }
         if self.test_name:
@@ -442,7 +536,19 @@ class RobotDebugSession:
             with suppress(Exception):
                 await self._client.stop()
             self._client = None
-        # 3. Wait for subprocess exit, escalate via group-kill so any
+        # 3. Cancel the launch future + stdout pump so they don't keep
+        #    closed-pipe handles open while the subprocess tears down.
+        if self._launch_fut is not None and not self._launch_fut.done():
+            self._launch_fut.cancel()
+            with suppress(asyncio.CancelledError, Exception):
+                await self._launch_fut
+            self._launch_fut = None
+        if self._output_pump_task is not None and not self._output_pump_task.done():
+            self._output_pump_task.cancel()
+            with suppress(asyncio.CancelledError, Exception):
+                await self._output_pump_task
+            self._output_pump_task = None
+        # 4. Wait for subprocess exit, escalate via group-kill so any
         #    grandchildren (Robot Framework → Browser library wrapper →
         #    Playwright → Chromium) get reaped along with the parent.
         if self._proc is not None:

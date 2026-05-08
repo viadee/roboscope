@@ -24,14 +24,11 @@ from fastapi.testclient import TestClient
 
 from src.audit.event_types import AuditEventType
 from src.audit.models import AuditLog
-from src.auth.constants import Role
-from src.auth.service import hash_password
 from src.debug.session_manager import session_manager
 from src.environments.models import Environment
 from src.execution.models import ExecutionRun
 from src.repos.models import Repository
 from tests.conftest import auth_header
-
 
 # ---------------------------------------------------------------------------
 # Test doubles
@@ -41,7 +38,7 @@ from tests.conftest import auth_header
 class _FakeSession:
     """Minimal stand-in for RobotDebugSession used by the manager."""
 
-    instances: list["_FakeSession"] = []
+    instances: list[_FakeSession] = []
 
     def __init__(
         self,
@@ -64,7 +61,7 @@ class _FakeSession:
         self.entered = False
         _FakeSession.instances.append(self)
 
-    async def __aenter__(self) -> "_FakeSession":
+    async def __aenter__(self) -> _FakeSession:
         self.entered = True
         return self
 

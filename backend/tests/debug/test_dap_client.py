@@ -17,7 +17,6 @@ import pytest
 from src.debug.dap_client import DapApplicationError, DapClient
 from src.debug.dap_protocol import encode_message
 
-
 # ---------------------------------------------------------------------------
 # Test harness — minimal DAP fake server
 # ---------------------------------------------------------------------------
