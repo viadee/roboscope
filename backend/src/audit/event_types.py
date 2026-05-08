@@ -42,6 +42,8 @@ class AuditEventType(StrEnum):
     FLAKY_TEST_QUARANTINED = "flaky.test.quarantined"
     FLAKY_TEST_UNQUARANTINED = "flaky.test.unquarantined"
     HEAL_PATCH_APPLIED = "heal.patch.applied"
+    DEBUG_SESSION_STARTED = "debug.session.started"
+    DEBUG_SESSION_ENDED = "debug.session.ended"
 
 
 def resource_type_for(event_type: AuditEventType) -> str:

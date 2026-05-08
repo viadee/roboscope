@@ -993,6 +993,36 @@ export default {
     runFailedMsg: 'Run #{id} has errors',
     runError: 'Test Run Error',
     runErrorMsg: 'Run #{id} is faulty',
+  },
+  debug: {
+    btn: {
+      label: 'Debug',
+      tooltip: 'Re-run this test and pause at the failing line',
+    },
+    panel: {
+      paused: 'Paused',
+      terminated: 'Terminated',
+      notPaused: 'Waiting for first stop…',
+      callStack: 'Call stack',
+      callStackEmpty: 'No call stack yet — execution has not paused.',
+      scopes: 'Variables',
+      scopesEmpty: 'No scopes available.',
+      scopeEmpty: 'No variables in this scope.',
+      output: 'Output',
+      outputEmpty: 'No output yet.',
+      toolbar: {
+        continue: 'Continue',
+        stepOver: 'Step Over',
+        stepIn: 'Step Into',
+        stepOut: 'Step Out',
+        stop: 'Stop',
+      },
+    },
+    error: {
+      title: 'Debug session error',
+      startFailed: 'Could not start debug session.',
+      commandFailed: 'Debug command failed.',
+    },
   },  schedule: {
     tabRuns: 'Runs',
     tabSchedules: 'Schedules',

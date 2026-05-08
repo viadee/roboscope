@@ -275,11 +275,41 @@ async def lifespan(app: FastAPI):
         "repo auto-sync (every 5m)"
     )
 
+    # DEBUG-2: wire the in-process debug-session manager. The manager
+    # forwards DAP events through the existing /ws/notifications
+    # broadcast channel; the state-fetcher pulls stack/scopes via the
+    # foundation's DapClient after every `stopped` event so the
+    # frontend gets a live variable snapshot pushed.
+    from src.debug.session_manager import session_manager
+    from src.debug.state_fetcher import fetch_state
+
+    def _debug_forwarder(topic: str, kind: str, body: dict[str, object]) -> None:
+        # Called from inside the session manager's asyncio task — we
+        # already have a running loop, so a direct create_task on the
+        # broadcast coroutine is safe.
+        coro = ws_manager.broadcast({
+            "type": "debug_event",
+            "topic": topic,
+            "kind": kind,
+            "body": body,
+        })
+        asyncio.create_task(coro)
+
+    session_manager.set_forwarder(_debug_forwarder)
+    session_manager.set_state_fetcher(fetch_state)
+
     logger.info("RoboScope started successfully")
     yield
 
     # Shutdown
     logger.info("Shutting down RoboScope...")
+
+    # Tear down active debug sessions (best-effort; users may have
+    # paused subprocesses we should clean up).
+    try:
+        await session_manager.stop_all()
+    except Exception:  # noqa: BLE001
+        logger.exception("Failed to stop debug sessions cleanly")
 
     # Shut down retention scheduler
     _scheduler.shutdown(wait=False)
