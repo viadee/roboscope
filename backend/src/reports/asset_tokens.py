@@ -52,6 +52,18 @@ def _b64url_decode(s: str) -> bytes:
     return base64.urlsafe_b64decode((s + pad).encode("ascii"))
 
 
+# SHA-256 output is always 32 bytes — the suffix length is fixed,
+# so we don't need a printable separator between payload and
+# signature. The previous implementation used `.` as a separator
+# and `decoded.rsplit(b".", 1)` to recover payload + sig. ASCII
+# `0x2E` (period) is a valid byte in a random HMAC, so the sig
+# itself contained one with ~12% probability (1 − (255/256)**32),
+# at which point `rsplit` split at the wrong byte, the payload
+# parse failed, and verify returned False — silently. Fixed-length
+# slicing has no such collision class.
+_SIG_LEN = hashlib.sha256().digest_size  # 32
+
+
 def mint_asset_token(report_id: int, ttl_seconds: int = 3600) -> str:
     """Create a token that grants read access to report ``report_id``
     for the next ``ttl_seconds`` seconds.
@@ -59,7 +71,7 @@ def mint_asset_token(report_id: int, ttl_seconds: int = 3600) -> str:
     expiry = int(time.time()) + ttl_seconds
     payload = f"{report_id}:{expiry}".encode("ascii")
     sig = hmac.new(_key(), payload, hashlib.sha256).digest()
-    return _b64url_encode(payload + b"." + sig)
+    return _b64url_encode(payload + sig)
 
 
 def verify_asset_token(token: str, report_id: int) -> bool:
@@ -74,11 +86,12 @@ def verify_asset_token(token: str, report_id: int) -> bool:
     except (ValueError, binascii.Error):
         return False
 
-    # Signature is the LAST 32 bytes (SHA-256 output). The payload is
-    # everything before the final `.` separator.
-    if b"." not in decoded:
+    if len(decoded) <= _SIG_LEN:
+        # Need at least one payload byte — `:` separator + at least
+        # one digit per side — but the conservative lower bound is
+        # "more than the signature itself".
         return False
-    payload, sig = decoded.rsplit(b".", 1)
+    payload, sig = decoded[:-_SIG_LEN], decoded[-_SIG_LEN:]
     expected = hmac.new(_key(), payload, hashlib.sha256).digest()
     if not hmac.compare_digest(sig, expected):
         return False

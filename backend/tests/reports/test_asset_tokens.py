@@ -59,7 +59,61 @@ class TestAssetTokenUnit:
     def test_rejects_empty_or_garbage(self):
         assert verify_asset_token("", report_id=1) is False
         assert verify_asset_token("not-base64-or-anything-meaningful!", report_id=1) is False
-        assert verify_asset_token("aGVsbG8=", report_id=1) is False  # valid b64, no '.'
+        assert verify_asset_token("aGVsbG8=", report_id=1) is False  # valid b64, too short
+
+    def test_round_trip_when_signature_contains_period_byte(self):
+        """Regression: previously the encoded form was `<payload> .
+        <sha256-sig>` and verify used `decoded.rsplit(b'.', 1)`.
+        Random SHA-256 output contains the ASCII period byte (0x2E)
+        with ~12 % probability per token (1 − (255/256)**32), at which
+        point rsplit landed in the *signature*, the payload-parse
+        choked on the trailing bytes, and verify returned False.
+        That manifested as a CI flake during 0.9.0's first release
+        run while local tests passed for weeks.
+
+        Force-mint a token whose HMAC contains a `.` byte by sweeping
+        the expiry second-by-second until we hit one. With 32 sig
+        bytes and ~12 % per-token rate we expect a hit within ~10
+        attempts; the loop guards against a 1-in-a-million miss with
+        a generous upper bound."""
+        from src.reports.asset_tokens import _b64url_decode, _key, _SIG_LEN
+        import hmac as _hmac, hashlib as _hashlib
+
+        seed_payload = None
+        for offset in range(2_000):
+            ts = int(time.time()) + offset
+            payload = f"7:{ts}".encode("ascii")
+            sig = _hmac.new(_key(), payload, _hashlib.sha256).digest()
+            if 0x2E in sig:  # `.`
+                seed_payload = (offset, sig)
+                break
+        assert seed_payload is not None, (
+            "couldn't find a `.`-containing signature in 2000 attempts — "
+            "either SECRET_KEY's broken or the universe ended"
+        )
+
+        # Mint a real token whose expiry produces that signature, then
+        # verify. The fixed-length slicing must extract the right
+        # payload/sig boundary regardless of period-byte placement.
+        offset, _expected_sig = seed_payload
+        # Patch time.time so mint produces the same payload + sig.
+        from unittest.mock import patch
+        target_ts = int(time.time())
+        with patch("src.reports.asset_tokens.time.time", return_value=float(target_ts)):
+            t = mint_asset_token(report_id=7, ttl_seconds=offset)
+        assert verify_asset_token(t, report_id=7) is True, (
+            "verify failed for a token whose signature contains `.` — "
+            "the rsplit-on-period bug is back"
+        )
+
+        # Plus a sanity-decode: the binary form of the token still
+        # starts with the literal payload bytes (`7:<ts+offset>`),
+        # which the regression-prone code split mid-signature.
+        decoded = _b64url_decode(t)
+        assert decoded.startswith(b"7:"), \
+            f"payload prefix corrupted: {decoded[:16]!r}"
+        # And the suffix is exactly _SIG_LEN bytes — the new format.
+        assert len(decoded) > _SIG_LEN
 
     # Note: TTL-via-sleep tests are flaky under the project's full
     # async-aware pytest config. `test_rejects_expired` already
