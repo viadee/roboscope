@@ -496,6 +496,24 @@ class RobotDebugSession:
         client.on_event("output", self._on_output)
         client.on_event("terminated", self._on_terminated)
         client.on_event("exited", self._on_terminated)
+        # RobotCode's listener emits ``robot*`` events whose bodies
+        # mix in ``SyncedEventBody`` and **synchronously block the
+        # listener thread for 15 s** waiting for a ``robot/sync``
+        # ack from us. Without the ack RF can't progress past the
+        # first synced event — start_suite blocks, start_test never
+        # fires, breakpoints never get a chance to match. Auto-ack
+        # every ``robot*`` event by firing a request the child's
+        # ``_robot_sync`` handler will set the gating Event on.
+        for synced_event in (
+            "robotEnqueued",
+            "robotStarted",
+            "robotEnded",
+            "robotSetFailed",
+            "robotLog",
+            "robotExecutionPaused",
+            "robotExited",
+        ):
+            client.on_event(synced_event, self._on_robot_synced_event)
 
     def _on_stopped(self, body: dict[str, Any]) -> None:
         self.state.paused = True
@@ -516,6 +534,27 @@ class RobotDebugSession:
         self.state.paused = False
         self.state.terminated = True
         self._publish_event("terminated", body)
+
+    def _on_robot_synced_event(self, _body: dict[str, Any]) -> None:
+        """Ack RobotCode's synced events (see ``_wire_event_handlers``).
+
+        The handler runs inside the read loop, which can't ``await``,
+        so we fire-and-forget the request as a background task. The
+        request never raises into our flow — failures are silent and
+        only matter to the listener that's waiting on the ack.
+        """
+        if self._client is None:
+            return
+
+        async def _ack() -> None:
+            try:
+                if self._client is not None:
+                    await self._client.request("robot/sync", {})
+            except Exception:  # noqa: BLE001
+                logger.debug("robot/sync ack failed", exc_info=True)
+
+        with suppress(RuntimeError):
+            asyncio.create_task(_ack())
 
     def _publish_event(self, kind: str, body: dict[str, Any]) -> None:
         """Drop oldest if the queue is full — a stalled consumer

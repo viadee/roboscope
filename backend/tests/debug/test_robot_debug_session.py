@@ -454,22 +454,12 @@ class TestRealRobotCodeSpawn:
             )
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason=(
-            "Known regression — DEBUG-5: breakpoint stop is not yet "
-            "wired through the launcher → child proxy chain. Test runs "
-            "end-to-end but the `stopped` event never arrives. Spec at "
-            "_bmad-output/.../debug-5-breakpoint-resolution.md. This "
-            "xfail prevents silent regressions when the proxy is fixed."
-        ),
-        strict=True,
-    )
     async def test_real_breakpoint_pauses_execution(
         self, tmp_path: Path,
     ) -> None:
-        """Pinned-but-xfail regression test for the actual user-visible
-        bug. When this turns green, the launcher → child setBreakpoints
-        proxy is finally working and we can flip to a normal assertion.
+        """End-to-end: spawn → handshake → setBreakpoints →
+        configurationDone → RF runs → breakpoint hit → ``stopped``
+        event arrives → continue → terminate. The story DEBUG-5 fix.
         """
         env_python = self._check_or_skip()
         robot = self._make_demo_robot(tmp_path)
@@ -491,6 +481,11 @@ class TestRealRobotCodeSpawn:
 
             evt = await asyncio.wait_for(wait_for_stopped(), timeout=20.0)
             assert evt["kind"] == "stopped"
+            # Reason should be "breakpoint" (RobotCode reports
+            # StoppedReason.BREAKPOINT — see process_start_state).
+            body = evt.get("body") or {}
+            if isinstance(body, dict):
+                assert body.get("reason") in {"breakpoint", "Breakpoint hit"}, body
             await session.continue_()
             with contextlib.suppress(asyncio.TimeoutError):
                 while True:
@@ -499,44 +494,37 @@ class TestRealRobotCodeSpawn:
                         break
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason=(
-            "Known regression — DEBUG-5 layer-isolation: even an "
-            "unconditional `pause` request after configurationDone "
-            "never produces a `stopped` event. Strongly suggests the "
-            "bug is in the launcher → us event-proxy direction, not "
-            "in breakpoint path resolution. When this turns green at "
-            "the same time as the breakpoint test, the fix is the "
-            "same root cause."
-        ),
-        strict=True,
-    )
     async def test_real_pause_request_pauses_execution(
         self, tmp_path: Path,
     ) -> None:
-        """Diagnostic isolation test: forces a stop via the DAP `pause`
-        request, completely bypassing breakpoint path-resolution. If
-        this xfails alongside the breakpoint test, the issue is in the
-        event-forwarding chain (launcher → us); if this passes but
-        breakpoint test still xfails, the issue is narrowly in
-        breakpoint path resolution. Either signal points the next
-        investigator at the right layer.
+        """The DAP ``pause`` request also produces a ``stopped`` event.
+
+        Uses a longer-running test (``Sleep`` keyword) so the pause
+        request reaches the child while RF is still inside a keyword;
+        otherwise RF runs to completion in <1 s and our pause races
+        the terminated event.
         """
         env_python = self._check_or_skip()
-        robot = self._make_demo_robot(tmp_path)
+        robot = tmp_path / "sleeper.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "Sleeper\n"
+            "    Sleep    3s\n"
+            "    Log    woke up\n",
+            encoding="utf-8",
+        )
+        robot = robot.resolve()
 
         async with RobotDebugSession(
             robot_path=robot,
-            test_name="Demo",
-            breakpoints=[],  # No breakpoints — testing pause path only.
+            test_name="Sleeper",
+            breakpoints=[],
             env_python_path=env_python,
             port_parse_timeout=15.0,
         ) as session:
-            # Wait briefly for the run to start, then request pause.
-            await asyncio.sleep(1.5)
+            # Let RF reach the Sleep keyword, then pause.
+            await asyncio.sleep(1.0)
             assert session._client is not None  # noqa: SLF001
-            # The DAP `pause` request takes a thread_id; RobotCode uses
-            # a single main thread and accepts any plausible ID.
             with contextlib.suppress(Exception):
                 await session._client.request("pause", {"threadId": 1})  # noqa: SLF001
 
@@ -548,7 +536,8 @@ class TestRealRobotCodeSpawn:
                     if evt.get("kind") == "terminated":
                         pytest.fail("Terminated before pause stop")
 
-            evt = await asyncio.wait_for(wait_for_stopped(), timeout=15.0)
+            evt = await asyncio.wait_for(wait_for_stopped(), timeout=20.0)
             assert evt["kind"] == "stopped"
+            await session.continue_()
 
 
