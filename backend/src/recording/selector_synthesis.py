@@ -408,12 +408,21 @@ def _xpath(snap: ElementSnapshot) -> list[SelectorCandidate]:
             )
             break
 
-    # Absolute XPath — always fragile, last resort.
+    # Absolute XPath — always fragile, last resort. Use the `//`
+    # descendant-or-self prefix instead of single `/`: Playwright /
+    # Browser library auto-detect a selector as XPath only when it
+    # starts with `//` or `..`. A bare `/html/body/...` is parsed as
+    # CSS by the engine and never resolves, so the candidate would
+    # leak through verification with 0 matches and get dropped — the
+    # user would then see ZERO XPath candidates in the picker even
+    # for elements that have no other distinguishable attributes.
+    # `//html/body/...` matches the same single element (there's only
+    # one `<html>` per document) and survives auto-detection.
     chain = [anc.tag for anc in snap.ancestors] + [snap.tag]
     out.append(
         SelectorCandidate(
             strategy="xpath",
-            value="/" + "/".join(chain),
+            value="//" + "/".join(chain),
             quality_score=_cap(25),
             verified_unique=False,
         )

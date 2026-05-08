@@ -182,11 +182,22 @@ class TestXpathStrategy:
         cands = synthesise_selectors(
             _snap(ancestors=[AncestorRef(tag="body"), AncestorRef(tag="div")])
         )
+        # Browser library + Playwright auto-detect XPath only when
+        # the selector starts with `//` or `..`. A single-/ prefix
+        # is parsed as CSS, never resolves, and the candidate would
+        # silently drop out of the picker.
         abs_x = [
             c for c in cands
-            if c.strategy == "xpath" and c.value.startswith("/body/div/button")
+            if c.strategy == "xpath" and c.value.startswith("//body/div/button")
         ]
+        assert abs_x, "absolute xpath must be emitted with `//` prefix"
         assert abs_x[0].quality_score == 25
+        # Defensive: a single-/ leading absolute path must NEVER appear.
+        for c in cands:
+            if c.strategy == "xpath":
+                assert not c.value.startswith("/body/"), (
+                    f"single-/ absolute xpath leaked: {c.value!r}"
+                )
 
     def test_text_anchored_xpath_preferred_over_absolute(self) -> None:
         cands = synthesise_selectors(_snap(text="Sign in"))
