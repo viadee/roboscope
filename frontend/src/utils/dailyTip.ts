@@ -7,7 +7,7 @@
  * reloads on the same calendar day.
  */
 
-export const TIP_COUNT = 30
+export const TIP_COUNT = 31
 
 /**
  * Day-of-year modulo TIP_COUNT — tips rotate over the 30-tip set

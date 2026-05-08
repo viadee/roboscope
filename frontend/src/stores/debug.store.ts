@@ -20,7 +20,9 @@ import type {
   DebugCallStackFrame,
   DebugPausedAt,
   DebugSessionStartResponse,
+  StartFromStepRequest,
 } from '@/api/debug.api'
+import { extractErrorStatus } from '@/utils/errors'
 
 const blankPausedAt: DebugPausedAt = { file: null, line: null, keyword: null }
 
@@ -60,6 +62,64 @@ export const useDebugStore = defineStore('debug', () => {
     } finally {
       loading.value = false
     }
+  }
+
+  /**
+   * DEBUG-3 — start a session from a Flow Editor step click.
+   *
+   * Returns the response *and* a flag indicating whether the backend
+   * dedup-409'd into an existing session. AC6 silent-resume: the
+   * caller can show the panel without a "started new session" toast
+   * when `resumed === true`.
+   */
+  async function startFromStep(
+    payload: StartFromStepRequest,
+  ): Promise<{ resp: DebugSessionStartResponse; resumed: boolean }> {
+    loading.value = true
+    lastError.value = null
+    try {
+      try {
+        const resp = await debugApi.startDebugFromStep(payload)
+        _adoptStart(resp)
+        return { resp, resumed: false }
+      } catch (e: unknown) {
+        // 409 is silent-resume — the response payload carries the
+        // existing session metadata under detail.
+        if (extractErrorStatus(e) === 409) {
+          const detail = (e as { response?: { data?: { detail?: unknown } } })
+            ?.response?.data?.detail
+          if (detail && typeof detail === 'object') {
+            const d = detail as Record<string, unknown>
+            const resp: DebugSessionStartResponse = {
+              session_id: String(d.session_id ?? ''),
+              robot_file: String(d.robot_file ?? payload.file),
+              breakpoint_line: Number(d.breakpoint_line ?? payload.line),
+              test_name: (d.test_name as string | null | undefined) ?? null,
+            }
+            if (resp.session_id) {
+              _adoptStart(resp)
+              return { resp, resumed: true }
+            }
+          }
+        }
+        throw e
+      }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /** Compare the active session against a new step click. Returns
+   *  `'idle'` when no session is running, `'same'` when the click
+   *  resumes (file + line both match), `'different'` when a confirm-
+   *  modal is needed before swapping. */
+  function classifyStepClick(
+    file: string,
+    line: number,
+  ): 'idle' | 'same' | 'different' {
+    if (!sessionId.value || state.value.terminated) return 'idle'
+    if (robotFile.value === file && breakpointLine.value === line) return 'same'
+    return 'different'
   }
 
   function _adoptStart(resp: DebugSessionStartResponse): void {
@@ -147,6 +207,8 @@ export const useDebugStore = defineStore('debug', () => {
     scopes,
     callStack,
     startFromRun,
+    startFromStep,
+    classifyStepClick,
     refreshState,
     control,
     stop,

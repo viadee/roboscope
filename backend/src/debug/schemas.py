@@ -1,22 +1,70 @@
-"""Pydantic schemas for the DEBUG-2 router."""
+"""Pydantic schemas for the DEBUG-2 / DEBUG-3 router."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class StartDebugSessionRequest(BaseModel):
     """Body for ``POST /api/v1/debug/sessions``.
 
-    Currently only the ``run_id`` shape (DEBUG-2). DEBUG-3 will extend
-    this with a ``{file, test_name, line, repo_id}`` shape; that
-    extension is additive — keep this schema permissive for forward
-    compat.
+    Two invocation shapes — exactly one MUST be supplied:
+
+    * **DEBUG-2** — ``{run_id}``: re-debug a failed run; the router
+      walks ``output.xml`` to find the breakpoint line.
+    * **DEBUG-3** — ``{file, test_name, line, repo_id}``: run a clicked
+      step in the Flow Editor. ``line`` is 1-based; ``test_name`` must
+      match a test inside ``file``; ``repo_id`` must be a project the
+      caller has RUNNER+ on.
+
+    The two shapes are validated against each other in
+    :meth:`_check_exactly_one_shape` so we get a clean 422 instead of
+    a confusing partial-payload mix.
     """
 
-    run_id: int
+    # DEBUG-2 path
+    run_id: int | None = None
+    # DEBUG-3 path
+    file: str | None = None
+    test_name: str | None = None
+    line: int | None = None
+    repo_id: int | None = None
+
+    @model_validator(mode="after")
+    def _check_exactly_one_shape(self) -> StartDebugSessionRequest:
+        run_shape = self.run_id is not None
+        step_fields = (self.file, self.test_name, self.line, self.repo_id)
+        step_shape_full = all(f is not None for f in step_fields)
+        step_shape_any = any(f is not None for f in step_fields)
+
+        if run_shape and step_shape_any:
+            raise ValueError(
+                "Provide either {run_id} or {file, test_name, line, repo_id}, not both"
+            )
+        if not run_shape and not step_shape_any:
+            raise ValueError(
+                "Body must include either {run_id} or "
+                "{file, test_name, line, repo_id}"
+            )
+        if step_shape_any and not step_shape_full:
+            missing = [
+                name for name, val in zip(
+                    ("file", "test_name", "line", "repo_id"), step_fields, strict=True
+                ) if val is None
+            ]
+            raise ValueError(
+                f"Step-shape body is missing required fields: {', '.join(missing)}"
+            )
+        if self.line is not None and self.line < 1:
+            raise ValueError("line must be a 1-based positive integer")
+        return self
+
+    @property
+    def is_step_shape(self) -> bool:
+        """True iff this request uses the DEBUG-3 ``file/test_name/line/repo_id`` shape."""
+        return self.file is not None
 
 
 class DebugSessionStartResponse(BaseModel):

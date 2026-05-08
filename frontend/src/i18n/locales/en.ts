@@ -1245,6 +1245,17 @@ export default {
       removeTitle: 'Remove the documentation',
       alreadyPresent: 'A [Documentation] is already attached — click the side note to edit it.',
     },
+    debug: {
+      btnLabel: 'Run up to here',
+      btnTitle: 'Run this test until the selected step and pause in debug mode',
+      unresolvedLine: "Couldn't resolve this step's source line — save the file and try again.",
+      startFailed: 'Could not start the debug session.',
+      unsavedHintTitle: 'Save before debugging',
+      unsavedHint: 'You have unsaved changes. Save the file first so the debug breakpoint matches the source on disk.',
+      confirmReplaceTitle: 'Replace active debug session?',
+      confirmReplace: 'A debug session for this file is paused at line {lineFrom}. Disconnect it and start a new one at line {lineTo}?',
+      confirmReplaceConfirm: 'Disconnect and start',
+    },
     settingMeta: {
       allPresent: 'Every [...] setting is attached — click a side note to edit it.',
       emptyHint: 'click to edit',
@@ -1932,5 +1943,6 @@ export default {
     tip28: 'A stuck-on-syncing repo gets an auto-recovery message in the Repos view — click Sync once to reset.',
     tip29: 'Hover the doc icon on any keyword in the Flow Editor palette to see the full libdoc description in a popover.',
     tip30: 'The dashboard cards are clickable shortcuts to every section of RoboScope — pick Repos, Explorer, Runs, Stats and more from one screen.',
+    tip31: 'In the Flow Editor, click any step in a saved test, then "Run up to here" to launch the test in debug mode and pause at that line — variable scopes, call stack, and step controls show up in an overlay.',
   },
 }

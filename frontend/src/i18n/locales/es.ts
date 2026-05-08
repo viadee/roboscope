@@ -1245,6 +1245,17 @@ export default {
       removeTitle: 'Quitar la documentación',
       alreadyPresent: 'Ya hay una [Documentation] adjunta — haz clic en la nota lateral para editarla.',
     },
+    debug: {
+      btnLabel: 'Ejecutar hasta aquí',
+      btnTitle: 'Ejecuta este test hasta el paso seleccionado y pausa en modo depuración',
+      unresolvedLine: 'No se pudo resolver la línea fuente de este paso — guarda el archivo e inténtalo de nuevo.',
+      startFailed: 'No se pudo iniciar la sesión de depuración.',
+      unsavedHintTitle: 'Guardar antes de depurar',
+      unsavedHint: 'Tienes cambios sin guardar. Guarda el archivo primero para que el punto de interrupción coincida con la fuente en disco.',
+      confirmReplaceTitle: '¿Reemplazar la sesión de depuración activa?',
+      confirmReplace: 'Hay una sesión de depuración para este archivo en pausa en la línea {lineFrom}. ¿Desconectarla y comenzar una nueva en la línea {lineTo}?',
+      confirmReplaceConfirm: 'Desconectar e iniciar',
+    },
     settingMeta: {
       allPresent: 'Todos los ajustes [...] están adjuntos — haz clic en una nota lateral para editarla.',
       emptyHint: 'haz clic para editar',
@@ -1932,5 +1943,6 @@ export default {
     tip28: 'Un repo bloqueado en sync muestra un mensaje de auto-recovery en Proyectos — un clic en Sync lo reinicia.',
     tip29: 'Pasa el ratón sobre el icono de doc de un keyword en la paleta del Flow Editor para ver la descripción libdoc completa en un popover.',
     tip30: 'Las tarjetas del dashboard son atajos clickables a cada sección de RoboScope — Proyectos, Explorer, Ejecuciones, Stats y más desde una sola pantalla.',
+    tip31: 'En el Flow Editor haz clic en cualquier paso de un test guardado y luego en «Ejecutar hasta aquí» — el test arranca en modo depuración y pausa en esa línea. Los scopes de variables, la pila de llamadas y los controles de paso aparecen en un overlay.',
   },
 }
