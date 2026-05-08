@@ -2,7 +2,10 @@
 
 import asyncio
 import logging
+import os
+import sys
 import uuid
+import webbrowser
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -27,6 +30,68 @@ logger = logging.getLogger("roboscope")
 _event_loop: asyncio.AbstractEventLoop | None = None
 
 
+def _build_formatter() -> logging.Formatter:
+    """Pick the log formatter based on LOG_FORMAT env var.
+
+    `LOG_FORMAT=text` → readable single-line `LEVEL  logger: message`
+    for humans launching the standalone bundle from a terminal.
+    Anything else (including unset) → JSON for log shippers in
+    `make dev`, Docker, and CI.
+    """
+    if os.environ.get("LOG_FORMAT", "json").lower() == "text":
+        return logging.Formatter(
+            fmt="%(levelname)-5s %(name)s: %(message)s",
+        )
+    return JsonFormatter(
+        fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
+        rename_fields={"asctime": "timestamp", "levelname": "level", "name": "logger"},
+    )
+
+
+def _supports_unicode_box() -> bool:
+    """Return True iff the terminal is likely to render `═` correctly.
+
+    Windows cmd / PowerShell in legacy code-page modes mojibakes
+    Unicode box-drawing chars; we fall back to ASCII (`====`) there.
+    """
+    if sys.platform == "win32":
+        return False
+    encoding = (os.environ.get("PYTHONIOENCODING") or "").lower()
+    return not encoding or "utf-8" in encoding or "utf8" in encoding
+
+
+def _print_ready_banner() -> None:
+    """Print the loud "open this URL" banner to stdout.
+
+    Goes through `print()` (NOT the logger) so it survives both
+    JSON and text log formats and is never mistaken for an INFO
+    line. Suppressed under pytest to keep test output clean.
+    """
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return
+    port = settings.PORT
+    url = f"http://localhost:{port}"
+    if _supports_unicode_box():
+        bar = "═" * 56
+        check = "✓"
+    else:
+        bar = "=" * 56
+        check = "*"
+    # Blank line first so the banner separates cleanly from boot logs.
+    print(f"\n{bar}", flush=True)
+    print(f" {check}  RoboScope is running", flush=True)
+    print(f"    Open in your browser:  {url}", flush=True)
+    print(f"{bar}\n", flush=True)
+
+    if os.environ.get("OPEN_BROWSER", "").strip() in ("1", "true", "yes"):
+        try:
+            webbrowser.open(url)
+        except Exception:
+            # Headless or BROWSER misconfigured — banner already
+            # tells the user where to go, so don't fail startup.
+            logger.warning("OPEN_BROWSER set but webbrowser.open failed", exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown lifecycle."""
@@ -42,11 +107,7 @@ async def lifespan(app: FastAPI):
     from src.logging_context import RequestIdFilter
 
     handler = logging.StreamHandler()
-    formatter = JsonFormatter(
-        fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
-        rename_fields={"asctime": "timestamp", "levelname": "level", "name": "logger"},
-    )
-    handler.setFormatter(formatter)
+    handler.setFormatter(_build_formatter())
     handler.addFilter(RequestIdFilter())
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
@@ -276,6 +337,12 @@ async def lifespan(app: FastAPI):
     )
 
     logger.info("RoboScope started successfully")
+
+    # Loud "open this URL" cue for users running the standalone
+    # bundle. Suppressed in tests, doesn't break Docker / dev mode
+    # (it's just three lines on stdout).
+    _print_ready_banner()
+
     yield
 
     # Shutdown

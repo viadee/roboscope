@@ -203,6 +203,13 @@ DEBUG=false
 
 # Logging
 LOG_LEVEL=INFO
+# LOG_FORMAT — `text` (default for standalone start) for human-readable
+# console logs, or `json` for log shippers / Docker / CI.
+LOG_FORMAT=text
+
+# Auto-open the app in your default browser after startup. Default OFF
+# (commented) so headless installs don't surprise you. Set to 1 to enable.
+# OPEN_BROWSER=1
 
 # Directories (defaults shown — adjust if needed)
 # WORKSPACE_DIR=~/.roboscope/workspace
@@ -253,6 +260,10 @@ cd "$(dirname "$0")"
 if [ -f ".env" ]; then
   set -a; source .env; set +a
 fi
+
+# Default to readable text logs for the human running this binary.
+# .env can override (LOG_FORMAT=json) to keep log shippers happy.
+export LOG_FORMAT="${LOG_FORMAT:-text}"
 
 PORT="${PORT:-8145}"
 

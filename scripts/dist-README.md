@@ -45,13 +45,23 @@ stop-windows.bat
 
 ### 4. Open
 
-Open your browser at: **http://localhost:8145**
+After RoboScope starts, the terminal prints a banner with the URL — look for:
 
-Default login:
+```
+========================================================
+ *  RoboScope is running
+    Open in your browser:  http://localhost:8145
+========================================================
+```
+
+Open the printed URL in your browser. Default login:
 - **Email:** `admin@roboscope.local`
 - **Password:** `admin123`
 
 > Change the admin password after first login via Settings > Users.
+
+> **Tip:** set `OPEN_BROWSER=1` in `.env` to have RoboScope open the
+> URL in your default browser automatically once it's ready.
 
 ## Configuration
 
@@ -65,6 +75,8 @@ All settings are in the `.env` file (created automatically from `.env.example` o
 | `SECRET_KEY` | `CHANGE-ME-IN-PRODUCTION` | JWT signing key (change this!) |
 | `DEBUG` | `false` | Enable debug mode |
 | `LOG_LEVEL` | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `LOG_FORMAT` | `text` (standalone) / `json` (Docker, CI) | Console log format. `text` is human-readable; `json` is for log shippers. |
+| `OPEN_BROWSER` | _(off)_ | Set to `1` to auto-open the app URL in your default browser after startup. |
 | `WORKSPACE_DIR` | `~/.roboscope/workspace` | Directory for cloned Git repositories |
 | `REPORTS_DIR` | `~/.roboscope/reports` | Directory for test execution reports |
 | `VENVS_DIR` | `~/.roboscope/venvs` | Directory for Python virtual environments |
