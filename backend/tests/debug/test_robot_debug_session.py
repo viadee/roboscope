@@ -13,7 +13,6 @@ TCP-connect → handshake pipeline end to end.
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 import pytest
@@ -24,7 +23,6 @@ from src.debug.robot_debug_session import (
     RobotDebugSession,
     _parse_port,
 )
-
 
 # ---------------------------------------------------------------------------
 # Port-line parser unit tests
@@ -211,5 +209,68 @@ class TestSpawnAndHandshake:
                 breakpoints=[Breakpoint(str(robot), 3)],
                 env_python_path=env_python,
                 port_parse_timeout=0.2,
+            ):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_timeout_error_includes_captured_boot_output(self, tmp_path: Path) -> None:
+        """Regression: users hit a bare 'did not announce' message and
+        had no idea what robotcode was actually saying. The error must
+        echo the captured stdout tail so they can self-diagnose."""
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        rcode = bin_dir / "robotcode"
+        rcode.write_text(
+            "#!/usr/bin/env python3\n"
+            "import time, sys\n"
+            "sys.stdout.write('Loading Browser library...\\n')\n"
+            "sys.stdout.write('Initializing language server...\\n')\n"
+            "sys.stdout.flush()\n"
+            "time.sleep(60)\n",
+            encoding="utf-8",
+        )
+        rcode.chmod(0o755)
+        env_python = bin_dir / "python"
+        env_python.write_text("", encoding="utf-8")
+        robot = _make_robot_file(tmp_path)
+        with pytest.raises(DebugSessionStartFailed) as exc_info:
+            async with RobotDebugSession(
+                robot_path=robot,
+                breakpoints=[Breakpoint(str(robot), 3)],
+                env_python_path=env_python,
+                port_parse_timeout=0.5,
+            ):
+                pass
+        msg = str(exc_info.value)
+        assert "Loading Browser library" in msg
+        assert "Initializing language server" in msg
+
+    @pytest.mark.asyncio
+    async def test_robotcode_crash_during_boot_surfaces_returncode(
+        self, tmp_path: Path,
+    ) -> None:
+        """If robotcode exits before announcing a port, the error must
+        carry the exit code (so the user can spot e.g. an 'invalid
+        argument' crash that always exits 2)."""
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        rcode = bin_dir / "robotcode"
+        rcode.write_text(
+            "#!/usr/bin/env python3\n"
+            "import sys\n"
+            "sys.stderr.write('FATAL: missing config\\n')\n"
+            "sys.exit(2)\n",
+            encoding="utf-8",
+        )
+        rcode.chmod(0o755)
+        env_python = bin_dir / "python"
+        env_python.write_text("", encoding="utf-8")
+        robot = _make_robot_file(tmp_path)
+        with pytest.raises(DebugSessionStartFailed, match="exited with code 2"):
+            async with RobotDebugSession(
+                robot_path=robot,
+                breakpoints=[Breakpoint(str(robot), 3)],
+                env_python_path=env_python,
+                port_parse_timeout=5.0,
             ):
                 pass

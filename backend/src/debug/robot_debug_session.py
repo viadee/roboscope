@@ -35,6 +35,8 @@ import asyncio
 import logging
 import os
 import re
+import signal
+import sys
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -46,7 +48,7 @@ from src.debug.dap_protocol import DapProtocolError
 logger = logging.getLogger("roboscope.debug.session")
 
 
-class DebugSessionStartFailed(RuntimeError):
+class DebugSessionStartFailed(RuntimeError):  # noqa: N818  # public API name
     """Raised when any step in the spawn → handshake pipeline fails.
 
     Wraps the original cause; the route layer (DEBUG-2) should
@@ -138,19 +140,32 @@ class RobotDebugSession:
         env_python_path: str | Path,
         *,
         test_name: str | None = None,
-        port_parse_timeout: float = 15.0,
+        port_parse_timeout: float | None = None,
         spawn_args: list[str] | None = None,
     ) -> None:
         self.robot_path = str(robot_path)
         self.breakpoints = breakpoints
         self.env_python_path = str(env_python_path)
         self.test_name = test_name
+        # Cold robotcode boots can take 20 s+ on slow venvs (Browser
+        # library import + language-server bootstrap); 30 s is the
+        # default. Operators can override via ROBOSCOPE_DEBUG_PORT_TIMEOUT.
+        if port_parse_timeout is None:
+            env_override = os.environ.get("ROBOSCOPE_DEBUG_PORT_TIMEOUT", "")
+            try:
+                port_parse_timeout = float(env_override) if env_override else 30.0
+            except ValueError:
+                port_parse_timeout = 30.0
         self._port_parse_timeout = port_parse_timeout
         self._extra_args = spawn_args or []
 
         self._proc: asyncio.subprocess.Process | None = None
         self._client: DapClient | None = None
         self.state = DebugState()
+        # Boot-time stdout buffer — surfaced in the error message when
+        # the port-announcement times out so the user can see what
+        # robotcode actually printed (vs. a generic "did not announce").
+        self._boot_log: list[str] = []
         # Bounded queue so a slow consumer (the WebSocket forwarder)
         # never lets the read pump backpressure us into OOM.
         self.events: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=512)
@@ -186,7 +201,7 @@ class RobotDebugSession:
 
     # -- context manager ---------------------------------------------------
 
-    async def __aenter__(self) -> "RobotDebugSession":
+    async def __aenter__(self) -> RobotDebugSession:
         try:
             await self._spawn()
             await self._handshake()
@@ -236,13 +251,22 @@ class RobotDebugSession:
         argv += self._extra_args
         argv.append(self.robot_path)
 
+        # POSIX: spawn in a fresh process group so cleanup can reap the
+        # entire subprocess tree (RobotCode → Robot Framework → Browser
+        # library wrapper → Playwright → Chromium) via os.killpg, not
+        # just the immediate child. Without this, orphaned grandchildren
+        # routinely outlive the session and can block the next port-0
+        # bind by holding shared state under ~/.cache/robotcode/.
+        spawn_kwargs: dict[str, Any] = {
+            "stdout": asyncio.subprocess.PIPE,
+            "stderr": asyncio.subprocess.STDOUT,
+            "env": {**os.environ, "PYTHONUNBUFFERED": "1"},
+        }
+        if sys.platform != "win32":
+            spawn_kwargs["start_new_session"] = True
+
         try:
-            self._proc = await asyncio.create_subprocess_exec(
-                *argv,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-                env={**os.environ, "PYTHONUNBUFFERED": "1"},
-            )
+            self._proc = await asyncio.create_subprocess_exec(*argv, **spawn_kwargs)
         except FileNotFoundError as e:
             raise DebugSessionStartFailed(
                 f"failed to spawn robotcode: {e}"
@@ -252,10 +276,7 @@ class RobotDebugSession:
         # other startup chatter; parse line-by-line.
         port = await self._read_port_from_stdout()
         if port is None:
-            raise DebugSessionStartFailed(
-                "robotcode did not announce a TCP port within "
-                f"{self._port_parse_timeout} s"
-            )
+            self._raise_port_failure()
 
         # Connect the DAP client.
         try:
@@ -280,18 +301,44 @@ class RobotDebugSession:
                 line_bytes = await asyncio.wait_for(
                     self._proc.stdout.readline(), timeout=remaining
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return None
             if not line_bytes:
-                # EOF before we got a port — robotcode crashed during
-                # boot. Surface the buffered stderr/stdout so DEBUG-2
-                # can show a useful error toast.
+                # EOF — robotcode exited before announcing a port.
+                # `_raise_port_failure` will surface the captured tail.
                 return None
-            line = line_bytes.decode("utf-8", errors="replace").strip()
+            line = line_bytes.decode("utf-8", errors="replace").rstrip()
+            if line:
+                self._boot_log.append(line)
+                # Cap retention so a chatty process can't OOM us.
+                if len(self._boot_log) > 200:
+                    self._boot_log = self._boot_log[-200:]
             logger.debug("[robotcode] %s", line)
             port = _parse_port(line)
             if port is not None:
                 return port
+
+    def _raise_port_failure(self) -> None:
+        """Build a diagnostic error including the captured boot output.
+
+        The plain "did not announce" message is useless to a user who
+        doesn't know what robotcode normally prints; including the
+        last ~20 lines makes it possible to spot common causes (missing
+        package, syntax error in the test, hung language server)
+        without re-running with backend DEBUG logging.
+        """
+        rc = self._proc.returncode if self._proc is not None else None
+        tail_lines = self._boot_log[-20:]
+        tail = "\n".join(tail_lines) if tail_lines else "(no output)"
+        if rc is not None:
+            raise DebugSessionStartFailed(
+                f"robotcode exited with code {rc} during boot. "
+                f"Last output:\n{tail}"
+            )
+        raise DebugSessionStartFailed(
+            "robotcode did not announce a TCP port within "
+            f"{self._port_parse_timeout} s. Last output from robotcode:\n{tail}"
+        )
 
     async def _handshake(self) -> None:
         if self._client is None:
@@ -324,7 +371,7 @@ class RobotDebugSession:
             raise DebugSessionStartFailed(
                 f"DAP handshake step `{e.command}` failed: {e.message}"
             ) from e
-        except (DapProtocolError, asyncio.TimeoutError, OSError) as e:
+        except (TimeoutError, DapProtocolError, OSError) as e:
             raise DebugSessionStartFailed(
                 f"DAP handshake transport error: {e}"
             ) from e
@@ -395,14 +442,15 @@ class RobotDebugSession:
             with suppress(Exception):
                 await self._client.stop()
             self._client = None
-        # 3. Wait for subprocess exit, escalate via kill.
+        # 3. Wait for subprocess exit, escalate via group-kill so any
+        #    grandchildren (Robot Framework → Browser library wrapper →
+        #    Playwright → Chromium) get reaped along with the parent.
         if self._proc is not None:
             try:
                 await asyncio.wait_for(self._proc.wait(), timeout=5.0)
-            except asyncio.TimeoutError:
-                with suppress(ProcessLookupError):
-                    self._proc.kill()
-                with suppress(asyncio.TimeoutError, ProcessLookupError):
+            except TimeoutError:
+                _kill_process_tree(self._proc)
+                with suppress(TimeoutError, ProcessLookupError):
                     await asyncio.wait_for(self._proc.wait(), timeout=5.0)
             except ProcessLookupError:
                 pass
@@ -416,3 +464,25 @@ def _group_by_file(bps: list[Breakpoint]) -> list[tuple[str, list[int]]]:
     for bp in bps:
         by_file.setdefault(bp.file, []).append(bp.line)
     return [(f, sorted(set(lines))) for f, lines in by_file.items()]
+
+
+def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:
+    """SIGKILL the process group on POSIX, SIGKILL the parent on Windows.
+
+    On POSIX we asked the kernel for ``start_new_session=True``, so
+    ``proc.pid`` is the process-group leader; SIGKILL'ing the pgid
+    reaps every descendant Robot Framework spawned. Without this, a
+    Browser-library Playwright Chromium spawn that survives our
+    immediate child becomes an orphan and can block the next debug
+    session via shared cache directories.
+    """
+    if sys.platform == "win32":
+        with suppress(ProcessLookupError):
+            proc.kill()
+        return
+    try:
+        pgid = os.getpgid(proc.pid)
+    except ProcessLookupError:
+        return
+    with suppress(ProcessLookupError, PermissionError):
+        os.killpg(pgid, signal.SIGKILL)
