@@ -1,6 +1,6 @@
 # Story DEBUG-1: Backend DAP driver foundation
 
-Status: in_progress
+Status: done
 
 Epic: Interactive Robot Framework Debugger
 Story Key: `debug-1-dap-driver-foundation`

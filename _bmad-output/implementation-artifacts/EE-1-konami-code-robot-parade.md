@@ -1,6 +1,6 @@
 # Story EE-1: Konami Code Robot Parade (Easter Egg)
 
-Status: draft
+Status: planned
 
 ## Story
 
