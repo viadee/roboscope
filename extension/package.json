@@ -1,0 +1,42 @@
+{
+  "name": "roboscope-recorder",
+  "version": "0.8.0",
+  "description": "Record browser interactions and generate Robot Framework test scripts — with optional RoboScope integration",
+  "author": "viadee Unternehmensberatung AG",
+  "license": "Apache-2.0",
+  "main": "src.background.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint-fix": "eslint . --fix",
+    "test-local": "mocha -r test/setup.js --ignore 'test/e2e/**' test/**/*.js --reporter nyan",
+    "test-coverage": "c8 mocha -r test/setup.js --ignore 'test/e2e/**' test/**/*.js --reporter nyan",
+    "test": "npm run lint-fix && npm run test-local",
+    "export": "./script/export.command",
+    "test:e2e": "npx playwright test test/e2e/",
+    "test:e2e:docker": "./scripts/test-e2e-docker.sh",
+    "prepare": "husky"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/viadee/roboscope.git"
+  },
+  "bugs": {
+    "url": "https://github.com/viadee/roboscope/issues"
+  },
+  "homepage": "https://github.com/viadee/roboscope#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "c8": "^9.0.0",
+    "chai": "^4.4.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "husky": "^9.0.0",
+    "jsdom": "^24.0.0",
+    "mocha": "^10.0.0",
+    "playwright": "^1.50.0",
+    "sinon-chrome": "^3.0.0"
+  }
+}

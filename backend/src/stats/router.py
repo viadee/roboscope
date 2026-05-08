@@ -19,7 +19,10 @@ from src.stats.schemas import (
     AnalysisListResponse,
     AnalysisResponse,
     DurationStat,
+    FlakyQuarantineCreate,
+    FlakyQuarantineResponse,
     FlakyTest,
+    HealRateResponse,
     HeatmapCell,
     OverviewKpi,
     SuccessRatePoint,
@@ -30,6 +33,7 @@ from src.stats.service import (
     get_analysis,
     get_duration_stats,
     get_flaky_tests,
+    get_heal_rate,
     get_heatmap_data,
     get_overview,
     get_success_rate_trend,
@@ -74,6 +78,17 @@ def trends(
     return get_trends(db, days, repository_id)
 
 
+@router.get("/heal-rate", response_model=HealRateResponse)
+def heal_rate(
+    days: int = Query(default=30, ge=1, le=365),
+    repository_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Story SH-6 — aggregate self-healing activity over a rolling window."""
+    return get_heal_rate(db, days=days, repository_id=repository_id)
+
+
 @router.get("/flaky", response_model=list[FlakyTest])
 def flaky_tests(
     days: int = Query(default=30, ge=1, le=365),
@@ -82,8 +97,156 @@ def flaky_tests(
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """Get flaky test analysis."""
+    """Get flaky test analysis, with quarantine state merged in (Story FLAKY-1)."""
     return get_flaky_tests(db, days, min_runs, repository_id)
+
+
+# --- Flaky-test quarantine (Story FLAKY-1) ---
+
+
+@router.get("/quarantine", response_model=list[FlakyQuarantineResponse])
+def list_flaky_quarantine(
+    repository_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """List all quarantined flaky tests. Optional `repository_id` filter."""
+    from src.stats.models import FlakyQuarantine
+    from sqlalchemy import select
+
+    stmt = select(FlakyQuarantine)
+    if repository_id is not None:
+        stmt = stmt.where(FlakyQuarantine.repository_id == repository_id)
+    rows = db.execute(stmt.order_by(FlakyQuarantine.id.desc())).scalars().all()
+    return [
+        FlakyQuarantineResponse(
+            id=r.id,
+            repository_id=r.repository_id,
+            suite_name=r.suite_name,
+            test_name=r.test_name,
+            reason=r.reason,
+            quarantined_by=r.quarantined_by,
+            quarantined_at=r.quarantined_at,
+        )
+        for r in rows
+    ]
+
+
+@router.post("/quarantine", response_model=FlakyQuarantineResponse, status_code=201)
+def add_flaky_quarantine(
+    data: FlakyQuarantineCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Mark a flaky test as quarantined. Idempotent: re-marking the same
+    (repository_id, suite_name, test_name) tuple returns the existing row."""
+    from datetime import datetime
+    from sqlalchemy import select
+
+    from src.audit.service import log_event
+    from src.audit.event_types import AuditEventType
+    from src.repos.models import Repository
+    from src.stats.models import FlakyQuarantine
+
+    repo = db.get(Repository, data.repository_id)
+    if repo is None:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    existing = db.execute(
+        select(FlakyQuarantine).where(
+            FlakyQuarantine.repository_id == data.repository_id,
+            FlakyQuarantine.suite_name == data.suite_name,
+            FlakyQuarantine.test_name == data.test_name,
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        return FlakyQuarantineResponse(
+            id=existing.id,
+            repository_id=existing.repository_id,
+            suite_name=existing.suite_name,
+            test_name=existing.test_name,
+            reason=existing.reason,
+            quarantined_by=existing.quarantined_by,
+            quarantined_at=existing.quarantined_at,
+        )
+
+    row = FlakyQuarantine(
+        repository_id=data.repository_id,
+        suite_name=data.suite_name,
+        test_name=data.test_name,
+        reason=data.reason,
+        quarantined_by=current_user.id,
+        quarantined_at=datetime.utcnow(),
+    )
+    db.add(row)
+    db.flush()
+    db.refresh(row)
+
+    try:
+        log_event(
+            db,
+            AuditEventType.FLAKY_TEST_QUARANTINED,
+            user_id=current_user.id,
+            resource_id=row.repository_id,
+            detail={
+                "quarantine_id": row.id,
+                "suite_name": row.suite_name,
+                "test_name": row.test_name,
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+    except AttributeError:
+        # Audit event type may not be present on older DBs — safe to skip.
+        pass
+    db.commit()
+
+    return FlakyQuarantineResponse(
+        id=row.id,
+        repository_id=row.repository_id,
+        suite_name=row.suite_name,
+        test_name=row.test_name,
+        reason=row.reason,
+        quarantined_by=row.quarantined_by,
+        quarantined_at=row.quarantined_at,
+    )
+
+
+@router.delete("/quarantine/{quarantine_id}", status_code=204)
+def remove_flaky_quarantine(
+    quarantine_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Unquarantine a flaky test."""
+    from src.audit.service import log_event
+    from src.audit.event_types import AuditEventType
+    from src.stats.models import FlakyQuarantine
+
+    row = db.get(FlakyQuarantine, quarantine_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Quarantine entry not found")
+    details = {
+        "quarantine_id": row.id,
+        "suite_name": row.suite_name,
+        "test_name": row.test_name,
+    }
+    repo_id = row.repository_id
+    db.delete(row)
+
+    try:
+        log_event(
+            db,
+            AuditEventType.FLAKY_TEST_UNQUARANTINED,
+            user_id=current_user.id,
+            resource_id=repo_id,
+            detail=details,
+            ip_address=request.client.host if request.client else None,
+        )
+    except AttributeError:
+        pass
+    db.commit()
 
 
 @router.get("/duration", response_model=list[DurationStat])

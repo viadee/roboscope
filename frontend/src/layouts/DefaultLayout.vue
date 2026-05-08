@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import BaseToast from '@/components/ui/BaseToast.vue'
+import DefaultPasswordBanner from '@/components/auth/DefaultPasswordBanner.vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useWebSocket } from '@/composables/useWebSocket'
@@ -38,9 +39,12 @@ onUnmounted(() => {
 <template>
   <div class="app-layout" :class="{ 'sidebar-collapsed': !ui.sidebarOpen, 'is-mobile': ui.isMobile }">
     <AppSidebar />
+    <!-- Story A11Y-1: keyboard users tab in → see this link first → skip past sidebar -->
+    <a class="skip-to-main" href="#main">{{ t('a11y.skipToMain') }}</a>
     <div class="main-area">
       <AppHeader />
-      <main class="main-content">
+      <DefaultPasswordBanner />
+      <main id="main" class="main-content" tabindex="-1">
         <slot />
       </main>
       <footer class="app-footer">
@@ -67,6 +71,25 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* Story A11Y-1: skip-to-main link — visually hidden until focused */
+.skip-to-main {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 10000;
+  padding: 8px 16px;
+  background: var(--color-primary, #3B7DD8);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  border-radius: 0 0 4px 0;
+}
+.skip-to-main:focus {
+  left: 0;
+  outline: 2px solid #fff;
+  outline-offset: -4px;
+}
+
 .app-layout {
   display: flex;
   min-height: 100vh;

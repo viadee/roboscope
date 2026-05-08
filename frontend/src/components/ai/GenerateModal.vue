@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAiStore } from '@/stores/ai.store'
+import { extractErrorDetail } from '@/utils/errors'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import DiffPreview from './DiffPreview.vue'
@@ -69,12 +70,11 @@ async function handleStart() {
         selectedProviderId.value || undefined,
       )
     }
-  } catch (e: any) {
-    if (e.response?.status === 409) {
-      error.value = e.response.data.detail
-    } else {
-      error.value = e.response?.data?.detail || t('common.error')
-    }
+  } catch (e: unknown) {
+    // 409 is a "spec already exists" conflict — surface the detail
+    // verbatim so the user sees the concrete reason; other statuses
+    // fall back to the generic error label.
+    error.value = extractErrorDetail(e, t('common.error'))
   }
 }
 
@@ -85,8 +85,8 @@ async function handleAccept() {
     accepted.value = true
     emit('accepted', result.target_path)
     setTimeout(() => emit('update:modelValue', false), 1000)
-  } catch (e: any) {
-    error.value = e.response?.data?.detail || t('common.error')
+  } catch (e: unknown) {
+    error.value = extractErrorDetail(e, t('common.error'))
   }
 }
 

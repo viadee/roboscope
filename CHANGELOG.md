@@ -1,5 +1,452 @@
 # Changelog
 
+## [Unreleased]
+
+## [0.9.0] — 2026-05-06
+
+Headline: a substantial round of UX polish + stabilization driven
+by hands-on user testing — Flow Editor, Recorder, Reports, Repos
+and Dashboard all touched.
+
+### Security
+
+- New `SECURITY.md` documenting the disclosure process, supported
+  versions, and known third-party advisories. Three open Dependabot
+  alerts on `fastmcp 2.14.x` (transitive via `rf-mcp`) are
+  documented as not exploitable in RoboScope's usage — none of
+  the vulnerable APIs (`OpenAPIProvider`, `OAuthProxy`,
+  `gemini-cli`) are reached. Tracked for the bump in #35.
+- `picomatch` advisory (GHSA-3v7f-55p6-f55p) closed via top-level
+  override pinning `>= 4.0.4`; `follow-redirects` advisory closed
+  by the axios 1.16 bump merged from main.
+
+### Dashboard rebuild
+
+The landing page is now a card grid pointing into every navigable
+section of the app (Repos, Explorer, Runs, Stats, Recorder,
+Environments, Docs, Settings) plus a "Tip of the day" card that
+rotates through 30 RoboScope-specific tips daily. The previous
+KPIs / recent-runs / repo-grid layout is retired — KPIs and
+recent-runs live under their dedicated views (Stats, Runs).
+
+### Default "Robot Framework Examples" git project
+
+First-time users get a ready-to-use reference suite seeded on
+startup: <https://github.com/raffelino/robot-framework-examples>
+— public repo, Apache-2.0, 61 headless tests covering BuiltIn,
+Collections, String, DateTime, OperatingSystem, Process,
+RequestsLibrary, Browser (headless), DatabaseLibrary plus
+control-flow + templates + setup/teardown + variables-file +
+custom-library concepts. Auto-sync is off by default; manual sync
+button still works.
+
+### Recorder — visibility-aware selector verification
+
+The Story S.3 verifier evolved beyond uniqueness:
+
+- `LocatorFactory` now returns `MatchInfo(total, visible, actionable)`
+  rather than a plain count. Playwright resolves each candidate's
+  visibility + enabled state in one `evaluate_all` round-trip per
+  candidate (was N×2 RPC calls before — pushed e2e budgets past
+  30 s).
+- Candidates rank by `actionable_rank` (0 = gold, 1 = visible-only,
+  2 = hidden, 3 = unverified-multi) then quality_score — gold
+  candidates always sort before disambiguated multi-match ones.
+- Penalty schedule: visible-but-disabled −5; total ≥ 1 visible 0
+  −25 (kept as fallback for auto-heal but always loses to a
+  visible alternative).
+- Page-level scrolls (no element captured) are dropped — Browser
+  library's `Scroll To Element` requires a selector and crashed
+  replay with "expected 1 argument, got 0".
+- Targeted-keyword-without-selector lines are now emitted as pure
+  RF comments (`# RBSCOPE: dropped …`) instead of
+  `<Keyword>    # WARNING:` (which RF parsed as a zero-arg call
+  and crashed at replay).
+
+### Reports — clickable HTML report + Detailbericht merge
+
+- Run-Detail panel and standalone `/reports/<id>` view now ship
+  the keyword tree (formerly the "Detailbericht" tab) inside the
+  summary tab so the deep view is one scroll away rather than a
+  tab click. HTML Report keeps its own tab.
+- The HTML report's iframe loads from
+  `/api/v1/reports/{id}/assets/report.html?at=<token>` (302 from
+  the legacy `/html` endpoint) so JS-driven navigation
+  (`location.href = "log.html#xxx"`) lands at the right path.
+- HTML files served by the asset endpoint get a `<base href>`
+  injection carrying a freshly minted asset token + a
+  fragment-fix script for `<a href="#…">` clicks. Clicking on a
+  test row now opens its log, no more "authentication required".
+- Two new "↗ open in new tab" affordances: one on the
+  Detailbericht header (opens `/reports/<id>/detailed`, a minimal
+  layout that renders ONLY the keyword tree), one on the HTML
+  Report tab (pops the iframe URL out).
+
+### Repos — UX and stability
+
+- Clicking a repo name or URL/path in the Repos card now jumps
+  straight into the Explorer for that project.
+- New `(i)` info pills next to Sync / Auto-Sync / Pre-Run-Sync
+  with click-toggle popovers explaining each term.
+- Auto-recovery for stale `sync_status='syncing'` rows: the
+  5-min auto-sync tick now scans for rows with
+  `updated_at < now − 10 min` and resets them to `error` with a
+  clear message so the user is no longer stuck waiting for a
+  backend restart.
+
+### Flow Editor — many small fixes
+
+- Backspace (Mac) / Delete (Win/Linux) on a selected node deletes
+  it.
+- Library palette categories sort by usage in the current file —
+  the libs you use most bubble to the top.
+- Project: category for the currently-open file is pinned to the
+  top of the palette and badged "this file".
+- Switching files auto-collapses the palette; explorer keyword
+  refresh re-collapses too — palette always opens condensed.
+- Selected element gets a thicker primary-color outline + halo +
+  10 % tint background.
+- "+" palette add inserts directly after the selected node, not
+  at the bottom.
+- Adding the first return-variable to a `keyword` step
+  auto-promotes it to `assignment` syntax (`${var}=  Keyword …`);
+  removing the last var flips it back.
+- Detail panel spans the full canvas height; left-edge resizer
+  lets the user widen it for keywords with many arguments.
+- Library auto-imports trigger after save (not before), and the
+  RF-bundled set (Collections, String, DateTime, …) is no longer
+  filtered from libdoc introspection — explicitly imported
+  bundled libs now show their full keyword surface, not the
+  curated 10-keyword "(examples)" subset.
+- Keyword doc modal renders libdoc HTML output directly; doc cap
+  raised from 200 → 4000 chars; `doc_format` field now flows
+  through search-keywords schema → router → store → modal.
+
+### Code Editor
+
+- `\#` is now treated as a single escape token; the inline
+  comment regex no longer eats the rest of the line after a
+  backslashed hash.
+
+### Stats / Heal-rate
+
+- Heal-rate KPI card moved from the top of Overview to the bottom
+  (under Flaky Tests). Lila gradient and accent border replaced
+  with the standard card chrome — the card reads as one of N
+  stats rather than a hero metric.
+
+### Navigation
+
+- Identity Providers and Teams entries are marked `preview` in
+  the sidebar (small accent pill) — features are still in active
+  development.
+
+---
+
+Older work that landed during the same release window
+(`feat/recorder-and-bmad` branch) follows.
+
+### Recorder quality (loop session 2026-04-29 evening)
+
+Landed as 14 commits all driven by hands-on user testing on
+heise.de. The flow:
+
+1. **Stuck-recorder reset button** (`b8fb5ff`) — new "Reset stuck
+   recordings" panic button on the launcher view. Idempotent
+   `POST /recordings/sessions/reset` cleans up any DB rows in
+   `RECORDING` for the current user (graceful stop signals + force
+   to `CANCELLED`). For the case where the recorder thread crashed
+   but the DB and orphan Chromium are still around. 5 backend tests.
+2. **Cross-origin iframe capture** (`feb0029`) — Sourcepoint /
+   OneTrust / TCF consent banners live in cross-origin iframes; the
+   capture script aborted in non-top frames and silently dropped
+   every cookie-accept click. Now runs in every frame, tags payloads
+   with `frame_url`, emitter wraps the active selector with
+   `iframe[src*="<host>"] >>> <inner>` (Browser-library cross-frame
+   piercer). 12 tests.
+3. **Iframe-origin chip in RecordingLiveView** (`c1b0feb`) — small
+   `⇣ <host>` badge next to each command from a non-top frame so the
+   user can tell at a glance which clicks came from the consent
+   widget vs. the page under test.
+4. **Ad/tracker iframe deny-list** (`3a39e1d`) — server-side
+   suppression of events from doubleclick / criteo / taboola / 17
+   total well-known ad networks. Conservative — Sourcepoint /
+   OneTrust / Stripe / reCAPTCHA / OAuth iframes pass through. 7
+   tests.
+5. **Per-step delete in RecordingLiveView** (`92d5b1f`) — small `✕`
+   button per row for noise the deny-list misses. Local prune; saved
+   sidecar excludes pruned rows. Visually subdued (40% opacity until
+   hover). 5 tests.
+6. **`wait_until=domcontentloaded` in recorded `New Page`**
+   (`4648b9d`, earlier) — the Playwright default `wait_until="load"`
+   waits for every ad/tracker subresource and reliably exceeds the
+   Browser-library 10s timeout on real sites (run 32 hit this on
+   heise.de). Both emitters write the explicit form. 26 tests.
+7. **`${HEADLESS}` is defined under `*** Variables ***`**
+   (`dce2ced`, earlier) — the recorder referenced `${HEADLESS}` in
+   its bootstrap but never declared it; RF refused to start with
+   "Variable not found." Now emits a Variables block with default
+   `${HEADLESS}    false`.
+8. **`verify_candidates` actually wired into capture**
+   (`d339584`) — the Story-S.3 verifier (run each candidate against
+   `page.locator(...).count()`, mark unique, demote multi-match) was
+   implemented months ago but never called by the v2 recorder; every
+   sidecar shipped with `verified_unique=False` on every candidate.
+   Now plumbed through `_verify_command_candidates` in
+   `v2_recorder_task.on_capture`, scoped to the originating frame
+   (not the top page) so iframe selectors verify in their own
+   document.
+9. **Multi-match disambiguation for text/aria/testid via
+   `>> nth=0`** (`af43856`) — the verifier already disambiguated CSS
+   / xpath / pw_locator with `:nth-match(1)` / `[1]` / `.first`, but
+   text / aria / testid passed through unchanged with
+   `verified_unique=False`. On heise.de's Sourcepoint banner
+   `text=Zustimmen` matched 3 elements (paragraph + 2 buttons),
+   strict-mode rejected the click, replay failed. Playwright's
+   chained-locator `<base> >> nth=0` now disambiguates these too.
+10. **Exact-match `text="..."` instead of substring `text=...`**
+    (`57f58bb`) — substring match caught the paragraph "Unter
+    Einstellungen können Sie zustimmen" together with the actual
+    button on heise.de. Exact match scopes to elements whose
+    textContent equals the recorded string after trim. Tests with
+    embedded `"` in the value drop the text candidate and fall back
+    to CSS / testid (escape complexity in the .robot wire format
+    isn't worth it).
+11. **Autogen-class heuristic catches CSS-in-JS / CSS-modules
+    hashes** (`fd370f6`) — old `_looks_autogenerated` only flagged
+    20+ char alphanumerics. Real heise.de class `div.jw8mI` (5
+    chars, letter-digit-letter sandwich) sailed through. Three new
+    pattern checks: short letter-digit-letter sandwich, CSS-modules
+    `__<hash>` suffix, Emotion `^css-…digit…$` prefix. Negative
+    guard so human-named `btn1 step3` keep working. 4 tests.
+12. **RF token escape for leading `#`** (`e4406d1`,
+    `5b14d56`) — Robot Framework treats any token starting with `#`
+    as a comment marker. A recorded CSS-ID selector like
+    `#login-form` rendered as `Click    #login-form` made Click
+    silently run with zero arguments. Backend
+    `_escape_rf_token` adds `\#`; FE serializer mirrors with
+    `escapeRfToken`; FE parser unescapes via `unescapeRfToken` so
+    the picker compares logical values. Mirror pair must stay in
+    lockstep. 6 backend + 7 frontend tests.
+13. **Position-independent command id (RECORDER-IDMAP, two
+    phases)** (`9035768` + `65dc45f`) — the structural fix the user
+    explicitly asked for. The selector group ↔ Robot step mapping
+    used pure positional lookup in `flowConverter.matchStepToCommand`
+    (`sidecar.commands[recordedIndex(...)]`); reorder / delete /
+    insert in the FlowEditor silently shifted candidate groups onto
+    the wrong rows. Now:
+    - Backend mints a 12-char hex id per `RecordedCommand`.
+    - Emitter writes `# rbs:<id>` as a trailing line comment.
+    - Frontend parser extracts it onto `RobotStep.rbs_id`.
+    - Matcher prefers id-lookup; falls back to positional only when
+      no step in the file has an id (legacy recordings). Mid-file
+      "step has no id but other steps do" returns null instead of
+      phantom-matching, so hand-inserted rows don't show wrong
+      selectors.
+    - Serializer re-appends `# rbs:<id>` on save → identity round-
+      trips through full edit cycles. 5 backend + 8 frontend tests.
+
+### Fixes — User-reported papercuts (loop session 2026-04-29)
+
+#### Timezone display ("vor 2 Std." right after a sync)
+- **Frontend `parseBackendDate`** — naive ISO strings (no `Z` / no
+  offset) are now treated as UTC. Was: JS parsed `2026-04-29T07:58:04`
+  as local time, so a CEST user saw a fresh sync as 2 hours old.
+  Applied at four `now − parsed` sites: `formatTimeAgo`,
+  `useBypassStatus.remainingMinutes`,
+  `IdpProviderListView.formatRelative`, `StatsView.stalenessText`.
+- **Backend `UtcJSONResponse`** — wired as FastAPI's
+  `default_response_class`, post-processes outgoing JSON so naive
+  datetime literals always carry `Z` on the wire. Belt-and-suspenders
+  for the frontend fix; either layer alone closes the bug, both layers
+  protect future endpoints.
+
+#### FlowEditor papercuts
+- **Detail panel closed mid-keystroke** — `stepsToFlow`'s
+  `step: { ...step }` left `args` / `returnVars` / `loopValues` as
+  shared array references with the form. v-model writes during typing
+  fired the deep `props.form` watcher and reset selection. Fix: deep-
+  clone the step's array fields in a new `cloneStep()` helper. Form is
+  updated on blur via `Object.assign` as before.
+- **Add-arg picker clipped by panel scroll** — popover Teleported to
+  `<body>` with `position: fixed` and a bounding-rect-derived inline
+  style; outside-click handler updated to allow clicks inside the
+  popover (Teleport breaks the wrapper-subtree check).
+- **Bool checkbox dropped `name=` prefix on toggle** — toggling
+  `force=True` overwrote the slot with bare `True`, so on re-render
+  `specForSlot` fell back to a different positional spec and the
+  checkbox vanished. Fix: regex strips the `name=` prefix in both
+  `isBoolChecked` and `onBoolToggle`; signature default is consulted
+  for empty value-half (`force=`) slots; `pickAddArg` pre-fills the
+  default so freshly-added named args are valid `.robot`.
+- **Bool↔text input toggle** — small `{}` button next to any typed
+  control (bool/select/number/duration) flips into free-text input
+  for that slot, so users can enter `${HEADLESS}` on a bool slot.
+  Reverts via the same button (icon flips to `⌨`). Auto-text mode
+  still triggered when value-half is a Robot variable reference;
+  detection now strips the `name=` prefix so `headless=${HEADLESS}`
+  is correctly recognised as variable-bearing.
+- **Move up/down lost selection** — selection was pinned to the OLD
+  position-id which after the swap pointed at the SWAPPED step.
+  `rebuildAndReselect(targetId?)` now accepts an explicit override;
+  `moveStepUp/Down` pass the moved step's NEW slot id so the user can
+  press Up repeatedly to walk a step to the top.
+- **Drag-arm hold delay** — keyword/control node drag handles only
+  flip `draggable=true` after a 200 ms hold. Brief misclicks no
+  longer start a reorder. Visual highlight (blue/amber) while armed.
+- **Drop-zone math respects node heights** — `findInsertIndex` and
+  `getDropIndicatorY` now use each node's midpoint and actual gap
+  geometry via `estimateNodeHeight()`. Was top-edge-only, so the
+  insertion point felt like a fixed grid; tall arg-heavy nodes
+  pushed the boundary to wrong place.
+
+#### Recorder
+- **`New Page    <url>    wait_until=domcontentloaded`** — was the
+  Playwright default `wait_until="load"` which on real-world pages
+  (heise.de etc.) waited for every ad/tracker subresource and timed
+  out at 10 s even though the page was visually loaded. Run 32
+  reproduced this exactly. Both emitters (`generator.py`,
+  `robot_emit.py`) now write the explicit `wait_until=`.
+- **`${HEADLESS}` is now defined** — recorder emits a
+  `*** Variables ***` block with `${HEADLESS}    false` so Robot
+  Framework doesn't refuse the test with "Variable not found." The
+  reference itself was already there (so users could flip head/headless
+  without editing the body); the block defining it was missing.
+
+#### Repository management
+- **`name` optional on Git repos** — derived from the Git URL
+  basename when omitted (`viadee/roboscope.git` → `roboscope`,
+  `git@host:owner/repo.git` → `repo`). Local repos still require an
+  explicit name. Validator handles HTTPS, SSH-shorthand, and
+  filesystem-unsafe basenames (collapsed to `-`).
+
+### Security hardening
+- **XXE / billion-laughs on `output.xml`** — switched
+  `src/reports/parser.py` and `src/recording/heal/heal_report.py`
+  to `defusedxml.ElementTree`. Robot's `output.xml` is built from
+  user-authored `.robot` tests, so external-entity payloads in the
+  XML could exfiltrate files or DoS the parser. Custom exception
+  bridging (`ValueError → ET.ParseError`) keeps existing callers
+  working.
+- **Windows authenticated-RCE on Open-In-Editor** —
+  `subprocess.Popen(["start", "", target], shell=True)` interpreted
+  shell metacharacters in the target path. EDITOR-rights user could
+  create a file named `foo&calc.exe.txt` and trigger backend-host
+  command execution. Fix: `os.startfile(target)` (Windows
+  ShellExecuteW directly, no cmd.exe).
+- **Production asserts compiled out under `python -O`** —
+  4 `assert db is not None` mypy-hint asserts in `retention_cleanup.py`
+  replaced with `if db is None: db = SessionLocal()` so flow-typing
+  narrows naturally and behaviour survives `-O`.
+
+### Type-strict cleanups
+- **mypy `--strict` clean on `roboscope-rfheal/src/`** — caught a
+  latent `@library(scope="TEST SUITE", ...)` bug: Robot's typing
+  stubs declare scope as `Literal['GLOBAL','SUITE','TEST','TASK']`,
+  the legacy "TEST SUITE" alias would break with a future RF release.
+  Switched to `SUITE`. Same fix mirrored in the in-tree
+  `src/recording/heal/library.py`.
+- **Real-bug filter on backend `mypy --strict`** —
+  `_broadcast_docker_build_log` was the lone helper missing the
+  `_event_loop.is_running()` guard (every other broadcast helper had
+  it). `oidc_discovery.py` lacked null narrowing on `jwks_data` and
+  emitted `str` where `Literal["passed","failed"]` was expected.
+  Variable-shadow `browser_pkg = ....scalars().all()` rebound to
+  `Sequence | None` cleaned up.
+
+Highlights from the prior loop session of 2026-04-28/29 (24 stories
+on top of the Phase-4 SSO/Teams + Recorder + BMAD foundation):
+
+### Features
+- **REPO save loop for non-Git users** (REPO-1) — `GET /repos/{id}/status`,
+  `POST /repos/{id}/commit`, `/push`, `/publish` endpoints; in-app
+  Save modal with conflict-recovery state; tree-header `Save N changes`
+  badge in Explorer.
+- **Auto-Sync actually pulls on schedule** (REPO-2) — APScheduler
+  5-minute heartbeat invokes `due_repos(now)`; per-repo
+  `sync_interval_minutes` honoured. Was previously a stored-but-unused
+  toggle.
+- **Pre-run sync** (REPO-3) — opt-in per-repo flag pulls
+  `origin/<default_branch>` synchronously before each run, with a
+  60 s wall-clock timeout and graceful fall-through on failure.
+- **Webhook pre-sync** (REPO-4) — `POST /webhooks/git` now dispatches
+  `sync_repo` before `execute_test_run`; the single-worker task
+  executor guarantees order.
+- **Default-password banner** (SECURITY-1, revised) — non-blocking
+  yellow banner shown when an admin still uses the seed password,
+  links to a `POST /auth/change-password` endpoint. Server logs a
+  WARNING on every flagged login.
+
+### Security
+- **Authenticated report assets** (REPORT-1) — `/reports/{id}/assets/`
+  was anonymous; now requires Bearer header or `?token=<jwt>`. Closes
+  the first item under CLAUDE.md known issues.
+- **Asset token replaces JWT in iframe URLs** (SECURITY-3) — new
+  HMAC-signed, report-scoped, 1-hour-TTL `?at=<asset_token>` embedded
+  in `<base href>` instead of the user's JWT. Iframe URLs leaking out
+  no longer expose the user's full access token.
+- **Streaming upload size guard** (ROBUSTNESS-1) — `/reports/upload`
+  previously read the full body into RAM before the 500 MB check. Now
+  streamed in 1 MiB chunks with an early-abort plus a Content-Length
+  pre-check.
+
+### Performance
+- **Lazy-loaded docs locales** (PERF-1) — DocsView chunk shrunk from
+  413 kB → 4 kB (gzipped 124 kB → 1.8 kB). Each locale's content
+  streams on demand.
+
+### Robustness / Ops
+- **Deep `/health` endpoint** (ROBUSTNESS-1) — runs `SELECT 1`; returns
+  503 with `{"status":"unhealthy","reason":"database_unreachable"}`
+  on DB outage so kubelet liveness probes can flag the pod.
+- **Request-ID correlation in logs** (LOGGING-1) — every log record
+  emitted during an HTTP request carries the `X-Request-ID` header
+  value via a `ContextVar`, propagated automatically through the
+  pythonjsonlogger formatter.
+
+### Refactor / DevEx
+- **Single Docker client bootstrap** (REFACTOR-1) — three near-identical
+  copies of the `from_env()` + `docker context inspect` recipe
+  replaced with `src/docker_client.py:get_docker_client()`.
+- **`as any` cleanup** (TYPE-1..TYPE-4) — went 25 → 0 real casts in
+  source. New exported unions (`AnalysisStatus`, `PackageInstallStatus`),
+  discriminated union for the keyword palette, runtime type-guard
+  for drag-drop step-type strings.
+
+### Accessibility
+- **A11Y baseline pass** (A11Y-1) — `<html lang>` follows i18n locale,
+  icon-only AppHeader buttons get `aria-label`, language switcher
+  gets `aria-pressed`, skip-to-main link mounted in DefaultLayout.
+
+### Tests (5 new files, 99 new tests)
+- WebSocket `ConnectionManager` (TEST-1, 15)
+- DockerRunner (TEST-2, 24)
+- AI provider CRUD endpoints (TEST-3, 19)
+- AI generate / reverse / analyze / status / accept (TEST-4, 20)
+- `execute_test_run` early-exit branches (TEST-5, 3)
+
+### Sibling repos (local-only, pre-publish)
+- `roboscope-rfheal/` — heal package, packaged for PyPI; commit
+  ready, not pushed.
+- `roboscope-examples/` — Apache-2.0 starter examples for the most-used
+  Robot Framework libraries (Collections, String/DateTime, Process/OS,
+  RequestsLibrary, DatabaseLibrary, JSONLibrary, Browser); 26 tests
+  green via `uv run robot examples/`. Initial commit ready, not
+  pushed.
+## [0.8.2] - 2026-03-26
+
+### Features
+- **YouTube Demo Videos on Landing Page** — Embedded YouTube demo videos (DE/EN) on the landing/login page for new users
+
+### Fixes
+- **Windows Offline Build** — Split Windows build to native PowerShell script (`build-windows.ps1`) running on Windows host, fixing missing `tzdata` and other Windows-conditional dependencies that could not be resolved when cross-building on Linux CI
+- Fix test venv directory creation in rfbrowser tests for CI
+
+### Build
+- New `scripts/build-windows.ps1` and `scripts/test-install-windows.ps1` for native Windows builds
+- CI workflow now runs Windows offline build on `windows-latest` instead of `ubuntu-latest`
+- `build-mac-and-linux.sh` simplified to only handle Linux/macOS platforms
+
 ## [0.8.1] - 2026-03-26
 
 ### Features

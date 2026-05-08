@@ -1,0 +1,49 @@
+RoboScope Browser Recorder Extension
+=====================================
+
+Copyright 2026 viadee Unternehmensberatung AG.
+
+Licensed under the Apache License, Version 2.0 (the "License").
+See the LICENSE file in this directory for the full license text.
+
+----------------------------------------------------------------------
+
+Historical attribution
+----------------------
+
+The earliest scaffolding of this extension was forked from
+robotframework-recorder v0.7.0
+(https://github.com/viadee/robotframework-recorder), which was itself
+a fork of Robotcorder (https://github.com/sohwendy/Robotcorder) by
+@sohwendy. Both upstreams are licensed under GPL-3.0.
+
+As of story RECORDER-LICENSE (2026), the five modules carrying the
+upstream's substantive code — `src/locator/{scanner,classifier,
+tree-builder,xpath-locator}.js` and `src/translator/robot-translator.js`
+— have been re-implemented from scratch by viadee Unternehmensberatung
+AG without reference to the GPL-3 source. The remainder of the
+extension (background.js, content.js, popup.js, service-worker.js,
+roboscope-client.js, actions-view.js, options.js, context-menu.js,
+intro.js, keyword-spec.js, logger.js, …) was written for RoboScope
+and has never carried upstream code.
+
+The rewrite preserves the public API surface exercised by the existing
+test suite, so callers (the extension's own background / content
+scripts, plus the test files in `test/locator/` and `test/translator/`)
+continue to work unchanged. No source line from the GPL-3 ancestors
+remains in this directory.
+
+The original authors are credited here as the inspiration that bootstrapped
+the project; the implementation that ships in this version is original
+work under the Apache-2.0 license:
+
+  - @sohwendy           — Robotcorder (upstream of upstream)
+  - @xylix              — robotframework-recorder / Robocorp Recorder
+  - viadee Unternehmensberatung AG
+
+----------------------------------------------------------------------
+
+The RoboScope core application (backend/ and frontend/ directories)
+is licensed under Apache License 2.0 and does not contain any code
+from this extension. Communication between the extension and
+RoboScope occurs exclusively via HTTP / WebSocket APIs.

@@ -6,13 +6,16 @@ export interface LoginRequest {
 }
 
 export interface RepoCreateRequest {
-  name: string
+  // Optional for git repos — backend derives the name from the git
+  // URL basename when omitted. Required for local repos.
+  name?: string
   repo_type?: 'git' | 'local'
   git_url?: string
   local_path?: string
   default_branch?: string
   auto_sync?: boolean
   sync_interval_minutes?: number
+  pre_run_sync?: boolean
   environment_id?: number | null
 }
 
@@ -110,4 +113,13 @@ export interface AiAnalyzeRequest {
 
 export interface AiValidateSpecRequest {
   content: string
+}
+
+export interface RecordingCreateRequest {
+  repository_id: number
+  environment_id?: number | null
+  source?: 'playwright' | 'extension'
+  target_url?: string | null
+  target_file_path?: string | null
+  target_library?: 'Browser' | 'SeleniumLibrary'
 }

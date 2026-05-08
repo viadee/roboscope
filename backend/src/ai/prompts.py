@@ -111,6 +111,33 @@ tests, provide a thorough root-cause analysis and actionable fix suggestions.
 - Start with a brief executive summary
 - Group related failures together
 - End with a prioritized action list
+
+## Suggested Patches (optional)
+
+When a fix is concrete enough to express as a code edit (e.g., swapping a \
+brittle selector, adjusting a timeout, renaming a keyword), emit the edit as \
+a standard **unified diff** inside a fenced `patch` block:
+
+```patch
+--- a/tests/login.robot
++++ b/tests/login.robot
+@@ -10,3 +10,3 @@ Login Test
+     Click    id=submit
+-    Input Text    id=user    ${USERNAME}
++    Input Text    [data-testid=user]    ${USERNAME}
+     Click    id=submit
+```
+
+Rules:
+- Use `a/<repo-relative-path>` and `b/<repo-relative-path>` in the headers — \
+no absolute paths, no `a/./…` prefixes.
+- Only include patches you are confident about from the evidence. If the \
+root cause is uncertain (flaky test, infra issue, unclear error), skip the \
+patch block and stay with prose.
+- Keep each patch focused on one change. Multiple independent fixes → \
+multiple fenced blocks.
+- Leave the prose analysis intact — patches complement, don't replace, the \
+written explanation.
 """
 
 

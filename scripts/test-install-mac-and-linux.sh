@@ -4,7 +4,7 @@
 #
 # Usage:  ./scripts/test-install-mac-and-linux.sh [platform]
 #
-# Platforms: linux, macos-arm64, macos-x86_64, windows
+# Platforms: linux, macos-arm64, macos-x86_64
 # If not specified, the platform is auto-detected from the host.
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -27,10 +27,9 @@ case "$PLATFORM" in
   linux)        PIP_PLATFORM="manylinux2014_x86_64" ;;
   macos-arm64)  PIP_PLATFORM="macosx_11_0_arm64" ;;
   macos-x86_64) PIP_PLATFORM="macosx_11_0_x86_64" ;;
-  windows)      PIP_PLATFORM="win_amd64" ;;
   *)
     echo "Unknown platform: $PLATFORM"
-    echo "Supported: linux, macos-arm64, macos-x86_64, windows"
+    echo "Supported: linux, macos-arm64, macos-x86_64"
     exit 1
     ;;
 esac

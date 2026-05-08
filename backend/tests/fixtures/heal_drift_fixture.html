@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>RoboScope heal — drift fixture</title>
+    <style>
+      body { font-family: -apple-system, Segoe UI, sans-serif; padding: 2rem; max-width: 640px; }
+      button, input { font: inherit; padding: .5rem .8rem; margin: .3rem 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Drift Fixture</h1>
+
+    <!--
+      Story SH-3 drift scenario:
+      - The original recording had a button with id=submit-v1 inside
+        form#login, text "Submit".
+      - The dev has since renamed it to id=submit-v2 and moved it
+        inside a different wrapper. But the data-testid, role, and
+        button text are still the same.
+      - Neither `id=submit-v1` nor simple strategy transposition helps.
+      - The fingerprint walker should still pick this element via
+        testid + role + text signals.
+    -->
+    <section id="checkout-wrapper">
+      <form data-testid="login-form">
+        <input data-testid="email-input" type="email" />
+        <button
+          id="submit-v2"
+          data-testid="submit"
+          role="button"
+          type="button"
+          class="primary-cta cta-large"
+        >Submit</button>
+      </form>
+    </section>
+
+    <!-- Some noise elements the walker should ignore. -->
+    <p>
+      <button id="unrelated" type="button">Cancel</button>
+      <a href="#x" role="link">Help</a>
+    </p>
+  </body>
+</html>

@@ -276,10 +276,61 @@ def execute_test_run(run_id: int) -> dict:
                 _broadcast_run_status(run_id, RunStatus.ERROR)
                 return {"status": "error", "message": "Repository not found"}
 
+            # Story REPO-3 — best-effort pre-run sync. Never raises;
+            # on failure the run continues with whatever's on disk.
+            # The helper itself flips `sync_status` (see review fix M2)
+            # so the REPO-2 auto-sync scheduler can't race us.
+            from src.repos.service import sync_for_run
+            pre_status, pre_detail = sync_for_run(repo, session)
+            if pre_status == "ok":
+                logger.info(
+                    "pre-run sync for repo %d (%s): %s",
+                    repo.id, repo.name, pre_detail,
+                )
+                repo.last_synced_at = datetime.now(timezone.utc)
+                session.commit()
+            elif pre_status in ("error", "timeout"):
+                logger.warning(
+                    "pre-run sync %s for repo %d (%s): %s — running with on-disk state",
+                    pre_status, repo.id, repo.name, pre_detail,
+                )
+
             runner.prepare(repo.local_path, run.target_path, env_config)
 
             # Parse variables
             variables = json.loads(run.variables) if run.variables else None
+
+            # Story FLAKY-2 — if this repo has quarantine entries, dump
+            # them into a snapshot file and register the
+            # QuarantineSkipListener so Robot Framework skips those
+            # tests at start_test time. Zero overhead when the repo
+            # has no quarantine rows (no file, no listener).
+            listeners: list[str] | None = None
+            from src.stats.models import FlakyQuarantine
+            quarantine_rows = session.execute(
+                select(FlakyQuarantine).where(
+                    FlakyQuarantine.repository_id == run.repository_id
+                )
+            ).scalars().all()
+            if quarantine_rows:
+                from src.execution.runners.quarantine_listener import (
+                    write_quarantine_snapshot,
+                )
+                snapshot_path = write_quarantine_snapshot(
+                    Path(output_dir),
+                    [
+                        {
+                            "suite_name": r.suite_name,
+                            "test_name": r.test_name,
+                            "reason": r.reason or "",
+                        }
+                        for r in quarantine_rows
+                    ],
+                )
+                listeners = [
+                    f"src.execution.runners.quarantine_listener."
+                    f"QuarantineSkipListener:{snapshot_path}"
+                ]
 
             # Execute
             result = runner.execute(
@@ -290,6 +341,7 @@ def execute_test_run(run_id: int) -> dict:
                 tags_include=run.tags_include,
                 tags_exclude=run.tags_exclude,
                 timeout=run.timeout_seconds,
+                listeners=listeners,
             )
 
             # Re-read run status — it may have been set to CANCELLED while we were executing

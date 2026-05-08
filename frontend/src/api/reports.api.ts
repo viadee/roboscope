@@ -16,8 +16,27 @@ export async function getReport(id: number): Promise<ReportDetail> {
 }
 
 export async function getReportHtmlBlobUrl(id: number): Promise<string> {
-  const response = await apiClient.get(`/reports/${id}/html`, { responseType: 'blob' })
-  return URL.createObjectURL(response.data)
+  // Returns a URL the iframe loads directly. The endpoint authenticates
+  // via `?token=<jwt>` query (iframes can't carry Bearer headers) and
+  // 302-redirects to `/reports/{id}/assets/report.html?at=<asset_token>`.
+  // Reason for the redirect rather than the previous blob-URL approach:
+  // Robot Framework's in-page click handlers use
+  // `window.location.href = "log.html#xxx"` which resolves against the
+  // iframe's URL — a Blob URL has no path, so the navigation 404'd.
+  // Loading from the asset URL means relative navigation lands on the
+  // sibling log.html as expected.
+  //
+  // Async signature kept so existing callers' `await` continues to work
+  // unchanged.
+  const baseUrl = apiClient.defaults.baseURL || '/api/v1'
+  let token: string | null = null
+  try {
+    token = localStorage.getItem('access_token')
+  } catch {
+    // localStorage unavailable — request will 401 as expected.
+  }
+  const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : ''
+  return `${baseUrl}/reports/${id}/html${tokenQuery}`
 }
 
 export async function getReportZipBlobUrl(id: number): Promise<string> {
@@ -27,7 +46,18 @@ export async function getReportZipBlobUrl(id: number): Promise<string> {
 
 export function getReportAssetUrl(reportId: number, filename: string): string {
   const baseUrl = apiClient.defaults.baseURL || '/api/v1'
-  return `${baseUrl}/reports/${reportId}/assets/${encodeURIComponent(filename)}`
+  // Story REPORT-1: the asset endpoint now requires auth. <img> tags
+  // can't carry a Bearer header, so append the access token as a query
+  // param — same scheme as /reports/{id}/html and /reports/{id}/zip.
+  let token: string | null = null
+  try {
+    token = localStorage.getItem('access_token')
+  } catch {
+    // localStorage unavailable (rare; some embedded contexts) — return
+    // the un-tokenised URL; the request will 401 as expected.
+  }
+  const url = `${baseUrl}/reports/${reportId}/assets/${encodeURIComponent(filename)}`
+  return token ? `${url}?token=${encodeURIComponent(token)}` : url
 }
 
 export async function getReportXmlData(id: number): Promise<XmlReportData> {

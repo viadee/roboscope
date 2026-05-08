@@ -8,6 +8,7 @@ import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useReportsStore } from '@/stores/reports.store'
 import { useToast } from '@/composables/useToast'
+import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
 import { getRunOutput } from '@/api/execution.api'
 import { buildDockerImage } from '@/api/environments.api'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -85,8 +86,8 @@ async function saveSchedule() {
       toast.success(t('schedule.toasts.created'))
     }
     showScheduleDialog.value = false
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || t('schedule.toasts.saveError'))
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('schedule.toasts.saveError')))
   } finally {
     savingSchedule.value = false
   }
@@ -152,7 +153,10 @@ function startPolling() {
   if (pollTimer) return
   pollTimer = setInterval(() => {
     if (execution.activeRuns.length > 0) {
-      execution.fetchRuns()
+      // silent: true → no global loading flag during the poll, which
+      // means the table stays mounted and the browser doesn't reset
+      // scroll position to the top of the page on each tick.
+      execution.fetchRuns({ silent: true })
     } else {
       stopPolling()
     }
@@ -225,8 +229,8 @@ async function doStartRun() {
     toast.success(t('execution.toasts.started'), t('execution.toasts.startedMsg', { id: run.id }))
     showRunDialog.value = false
     rebuildDocker.value = false
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || t('execution.toasts.startError'))
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('execution.toasts.startError')))
   } finally {
     starting.value = false
   }
@@ -316,8 +320,8 @@ async function setupDefaultFromExecution() {
     runForm.value.environment_id = env.id
     showEnvPrompt.value = false
     toast.success(t('environments.setupDefault.toastSuccess'))
-  } catch (e: any) {
-    if (e.response?.status === 409) {
+  } catch (e: unknown) {
+    if (extractErrorStatus(e) === 409) {
       toast.error(t('environments.setupDefault.alreadyExists'))
     } else {
       toast.error(t('environments.setupDefault.toastError'))

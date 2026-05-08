@@ -11,7 +11,26 @@ const activeId = ref('')
 const tocCollapsed = ref<Set<string>>(new Set())
 const observer = ref<IntersectionObserver | null>(null)
 
-const docs = computed(() => getDocsContent(locale.value))
+// Story PERF-1: docs content now loads lazily per locale. `docs` is
+// empty until the first chunk resolves; locale switches replace it
+// after the new chunk lands. `loadSeq` discards stale resolves if the
+// user flips locale faster than the import().
+const docs = ref<DocSection[]>([])
+const docsLoadError = ref<string | null>(null)
+let loadSeq = 0
+
+async function loadDocs(localeCode: string) {
+  const seq = ++loadSeq
+  docsLoadError.value = null
+  try {
+    const content = await getDocsContent(localeCode)
+    if (seq !== loadSeq) return
+    docs.value = content
+  } catch (e) {
+    if (seq !== loadSeq) return
+    docsLoadError.value = e instanceof Error ? e.message : String(e)
+  }
+}
 
 const filteredDocs = computed(() => {
   const q = searchQuery.value.toLowerCase().trim()
@@ -81,12 +100,14 @@ function scrollToHash() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await loadDocs(locale.value)
   setupObserver()
   scrollToHash()
 })
 
-watch(locale, () => {
+watch(locale, async (newLocale) => {
+  await loadDocs(newLocale)
   nextTick(() => setupObserver())
 })
 

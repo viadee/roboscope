@@ -28,7 +28,8 @@ git push origin v<version>
 
 ## 3. Upload Distribution ZIPs
 
-Attach the distribution ZIP archives (built during release-tasks step 9) to the GitHub release:
+Attach the distribution ZIP archives (built during release-tasks step 9) to the GitHub release.
+The Windows ZIP is built by CI on a Windows runner; download it from the workflow artifacts if not built locally.
 
 ```bash
 gh release upload v<version> dist/roboscope-offline-linux.zip

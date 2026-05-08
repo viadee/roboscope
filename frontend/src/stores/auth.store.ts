@@ -40,5 +40,21 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('refresh_token')
   }
 
-  return { user, token, isAuthenticated, currentUser, userRole, hasMinRole, login, logout, fetchCurrentUser }
+  async function markFirstLoginComplete() {
+    const updated = await authApi.patchFirstLoginComplete(true)
+    user.value = updated
+  }
+
+  return {
+    user,
+    token,
+    isAuthenticated,
+    currentUser,
+    userRole,
+    hasMinRole,
+    login,
+    logout,
+    fetchCurrentUser,
+    markFirstLoginComplete,
+  }
 })

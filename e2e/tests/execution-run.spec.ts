@@ -186,8 +186,9 @@ test.describe('Execution Run — UI Tests', () => {
     await page.locator('select').first().selectOption({ index: 1 }); // first repo
     await page.getByPlaceholder('tests/ oder tests/login.robot').fill('calculator/basic_math.robot');
 
-    // Start run
-    await page.getByRole('button', { name: 'Starten' }).click();
+    // Start run — use `exact: true` so the tour-trigger button
+    // (`aria-label="Tutorial starten"`) doesn't co-match.
+    await page.getByRole('button', { name: 'Starten', exact: true }).click();
 
     // Handle environment setup dialog if it appears
     const envDialog = page.getByText('Umgebung einrichten?');
@@ -243,8 +244,15 @@ test.describe('Execution Run — UI Tests', () => {
     // Should have "Zur Ausführung" button
     await expect(page.getByRole('button', { name: 'Zur Ausführung' })).toBeVisible();
 
-    // Close overlay
-    await page.getByRole('button', { name: 'Schließen' }).click();
+    // Close overlay — scope to the run-overlay BaseModal (which
+    // contains `.run-overlay-success`) so we don't also match the
+    // default-password banner's `× Schließen` dismiss button.
+    // The close button lives in BaseModal's footer slot, NOT
+    // inside `.run-overlay-success`, so target the modal as a
+    // whole via `:has()`.
+    await page.locator('.modal:has(.run-overlay-success)')
+      .getByRole('button', { name: 'Schließen' })
+      .click();
   });
 
   test('UI: execution page shows Output button for completed runs', async ({ page }) => {

@@ -3,10 +3,13 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import DefaultLayout from '@/layouts/DefaultLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
+import MinimalLayout from '@/layouts/MinimalLayout.vue'
 
 const route = useRoute()
 const layout = computed(() => {
-  return route.meta.layout === 'auth' ? AuthLayout : DefaultLayout
+  if (route.meta.layout === 'auth') return AuthLayout
+  if (route.meta.layout === 'minimal') return MinimalLayout
+  return DefaultLayout
 })
 </script>
 

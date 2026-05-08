@@ -6,12 +6,31 @@
  */
 
 import type { Node, Edge } from '@vue-flow/core'
+import type { RecordedCommand, RecordedFlow } from '@/types/recorder.types'
+import { parseArgSignature, type ParsedArg } from '@/utils/robotKeywordSignatures'
+
+// Map of lowercase-keyword-name → raw libdoc args; produced by
+// `useKeywordSignatures()`. Threaded through the converter so node
+// data carries pre-parsed argSpecs that the UI can label without
+// re-parsing on every render.
+export type SignatureMap = Map<string, string[]>
 
 // --- Types matching RobotEditor.vue ---
 
 export type StepType =
   | 'keyword' | 'assignment' | 'var' | 'for' | 'end' | 'if' | 'else_if' | 'else'
   | 'while' | 'try' | 'except' | 'finally' | 'break' | 'continue' | 'return' | 'comment'
+
+const STEP_TYPE_VALUES: ReadonlySet<StepType> = new Set<StepType>([
+  'keyword', 'assignment', 'var', 'for', 'end', 'if', 'else_if', 'else',
+  'while', 'try', 'except', 'finally', 'break', 'continue', 'return', 'comment',
+])
+
+/** Type guard for runtime-supplied step-type strings (e.g. drag-drop
+ *  payloads). Returns true only when `s` is a known StepType. */
+export function isStepType(s: string): s is StepType {
+  return STEP_TYPE_VALUES.has(s as StepType)
+}
 
 export interface RobotStep {
   type: StepType
@@ -26,6 +45,15 @@ export interface RobotStep {
   exceptVar: string
   varScope: string
   comment: string
+  /**
+   * Story RECORDER-IDMAP — position-independent link to the matching
+   * sidecar `RecordedCommand`. Parsed from the trailing
+   * `# rbs:<id>` comment on the line. When set,
+   * `matchStepToCommand` looks up by id; falls back to positional
+   * match when missing (legacy recordings, hand-written tests).
+   * Optional / blank for any step that wasn't recorded.
+   */
+  rbs_id?: string
 }
 
 export interface RobotTestCase {
@@ -68,6 +96,194 @@ export interface FlowNodeData {
   section: 'testcase' | 'keyword'
   sectionIndex: number
   stepIndex: number
+  /**
+   * Story EDITOR-1 — sidecar command matched to this step (if any).
+   * Set when a `<file>.rbs.json` exists alongside the `.robot` file
+   * and the step's positional index in the visible (non-control-flow)
+   * step sequence has a corresponding `RecordedCommand`. `null` for
+   * hand-written steps, control-flow steps, or excess hand-inserted
+   * steps beyond the sidecar length.
+   */
+  recording: RecordedCommand | null
+  /**
+   * Story EDITOR-2 — parsed argument signature for this keyword,
+   * resolved from the dynamic library introspection + the static RF
+   * fallback via `useKeywordSignatures`. Null when the keyword is not
+   * known to the signature map; the UI then falls back to "arg N"
+   * labels and plain text inputs.
+   */
+  argSpecs: ParsedArg[] | null
+}
+
+// --- Sidecar matching (Story EDITOR-1) ---
+//
+// Strategy: iterate the section's flat step list, skip every control-flow /
+// non-keyword step (`if`, `for`, `while`, `try`, `except`, `finally`, `else`,
+// `else_if`, `end`, `break`, `continue`, `return`, `comment`, `var`), and
+// match the N-th remaining keyword/assignment step to the N-th
+// `RecordedCommand` in the sidecar.
+//
+// Limits (acceptable for V1, see story EDITOR-1 AC10):
+//   - A hand-inserted keyword in the middle of a recorded suite shifts every
+//     subsequent match by one. The picker simply disappears for the
+//     unmatched steps; nothing crashes.
+//   - Re-ordering steps does NOT re-fingerprint — the step at the new
+//     position picks up that position's recorded command. Re-recording is
+//     the recommended workflow for invalidated suites.
+
+const RECORDED_STEP_TYPES = new Set<StepType>(['keyword', 'assignment'])
+
+export function isRecordedStep(step: RobotStep): boolean {
+  return RECORDED_STEP_TYPES.has(step.type)
+}
+
+/**
+ * Returns the visible (recorded-step-only) index of `stepIndex` inside
+ * `steps`, or -1 if the step at `stepIndex` is not recorded-eligible.
+ */
+export function recordedIndex(steps: RobotStep[], stepIndex: number): number {
+  if (stepIndex < 0 || stepIndex >= steps.length) return -1
+  if (!isRecordedStep(steps[stepIndex])) return -1
+  let n = 0
+  for (let i = 0; i < stepIndex; i++) {
+    if (isRecordedStep(steps[i])) n++
+  }
+  return n
+}
+
+/**
+ * Match the step at `stepIndex` to a sidecar command, or `null` if no
+ * match can be made.
+ *
+ * RECORDER-IDMAP — Story W.6 originally matched by POSITION
+ * (`sidecar.commands[recordedIndex(...)]`). Reordering or deleting a
+ * step in the FlowEditor silently shifted the candidate group onto
+ * a different row. Now we prefer the position-independent id parsed
+ * from the line's trailing `# rbs:<id>` comment, and fall back to
+ * the positional lookup only when the step has no id (legacy
+ * recordings, hand-written tests). The fallback is safe because the
+ * positional match has been the de-facto contract for months — id
+ * lookup just becomes the better answer when both exist.
+ */
+export function matchStepToCommand(
+  steps: RobotStep[],
+  sidecar: RecordedFlow | null,
+  stepIndex: number,
+): RecordedCommand | null {
+  if (!sidecar) return null
+  if (stepIndex < 0 || stepIndex >= steps.length) return null
+  const step = steps[stepIndex]
+  if (!isRecordedStep(step)) return null
+
+  // RECORDER-IDMAP — three cases:
+  //
+  // 1. Step has an `rbs_id` → id-lookup only. If no match, return
+  //    null (drift detection — the sidecar lost the command, or the
+  //    user ID-typo'd in source view; positional fallback would
+  //    silently show wrong selectors).
+  if (step.rbs_id) {
+    return sidecar.commands.find((c) => c.id === step.rbs_id) ?? null
+  }
+  // 2. Step has no id, but ANOTHER step in the file does. That means
+  //    the file is identity-tracked (post-IDMAP recording) and this
+  //    specific step was hand-inserted / had its `# rbs:<id>` comment
+  //    deleted. Positional fallback would phantom-match it; null is
+  //    accurate. (We check the STEPS array, not the sidecar — Phase 1
+  //    made every backend command get a fresh id even on legacy
+  //    sidecars, so `sidecar.commands.some(c => c.id)` would always
+  //    be true and break the legacy fallback.)
+  const fileIsIdTracked = steps.some((s) => isRecordedStep(s) && Boolean(s.rbs_id))
+  if (fileIsIdTracked) return null
+  // 3. Legacy recording — no ids in the .robot file. Positional
+  //    fallback is the de-facto pre-IDMAP contract.
+  const idx = recordedIndex(steps, stepIndex)
+  if (idx < 0) return null
+  return sidecar.commands[idx] ?? null
+}
+
+/**
+ * Story EDITOR-2 — resolve parsed arg specs for the keyword on `step`
+ * via the signature map. Returns null for unknown keywords (the caller
+ * falls back to "arg N" labels).
+ */
+export function resolveArgSpecs(
+  step: RobotStep, signatures: SignatureMap | null,
+): ParsedArg[] | null {
+  if (!signatures || !step.keyword) return null
+  const raw = signatures.get(step.keyword.toLowerCase())
+  if (!raw) return null
+  return raw.map(parseArgSignature)
+}
+
+/**
+ * Apply a SelectorPicker swap to a step + its matched RecordedCommand.
+ * Both arguments are mutated in place: `step.args[0]` becomes the new
+ * candidate's value, and `cmd.active_candidate_index` is updated. Returns
+ * `true` if anything changed (or `false` if the index was out of range).
+ *
+ * Pure data transform — extracted so it can be tested without mounting
+ * Vue Flow / the visual editor.
+ */
+export function applySelectorSwap(
+  step: RobotStep,
+  cmd: RecordedCommand,
+  newIndex: number,
+): boolean {
+  const candidate = cmd.selector_candidates[newIndex]
+  if (!candidate) return false
+  if (step.args.length === 0) {
+    step.args.push(candidate.value)
+  } else {
+    step.args[0] = candidate.value
+  }
+  cmd.active_candidate_index = newIndex
+  return true
+}
+
+/**
+ * Detects whether `step.args[0]` is a value the user typed by hand
+ * rather than one of the recorded selector candidates. Used to gate a
+ * confirmation prompt before overwriting a custom selector during swap.
+ *
+ * Why the value-stripping: the recorder emits selectors with two
+ * decorations that are NOT mirrored in the sidecar candidate values —
+ *
+ * 1. **iframe wrapping** — events captured in an iframe get prefixed
+ *    with `iframe[src*="<host>"] >>> ` so the replay locates the
+ *    right document. The sidecar stores the inner selector
+ *    (`text="Zustimmen"`) without the iframe prefix.
+ * 2. **disambiguation suffix** — when a multi-match locator gets
+ *    `>> nth=0` appended for strict-mode safety, the sidecar may
+ *    still hold the un-disambiguated value depending on when the
+ *    snapshot was taken vs. the verifier ran.
+ *
+ * Both lived only on the emit side. Without stripping, a recorded
+ * `Click text="Zustimmen"` inside a Sourcepoint consent iframe shows
+ * up as `iframe[src*="…"] >>> text="Zustimmen"` in the .robot but
+ * `text="Zustimmen"` in the sidecar — match fails, the picker shows
+ * "eigener Wert, nicht aus der Aufzeichnung", which is wrong.
+ */
+const _IFRAME_PREFIX_RE = /^iframe\[[^\]]+\]\s*>>>\s*/
+const _NTH_SUFFIX_RE = /\s*>>\s*nth=\d+\s*$/
+function _stripSelectorDecorations(value: string): string {
+  return value
+    .replace(_IFRAME_PREFIX_RE, '')
+    .replace(_NTH_SUFFIX_RE, '')
+    .trim()
+}
+
+export function isCustomSelectorValue(step: RobotStep, cmd: RecordedCommand): boolean {
+  if (cmd.selector_candidates.length === 0) return false
+  const current = step.args[0] ?? ''
+  if (current === '') return false
+  if (cmd.selector_candidates.some((c) => c.value === current)) return false
+  // Compare again after stripping iframe-wrapping + nth-disambiguation,
+  // both of which the emitter adds but the sidecar typically doesn't.
+  const stripped = _stripSelectorDecorations(current)
+  if (stripped === current) return true
+  return !cmd.selector_candidates.some(
+    (c) => _stripSelectorDecorations(c.value) === stripped,
+  )
 }
 
 // --- Layout constants ---
@@ -80,19 +296,39 @@ const FRAME_PAD_X = 30
 const FRAME_PAD_TOP = 12
 const FRAME_PAD_BOTTOM = 16
 
+// Deep-clone the parts of a RobotStep that the detail-panel inputs
+// can mutate (the array fields). A shallow `{ ...step }` would leave
+// every array as a shared reference between the node's data and the
+// form, and v-model writes inside the panel would mutate the form
+// directly — fired the deep `props.form` watcher and reset selection
+// on every keystroke (closing the panel mid-edit).
+function cloneStep(step: RobotStep): RobotStep {
+  return {
+    ...step,
+    args: [...step.args],
+    returnVars: [...step.returnVars],
+    loopValues: [...step.loopValues],
+  }
+}
+
 // --- Node height estimation ---
 
 const START_END_HEIGHT = 32
 const NODE_BASE_HEIGHT = 44
 
-function estimateNodeHeight(step: RobotStep): number {
+export function estimateNodeHeight(step: RobotStep): number {
   const type = getNodeType(step.type)
   if (type === 'start' || type === 'end') return START_END_HEIGHT
   let h = NODE_BASE_HEIGHT
   if (type === 'keyword' || type === 'assignment') {
     if (step.args.length > 0) {
-      const rows = Math.ceil(step.args.length / 3)
-      h += 4 + rows * 22
+      // Story EDITOR-8 — one chip per row (KeywordNode now uses
+      // `flex-direction: column` for args). The previous `ceil(n/3)`
+      // estimate assumed 3 chips per row but long selector values
+      // (e.g. recorded text= / xpath= selectors) take a full row
+      // each, so the node grew taller than estimated and overlapped
+      // the next one.
+      h += 4 + step.args.length * 22
     }
     if (step.returnVars.length > 0) h += 20
   }
@@ -194,16 +430,23 @@ export function stepsToFlow(
   prefix: string,
   section: 'testcase' | 'keyword',
   sectionIndex: number,
+  sidecar: RecordedFlow | null = null,
+  signatures: SignatureMap | null = null,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
 
-  // Start node
+  // Start node — label comes from i18n inside StartEndNode.vue
+  // ("Start" / "End"). The test-case name is already in the
+  // section tab strip, so duplicating it on the canvas added no
+  // information — and left fresh, unnamed test cases with a
+  // visually empty box. `name` is still on the param list for
+  // any future caller that wants to pin a custom label.
   nodes.push({
     id: `${prefix}-start`,
     type: 'start',
     position: { x: NODE_X, y: 0 },
-    data: { label: name },
+    data: { label: name || undefined },
   })
 
   let prevId = `${prefix}-start`
@@ -225,10 +468,20 @@ export function stepsToFlow(
       data: {
         label,
         stepType: step.type,
-        step: { ...step },
+        // Deep-clone the step's arrays so v-model edits inside the
+        // detail panel don't mutate the form's arrays directly. The
+        // shallow spread `{ ...step }` previously left `args` /
+        // `returnVars` / `loopValues` as SHARED REFERENCES, so each
+        // keystroke fired the deep watcher on `props.form` — which
+        // reset `selectedNode` and tore down the panel mid-edit.
+        // `updateStepFromNode` replaces the form's arrays on blur via
+        // `Object.assign`, so the round-trip still lands.
+        step: cloneStep(step),
         section,
         sectionIndex,
         stepIndex: i,
+        recording: matchStepToCommand(steps, sidecar, i),
+        argSpecs: resolveArgSpecs(step, signatures),
       } as FlowNodeData,
     })
 
@@ -245,13 +498,13 @@ export function stepsToFlow(
     y += nodeHeight + NODE_GAP
   }
 
-  // End node
+  // End node — label comes from i18n inside StartEndNode.vue.
   const endId = `${prefix}-end`
   nodes.push({
     id: endId,
     type: 'end',
     position: { x: NODE_X, y },
-    data: { label: 'END' },
+    data: {},
   })
   edges.push({
     id: `${prefix}-e-${prevId}-${endId}`,
@@ -265,27 +518,200 @@ export function stepsToFlow(
   return { nodes, edges }
 }
 
+/**
+ * Settings that may attach to a test case or keyword as side-note
+ * nodes on the canvas. Each kind corresponds to a Robot Framework
+ * `[...]` setting and (for now) a string field on RobotTestCase /
+ * RobotKeywordDef. Order here drives the vertical stacking order
+ * to the LEFT of the Start node.
+ *
+ * `tags` and `arguments` store as string[] but the side-note
+ * displays them comma-separated; the detail panel converts back.
+ */
+export type SettingMetaKind =
+  | 'documentation'
+  | 'tags'
+  | 'arguments'
+  | 'setup'
+  | 'teardown'
+  | 'template'
+  | 'timeout'
+
+const TC_SETTING_KINDS: SettingMetaKind[] = [
+  'documentation', 'tags', 'setup', 'teardown', 'template', 'timeout',
+]
+const KW_SETTING_KINDS: SettingMetaKind[] = [
+  'documentation', 'arguments', 'tags', 'setup', 'teardown', 'timeout',
+]
+
+const KIND_LABELS: Record<SettingMetaKind, string> = {
+  documentation: '[Documentation]',
+  tags: '[Tags]',
+  arguments: '[Arguments]',
+  setup: '[Setup]',
+  teardown: '[Teardown]',
+  template: '[Template]',
+  timeout: '[Timeout]',
+}
+
+/** Read the raw value for a kind off the underlying form record.
+ *  Returns the display text — may be empty when the setting is
+ *  freshly added via the "+ [X]" affordance and the user hasn't
+ *  typed anything yet. Use `settingPresent()` to decide whether the
+ *  side note should render; this function only formats the text. */
+function readSettingValue(
+  source: RobotTestCase | RobotKeywordDef,
+  kind: SettingMetaKind,
+): string {
+  switch (kind) {
+    case 'documentation': return source.documentation
+    case 'tags': return source.tags.join(', ')
+    case 'arguments':
+      return 'arguments' in source ? source.arguments.join(', ') : ''
+    case 'setup': return source.setup
+    case 'teardown': return source.teardown
+    case 'template':
+      return 'template' in source ? source.template : ''
+    case 'timeout': return source.timeout
+  }
+}
+
+/** Whether the kind has any user-attached data on the source. The
+ *  side note renders as soon as this returns true, even if the
+ *  current text is empty / whitespace — that's the case the moment
+ *  after the user clicks "+ [X]" before they've typed the value.
+ *
+ *  The presence check is intentionally based on the underlying
+ *  field (array length / truthiness), NOT on the formatted value,
+ *  so a freshly-added empty setting still surfaces a visible side
+ *  note for the user to click and edit. The matching write-side
+ *  uses `[''] / ' '` placeholders in `addSetting()` (FlowEditor.vue)
+ *  to flip the flag without polluting the saved .robot file with
+ *  spurious chars. */
+export function settingPresent(
+  source: RobotTestCase | RobotKeywordDef,
+  kind: SettingMetaKind,
+): boolean {
+  switch (kind) {
+    case 'tags': return source.tags.length > 0
+    case 'arguments':
+      return 'arguments' in source && source.arguments.length > 0
+    case 'template':
+      return 'template' in source && source.template !== ''
+    case 'documentation':
+    case 'setup':
+    case 'teardown':
+    case 'timeout':
+      return source[kind] !== ''
+  }
+}
+
 /** Convert a single test case to flow graph. */
 export function testCaseToFlow(
   tc: RobotTestCase, index: number,
+  sidecar: RecordedFlow | null = null,
+  signatures: SignatureMap | null = null,
 ): { nodes: Node[]; edges: Edge[] } {
-  return stepsToFlow(tc.steps, tc.name, `tc${index}`, 'testcase', index)
+  const out = stepsToFlow(tc.steps, tc.name, `tc${index}`, 'testcase', index, sidecar, signatures)
+  appendSettingMetaNodes(out.nodes, out.edges, `tc${index}`, tc, 'testcase', index, TC_SETTING_KINDS)
+  return out
 }
 
 /** Convert a single keyword definition to flow graph. */
 export function keywordDefToFlow(
   kw: RobotKeywordDef, index: number,
+  sidecar: RecordedFlow | null = null,
+  signatures: SignatureMap | null = null,
 ): { nodes: Node[]; edges: Edge[] } {
-  return stepsToFlow(kw.steps, kw.name, `kw${index}`, 'keyword', index)
+  const out = stepsToFlow(kw.steps, kw.name, `kw${index}`, 'keyword', index, sidecar, signatures)
+  appendSettingMetaNodes(out.nodes, out.edges, `kw${index}`, kw, 'keyword', index, KW_SETTING_KINDS)
+  return out
+}
+
+/**
+ * Append `[…]` meta-nodes to the flow for each non-empty setting on
+ * the source (test case or keyword definition). The nodes stack
+ * vertically to the LEFT of the Start node and each connects via a
+ * dashed edge — visually they read as "side notes" attached to the
+ * whole flow rather than as steps.
+ *
+ * The detail panel listens for clicks on `setting-meta` nodes and
+ * switches into a kind-specific edit mode. Empty settings produce
+ * no node — clutter-free for plain test cases.
+ */
+function appendSettingMetaNodes(
+  nodes: Node[],
+  edges: Edge[],
+  prefix: string,
+  source: RobotTestCase | RobotKeywordDef,
+  section: 'testcase' | 'keyword',
+  sectionIndex: number,
+  kinds: SettingMetaKind[],
+): void {
+  const startNode = nodes.find((n) => n.id === `${prefix}-start`)
+  if (!startNode) return
+  let stackIdx = 0
+  // Side-note pitch is wider than step pitch (80) to leave a clear
+  // visual gap between consecutive side notes. The CSS clamps each
+  // side-note body to two lines + a hard max-height so a long
+  // [Documentation] preview can't grow into the [Tags] node below.
+  const META_PITCH = 96
+  for (const kind of kinds) {
+    if (!settingPresent(source, kind)) continue
+    const value = readSettingValue(source, kind)
+    const id = `${prefix}-${kind}`
+    // Position to the LEFT of the Start node, stacked vertically.
+    // Each kind sits at a fixed row offset from the start.
+    nodes.push({
+      id,
+      type: 'setting-meta',
+      position: { x: NODE_X - 280, y: startNode.position.y + stackIdx * META_PITCH },
+      data: {
+        kind,
+        label: KIND_LABELS[kind],
+        text: value,
+        section,
+        sectionIndex,
+      },
+      selectable: true,
+      draggable: false,
+    })
+    edges.push({
+      id: `${prefix}-${kind}-edge`,
+      source: id,
+      target: `${prefix}-start`,
+      // Connect side note's RIGHT handle → Start's LEFT handle so the
+      // dashed edge runs horizontally between them rather than the
+      // default Bottom→Top route (which crossed the whole canvas).
+      sourceHandle: 'right',
+      targetHandle: 'left',
+      type: 'default',
+      style: { strokeDasharray: '6 4', stroke: '#9AA5BF', strokeWidth: 1.5 },
+      animated: false,
+    })
+    stackIdx++
+  }
 }
 
 // --- Converter: Full RobotForm → Nodes + Edges ---
 
-export function robotFormToFlow(form: RobotForm): { nodes: Node[]; edges: Edge[] } {
+/**
+ * The sidecar is a flat list of recorded commands. We apply it to test
+ * case index 0 only — Recorder v2 always emits one test case per recording
+ * (`Recording <session_id>`), so attaching the same command list to every
+ * test case would mis-match anything but the first one. Hand-authored
+ * additional test cases get no sidecar matching; that's the right answer.
+ */
+export function robotFormToFlow(
+  form: RobotForm,
+  sidecar: RecordedFlow | null = null,
+  signatures: SignatureMap | null = null,
+): { nodes: Node[]; edges: Edge[] } {
   const allNodes: Node[] = []
   const allEdges: Edge[] = []
   for (let i = 0; i < form.testCases.length; i++) {
-    const { nodes, edges } = testCaseToFlow(form.testCases[i], i)
+    const sc = i === 0 ? sidecar : null
+    const { nodes, edges } = testCaseToFlow(form.testCases[i], i, sc, signatures)
     const xOffset = i * 500
     for (const node of nodes) {
       node.position.x += xOffset
@@ -296,12 +722,19 @@ export function robotFormToFlow(form: RobotForm): { nodes: Node[]; edges: Edge[]
   return { nodes: allNodes, edges: allEdges }
 }
 
-/** Convert all keyword definitions to flow. */
-export function robotKeywordsToFlow(form: RobotForm): { nodes: Node[]; edges: Edge[] } {
+/**
+ * Convert all keyword definitions to flow. Sidecar entries are never bound
+ * to user-defined keyword bodies (Recorder v2 targets test cases), so this
+ * function intentionally takes no sidecar parameter.
+ */
+export function robotKeywordsToFlow(
+  form: RobotForm,
+  signatures: SignatureMap | null = null,
+): { nodes: Node[]; edges: Edge[] } {
   const allNodes: Node[] = []
   const allEdges: Edge[] = []
   for (let i = 0; i < form.keywords.length; i++) {
-    const { nodes, edges } = keywordDefToFlow(form.keywords[i], i)
+    const { nodes, edges } = keywordDefToFlow(form.keywords[i], i, null, signatures)
     const xOffset = i * 500
     for (const node of nodes) {
       node.position.x += xOffset
@@ -336,7 +769,12 @@ function getNodeType(stepType: StepType): string {
       return 'assignment'
     case 'comment':
       return 'comment'
-    case 'return': case 'break': case 'continue':
+    case 'return':
+      // RETURN deserves a richer node than BREAK/CONTINUE — it's
+      // the public surface of a `*** Keywords ***` definition. Each
+      // arg is a return value and the visual makes that obvious.
+      return 'return'
+    case 'break': case 'continue':
       return 'flow-control'
     default:
       return 'keyword'

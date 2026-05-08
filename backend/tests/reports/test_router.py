@@ -428,3 +428,134 @@ class TestTestHistoryEndpoint:
             params={"test_name": "Test"},
         )
         assert response.status_code == 401
+
+
+class TestReportAssetEndpoint:
+    """Story REPORT-1 — `/reports/{id}/assets/{path}` is no longer
+    anonymous; auth is required via Bearer header or `?token=<jwt>`.
+    Path-traversal protection is layered on top of auth.
+    """
+
+    @pytest.fixture
+    def report_with_asset(self, db_session, admin_user, tmp_path):
+        """Set up a Report row whose `output_xml_path` lives in tmp_path
+        and seed a real asset file beside it."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        (output_dir / "output.xml").write_text("<robot/>", encoding="utf-8")
+        (output_dir / "screenshot.png").write_bytes(b"\x89PNG\r\n\x1a\nfake-image")
+        report = _setup_report(
+            db_session, admin_user,
+            output_xml_path=str(output_dir / "output.xml"),
+        )
+        return report
+
+    def test_rejects_anonymous(self, client, report_with_asset):
+        """No Bearer, no ?token → 401."""
+        resp = client.get(
+            f"/api/v1/reports/{report_with_asset.id}/assets/screenshot.png",
+        )
+        assert resp.status_code == 401
+
+    def test_accepts_bearer(self, client, admin_user, report_with_asset):
+        """Authorization: Bearer <jwt> → 200."""
+        resp = client.get(
+            f"/api/v1/reports/{report_with_asset.id}/assets/screenshot.png",
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 200
+        assert resp.content.startswith(b"\x89PNG")
+
+    def test_accepts_query_token(self, client, admin_user, report_with_asset):
+        """`?token=<jwt>` → 200 — the iframe path."""
+        from src.auth.service import create_access_token
+
+        token = create_access_token(admin_user.id, admin_user.role)
+        resp = client.get(
+            f"/api/v1/reports/{report_with_asset.id}/assets/screenshot.png",
+            params={"token": token},
+        )
+        assert resp.status_code == 200
+        assert resp.content.startswith(b"\x89PNG")
+
+    def test_rejects_garbage_token(self, client, report_with_asset):
+        """Random `?token=` value → 401."""
+        resp = client.get(
+            f"/api/v1/reports/{report_with_asset.id}/assets/screenshot.png",
+            params={"token": "not-a-real-jwt"},
+        )
+        assert resp.status_code == 401
+
+    def test_rejects_refresh_token(self, client, admin_user, report_with_asset):
+        """Refresh tokens (type='refresh') must NOT unlock asset access."""
+        from src.auth.service import create_refresh_token
+
+        rtok = create_refresh_token(admin_user.id)
+        resp = client.get(
+            f"/api/v1/reports/{report_with_asset.id}/assets/screenshot.png",
+            params={"token": rtok},
+        )
+        assert resp.status_code == 401
+
+    def test_path_traversal_still_blocked(
+        self, client, admin_user, report_with_asset,
+    ):
+        """Even authenticated, `../` paths are rejected (regression guard)."""
+        resp = client.get(
+            f"/api/v1/reports/{report_with_asset.id}/assets/..%2F..%2Fetc%2Fpasswd",
+            headers=auth_header(admin_user),
+        )
+        # FastAPI's URL decoding may yield 403 (our explicit check) or 404
+        # (if the resolved path is missing) — both are acceptable, what
+        # matters is that we don't return /etc/passwd contents.
+        assert resp.status_code in (403, 404)
+
+    def test_html_endpoint_redirects_to_asset_url_with_token(
+        self, client, admin_user, db_session, tmp_path,
+    ):
+        """The /html endpoint authenticates the caller and 302-redirects
+        to /assets/report.html?at=<asset_token>.
+
+        Why a redirect instead of streaming the HTML inline (the previous
+        behaviour, see SECURITY-3 + REPORT-1 history): Robot Framework's
+        in-page click handlers do `location.href = "log.html#xxx"` which
+        resolves against the iframe's URL. With the old blob-URL +
+        injected `<base>` approach the JS-driven navigation went to a
+        404. Loading the report directly from the asset URL means
+        relative navigation lands on the sibling log.html.
+        """
+        out = tmp_path / "out"
+        out.mkdir()
+        html_path = out / "report.html"
+        html_path.write_text(
+            "<html><head><title>R</title></head><body><img src='shot.png'></body></html>",
+            encoding="utf-8",
+        )
+        (out / "output.xml").write_text("<robot/>", encoding="utf-8")
+        report = _setup_report(
+            db_session, admin_user,
+            output_xml_path=str(out / "output.xml"),
+            report_html_path=str(html_path),
+        )
+
+        resp = client.get(
+            f"/api/v1/reports/{report.id}/html",
+            headers=auth_header(admin_user),
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        location = resp.headers["location"]
+        assert location.startswith(
+            f"/api/v1/reports/{report.id}/assets/report.html?at="
+        )
+        # The asset token in the redirect must actually grant access to
+        # the asset endpoint — round-trip the redirect.
+        from urllib.parse import urlparse, parse_qs
+        token = parse_qs(urlparse(location).query).get("at", [""])[0]
+        assert token, "asset token missing from redirect URL"
+        followup = client.get(
+            f"/api/v1/reports/{report.id}/assets/report.html?at={token}"
+        )
+        assert followup.status_code == 200
+        # Body is the raw report HTML, no <base href> injection now.
+        assert "<title>R</title>" in followup.text

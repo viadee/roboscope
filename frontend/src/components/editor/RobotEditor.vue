@@ -3,9 +3,18 @@ import { ref, reactive, watch, computed, nextTick, onMounted, onUnmounted, shall
 import { useI18n } from 'vue-i18n'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import FlowEditor from '@/components/editor/FlowEditor.vue'
-import { robotLanguage } from '@/utils/robotLanguage'
+import { robotLanguage, robotHighlightStyle } from '@/utils/robotLanguage'
 import { RF_KEYWORD_SIGNATURES } from '@/utils/robotKeywordSignatures'
 import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
+import { getInstalledPackages, installPackage } from '@/api/environments.api'
+import { loadSidecar, saveSidecar } from '@/composables/useRecordingSidecar'
+import { useToast } from '@/composables/useToast'
+import { useEnvironmentsStore } from '@/stores/environments.store'
+import { useExplorerStore } from '@/stores/explorer.store'
+import { useReposStore } from '@/stores/repos.store'
+import { extractErrorDetail } from '@/utils/errors'
+import BaseModal from '@/components/ui/BaseModal.vue'
+import type { RecordedFlow } from '@/types/recorder.types'
 
 // CodeMirror imports
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightSpecialChars } from '@codemirror/view'
@@ -59,6 +68,7 @@ interface RobotStep {
   exceptVar: string      // except: AS ${var}
   varScope: string       // var: scope (LOCAL|TEST|TASK|SUITE|GLOBAL)
   comment: string        // comment: text
+  rbs_id?: string        // RECORDER-IDMAP — see flow/flowConverter.ts
 }
 
 interface RobotTestCase {
@@ -88,7 +98,8 @@ function makeStep(type: StepType = 'keyword'): RobotStep {
 }
 
 // --- State ---
-const activeTab = ref<'visual' | 'flow' | 'code'>('visual')
+// Story EDITOR-5 — Flow is the leftmost / default tab in the explorer.
+const activeTab = ref<'visual' | 'flow' | 'code'>('flow')
 const parseError = ref<string | null>(null)
 const codeEditorContainer = ref<HTMLElement | null>(null)
 const codeEditorView = shallowRef<EditorView | null>(null)
@@ -247,6 +258,25 @@ const testCaseCount = computed(() => form.testCases.length)
 const keywordCount = computed(() => form.keywords.length)
 
 // --- Step line parser ---
+const _RBS_ID_CELL = /^# rbs:([a-f0-9]{8,32})$/
+
+/**
+ * Reverse of `escapeRfToken` (defined below). Strips the leading `\`
+ * from `\#…` so the user-visible value stored on `step.args[i]`
+ * matches the logical selector / arg the user typed (or the recorder
+ * synthesised). Without this, a `\#login-form` from disk would never
+ * compare-equal to the picker's `#login-form` candidate, and the
+ * selector picker would mis-flag every escaped CSS-ID as "custom".
+ *
+ * Currently handles only the leading `\#` case — the only escape the
+ * emitter applies. If the backend emit grows new escape sequences,
+ * extend here AND in `escapeRfToken`.
+ */
+function unescapeRfToken(s: string): string {
+  if (s.startsWith('\\#')) return s.slice(1)
+  return s
+}
+
 function parseStepLine(raw: string): RobotStep {
   const step = makeStep()
   const trimmed = raw.trim()
@@ -262,6 +292,19 @@ function parseStepLine(raw: string): RobotStep {
   // Split into cells on 2+ spaces or tab
   const cells = trimmed.split(/  +|\t+/).filter(c => c !== '')
   if (cells.length === 0) return step
+
+  // Story RECORDER-IDMAP — peel off the trailing `# rbs:<id>` cell
+  // (emitted by the recorder) BEFORE the rest of the parser treats
+  // it as an arg. The id stays on `step.rbs_id`; serializeStep
+  // re-appends it so save round-trips don't drop the link to the
+  // sidecar's selector group.
+  const lastCell = cells[cells.length - 1]
+  const idMatch = _RBS_ID_CELL.exec(lastCell)
+  if (idMatch) {
+    step.rbs_id = idMatch[1]
+    cells.pop()
+    if (cells.length === 0) return step
+  }
 
   const first = cells[0]
 
@@ -362,29 +405,63 @@ function parseStepLine(raw: string): RobotStep {
     step.type = 'assignment'
     step.returnVars = returnVars
     step.keyword = cells[keywordIdx]
-    step.args = cells.slice(keywordIdx + 1)
+    // RECORDER-RF-ESCAPE — unescape `\#…` cells back to their logical
+    // form, mirroring the serializer. Without this, a fresh recording
+    // (which emits `\#login-form`) would mismatch the picker's raw
+    // `#login-form` candidate after one save round-trip.
+    step.args = cells.slice(keywordIdx + 1).map(unescapeRfToken)
     return step
   }
 
   // Regular keyword call
   step.type = 'keyword'
   step.keyword = cells[0]
-  step.args = cells.slice(1)
+  step.args = cells.slice(1).map(unescapeRfToken)
   return step
 }
 
 // --- Step serializer ---
 const SEP = '    '
 
+/**
+ * Mirror of `backend/src/recording/robot_emit.py::_escape_rf_token`.
+ *
+ * Robot Framework's lexer treats any token that STARTS with `#` as a
+ * comment. After `applySelectorSwap` swaps a candidate like
+ * `#login-form` into `step.args[0]` the value is the raw selector
+ * (no escape). When the user saves, this serializer must add the
+ * `\` so the round-tripped `.robot` keeps the selector intact —
+ * otherwise the file would emit `Click    #login-form` and RF would
+ * silently run Click without args.
+ *
+ * Idempotent: a value that's already `\#…` doesn't start with `#`
+ * (it starts with `\`), so it passes through unchanged.
+ */
+function escapeRfToken(s: string): string {
+  if (!s) return s
+  return s.startsWith('#') ? '\\' + s : s
+}
+
 function serializeStep(step: RobotStep): string {
+  // Story RECORDER-IDMAP — append the trailing `# rbs:<id>` after
+  // the rest of the line if the step carries an id. RF treats it as
+  // a regular line comment; the id round-trips through save → reload
+  // so the FlowEditor's selector picker stays linked to the sidecar
+  // command across reorder / insert / delete.
+  const withId = (line: string): string =>
+    step.rbs_id ? `${line}${SEP}# rbs:${step.rbs_id}` : line
+
+  // RECORDER-RF-ESCAPE — mirror the backend escape on the save path.
+  const args = step.args.map(escapeRfToken)
+
   switch (step.type) {
     case 'keyword':
-      return [step.keyword, ...step.args].filter(Boolean).join(SEP)
+      return withId([step.keyword, ...args].filter(Boolean).join(SEP))
     case 'assignment': {
       const vars = step.returnVars.map((v, i) =>
         i === step.returnVars.length - 1 ? v + '=' : v
       )
-      return [...vars, step.keyword, ...step.args].filter(Boolean).join(SEP)
+      return withId([...vars, step.keyword, ...args].filter(Boolean).join(SEP))
     }
     case 'for':
       return ['FOR', step.loopVar, step.loopFlavor, ...step.loopValues].filter(Boolean).join(SEP)
@@ -468,6 +545,19 @@ function parseRobotToForm(content: string): boolean {
           }
           continue
         }
+        // Continuation `...` — fold into the previous setting's
+        // value (newline-separated for Documentation; space-separated
+        // would also be valid but newlines preserve readability in
+        // the textarea). Without this, a multi-line `Documentation`
+        // produced N rows with `...` as the key.
+        if (trimmed.startsWith('...')) {
+          const cont = trimmed.slice(3).trim()
+          const last = newForm.settings[newForm.settings.length - 1]
+          if (last && last.key !== '#') {
+            last.value = last.value ? `${last.value}\n${cont}` : cont
+          }
+          continue
+        }
         const parts = trimmed.split(/  +|\t+/).filter(p => p !== '')
         if (parts.length >= 1) {
           newForm.settings.push({ key: parts[0], value: parts[1] || '', args: parts.slice(2) })
@@ -479,6 +569,15 @@ function parseRobotToForm(content: string): boolean {
         if (!trimmed || trimmed.startsWith('#')) {
           if (trimmed.startsWith('#')) {
             newForm.variables.push({ name: '#', value: trimmed })
+          }
+          continue
+        }
+        // Continuation: append to the previous variable's value.
+        if (trimmed.startsWith('...')) {
+          const cont = trimmed.slice(3).trim()
+          const last = newForm.variables[newForm.variables.length - 1]
+          if (last && last.name !== '#') {
+            last.value = last.value ? `${last.value}${SEP}${cont}` : cont
           }
           continue
         }
@@ -592,8 +691,9 @@ function parseRobotToForm(content: string): boolean {
     form.preambleLines = newForm.preambleLines
     parseError.value = null
     return true
-  } catch (e: any) {
-    parseError.value = e.message || 'Failed to parse Robot Framework file'
+  } catch (e: unknown) {
+    parseError.value =
+      e instanceof Error ? e.message : 'Failed to parse Robot Framework file'
     return false
   }
 }
@@ -649,6 +749,35 @@ async function lazyLoadKeywordArgs() {
   }
 }
 
+/**
+ * Multi-line settings (`[Documentation]`, `[Tags]`, …) parse with the
+ * `...` continuation marker — each successive `...` line concatenates
+ * its cells onto the parent setting. Our parser folds those into one
+ * string with `\n` separators (so the form-edit textarea is sane). At
+ * serialize time we MUST reverse the fold: dump the first line after
+ * the setting tag, then emit each remaining line as a `...` row.
+ *
+ * Without this, a multi-line `[Documentation]` got crammed into a
+ * single output line containing literal `\n` characters. RF's lexer
+ * sees those newlines as line breaks and treats every continuation
+ * line as a NEW test case header at column 0 — the original test
+ * loses all of its body and disappears on the next reload.
+ *
+ * Edge cases:
+ *   - Empty string → emit nothing (caller already guards on truthy).
+ *   - Single line → just `[setting]    line` (no continuation).
+ *   - Multi-line → `[setting]    line0` followed by `...    lineN`.
+ */
+function emitMultilineSetting(tag: string, value: string): string[] {
+  const parts = value.split('\n')
+  const out: string[] = []
+  out.push(SEP + tag + SEP + parts[0])
+  for (let i = 1; i < parts.length; i++) {
+    out.push(SEP + '...' + SEP + parts[i])
+  }
+  return out
+}
+
 // --- Main Serializer ---
 function serializeFormToRobot(): string {
   const lines: string[] = []
@@ -660,6 +789,22 @@ function serializeFormToRobot(): string {
     lines.push('*** Settings ***')
     for (const s of form.settings) {
       if (s.key === '#') { lines.push(s.value); continue }
+      // Settings whose value contains literal `\n` (typically
+      // Documentation continued across multiple `...` lines on disk)
+      // need to be split back out — see emitMultilineSetting() in
+      // the test-case path. Without this, the saved file ends up
+      // with raw newlines mid-cell and RF re-parses each
+      // continuation line as a new top-level setting.
+      if (s.value && s.value.includes('\n')) {
+        const parts = s.value.split('\n')
+        let firstLine = s.key + SEP + parts[0]
+        for (const a of s.args) firstLine += SEP + a
+        lines.push(firstLine)
+        for (let i = 1; i < parts.length; i++) {
+          lines.push('...' + SEP + parts[i])
+        }
+        continue
+      }
       let line = s.key
       if (s.value) line += SEP + s.value
       for (const a of s.args) line += SEP + a
@@ -679,9 +824,18 @@ function serializeFormToRobot(): string {
   if (!isResource.value && form.testCases.length > 0) {
     if (lines.length > 0 && lines[lines.length - 1] !== '') lines.push('')
     lines.push('*** Test Cases ***')
-    for (const tc of form.testCases) {
-      lines.push(tc.name)
-      if (tc.documentation) lines.push(SEP + '[Documentation]' + SEP + tc.documentation)
+    for (let tcIdx = 0; tcIdx < form.testCases.length; tcIdx++) {
+      const tc = form.testCases[tcIdx]
+      // Empty name → fall back to "Test Case N" (same shape the
+      // FlowEditor's tab strip already shows for unnamed entries).
+      // Without this the serializer emits a blank line as the test-
+      // case header; the parser then skips that blank line per its
+      // "non-empty + non-indented = header" rule, the steps below
+      // become orphaned, and the entire test case disappears on
+      // round-trip after a save → file-switch → reload cycle.
+      const tcName = tc.name.trim() || `Test Case ${tcIdx + 1}`
+      lines.push(tcName)
+      if (tc.documentation) lines.push(...emitMultilineSetting('[Documentation]', tc.documentation))
       if (tc.tags.length > 0) lines.push(SEP + '[Tags]' + SEP + tc.tags.join(SEP))
       if (tc.setup) lines.push(SEP + '[Setup]' + SEP + tc.setup)
       if (tc.teardown) lines.push(SEP + '[Teardown]' + SEP + tc.teardown)
@@ -695,10 +849,15 @@ function serializeFormToRobot(): string {
   if (form.keywords.length > 0) {
     if (lines.length > 0 && lines[lines.length - 1] !== '') lines.push('')
     lines.push('*** Keywords ***')
-    for (const kw of form.keywords) {
-      lines.push(kw.name)
+    for (let kwIdx = 0; kwIdx < form.keywords.length; kwIdx++) {
+      const kw = form.keywords[kwIdx]
+      // Same fallback as test cases — an empty keyword name on
+      // disk is equally invalid and would silently swallow the
+      // keyword's steps on reload.
+      const kwName = kw.name.trim() || `Keyword ${kwIdx + 1}`
+      lines.push(kwName)
       if (kw.arguments.length) lines.push(SEP + '[Arguments]' + SEP + kw.arguments.join(SEP))
-      if (kw.documentation) lines.push(SEP + '[Documentation]' + SEP + kw.documentation)
+      if (kw.documentation) lines.push(...emitMultilineSetting('[Documentation]', kw.documentation))
       if (kw.tags.length > 0) lines.push(SEP + '[Tags]' + SEP + kw.tags.join(SEP))
       if (kw.setup) lines.push(SEP + '[Setup]' + SEP + kw.setup)
       if (kw.teardown) lines.push(SEP + '[Teardown]' + SEP + kw.teardown)
@@ -724,10 +883,14 @@ function switchTab(tab: 'visual' | 'flow' | 'code') {
     parseError.value = null
     nextTick(() => initCodeEditor())
   } else {
-    // Switching to visual or flow — parse from code editor if coming from code tab
+    // Switching to visual or flow — parse from code editor if coming
+    // from code tab. Previously a parse failure silently rejected the
+    // tab switch and stranded the user on Code; better to switch
+    // anyway and let the parse-error banner explain the problem so
+    // the user knows WHY the visual / flow view is empty.
     if (activeTab.value === 'code') {
       const currentCode = getCodeEditorContent()
-      if (!parseRobotToForm(currentCode)) return
+      parseRobotToForm(currentCode)
       destroyCodeEditor()
     }
     activeTab.value = tab
@@ -751,6 +914,9 @@ function initCodeEditor() {
       highlightSpecialChars(),
       history(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
+      // Story EDITOR-11 — RoboScope-branded highlight style; falls back
+      // to the CodeMirror default for tags we don't override.
+      syntaxHighlighting(robotHighlightStyle, { fallback: true }),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       new LanguageSupport(robotLanguage()),
       EditorView.updateListener.of((update) => {
@@ -787,10 +953,347 @@ function emitFormContent() {
 }
 
 // --- Form watchers ---
-watch(() => form.settings, () => { if (activeTab.value === 'visual') emitFormContent() }, { deep: true })
-watch(() => form.variables, () => { if (activeTab.value === 'visual') emitFormContent() }, { deep: true })
-watch(() => form.testCases, () => { if (activeTab.value === 'visual') emitFormContent() }, { deep: true })
-watch(() => form.keywords, () => { if (activeTab.value === 'visual') emitFormContent() }, { deep: true })
+// Story EDITOR-1 follow-up — also emit when on the flow tab so visual-flow
+// edits (selector swap, arg edits in the detail panel) reach the parent.
+const inFormEditingTab = computed(() => activeTab.value === 'visual' || activeTab.value === 'flow')
+watch(() => form.settings, () => { if (inFormEditingTab.value) emitFormContent() }, { deep: true })
+watch(() => form.variables, () => { if (inFormEditingTab.value) emitFormContent() }, { deep: true })
+watch(() => form.testCases, () => { if (inFormEditingTab.value) emitFormContent() }, { deep: true })
+watch(() => form.keywords, () => { if (inFormEditingTab.value) emitFormContent() }, { deep: true })
+
+// --- Story EDITOR-1: recording sidecar (`<file>.rbs.json`) ---
+const sidecar = ref<RecordedFlow | null>(null)
+const sidecarDirty = ref(false)
+// Path the current sidecar belongs to — captured at load-time so a
+// later swap can never write the wrong path's data after a tab switch.
+const sidecarPath = ref<string | null>(null)
+// Race-token: increments on every refresh so stale awaits drop their result.
+let sidecarLoadToken = 0
+
+async function refreshSidecar() {
+  // Reset eagerly so a swap during the in-flight load can never touch
+  // the previous file's sidecar (review fix #3).
+  sidecar.value = null
+  sidecarDirty.value = false
+  sidecarPath.value = null
+
+  if (props.repoId == null || !props.filePath) return
+  if (!props.filePath.toLowerCase().endsWith('.robot')) return
+
+  const token = ++sidecarLoadToken
+  const path = props.filePath
+  const repoId = props.repoId
+  const loaded = await loadSidecar(repoId, path)
+  // Discard the result if a newer refresh has started in the meantime.
+  if (token !== sidecarLoadToken) return
+  sidecar.value = loaded
+  if (loaded) sidecarPath.value = path
+}
+
+function onSidecarUpdated(updated: RecordedFlow) {
+  // FlowEditor mutates the sidecar object in place, so identity is preserved.
+  // Mark dirty so the next user Save persists it.
+  if (updated === sidecar.value) sidecarDirty.value = true
+}
+
+/**
+ * Scan a .robot text for trailing `# rbs:<id>` comments and return the
+ * set of ids the file references. Used to prune dead sidecar commands
+ * after the user deletes a step in the editor.
+ */
+function _collectRbsIdsFromContent(content: string): Set<string> {
+  const ids = new Set<string>()
+  // Same shape as the backend emitter: 1+ whitespace, then `# rbs:`,
+  // then 8–32 hex chars at the end of a line.
+  const re = /\s+# rbs:([a-f0-9]{8,32})\s*$/gm
+  let m: RegExpExecArray | null
+  while ((m = re.exec(content)) !== null) ids.add(m[1])
+  return ids
+}
+
+/**
+ * Persist the sidecar if it has been modified since the last save.
+ * Called by the parent (ExplorerView) right before it writes the
+ * `.robot` content, so both files end up on disk together — never the
+ * "sidecar swapped but .robot unchanged" inconsistency that breaks the
+ * SH-2 invariant. Safe to call when nothing is dirty.
+ *
+ * RECORDER-IDMAP follow-up — when the caller passes the about-to-save
+ * .robot content, also prune sidecar.commands whose ids no longer
+ * appear in that text. Without this, deleting a step in the visual
+ * editor leaves its candidate group orphaned in the sidecar; the
+ * runtime heal library would still match the dead command's selectors
+ * by value and stamp the audit with an `rbs:<id>` chip that points to
+ * a row the user removed. Cosmetic but misleading. Pruning marks the
+ * sidecar dirty itself, so a delete-only edit (no other sidecar
+ * change) still triggers the persist.
+ */
+async function saveSidecarIfDirty(robotContent?: string): Promise<void> {
+  if (!sidecar.value || sidecarPath.value == null || props.repoId == null) {
+    return
+  }
+  if (robotContent != null && Array.isArray(sidecar.value.commands)) {
+    const liveIds = _collectRbsIdsFromContent(robotContent)
+    const before = sidecar.value.commands.length
+    const kept = sidecar.value.commands.filter(
+      c => !c.id || liveIds.has(c.id),
+    )
+    if (kept.length !== before) {
+      sidecar.value.commands = kept
+      sidecarDirty.value = true
+    }
+  }
+  if (!sidecarDirty.value) return
+  await saveSidecar(props.repoId, sidecarPath.value, sidecar.value)
+  sidecarDirty.value = false
+}
+
+defineExpose({ saveSidecarIfDirty })
+
+watch(() => [props.repoId, props.filePath] as const, refreshSidecar, { immediate: true })
+
+// --- Keyword cache refresh wiring ---
+//
+// `useExplorerStore().refreshKeywords(repoId)` invalidates the
+// backend's libdoc cache for the repo's environment and re-fetches
+// the merged library + project-keyword list. The keyword palette and
+// `useKeywordSignatures` composable react via the store's reactive
+// `keywords` array — so a single refresh call propagates to every
+// editor surface that consults keyword metadata.
+//
+// Triggers:
+//   1. Library / Resource import was added or removed in FlowEditor's
+//      library panel — emitted via `libraries-changed`.
+//   2. `props.filePath` changed — different file may import a
+//      different library set, and the user has likely just saved
+//      changes that the backend should re-introspect.
+//   3. The user switches between testcases / sections inside the
+//      same file — implicitly handled because the keyword cache is
+//      repo-scoped, no extra fetch needed; FlowEditor's existing
+//      reactive bindings rebuild the canvas off the same store.
+const _explorerStore = useExplorerStore()
+const _reposStore = useReposStore()
+const _envsStore = useEnvironmentsStore()
+const _toast = useToast()
+
+function _refreshKeywordsIfPossible(): void {
+  if (props.repoId == null) return
+  // Fire-and-forget — the palette / signatures auto-update via the
+  // store's reactive `keywords` array; we don't need to await.
+  _explorerStore.refreshKeywords(props.repoId).catch(() => { /* non-critical */ })
+}
+
+/**
+ * Known pip-package providers per Robot Framework library name.
+ * The FIRST entry is the "default" suggestion shown in the install
+ * dialog; the full list is consulted by `_isLibraryProvided` to
+ * detect cases where the user already has an alternative
+ * distribution installed (e.g. `robotframework-browser-batteries`
+ * — a self-contained alternative to `robotframework-browser` that
+ * bundles Playwright + Node and provides the same `Library
+ * Browser` import). Without this guard the install dialog would
+ * pointlessly suggest installing `robotframework-browser` next to
+ * an already-working `-batteries` install, leading to either
+ * conflict or a redundant install.
+ *
+ * Most third-party RF libraries have only one pip package; the
+ * single-element entries are still useful as the source-of-truth
+ * for `_guessPipPackage`.
+ */
+const _LIBRARY_PROVIDERS: Record<string, string[]> = {
+  // Default to `-batteries` for the install suggestion: it bundles
+  // Playwright + Node.js, so the user doesn't need a separate Node
+  // install on the env host. The plain `robotframework-browser`
+  // requires `rfbrowser init` to download Node + Playwright first
+  // and tends to surprise users on freshly-built envs. Both stay
+  // in the providers list so `_isLibraryProvided` recognises
+  // either as already-installed.
+  browser: ['robotframework-browser-batteries', 'robotframework-browser'],
+  seleniumlibrary: ['robotframework-seleniumlibrary'],
+  requestslibrary: ['robotframework-requests'],
+  databaselibrary: ['robotframework-databaselibrary'],
+  sshlibrary: ['robotframework-sshlibrary'],
+  ftplibrary: ['robotframework-ftplibrary'],
+  excellibrary: ['robotframework-excellibrary'],
+  jsonlibrary: ['robotframework-jsonlibrary'],
+  appiumlibrary: ['robotframework-appiumlibrary'],
+  swinglibrary: ['robotframework-swinglibrary'],
+  sikulilibrary: ['robotframework-sikulilibrary'],
+  imaplibrary: ['robotframework-imaplibrary'],
+  archivelibrary: ['robotframework-archivelibrary'],
+  cryptolibrary: ['robotframework-crypto'],
+  restinstance: ['RESTinstance'],
+}
+
+function _guessPipPackage(libraryName: string): string {
+  const lower = libraryName.toLowerCase()
+  const providers = _LIBRARY_PROVIDERS[lower]
+  return providers?.[0] ?? `robotframework-${lower}`
+}
+
+/**
+ * Return true if any of the known pip-package providers for this
+ * RF library is already installed in the env. Used as a guard
+ * before opening the install dialog — when (e.g.) browser-
+ * batteries is installed but libdoc didn't report Browser
+ * keywords, opening a "do you want to install robotframework-
+ * browser?" prompt is wrong: the library IS installed, the
+ * problem is the libdoc cache (or rf-mcp) didn't pick it up.
+ */
+function _isLibraryProvided(
+  libraryName: string,
+  installed: ReadonlyArray<{ name: string; version: string }>,
+): boolean {
+  const lower = libraryName.toLowerCase()
+  const providers = _LIBRARY_PROVIDERS[lower]
+  if (!providers) return false
+  const installedNames = new Set(installed.map(p => p.name.toLowerCase()))
+  return providers.some(p => installedNames.has(p.toLowerCase()))
+}
+
+// --- Library install dialog state ---
+//
+// Opens after the user adds a Library import (typically via the
+// auto-import path when picking a keyword from a non-imported
+// library) AND the post-refresh check finds that the env doesn't
+// have any keywords for it. Asks whether to pip-install. The user
+// can edit the package-name guess before confirming.
+const installDialogOpen = ref(false)
+const installDialogLibrary = ref('')      // Robot library name (e.g. "Browser")
+const installDialogPipPackage = ref('')   // Editable pip name (e.g. "robotframework-browser")
+const installDialogEnvId = ref<number | null>(null)
+const installDialogEnvName = ref('')      // Pretty name for the body copy
+const installDialogInstalling = ref(false)
+const installDialogError = ref<string | null>(null)
+
+function _openInstallDialog(libraryName: string): void {
+  if (props.repoId == null) return
+  const repo = _reposStore.getRepo(props.repoId)
+  // Resolve env: repo's assigned env first, then global default,
+  // then any env. Returning null skips the dialog and falls back
+  // to a non-actionable info toast — the user has no env at all
+  // and the install button would have nothing to point at.
+  const repoEnv = repo?.environment_id ?? null
+  const defaultEnv = _envsStore.environments.find(e => e.is_default)
+  const envId = repoEnv ?? defaultEnv?.id ?? _envsStore.environments[0]?.id ?? null
+  if (envId == null) {
+    _toast.warning(
+      t('robotEditor.libraryNotInEnvTitle', { library: libraryName }),
+      t('robotEditor.libraryNoEnvAtAllBody', { library: libraryName }),
+    )
+    return
+  }
+  const env = _envsStore.environments.find(e => e.id === envId)
+  installDialogLibrary.value = libraryName
+  installDialogPipPackage.value = _guessPipPackage(libraryName)
+  installDialogEnvId.value = envId
+  installDialogEnvName.value = env?.name ?? ''
+  installDialogError.value = null
+  installDialogOpen.value = true
+}
+
+async function confirmLibraryInstall(): Promise<void> {
+  if (installDialogEnvId.value == null) return
+  const pipName = installDialogPipPackage.value.trim()
+  if (!pipName) return
+  installDialogInstalling.value = true
+  installDialogError.value = null
+  try {
+    await installPackage(installDialogEnvId.value, { package_name: pipName })
+    // Install kicked off (status == 'installing' or 'pending').
+    // Refresh keywords once more so the palette picks up the new
+    // library when the install completes.
+    _refreshKeywordsIfPossible()
+    _toast.success(
+      t('robotEditor.libraryInstallStartedTitle'),
+      t('robotEditor.libraryInstallStartedBody', { package: pipName }),
+    )
+    installDialogOpen.value = false
+  } catch (e: unknown) {
+    installDialogError.value = extractErrorDetail(
+      e,
+      t('robotEditor.libraryInstallFailed'),
+    )
+  } finally {
+    installDialogInstalling.value = false
+  }
+}
+
+function cancelLibraryInstall(): void {
+  installDialogOpen.value = false
+}
+
+/**
+ * Post-refresh sanity check: if the user just added `Library X` but
+ * the libdoc introspection didn't return any keywords for it, the
+ * library isn't actually installed in the repo's environment. Open
+ * the install dialog asking whether to pip-install it.
+ */
+async function onLibrariesChanged(addedLibrary?: string): Promise<void> {
+  if (props.repoId == null) return
+  try {
+    await _explorerStore.refreshKeywords(props.repoId)
+  } catch {
+    return
+  }
+  if (!addedLibrary) return
+  const lower = addedLibrary.toLowerCase()
+  const found = _explorerStore.keywords.some(k =>
+    (k.library || '').toLowerCase() === lower,
+  )
+  if (found) return
+
+  // Make sure the env list is loaded so we can resolve the env
+  // id and pretty name without a stale cache.
+  if (_envsStore.environments.length === 0) {
+    try { await _envsStore.fetchEnvironments() } catch { /* best-effort */ }
+  }
+  const repo = _reposStore.getRepo(props.repoId)
+  const repoEnv = repo?.environment_id ?? null
+  const defaultEnv = _envsStore.environments.find(e => e.is_default)
+  const envId = repoEnv ?? defaultEnv?.id ?? _envsStore.environments[0]?.id ?? null
+
+  // Pre-check the env's installed pip packages: if a known
+  // alternative provider for this library is already installed
+  // (e.g. browser-batteries instead of browser), DON'T offer to
+  // pip-install — the library IS available, the libdoc cache
+  // just hasn't picked it up. Surface the diagnostic instead.
+  if (envId != null) {
+    try {
+      const installed = await getInstalledPackages(envId)
+      if (_isLibraryProvided(addedLibrary, installed)) {
+        const provider = _LIBRARY_PROVIDERS[lower]?.find(p =>
+          installed.some(i => i.name.toLowerCase() === p.toLowerCase()),
+        ) ?? '?'
+        _toast.info(
+          t('robotEditor.libraryAlreadyProvidedTitle', { library: addedLibrary }),
+          t('robotEditor.libraryAlreadyProvidedBody', {
+            library: addedLibrary,
+            provider,
+          }),
+        )
+        return
+      }
+    } catch {
+      // installed-list fetch failed — fall through to the dialog,
+      // it's better to ask than silently skip.
+    }
+  }
+
+  _openInstallDialog(addedLibrary)
+}
+
+// File-switch trigger: refresh once after the new path settles.
+// `immediate: false` so we don't double-fetch when the component
+// mounts (the parent ExplorerView already calls `preloadKeywords` on
+// repo open).
+watch(
+  () => props.filePath,
+  (newPath, oldPath) => {
+    if (!newPath || newPath === oldPath) return
+    _refreshKeywordsIfPossible()
+  },
+)
 
 // --- Known RF Libraries (for Library setting autocomplete) ---
 const RF_LIBRARIES = [
@@ -1515,7 +2018,10 @@ watch(() => props.content, (newContent) => {
   // that would lose items with empty names during round-trip serialize→parse)
   if (newContent === lastEmittedContent) return
 
-  if (activeTab.value === 'visual') {
+  // Story EDITOR-6 — re-parse for both the visual and flow tab. Previously
+  // the flow tab never re-parsed on file switch, so the FlowEditor kept
+  // showing the previous file's content until the user toggled to visual.
+  if (activeTab.value === 'visual' || activeTab.value === 'flow') {
     parseRobotToForm(newContent)
     lazyLoadKeywordArgs()
   } else {
@@ -1533,13 +2039,14 @@ watch(() => props.content, (newContent) => {
 <template>
   <div class="robot-editor">
     <!-- Tab Bar -->
+    <!-- Story EDITOR-5: Flow first (leftmost) — it's the primary view now. -->
     <div class="spec-tabs">
       <div class="tab-buttons">
-        <button class="tab-btn" :class="{ active: activeTab === 'visual' }" @click="switchTab('visual')">
-          {{ t('robotEditor.visualTab') }}
-        </button>
         <button class="tab-btn" :class="{ active: activeTab === 'flow' }" @click="switchTab('flow')">
           {{ t('robotEditor.flowTab') }}
+        </button>
+        <button class="tab-btn" :class="{ active: activeTab === 'visual' }" @click="switchTab('visual')">
+          {{ t('robotEditor.visualTab') }}
         </button>
         <button class="tab-btn" :class="{ active: activeTab === 'code' }" @click="switchTab('code')">
           {{ t('robotEditor.codeTab') }}
@@ -2401,11 +2908,73 @@ watch(() => props.content, (newContent) => {
 
     <!-- Flow Tab -->
     <div v-if="activeTab === 'flow'" class="flow-tab-wrapper">
-      <FlowEditor :form="form" :repo-id="props.repoId" />
+      <FlowEditor
+        :form="form"
+        :repo-id="props.repoId"
+        :file-path="props.filePath"
+        :sidecar="sidecar"
+        @update:sidecar="onSidecarUpdated"
+        @add-test-case="addTestCase"
+        @add-keyword="addKeyword"
+        @libraries-changed="onLibrariesChanged"
+      />
     </div>
 
     <!-- Code Tab -->
     <div v-show="activeTab === 'code'" class="code-editor" ref="codeEditorContainer"></div>
+
+    <!-- Auto-install prompt for a Library import that the env doesn't
+         know about. Triggered from `onLibrariesChanged` when libdoc
+         introspection turned up no keywords for the just-added lib. -->
+    <BaseModal
+      v-model="installDialogOpen"
+      :title="t('robotEditor.libraryInstallDialogTitle', { library: installDialogLibrary })"
+      size="sm"
+    >
+      <p class="lib-install-intro">
+        {{ t('robotEditor.libraryInstallDialogIntro', {
+          library: installDialogLibrary,
+          env: installDialogEnvName,
+        }) }}
+      </p>
+      <label class="lib-install-pkg-label">
+        {{ t('robotEditor.libraryInstallDialogPipName') }}
+        <input
+          v-model="installDialogPipPackage"
+          type="text"
+          class="lib-install-pkg-input"
+          autocomplete="off"
+          spellcheck="false"
+          data-testid="lib-install-pkg-input"
+          :disabled="installDialogInstalling"
+        />
+        <small class="lib-install-pkg-hint">
+          {{ t('robotEditor.libraryInstallDialogPipHint') }}
+        </small>
+      </label>
+      <div v-if="installDialogError" class="lib-install-error" role="alert">
+        {{ installDialogError }}
+      </div>
+      <template #footer>
+        <BaseButton
+          variant="secondary"
+          :disabled="installDialogInstalling"
+          @click="cancelLibraryInstall"
+        >
+          {{ t('common.cancel') }}
+        </BaseButton>
+        <BaseButton
+          variant="primary"
+          :disabled="installDialogInstalling || !installDialogPipPackage.trim()"
+          data-testid="lib-install-confirm"
+          @click="confirmLibraryInstall"
+        >
+          {{ installDialogInstalling
+            ? t('robotEditor.libraryInstallDialogInstalling')
+            : t('robotEditor.libraryInstallDialogConfirm') }}
+        </BaseButton>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -2749,4 +3318,42 @@ watch(() => props.content, (newContent) => {
 
 /* Setting library input */
 .setting-library-input { width: 100%; font-family: 'Fira Code', 'Consolas', monospace; font-size: 12px; }
+
+/* Auto-install dialog body */
+.lib-install-intro {
+  margin: 0 0 1rem;
+  color: var(--color-text-secondary, #555);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.lib-install-pkg-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.lib-install-pkg-input {
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+.lib-install-pkg-hint {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--color-text-muted, #666);
+  font-weight: 400;
+  font-size: 0.78rem;
+}
+.lib-install-error {
+  margin-top: 0.75rem;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: rgba(192, 57, 43, 0.10);
+  color: #c0392b;
+  font-size: 0.85rem;
+}
 </style>

@@ -2,7 +2,7 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.auth.constants import Role
@@ -34,13 +34,29 @@ def engine():
 
 @pytest.fixture(scope="function")
 def db_session(engine):
-    """Provide a transactional database session that rolls back after each test."""
+    """Provide a transactional database session that rolls back after each test.
+
+    Uses the SQLAlchemy SAVEPOINT pattern: the outer connection-level
+    transaction wraps the whole test, and a nested SAVEPOINT is re-issued
+    after every session.commit() so commit-heavy handlers (SSO callback,
+    rate-limit counters) don't leak partial state between tests.
+    """
     connection = engine.connect()
     transaction = connection.begin()
     session = Session(bind=connection, expire_on_commit=False)
+    nested = connection.begin_nested()
+
+    @event.listens_for(session, "after_transaction_end")
+    def end_savepoint(session, trans):
+        nonlocal nested
+        if not nested.is_active:
+            nested = connection.begin_nested()
+
     yield session
+
     session.close()
-    transaction.rollback()
+    if transaction.is_active:
+        transaction.rollback()
     connection.close()
 
 
@@ -111,3 +127,18 @@ def auth_header(user) -> dict:
     """Create an authorization header for a user."""
     token = create_access_token(user.id, user.role)
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(autouse=True)
+def _reset_process_level_caches():
+    """Clear in-process caches that would otherwise leak between tests.
+
+    Currently only the SSO 429-audit dedup dict (sso_router module-level
+    state) — extend this fixture if more per-process caches are added.
+    """
+    try:
+        from src.auth.sso_router import _clear_audit_dedup_state
+        _clear_audit_dedup_state()
+    except Exception:
+        pass
+    yield

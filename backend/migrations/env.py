@@ -19,6 +19,8 @@ import src.environments.models  # noqa: F401
 import src.reports.models  # noqa: F401
 import src.stats.models  # noqa: F401
 import src.settings.models  # noqa: F401
+import src.teams.models  # noqa: F401
+import src.rate_limit  # noqa: F401 — registers RateLimitCounter
 
 config = context.config
 if config.config_file_name is not None:

@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstra
 from sqlalchemy.orm import Mapped, mapped_column
 
 import src.environments.models  # noqa: F401 — FK resolution
+import src.teams.models  # noqa: F401 — FK resolution for repositories.team_id -> teams.id
 from src.database import Base, TimestampMixin
 
 
@@ -23,11 +24,15 @@ class Repository(Base, TimestampMixin):
     last_synced_at: Mapped[datetime | None] = mapped_column(default=None)
     auto_sync: Mapped[bool] = mapped_column(Boolean, default=True)
     sync_interval_minutes: Mapped[int] = mapped_column(Integer, default=15)
+    pre_run_sync: Mapped[bool] = mapped_column(Boolean, default=False)
     sync_status: Mapped[str | None] = mapped_column(String(20), nullable=True, default="idle")
     sync_error: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     environment_id: Mapped[int | None] = mapped_column(
         ForeignKey("environments.id", ondelete="SET NULL"), nullable=True, default=None
+    )
+    team_id: Mapped[int | None] = mapped_column(
+        ForeignKey("teams.id", ondelete="SET NULL"), nullable=True, default=None, index=True
     )
 
 

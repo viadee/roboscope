@@ -13,6 +13,13 @@ export interface User {
   is_active: boolean
   created_at: string
   last_login_at: string | null
+  /** Phase 4 — optional because older endpoints (login, register) still return UserResponse without them. */
+  teams?: { id: number; name: string }[]
+  default_team_id?: number | null
+  effective_roles_by_repo?: Record<string, Role>
+  first_login_complete?: boolean
+  /** SECURITY-1 — set on the seed admin until they rotate the default password. */
+  password_change_required?: boolean
 }
 
 export interface TokenResponse {
@@ -32,6 +39,7 @@ export interface Repository {
   last_synced_at: string | null
   auto_sync: boolean
   sync_interval_minutes: number
+  pre_run_sync: boolean
   sync_status: string | null
   sync_error: string | null
   created_by: number
@@ -163,13 +171,20 @@ export interface Environment {
   python_version_warning: string | null
 }
 
+export type PackageInstallStatus =
+  | 'pending'
+  | 'installing'
+  | 'initializing'
+  | 'installed'
+  | 'failed'
+
 export interface EnvironmentPackage {
   id: number
   environment_id: number
   package_name: string
   version: string | null
   installed_version: string | null
-  install_status: 'pending' | 'installing' | 'initializing' | 'installed' | 'failed'
+  install_status: PackageInstallStatus
   install_error: string | null
   needs_rfbrowser_init?: boolean
   rfbrowser_status?: 'ok' | 'needed' | null
@@ -272,6 +287,20 @@ export interface FlakyTest {
   fail_count: number
   flaky_rate: number
   last_status: string
+  // Story FLAKY-1 — quarantine state merged in server-side.
+  is_quarantined?: boolean
+  quarantine_id?: number | null
+  repository_id?: number | null
+}
+
+export interface FlakyQuarantineEntry {
+  id: number
+  repository_id: number
+  suite_name: string
+  test_name: string
+  reason: string | null
+  quarantined_by: number
+  quarantined_at: string
 }
 
 export interface AppSetting {
@@ -306,10 +335,12 @@ export interface DockerStatus {
 
 // --- Analysis types ---
 
+export type AnalysisStatus = 'pending' | 'running' | 'completed' | 'error'
+
 export interface AnalysisReport {
   id: number
   repository_id: number | null
-  status: 'pending' | 'running' | 'completed' | 'error'
+  status: AnalysisStatus
   selected_kpis: string[]
   date_from: string | null
   date_to: string | null
@@ -428,6 +459,11 @@ export interface AiProvider {
   updated_at: string
 }
 
+export interface SuggestedPatch {
+  file_path: string
+  unified_diff: string
+}
+
 export interface AiJob {
   id: number
   job_type: AiJobType
@@ -444,6 +480,7 @@ export interface AiJob {
   started_at: string | null
   completed_at: string | null
   created_at: string
+  suggested_patches?: SuggestedPatch[]
 }
 
 export interface DriftResult {
@@ -511,4 +548,166 @@ export interface WebhookTestResult {
   success: boolean
   status_code: number | null
   error: string | null
+}
+
+// Recording
+
+export type RecordingStatus = 'pending' | 'recording' | 'processing' | 'completed' | 'failed' | 'cancelled'
+export type RecordingSource = 'playwright' | 'extension'
+
+export interface RecordingSession {
+  id: number
+  repository_id: number
+  environment_id: number | null
+  status: RecordingStatus
+  source: RecordingSource
+  target_url: string | null
+  target_file_path: string | null
+  target_library: string
+  event_count: number
+  generated_robot: string | null
+  rf_mcp_session_id: string | null
+  started_at: string | null
+  finished_at: string | null
+  duration_seconds: number | null
+  triggered_by: number
+  error_message: string | null
+  created_at: string
+}
+
+export interface RecordingListResponse {
+  items: RecordingSession[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface RecordingEvent {
+  event_type: string
+  selector?: string
+  value?: string
+  url?: string
+  tag?: string
+  timestamp?: number
+}
+
+// --- Identity Provider (Phase 4) ---
+
+export type IdpProviderType =
+  | 'oidc_azure_ad'
+  | 'oidc_google'
+  | 'oidc_github'
+  | 'oidc_generic'
+
+export type DryRunStatus = 'passed' | 'warning' | 'failed'
+
+export interface IdpProvider {
+  id: number
+  name: string
+  provider_type: IdpProviderType
+  issuer_url: string
+  client_id: string
+  scopes: string
+  group_claim_name: string
+  is_enabled: boolean
+  last_dry_run_at: string | null
+  last_dry_run_status: 'passed' | 'failed' | null
+  discovery_cached_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface IdpProviderCreate {
+  name: string
+  provider_type: IdpProviderType
+  issuer_url: string
+  client_id: string
+  client_secret: string
+  scopes?: string
+  group_claim_name?: string
+}
+
+export interface IdpProviderUpdate {
+  name?: string
+  provider_type?: IdpProviderType
+  issuer_url?: string
+  client_id?: string
+  client_secret?: string
+  scopes?: string
+  group_claim_name?: string
+  is_enabled?: boolean
+}
+
+export interface DryRunCheckRow {
+  check_name: string
+  status: DryRunStatus
+  detail: string
+}
+
+export interface DryRunProbeResponse {
+  overall_status: 'passed' | 'failed'
+  checks: DryRunCheckRow[]
+  elapsed_ms: number
+}
+
+// --- Phase-4 Teams + Group Mappings + Public SSO ---
+// Mirrors `backend/src/teams/schemas.py` and the `SsoProviderPublic`
+// shape from `backend/src/auth/schemas.py`. These were imported by
+// teams.api / teams.store / sso.store but never defined here, leaving
+// the entire teams admin view broken at type-check (DEVEX-2 surfaced
+// it once `npm run lint` actually ran).
+
+export interface Team {
+  id: number
+  name: string
+  description: string | null
+  external_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TeamCreate {
+  name: string
+  description?: string | null
+}
+
+export interface TeamUpdate {
+  name?: string | null
+  description?: string | null
+}
+
+export interface TeamMemberDetail {
+  id: number
+  user_id: number
+  email: string
+  role: string
+  source: string
+}
+
+export interface TeamDetail extends Team {
+  members: TeamMemberDetail[]
+}
+
+export interface GroupMapping {
+  id: number
+  idp_id: number
+  team_id: number
+  group_claim_value: string
+  role: string
+  created_at: string
+  updated_at: string
+}
+
+export interface GroupMappingCreate {
+  idp_id: number
+  group_name: string
+  role?: string
+}
+
+/** Public-safe IdP row — only the fields the unauthenticated login
+ *  view needs to render a provider button. */
+export interface SsoProviderPublic {
+  id: number
+  name: string
+  provider_type: string
 }

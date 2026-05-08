@@ -83,18 +83,20 @@ export function useTour() {
       },
     })
 
-    // Step 5: Dashboard KPI cards
+    // Step 5: Dashboard navigation cards (post-0.9.0 dashboard rebuild —
+    // the previous .kpi-card and .data-table selectors are gone; the
+    // new dashboard is a card grid into every nav section).
     steps.push({
-      element: '.kpi-card',
+      element: '.dashboard-card:not(.dashboard-card--tip)',
       popover: {
         title: t('tour.dashboard.title'),
         description: t('tour.dashboard.description'),
       },
     })
 
-    // Step 6: Dashboard recent runs → navigate to /repos
+    // Step 6: Tip of the day → next: navigate to /repos
     steps.push({
-      element: '.data-table',
+      element: '[data-testid="tip-of-the-day"]',
       popover: {
         title: t('tour.dashboardRuns.title'),
         description: t('tour.dashboardRuns.description'),

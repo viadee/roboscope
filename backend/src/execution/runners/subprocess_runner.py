@@ -56,6 +56,7 @@ class SubprocessRunner(AbstractRunner):
         tags_exclude: str | None = None,
         timeout: int = 3600,
         on_output: Callable[[str], None] | None = None,
+        listeners: list[str] | None = None,
     ) -> RunResult:
         """Execute Robot Framework tests via subprocess."""
         self._cancelled = False
@@ -69,6 +70,7 @@ class SubprocessRunner(AbstractRunner):
             variables=variables,
             tags_include=tags_include,
             tags_exclude=tags_exclude,
+            listeners=listeners,
         )
 
         # Prepare environment
@@ -231,6 +233,7 @@ class SubprocessRunner(AbstractRunner):
         variables: dict | None = None,
         tags_include: str | None = None,
         tags_exclude: str | None = None,
+        listeners: list[str] | None = None,
     ) -> list[str]:
         """Build the robot command line."""
         python = get_python_path(self.venv_path) if self.venv_path else sys.executable
@@ -253,6 +256,12 @@ class SubprocessRunner(AbstractRunner):
                 tag = tag.strip()
                 if tag:
                     cmd.extend(["--exclude", tag])
+
+        if listeners:
+            for spec in listeners:
+                spec = spec.strip()
+                if spec:
+                    cmd.extend(["--listener", spec])
 
         if variables:
             for key, value in variables.items():

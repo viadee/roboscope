@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base, TimestampMixin
@@ -28,6 +28,34 @@ class KpiRecord(Base):
     total_tests_passed: Mapped[int] = mapped_column(Integer, default=0)
     total_tests_failed: Mapped[int] = mapped_column(Integer, default=0)
     flaky_test_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class FlakyQuarantine(Base):
+    """Story FLAKY-1 — a manually-marked quarantine entry for a known-flaky
+    Robot Framework test. Presence in this table means "don't treat this
+    test's outcome as blocking"; runner-side skip-on-execute is tracked
+    as follow-up Story FLAKY-2.
+    """
+
+    __tablename__ = "flaky_quarantine"
+    __table_args__ = (
+        UniqueConstraint(
+            "repository_id", "suite_name", "test_name",
+            name="uq_flaky_quarantine_repo_suite_test",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    repository_id: Mapped[int] = mapped_column(
+        ForeignKey("repositories.id", ondelete="CASCADE"), index=True
+    )
+    suite_name: Mapped[str] = mapped_column(String(500), index=True)
+    test_name: Mapped[str] = mapped_column(String(500), index=True)
+    reason: Mapped[str | None] = mapped_column(Text, default=None)
+    quarantined_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    quarantined_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False,
+    )
 
 
 class AnalysisReport(Base, TimestampMixin):

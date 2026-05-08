@@ -139,89 +139,61 @@ const de: DocsContent = [
         title: '\u00DCbersicht',
         content: `
 <p>
-  Das Dashboard ist die Startseite nach der Anmeldung und bietet einen
-  kompakten \u00DCberblick \u00FCber den aktuellen Stand Ihrer Testautomatisierung.
-  Alle Kennzahlen werden beim Laden der Seite in Echtzeit berechnet.
+  Das Dashboard ist die Startseite nach der Anmeldung. Es ist ein Karten-Grid,
+  das in jeden navigierbaren Bereich von RoboScope verlinkt \u2014 Projekte, Explorer,
+  Ausf\u00FChrungen, Statistiken, Recorder, Environments, Docs und Einstellungen \u2014
+  damit ein neuer Benutzer alles erreicht, ohne die Sidebar abzusuchen.
 </p>
 <p>
-  Die Seite gliedert sich in drei Abschnitte: <strong>KPI-Karten</strong>,
-  <strong>Letzte Ausf\u00FChrungen</strong> und <strong>Repository-\u00DCbersicht</strong>.
+  Neben den Navigationskarten zeigt eine <strong>Tipp des Tages</strong>-Karte
+  einen von 30 RoboScope-spezifischen Tipps, der t\u00E4glich rotiert. Tiefer
+  gehende Kennzahlen (Run-Anzahl, Erfolgsquote, Laufzeit-Trends) leben auf
+  der <strong>Statistik</strong>-Seite; aktuelle Runs auf der <strong>Ausf\u00FChrungs</strong>-Seite.
 </p>`
       },
       {
-        id: 'dashboard-kpis',
-        title: 'KPI-Karten',
+        id: 'navigation-cards',
+        title: 'Navigations-Karten',
         content: `
 <p>
-  Am oberen Rand des Dashboards werden vier Kennzahlen als Karten dargestellt:
+  Jede Karte ist ein klickbarer Shortcut. Beim Hover erscheint ein animierter
+  Pfeil und die Karte hebt sich leicht an.
 </p>
 <table>
-  <thead>
-    <tr><th>Karte</th><th>Beschreibung</th></tr>
-  </thead>
+  <thead><tr><th>Karte</th><th>Wohin sie f\u00FChrt</th></tr></thead>
   <tbody>
-    <tr>
-      <td><strong>Runs (30 Tage)</strong></td>
-      <td>Gesamtzahl der Testl\u00E4ufe in den letzten 30 Tagen</td>
-    </tr>
-    <tr>
-      <td><strong>Erfolgsquote</strong></td>
-      <td>Anteil der erfolgreichen Runs in Prozent (30-Tage-Zeitraum)</td>
-    </tr>
-    <tr>
-      <td><strong>Durchschn. Laufzeit</strong></td>
-      <td>Mittlere Ausf\u00FChrungsdauer aller abgeschlossenen Runs</td>
-    </tr>
-    <tr>
-      <td><strong>Aktive Repos</strong></td>
-      <td>Anzahl der eingebundenen Git-Repositories</td>
-    </tr>
+    <tr><td><strong>Projekte</strong></td><td>Git- oder lokale Projekte konfigurieren, Sync-Pl\u00E4ne setzen, Berechtigungen verwalten.</td></tr>
+    <tr><td><strong>Explorer</strong></td><td>Dateibaum durchst\u00F6bern, Robot-Tests visuell oder als Code bearbeiten.</td></tr>
+    <tr><td><strong>Ausf\u00FChrung</strong></td><td>Tests ausl\u00F6sen, Live-Fortschritt verfolgen, wiederkehrende Runs planen.</td></tr>
+    <tr><td><strong>Statistiken</strong></td><td>Pass/Fail-Trends, Flaky Tests, Self-Healing-Rate.</td></tr>
+    <tr><td><strong>Recorder</strong></td><td>Browser-Interaktionen aufnehmen, Robot-Tests automatisch generieren. (Editor-Rolle aufw\u00E4rts.)</td></tr>
+    <tr><td><strong>Environments</strong></td><td>Python-Venvs verwalten, pip-Pakete installieren, Docker-Images bauen. (Editor-Rolle aufw\u00E4rts.)</td></tr>
+    <tr><td><strong>Docs</strong></td><td>Diese Dokumentation, voll durchsuchbar in vier Sprachen.</td></tr>
+    <tr><td><strong>Einstellungen</strong></td><td>AI-Provider, Retention, Secrets, Audit-Log, Compliance. (Admin-Rolle.)</td></tr>
   </tbody>
 </table>
 <p>
-  Die Karten sind farblich codiert und zeigen bei \u00C4nderungen gegen\u00FCber dem
-  vorherigen Zeitraum einen Trend-Indikator an.
-</p>`
-      },
-      {
-        id: 'dashboard-recent-runs',
-        title: 'Letzte Ausf\u00FChrungen',
-        content: `
-<p>
-  Unterhalb der KPI-Karten befindet sich eine Tabelle mit den j\u00FCngsten
-  Testl\u00E4ufen. Jede Zeile zeigt:
-</p>
-<ul>
-  <li><strong>Status-Badge</strong> \u2014 Farbige Kennzeichnung (passed, failed, running, pending, error, cancelled, timeout)</li>
-  <li><strong>Repository-Name</strong> \u2014 Welches Repository ausgef\u00FChrt wurde</li>
-  <li><strong>Zielpfad</strong> \u2014 Die ausgef\u00FChrte Datei oder das Verzeichnis</li>
-  <li><strong>Dauer</strong> \u2014 Wie lange der Run gedauert hat</li>
-  <li><strong>Zeitstempel</strong> \u2014 Wann der Run gestartet wurde</li>
-</ul>
-<p>
-  Ein Klick auf eine Zeile navigiert direkt zur <strong>Ausf\u00FChrungs-Detailseite</strong>
-  des jeweiligen Runs.
-</p>`
-      },
-      {
-        id: 'dashboard-repos',
-        title: 'Repository-\u00DCbersicht',
-        content: `
-<p>
-  Die Repository-\u00DCbersicht zeigt alle eingebundenen Repositories als kompakte
-  Karten. Jede Karte enth\u00E4lt:
-</p>
-<ul>
-  <li>Den Repository-Namen und die URL</li>
-  <li>Den aktiven Branch</li>
-  <li>Den Zeitpunkt der letzten Synchronisation</li>
-  <li>Einen Schnellzugriff zum \u00D6ffnen im Explorer</li>
-</ul>
-<p>
-  Von hier aus k\u00F6nnen Sie mit einem Klick direkt in den
-  <strong>Explorer</strong> eines Repositories wechseln.
+  Karten respektieren die Rolle: Recorder + Environments brauchen Editor oder
+  h\u00F6her; Einstellungen braucht Admin.
 </p>`,
-        tip: 'Wenn noch keine Repositories angelegt sind, wird stattdessen eine Anleitung zum Hinzuf\u00FCgen angezeigt.'
+        tip: 'Neu bei RoboScope? Starte bei der Projekte-Karte \u2014 ein Default-Projekt "Robot Framework Examples" wird beim ersten Start automatisch geseedet, damit du gleich etwas zum Spielen hast.'
+      },
+      {
+        id: 'tip-of-the-day',
+        title: 'Tipp des Tages',
+        content: `
+<p>
+  Eine kleine <strong>\u{1F4A1} Tipp des Tages</strong>-Karte sitzt im Grid und
+  zeigt einen von 30 kurzen RoboScope-spezifischen Tipps. Tipps rotieren in
+  einem 30-Tage-Zyklus \u2014 jeder Kalendertag w\u00E4hlt einen neuen \u2014 sodass
+  h\u00E4ufige Nutzer jeden Tag ein neues Feature lernen.
+</p>
+<p>
+  Die Tipps fokussieren sich auf RoboScope-Features (Flow Editor Palette,
+  Recorder Selector Picker, Self-Healing Keywords, Stats Heal-Rate, Repos
+  Auto-Sync, Run-Detail-Panel, \u2026) \u2014 keine generischen Robot-Framework-Tipps.
+  Texte sind in EN/DE/FR/ES verf\u00FCgbar.
+</p>`
       }
     ]
   },
@@ -269,7 +241,7 @@ const de: DocsContent = [
       },
       {
         id: 'repositories-sync',
-        title: 'Synchronisation & Auto-Sync',
+        title: 'Synchronisation, Speichern & Branches',
         content: `
 <p>
   Repositories k\u00F6nnen jederzeit manuell synchronisiert werden, um den
@@ -295,6 +267,53 @@ const de: DocsContent = [
   Die <strong>Auto-Sync</strong>-Checkbox auf jeder Projektkarte steuert, ob das
   Repository vor Testausf\u00FChrungen automatisch synchronisiert wird. Aktivieren Sie
   sie f\u00FCr CI/CD-Workflows, bei denen immer der neueste Code getestet werden soll.
+</p>
+<h4>Speichern: Änderungen ins Remote zurückschreiben</h4>
+<p>
+  Wenn Sie Dateien im Explorer bearbeiten, werden sie auf dem Server in den
+  Working Tree geschrieben &mdash; noch nicht committet, noch nicht gepusht.
+  Sobald es ungespeicherte Änderungen gibt, zeigt das Explorer-Dateipanel
+  einen farbigen <strong>{n} Änderungen speichern</strong>-Button.
+</p>
+<ol>
+  <li>Auf <strong>Änderungen speichern</strong> klicken.</li>
+  <li>Dateien auswählen, die Sie veröffentlichen möchten (Default: alle).</li>
+  <li>Eine Commit-Nachricht eintippen, die Ihre Änderung beschreibt.</li>
+  <li><strong>Speichern</strong> klicken. RoboScope committet mit Ihrer
+      Account-Identität (Benutzername + E-Mail werden Git-Author und
+      Committer) und pusht den Commit auf die konfigurierte Remote-Branch.</li>
+</ol>
+<p>
+  Hat in der Zwischenzeit jemand anderes gepusht und ist das Remote
+  vorgerückt, wechselt das Modal in einen Recovery-Zustand und bietet einen
+  <strong>Neueste ziehen und erneut versuchen</strong>-Button. Ihr lokaler
+  Commit bleibt erhalten &mdash; auf diesem Weg können Sie Arbeit nicht
+  verlieren; im schlimmsten Fall müssen Sie den Konflikt außerhalb von
+  RoboScope auflösen und mit einem Git-Client pushen.
+</p>
+<p>
+  <strong>Wichtiger Hinweis:</strong> Auto-Sync zieht jetzt im Hintergrund
+  alle <code>sync_interval_minutes</code> (Standard 15 min) per <code>git pull</code>.
+  Der Scheduler tickt alle 5 min, sehr kurze Intervalle werden also auf
+  5 min aufgerundet. Repos mit laufender Synchronisation werden für
+  diesen Tick übersprungen. Speichern Sie immer Ihre Änderungen via
+  <strong>Änderungen speichern</strong> bevor Sie auf <strong>Sync</strong>
+  klicken &mdash; sonst kann der Pull lokale Edits überschreiben oder mit
+  einem Merge-Fehler abbrechen.
+</p>
+<h4>Pre-Run-Sync (Pull vor jedem Lauf)</h4>
+<p>
+  Aktivieren Sie <strong>Pre-Run-Sync</strong> auf einem Repository,
+  wenn jeder Testlauf den allerneuesten Commit verwenden muss. RoboScope
+  führt synchron einen <code>git pull</code> direkt vor dem Start des
+  Runners aus, mit 60&nbsp;s Timeout. Pre-Run-Sync ist standardmäßig
+  deaktiviert und kostet ein paar Sekunden pro Lauf; er ist unabhängig
+  von Auto-Sync &mdash; Sie können beide, einen oder keinen aktivieren.
+</p>
+<p>
+  Schlägt der Pull fehl (Netzwerkfehler, Konflikt, Timeout), startet der
+  Lauf trotzdem mit dem Stand auf der Platte. Der Fehler wird geloggt,
+  und der nächste Auto-Sync-Tick versucht es erneut.
 </p>`
       },
       {
@@ -480,9 +499,11 @@ const de: DocsContent = [
 </p>
 <h4>Knotentypen</h4>
 <ul>
-  <li><strong>Start-/End-Knoten</strong> &mdash; Runde Knoten, die den Testfallnamen anzeigen und Anfang und Ende jedes Flows markieren.</li>
+  <li><strong>Start-/End-Knoten</strong> &mdash; Runde Knoten, die Anfang und Ende jedes Flows markieren. Der Start-Knoten zeigt den Testfall- bzw. Keyword-Namen; per Klick \u00F6ffnet sich ein Section-Settings-Panel mit <strong>+ [&hellip;]</strong>-Buttons f\u00FCr jede noch nicht angef\u00FCgte Einstellung.</li>
   <li><strong>Keyword-Knoten</strong> (blau) &mdash; Repr\u00E4sentieren Keyword-Aufrufe. Klicken Sie auf einen Knoten, um seine Argumente im Detail-Panel rechts zu sehen.</li>
   <li><strong>Kontrollstruktur-Knoten</strong> (gestrichelter Rand) &mdash; Repr\u00E4sentieren Kontrollstrukturen wie <code>IF</code>, <code>FOR</code>, <code>WHILE</code> und <code>TRY/EXCEPT</code>. Farbcodiert nach Typ (Amber f\u00FCr IF, Violett f\u00FCr FOR/WHILE, Teal f\u00FCr TRY, Rot f\u00FCr EXCEPT). Edge-Labels zeigen Verzweigungsbedingungen (true/false).</li>
+  <li><strong>RETURN-Knoten</strong> (gr\u00FCn, &uarr;-Glyph) &mdash; Markiert den R\u00FCckgabepunkt einer Keyword-Definition. Jeder R\u00FCckgabewert wird als Value-Chip dargestellt; per Klick lassen sich im <strong>R\u00FCckgabewerte</strong>-Panel Zellen hinzuf\u00FCgen / entfernen.</li>
+  <li><strong>Seitennotizen</strong> (gestrichelter Rand, kursive Vorschau) &mdash; Testfall- bzw. Keyword-Einstellungen, links neben dem Start-Knoten gerendert. Siehe n\u00E4chster Abschnitt.</li>
 </ul>
 <h4>Keyword-Palette</h4>
 <p>
@@ -502,6 +523,66 @@ const de: DocsContent = [
   als auch den rohen <code>.robot</code>-Code aktualisieren.
 </p>`,
         tip: 'Nutzen Sie die MiniMap in der unteren rechten Ecke der Flow-Canvas, um in gro\u00DFen Test-Suites zu navigieren. Das Controls-Panel erm\u00F6glicht Zoom und Ansichtsanpassung.'
+      },
+      {
+        id: 'flow-editor-settings',
+        title: 'Testfall- &amp; Keyword-Einstellungen (Seitennotizen)',
+        content: `
+<p>
+  In Robot Framework lassen sich an einen Testfall <strong><code>[&hellip;]</code>-
+  Einstellungen</strong> anh\u00E4ngen (<code>[Documentation]</code>, <code>[Tags]</code>,
+  <code>[Setup]</code>, <code>[Teardown]</code>, <code>[Template]</code>,
+  <code>[Timeout]</code>) und an eine Keyword-Definition dieselben plus
+  <code>[Arguments]</code>. Der Flow-Editor zeigt jede gef\u00FCllte Einstellung
+  als eigene <strong>Seitennotiz</strong>, vertikal gestapelt links vom
+  Start-Knoten und \u00FCber eine gestrichelte Kante verbunden.
+</p>
+<p>
+  Jede Seitennotiz zeigt ein Label wie <code>[Tags]</code> und eine kurze
+  kursive Vorschau des Werts (mehrzeilige Dokumentation wird auf zwei Zeilen
+  geclamped, damit eine lange <code>[Documentation]</code> die Notiz darunter
+  nicht verdr\u00E4ngt). Klicken Sie eine Seitennotiz an, um ein typabh\u00E4ngiges
+  Detail-Panel zu \u00F6ffnen:
+</p>
+<ul>
+  <li><strong>[Documentation]</strong> &mdash; mehrzeiliges Textfeld. Mehrzeiliger
+  Text wird beim Speichern als <code>...</code>-Folgezeilen in der
+  <code>.robot</code>-Datei abgelegt.</li>
+  <li><strong>[Tags]</strong> / <strong>[Arguments]</strong> &mdash;
+  komma-separierte Eingabe. <code>${'${name}'}=default</code> ist eine
+  g\u00FCltige Argument-Spec; <code>${'@{name}'}</code> funktioniert f\u00FCr Varargs.</li>
+  <li><strong>[Setup]</strong> / <strong>[Teardown]</strong> &mdash; Keyword-
+  Name, der vor / nach dem Body l\u00E4uft. \u00DCberschreibt das Suite-Level Test
+  Setup / Teardown nur f\u00FCr diesen Testfall.</li>
+  <li><strong>[Template]</strong> (nur Testf\u00E4lle) &mdash; macht den Body zu
+  einer datengetriebenen Schleife, in der jede Zeile ein Aufruf des Template-
+  Keywords mit der Zeile als Argumente ist.</li>
+  <li><strong>[Timeout]</strong> &mdash; maximale Laufzeit, danach wird
+  abgebrochen (z. B. <code>30s</code>, <code>5 minutes</code>).</li>
+</ul>
+<h4>Einstellung hinzuf\u00FCgen</h4>
+<p>
+  Klicken Sie auf den Start-Knoten, um das <strong>Testfall-Einstellungen</strong>-
+  bzw. <strong>Keyword-Einstellungen</strong>-Panel zu \u00F6ffnen. F\u00FCr jeden Typ,
+  der noch nicht angef\u00FCgt ist, erscheint ein <strong>+ [&hellip;]</strong>-
+  Button; klick \u2014 und die Seitennotiz erscheint mit gedimmtem
+  \u201Eklicken zum Bearbeiten\u201C-Platzhalter, bereit zur Eingabe. Sobald jede
+  Einstellung gef\u00FCllt ist, f\u00E4llt das Panel auf einen Hinweis zur\u00FCck, der auf
+  die Seitennotizen verweist.
+</p>
+<h4>Einstellung entfernen</h4>
+<p>
+  \u00D6ffnen Sie das Detail-Panel der Seitennotiz und nutzen Sie den
+  <strong>&times;</strong>-Button im Header. Die Seitennotiz verschwindet
+  vom Canvas, sobald der zugrundeliegende Wert geleert ist.
+</p>
+<p>
+  Eingaben werden lokal gepuffert und erst bei <strong>blur</strong> in das
+  Form zur\u00FCckgeschrieben &mdash; Tippen feuert keinen Deep-Watcher pro
+  Tastendruck mehr ab, das Panel bleibt w\u00E4hrend mehrteiliger Eingaben
+  ge\u00F6ffnet.
+</p>`,
+        tip: 'Eine Seitennotiz ist nur eine Visualisierung der zugrundeliegenden [Documentation] / [Tags] / etc.-Zeile \u2014 der Round-Trip-Serialisierer produziert immer die kanonische .robot-Syntax, eine im Flow-Tab bearbeitete und gespeicherte Datei sieht also identisch aus zu einer von Hand geschriebenen.'
       },
       {
         id: 'explorer-search',
@@ -540,6 +621,236 @@ const de: DocsContent = [
       }
     ]
   },
+  // ─── 5. Recorder ──────────────────────────────────────────────────
+  {
+    id: 'recorder',
+    title: 'Recorder',
+    icon: '\uD83D\uDD34',
+    subsections: [
+      {
+        id: 'recorder-overview',
+        title: 'Was ist der Recorder?',
+        content: `
+<p>
+  Der <strong>RoboScope Recorder</strong> erm\u00F6glicht es, Browser-Interaktionen aufzuzeichnen und
+  automatisch <code>.robot</code>-Testdateien zu generieren. Es gibt zwei Aufnahmemethoden:
+</p>
+<ul>
+  <li><strong>Recorder v2 (empfohlen)</strong> &mdash; \u00D6ffnen Sie den Launcher \u00FCber den
+  Sidebar-Eintrag <em>Recorder</em> oder direkt aus der Explorer-Toolbar \u00FCber den Button
+  <em>Recorder v2</em> (der Explorer-Button w\u00E4hlt das aktuelle Repository vor). Der Launcher
+  bietet eine Transport-Auswahl (Web / Desktop&nbsp;Windows), ein optionales Feld <em>URL \u00F6ffnen</em>,
+  damit der gesteuerte Browser direkt zur Startseite navigiert (nur <code>http://</code> /
+  <code>https://</code> sind erlaubt &mdash; leer lassen f\u00FCr <code>about:blank</code>),
+  \u00F6ffnet eine kontrollierte Browser-Sitzung und streamt jede erfasste Aktion \u00FCber
+  Server-Sent Events in die Live-Schrittliste &mdash; inklusive Selektor-Kandidaten pro Schritt.</li>
+  <li><strong>Chrome-Erweiterung</strong> &mdash; Installieren Sie die RoboScope Recorder-Erweiterung, um
+  direkt in Ihrem eigenen Browser aufzunehmen. Aktionen werden bei bestehender Verbindung \u00FCber die API an RoboScope weitergeleitet.
+  Der fr\u00FChere In-App-Recorder-Button in der Explorer-Toolbar wurde entfernt; Chrome-Erweiterung-Workflows sind
+  nicht betroffen, da sie direkt mit dem Backend sprechen.</li>
+</ul>
+<h4>Aufnahme-Ablauf</h4>
+<ol>
+  <li>Starten Sie eine Aufnahme (In-App oder \u00FCber die Erweiterung)</li>
+  <li>Interagieren Sie mit der zu testenden Webanwendung</li>
+  <li>Stoppen Sie die Aufnahme &mdash; RoboScope generiert eine <code>.robot</code>-Datei</li>
+  <li>\u00DCberpr\u00FCfen, bearbeiten und speichern Sie den generierten Test in Ihrem Projekt</li>
+</ol>`,
+        tip: 'Der In-App-Recorder funktioniert ohne Browser-Erweiterung. Die Chrome-Erweiterung ist n\u00FCtzlich, wenn Sie in einem Browser aufnehmen m\u00F6chten, in dem Sie bereits angemeldet sind.'
+      },
+      {
+        id: 'recorder-anatomy',
+        title: 'Aufbau der generierten .robot-Datei',
+        content: `
+<p>
+  Web-Aufnahmen werden zu einer eigenst\u00E4ndigen <code>.robot</code>-Datei mit einem
+  <strong>Variables-Block</strong> f\u00FCr den Headless-Schalter und einem Browser-Library-
+  Bootstrap, der f\u00FCr reale Webseiten optimiert ist.
+</p>
+<pre><code>*** Settings ***
+Library           Browser
+
+*** Variables ***
+\${HEADLESS}       false
+
+*** Test Cases ***
+Recording 21
+    New Browser    chromium    headless=\${HEADLESS}
+    New Context
+    New Page    https://example.com    wait_until=domcontentloaded
+    Click    text=Anmelden
+    ...</code></pre>
+<h4>Warum <code>\${HEADLESS}</code> als Variable</h4>
+<p>
+  So kann zwischen sichtbarem und Headless-Modus gewechselt werden, ohne den Test
+  selbst anzufassen \u2014 einfach beim Aufruf \u00FCberschreiben:
+  <code>robot --variable HEADLESS:true tests/&lt;datei&gt;.robot</code>. Default ist
+  <code>false</code> (sichtbarer Browser), passend zum interaktiven Aufnahmekontext.
+</p>
+<h4>Warum <code>wait_until=domcontentloaded</code></h4>
+<p>
+  Playwrights Default <code>wait_until="load"</code> wartet auf jede Subressource
+  (Werbung, Tracker, sp\u00E4t geladene <code>&lt;script&gt;</code>-Tags). Auf realen
+  Seiten passiert das oft nicht innerhalb der 10 s Browser-Library-Timeout \u2014 der
+  Test schl\u00E4gt fehl, obwohl die Seite optisch fertig ist.
+  <code>domcontentloaded</code> reicht: das DOM ist geparst, jeder folgende Click /
+  Type Text / Scroll To Element findet sein Ziel.
+</p>
+<h4>Bearbeiten im visuellen Editor</h4>
+<p>
+  Im Detail-Panel des Flow-Editors gibt es neben jedem typisierten Eingabefeld
+  (Checkbox / Zahl / Auswahl) einen kleinen <code>{}</code>-Button, der den Slot
+  in eine Texteingabe umschaltet \u2014 n\u00FCtzlich, um eine Variable wie
+  <code>\${HEADLESS}</code> in einem Bool-Parameter zu setzen oder Werte einzugeben,
+  die der Recorder nicht erkennen konnte.
+</p>`
+      },
+      {
+        id: 'recorder-selector-verification',
+        title: 'Selektor-Verifikation &amp; Shadow DOM',
+        content: `
+<p>
+  Jede aufgenommene Aktion erh\u00E4lt eine Liste von Selektor-Kandidaten &mdash;
+  <code>data-testid</code>, <code>role + name</code>, <code>text</code>,
+  <code>css</code> (id, Klasse, parent-scoped), <code>xpath</code> und eine
+  Shadow-DOM-aware <code>host &gt;&gt; inner</code>-Kette wo passend.
+  RoboScope rankt sie so, dass der aktive Kandidat die Strict-Mode-Regel
+  von Playwright bei Replay \u00FCbersteht.
+</p>
+<h4>Sichtbarkeits-bewusste Eindeutigkeit</h4>
+<p>
+  Beim Capture l\u00F6st der Verifier jeden Kandidaten gegen die Live-Seite in
+  einem einzigen <code>evaluate_all</code>-Roundtrip auf und liefert
+  <code>{ total, visible, actionable }</code>:
+</p>
+<ul>
+  <li><strong>actionable = 1</strong> &mdash; Gold; genau ein
+  sichtbarer + klickbarer Treffer.</li>
+  <li><strong>visible = 1</strong> &mdash; verifiziert, kleine
+  Strafe (-5); Element ist sichtbar aber deaktiviert
+  (z. B. read-only Input).</li>
+  <li><strong>visible &ge; 2</strong> &mdash; Multi-Match; in eine
+  strategie-spezifische <code>:nth-match(1)</code> /
+  <code>... &gt;&gt; nth=0</code>-Form umgeschrieben, damit Strict-
+  Mode-Replay trotzdem genau ein Element trifft. Strafe -15, sodass
+  ein Parent-kontextualisierter Alternativ-Kandidat vorbeizieht,
+  wenn vorhanden.</li>
+  <li><strong>visible = 0, total &ge; 1</strong> &mdash; Element ist
+  versteckt; nur als Notnagel behalten (-25), damit ein sp\u00E4terer
+  Auto-Heal es ausprobieren kann, aber jede sichtbare Alternative
+  gewinnt.</li>
+  <li><strong>total = 0</strong> &mdash; Selektor zeigt auf nichts,
+  f\u00E4llt raus.</li>
+</ul>
+<h4>Parent-Kontext-Disambiguierung</h4>
+<p>
+  Ein nacktes <code>button.submit-btn</code>, das jeden Submit-Button
+  auf der Seite trifft, ist die h\u00E4ufigste Strict-Mode-Failure-Quelle
+  bei Replay. Die CSS-Strategie emittiert daher zus\u00E4tzlich eine
+  Vorfahren-gescopte Variante, sobald ein Vorfahre eine stabile id /
+  data-testid tr\u00E4gt &mdash; z. B.
+  <code>#checkout-form button.submit-btn</code> &mdash; mit
+  Quality-Bonus +10 gegen\u00FCber der nackten Klassen-Kette. Der
+  Verifier bevorzugt sie, wann immer sie disambiguiert.
+</p>
+<h4>Shadow DOM</h4>
+<p>
+  Das Capture-Skript nutzt f\u00FCr jedes Event
+  <code>ev.composedPath()[0]</code>, damit ein Klick in einer Open
+  Shadow Root das *echte* angeklickte Element erfasst, nicht den
+  Host im Light-DOM. Der Vorfahren-Walk \u00FCberquert Shadow-Grenzen
+  \u00FCber den Host-Knoten; jeder Vorfahre tr\u00E4gt ein
+  <code>is_shadow_host</code>-Flag.
+</p>
+<p>
+  Lebt das erfasste Element in einer (oder mehreren) Open Shadow
+  Roots, emittiert die Synthese einen Playwright-chained
+  <code>&lt;host-selector&gt; &gt;&gt; &lt;inner&gt;</code>-Kandidaten
+  (z. B. <code>my-dialog &gt;&gt; [data-testid=&quot;save-btn&quot;]</code>).
+  Das durchst\u00F6\u00DFt die Shadow-Grenze explizit &mdash; sich auf
+  Playwrights implizites Piercing zu verlassen ist Engine-abh\u00E4ngig
+  und auf Browser-Library / RF-Runner-Seite leicht falsch
+  konfigurierbar. Closed Shadow Roots bleiben f\u00FCr Userspace-JS
+  undurchsichtig, deshalb fallen Closed-Root-Elemente auf den
+  erfassten Host-Selektor zur\u00FCck.
+</p>`,
+        tip: 'In der Recorder-UI bedeutet ein gr\u00FCnes \u2713 neben einem Selektor, dass er auf der Live-Seite genau ein sichtbares + klickbares Element aufl\u00F6st. Mehrere Kandidaten erscheinen nach Rang sortiert \u2014 der Picker erlaubt, auf einen anderen umzuschalten, falls die Auto-Wahl nicht passt.'
+      },
+      {
+        id: 'recorder-extension',
+        title: 'Chrome-Erweiterung',
+        content: `
+<p>
+  Die <strong>RoboScope Recorder</strong> Chrome-Erweiterung zeichnet Interaktionen direkt
+  in Ihrem Browser auf &mdash; kein separates Browser-Fenster n\u00F6tig. Besonders n\u00FCtzlich
+  f\u00FCr Seiten, die eine Authentifizierung erfordern, da Sie bereits angemeldet sind.
+</p>
+<h4>Installation</h4>
+<ol>
+  <li>Im RoboScope-Repository das Verzeichnis <code>extension/</code> finden</li>
+  <li><code>chrome://extensions</code> in Chrome oder einem Chromium-basierten Browser \u00F6ffnen</li>
+  <li><strong>Entwicklermodus</strong> aktivieren (Schalter oben rechts)</li>
+  <li><strong>Entpackte Erweiterung laden</strong> klicken und den Ordner <code>extension/</code> ausw\u00E4hlen</li>
+  <li>Das RoboScope-Recorder-Symbol erscheint in der Browser-Toolbar</li>
+</ol>
+<h4>Verbindung mit RoboScope</h4>
+<ol>
+  <li>Rechtsklick auf das Erweiterungs-Symbol und <strong>Optionen</strong> w\u00E4hlen</li>
+  <li><strong>Server-URL</strong> eingeben (z.B. <code>http://localhost:8000</code>)</li>
+  <li>Einen <strong>API-Token</strong> eingeben (erstellen unter Einstellungen &rarr; API-Tokens)</li>
+  <li><strong>Verbindung testen</strong> klicken zur \u00DCberpr\u00FCfung</li>
+  <li>Das Ziel-<strong>Projekt</strong> aus dem Dropdown ausw\u00E4hlen</li>
+  <li><strong>Speichern</strong> klicken</li>
+</ol>
+<p>
+  Nach erfolgreicher Verbindung erscheint ein gr\u00FCner Indikator im Erweiterungs-Popup.
+  Alle aufgezeichneten Aktionen werden automatisch an Ihre RoboScope-Instanz weitergeleitet.
+</p>`,
+        tip: 'Die Erweiterung funktioniert auch im Standalone-Modus ohne RoboScope-Verbindung &mdash; sie generiert .robot-Dateien lokal zum Herunterladen.'
+      },
+      {
+        id: 'recorder-extension-usage',
+        title: 'Erweiterung verwenden',
+        content: `
+<p>
+  Klicken Sie auf das Erweiterungs-Symbol, um das Popup zu \u00F6ffnen:
+</p>
+<ol>
+  <li><strong>Aufnehmen</strong> klicken, um Aktionen auf der aktuellen Seite zu erfassen</li>
+  <li>Mit der Seite interagieren &mdash; Klicks, Texteingaben und Auswahlen werden erfasst</li>
+  <li><strong>Stopp</strong> klicken, um die Aufnahme zu beenden und das Skript zu generieren</li>
+  <li><strong>Kopieren</strong> oder <strong>Herunterladen</strong> verwenden, um die generierte <code>.robot</code>-Datei zu speichern</li>
+</ol>
+<h4>Weitere Funktionen</h4>
+<ul>
+  <li><strong>Pause / Fortsetzen</strong> &mdash; Aufnahme vor\u00FCbergehend unterbrechen ohne erfasste Aktionen zu verlieren</li>
+  <li><strong>Seite scannen</strong> &mdash; Aktuelle Seite nach allen interaktiven Elementen durchsuchen und Locator generieren</li>
+  <li><strong>XPath-Konsole</strong> &mdash; XPath-Ausdr\u00FCcke mit visueller Hervorhebung auf der Seite validieren</li>
+  <li><strong>Vorlagen</strong> &mdash; Vorgefertigte Skript-Vorlagen einf\u00FCgen (Login-Flow, Formular, Navigation)</li>
+  <li><strong>Einstellungen</strong> &mdash; Ziel-Bibliothek (Browser / SeleniumLibrary), Syntax (RPA / Testing) und Sprache w\u00E4hlen</li>
+</ul>
+<h4>Ziel-Bibliothek</h4>
+<table>
+  <thead>
+    <tr><th>Bibliothek</th><th>Keywords</th><th>Anwendungsfall</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Browser</strong></td>
+      <td><code>Click</code>, <code>Fill Text</code>, <code>Select Options By</code></td>
+      <td>Modernes Playwright-basiertes Testen</td>
+    </tr>
+    <tr>
+      <td><strong>SeleniumLibrary</strong></td>
+      <td><code>Click Element</code>, <code>Input Text</code>, <code>Select From List By Value</code></td>
+      <td>Legacy Selenium-basiertes Testen</td>
+    </tr>
+  </tbody>
+</table>`
+      }
+    ]
+  },
+
   {
     id: 'execution',
     title: 'Ausf\u00FChrung',
@@ -580,7 +891,22 @@ const de: DocsContent = [
   Nach dem Start wird der Run in die Warteschlange eingereiht. Da RoboScope mit
   einem einzelnen Worker arbeitet (<code>max_workers=1</code>), werden Runs
   nacheinander in FIFO-Reihenfolge abgearbeitet.
-</p>`,
+</p>
+<h4>Pending-Aktivit\u00E4ts-Panel</h4>
+<p>
+  Solange ein Run den Status <code>pending</code> hat, zeigt das Run-Detail-Panel
+  eine gelbe <em>Pending-Activity</em>-Box, die erkl\u00E4rt, <strong>warum</strong> er noch nicht startet:
+</p>
+<ul>
+  <li><strong>Wartet hinter N Run(s)</strong> &mdash; ein oder mehrere fr\u00FChere Runs belegen noch
+  den Executor-Slot. Die Box aktualisiert die Position alle paar Sekunden.</li>
+  <li><strong>Warten auf Docker-Image-Build f\u00FCr &lt;Umgebung&gt;</strong> &mdash; die zugeordnete Umgebung
+  baut gerade ihr Image. Der aktuelle Build-Log-Auszug wird direkt im Panel angezeigt, damit
+  der Fortschritt sichtbar bleibt, ohne die Seite zu wechseln. Der Link <em>Umgebungen \u00F6ffnen</em>
+  f\u00FChrt zum vollst\u00E4ndigen Log auf der Umgebungen-Seite.</li>
+  <li><strong>Run wird vorbereitet\u2026</strong> &mdash; kurzer \u00DCbergangszustand, der normalerweise innerhalb
+  weniger Sekunden nach <code>running</code> wechselt.</li>
+</ul>`,
         tip: 'Wenn Auto-Sync aktiviert ist, wird das Repository vor der Ausf\u00FChrung automatisch auf den neuesten Stand gebracht.'
       },
       {
@@ -972,6 +1298,177 @@ const de: DocsContent = [
         tip: 'Nutzen Sie die Tiefenanalyse, um Keyword-Laufzeiten, Assertion-Dichte und Fehlermuster in Ihren Testsuiten zu untersuchen. W\u00E4hlen Sie ein Projekt, um die Quellcode-Analyse-KPIs zu aktivieren.'
       }
     ]
+  },
+  // ─── 7.5 Self-Healing & Resilienz ─────────────────────────────────
+  {
+    id: 'self-healing',
+    title: 'Self-Healing & Resilienz',
+    icon: '🩹',
+    subsections: [
+      {
+        id: 'self-healing-overview',
+        title: 'Wie Self-Healing funktioniert',
+        content: `
+<p>
+  Tests driften. Ein Entwickler benennt <code>id=submit</code> in <code>id=submit-btn</code> um
+  oder verpackt einen Button in ein neues <code>&lt;form&gt;</code> &mdash; und jeder Test der
+  den alten Locator referenziert, bricht. RoboScopes Self-Healing-Library wiederholt
+  fehlgeschlagene Selektoren zur Laufzeit gegen den Live-DOM: der Test besteht, und
+  RoboScope protokolliert den Swap zur späteren Überprüfung.
+</p>
+<h4>Opt-in pro Keyword</h4>
+<p>
+  Self-Healing ist nicht automatisch. Sie importieren die Library und schreiben die
+  gehealte Variante statt des einfachen Browser-Keywords:
+</p>
+<pre><code>*** Settings ***
+Library    Browser
+Library    RoboScopeHeal
+
+*** Test Cases ***
+Login Works
+    New Browser    chromium
+    New Page       https://app.example.com/login
+    Heal Fill Text    id=user      alice
+    Heal Fill Text    id=password  secret
+    Heal Click        id=submit
+    Get Text          .welcome-banner
+</code></pre>
+<h4>Drei Fallback-Stufen, in Reihenfolge</h4>
+<ol>
+  <li><strong>Sidecar-Lookup</strong> &mdash; wenn die <code>.robot</code>-Datei eine geschwisterliche
+  <code>&lt;name&gt;.rbs.json</code> vom Recorder v2 hat, konsultiert RoboScope die
+  rangsortierte Kandidatenliste aus der Aufnahme.</li>
+  <li><strong>Strategie-Transposition</strong> &mdash; <code>id=submit</code> probiert
+  <code>[data-testid=submit]</code>, <code>text=submit</code>, <code>css=input#submit</code>,
+  <code>role=button[name="submit"]</code>. Jeder Kandidat wird gegen den Live-DOM via
+  <code>Get Element Count</code> verifiziert &mdash; Nicht-Unique / Null-Treffer werden verworfen.</li>
+  <li><strong>DOM-Walk-Fingerprint</strong> &mdash; letzte Instanz. Wenn die Aufnahme einen
+  Element-Fingerprint gespeichert hat (Tag + ID + Testid + Klassen + Rolle + Text +
+  Ahnen-Kette), durchsucht RoboScope die interaktiven Elemente auf der Live-Seite und
+  wählt den besten Multi-Signal-Ähnlichkeitstreffer oberhalb eines Konfidenz-Schwellenwerts.</li>
+</ol>`,
+        tip: 'Self-Healing feuert nur bei selektor-bezogenen Fehlern (Element not found, Locator-Timeout). Assertion-Fehler und andere Fehler werden unverändert weitergereicht — RoboScope weigert sich, eine echte Regression mit einem stillen Swap zu übertünchen.'
+      },
+      {
+        id: 'self-healing-safety',
+        title: 'Sicherheitskonzept',
+        content: `
+<p>
+  Zur Laufzeit auf das falsche Element zu klicken ist schlimmer als zu scheitern.
+  Jede Heal-Operation durchläuft vier Schutzschichten:
+</p>
+<ul>
+  <li><strong>Budget pro Test</strong> &mdash; standardmäßig maximal drei Heals pro Test. Ein
+  Test der mehr als drei Swaps braucht, ist zu weit driftet; RoboScope reicht dann den
+  Original-Fehler weiter statt ihn zu übermalen.</li>
+  <li><strong>Konfidenz-Schwellenwert</strong> &mdash; jeder Kandidat hat einen
+  Qualitäts-Score (<code>testid</code> schlägt <code>aria</code> schlägt <code>text</code>
+  schlägt reines XPath). Mutierende Keywords (<code>Heal Click</code>,
+  <code>Heal Fill Text</code> usw.) brauchen 0.7+; Read-Only-Proben 0.5+.</li>
+  <li><strong>Retry-Budget pro Aufruf</strong> &mdash; eine Alternative, dann Abbruch.</li>
+  <li><strong>Suspect-Klassifizierung</strong> &mdash; nach dem Run werden Heals mit dem
+  Testresultat aus der <code>output.xml</code> abgeglichen. Bestanden &rarr; <em>bestätigt</em>;
+  fehlgeschlagen &rarr; <em>verdächtig</em> (der Swap hat möglicherweise das falsche
+  Element getroffen). Nur bestätigte Heals bieten einen Apply-Patch-Button.</li>
+</ul>
+<h4>Escape-Hatch: der <code>no-heal</code>-Tag</h4>
+<p>
+  Strikte CI-Läufe können Healing pro Test deaktivieren, indem sie den
+  <code>no-heal</code>-Tag setzen. Die <code>Heal *</code>-Keywords delegieren dann ohne
+  Retry direkt an das zugrunde liegende Browser-Keyword.
+</p>`,
+        tip: 'Default-Schwellenwerte, Budgets und der Sidecar-Pfad sind allesamt als Library-Import-Argumente konfigurierbar — kein Monkey-Patching.'
+      },
+      {
+        id: 'self-healing-report',
+        title: 'Heal-Report im Run-Detail',
+        content: `
+<p>
+  Jedes erfolgreiche Heal wird an <code>&lt;output_dir&gt;/heal_audit.jsonl</code> angehängt
+  &mdash; mit Zeitstempel, Keyword, Original-Selektor, gehealtem Selektor, Konfidenz und
+  Quelle. Das Run-Detail-Panel parst diese Datei und rendert eine kompakte Karte
+  <strong>Selbstgeheilte Selektoren</strong> pro Run.
+</p>
+<ul>
+  <li><strong>🩹 Bestätigt</strong> &mdash; der Test ist nach dem Heal durchgelaufen. Die
+  Karte bietet <em>Patch kopieren</em> und <em>Patch anwenden</em> (nur Editor+).</li>
+  <li><strong>⚠️ Verdächtig</strong> &mdash; der Test ist nach dem Heal fehlgeschlagen.
+  Der Swap wird protokolliert, aber <em>kein</em> Patch-Button angeboten.</li>
+</ul>
+<h4>Apply-Patch-Sicherheit</h4>
+<p>
+  Der Endpoint schreibt den Patch atomar (Temp-Datei + Rename), weist verdächtige /
+  out-of-bounds / Viewer-Aufrufe ab, weigert sich zu schreiben wenn die Original-Selektor-Zeile
+  in der Zieldatei fehlt oder mehrdeutig ist, und ist idempotent.
+</p>`,
+      },
+      {
+        id: 'self-healing-diagnosis',
+        title: 'Selektor-Diagnose bei fehlgeschlagenen Runs',
+        content: `
+<p>
+  Nicht jeder Run nutzt <code>RoboScopeHeal</code>. Für fehlgeschlagene Runs die <em>nicht</em>
+  geheilt haben (oder trotz Heal gescheitert sind), hilft RoboScope trotzdem: es scannt
+  die Run-Ausgabe auf gängige Locator-Fehler-Signaturen und schlägt jede in der
+  Aufnahme-Sidecar nach. Eine <strong>Selektor-Diagnose</strong>-Karte zeigt den fehlerhaften
+  Selektor und rangsortierte Alternativen &mdash; ein Klick zum Kopieren.
+</p>`,
+      },
+      {
+        id: 'self-healing-rate-kpi',
+        title: 'Heal-Rate-KPI',
+        content: `
+<p>
+  Healing ist ein vorauslaufender Indikator. Eine steigende Heal-Rate bedeutet, dass die
+  Test-Suite gegen die Anwendung driftet. Die Stats-Übersicht macht das Signal via
+  <strong>🩹 Selbstgeheilte Selektoren</strong>-Karte sichtbar: Große Zahl für Total-Heals,
+  Unterzeile mit Run-Anteil, Badges für bestätigt vs verdächtig, Sparkline über den Zeitraum.
+</p>`,
+        tip: 'Achten Sie auf die Verdächtig-Spalte. Ein anhaltender Strom von Verdächtigen bedeutet, dass die Heuristiken für Ihre Codebasis falsch sind — bitte ein Issue melden.'
+      },
+      {
+        id: 'flaky-quarantine',
+        title: 'Flaky-Test-Quarantäne',
+        content: `
+<p>
+  Ein Test der beim selben Commit mal besteht und mal fehlschlägt, ist <em>flaky</em>.
+  RoboScope erkennt diese automatisch in der <strong>Flaky-Tests</strong>-Tabelle auf der
+  Statistik-Seite. Mit <strong>Quarantäne</strong> werden solche Tests aktiv übersprungen.
+</p>
+<h4>Test als quarantänisiert markieren</h4>
+<ul>
+  <li>Öffnen Sie <strong>Statistik</strong>, scrollen Sie zur Flaky-Tests-Tabelle.</li>
+  <li>Editor+-Nutzer sehen einen <strong>Stumm schalten</strong>-Button. Klick → Test wird
+  für das Repository als quarantänisiert gespeichert.</li>
+  <li>Die Zeile bekommt ein <strong>🔕 In Quarantäne</strong>-Badge und sortiert sich oben ein.</li>
+</ul>
+<h4>Laufzeit-Effekt</h4>
+<p>
+  Beim nächsten Run für das Repository registriert RoboScope einen Robot-Framework-Listener,
+  der passende Testnamen via <code>BuiltIn().skip()</code> als SKIP markiert &mdash; nicht als FAIL.
+  CI-Zusammenfassungen ertrinken nicht mehr in bekanntem Flaky-Rauschen.
+</p>`,
+        tip: 'Quarantäne ist für existierende Einträge immer aktiv. Aufheben via gleichem Button.'
+      },
+      {
+        id: 'self-healing-ai-patches',
+        title: 'KI-generierte Patch-Vorschläge',
+        content: `
+<p>
+  Beim Ausführen von <strong>Fehler analysieren</strong> auf einem Report wird das LLM
+  zusätzlich zur Prosa-Analyse gebeten, Unified-Diff-Patches zu liefern, wann immer der Fix
+  konkret genug ist. Eine <strong>Patch-Vorschläge</strong>-Sektion erscheint unter der
+  Markdown-Analyse mit Diff-Vorschau pro Datei und <em>Patch kopieren</em>-Button.
+</p>
+<p>
+  Diese Patches sind <em>Vorschläge</em> &mdash; werden nie automatisch angewendet. Die
+  RoboScope-App verändert Ihr Repository nur, wenn Sie den Diff selbst einfügen oder den
+  Apply-Patch-Button für <strong>bestätigte</strong> Laufzeit-Heals nutzen.
+</p>`,
+        tip: 'Mehrdeutige Fehler (Flaky-Timing, Infrastruktur-Probleme) erzeugen nie einen Patch-Block.'
+      },
+    ],
   },
   {
     id: 'environments',
@@ -1412,6 +1909,132 @@ const de: DocsContent = [
   <li>Legacy-Klartext-Secrets (erstellt vor Aktivierung der Verschl\u00FCsselung) funktionieren weiterhin durch Graceful Fallback.</li>
 </ul>`,
         tip: 'Verwenden Sie in Produktion immer einen starken, einzigartigen SECRET_KEY. Wenn der SECRET_KEY ge\u00E4ndert wird, werden zuvor verschl\u00FCsselte Secrets unlesbar.'
+      },
+      {
+        id: 'identity-providers',
+        title: 'Identity Provider (SSO)',
+        content: `
+<p>
+  RoboScope unterstützt <strong>Single Sign-On (SSO)</strong> über OpenID Connect (OIDC).
+  Sobald ein Identity Provider konfiguriert und aktiviert ist, erscheint auf der
+  Login-Seite ein entsprechender <strong>Anmelden mit &hellip;</strong>-Button und
+  Ihre Nutzer benötigen kein separates RoboScope-Passwort mehr.
+</p>
+<p>
+  Unterstützte Provider-Typen:
+</p>
+<ul>
+  <li><strong>Azure AD / Microsoft Entra ID</strong></li>
+  <li><strong>Google Workspace</strong></li>
+  <li><strong>GitHub</strong></li>
+  <li><strong>Generisch (OIDC)</strong> &mdash; jeder standardkonforme OIDC-Issuer
+      (Okta, Keycloak, Auth0, Authentik, &hellip;)</li>
+</ul>
+
+<h4>1. Anwendung beim IdP vorbereiten</h4>
+<p>
+  Registrieren Sie in der Admin-Konsole Ihres IdPs eine neue Webanwendung und
+  notieren Sie sich <strong>Client ID</strong> und <strong>Client Secret</strong>.
+  Setzen Sie die <strong>Redirect-URI</strong> auf:
+</p>
+<p><code>https://&lt;ihr-roboscope-host&gt;/auth/sso/callback</code></p>
+<p>
+  RoboScope zeigt die exakte URL im Konfigurationsformular an (mit Kopier-Button).
+  Die Anwendung muss mindestens die Scopes <code>openid profile email</code>
+  anfordern dürfen. Für die gruppenbasierte Team-Zuordnung aktivieren Sie
+  zusätzlich den <strong>groups</strong>-Claim
+  (Azure AD: <em>Tokenkonfiguration</em> &rarr; <em>groups</em>-Claim hinzufügen;
+  Keycloak: <em>group membership</em>-Mapper anlegen).
+</p>
+
+<h4>2. Provider in RoboScope anlegen</h4>
+<ol>
+  <li>Öffnen Sie <strong>Admin &gt; Identity Provider</strong> in der Sidebar.</li>
+  <li>Klicken Sie auf <strong>Provider hinzufügen</strong>.</li>
+  <li>Füllen Sie das Formular aus:
+    <ul>
+      <li><strong>Name</strong> &mdash; Beschriftung des Login-Buttons (z.&nbsp;B. &bdquo;Firmen-SSO&ldquo;).</li>
+      <li><strong>Provider-Typ</strong> &mdash; einer der vier Typen oben.</li>
+      <li><strong>Issuer-URL</strong> &mdash; die OIDC-Issuer-/Discovery-Basis-URL.
+          Beispiele:
+        <ul>
+          <li>Azure AD: <code>https://login.microsoftonline.com/&lt;tenant-id&gt;/v2.0</code></li>
+          <li>Google: <code>https://accounts.google.com</code></li>
+          <li>GitHub: <code>https://token.actions.githubusercontent.com</code> oder Ihr OIDC-Proxy</li>
+          <li>Generisch: die URL, unter der <code>/.well-known/openid-configuration</code> bereitgestellt wird</li>
+        </ul>
+      </li>
+      <li><strong>Client ID</strong> &mdash; aus der IdP-Anwendung.</li>
+      <li><strong>Client Secret</strong> &mdash; aus der IdP-Anwendung. Wird verschlüsselt gespeichert (Fernet).</li>
+      <li><strong>Scopes</strong> &mdash; Standard <code>openid profile email</code>; weitere (z.&nbsp;B. <code>groups</code>, <code>offline_access</code>) als Chips hinzufügen.</li>
+      <li><strong>Group-Claim-Name</strong> &mdash; der JWT-Claim, der die Gruppen des Nutzers enthält (Standard <code>groups</code>).</li>
+    </ul>
+  </li>
+</ol>
+
+<h4>3. Dry-Run-Probe ausführen</h4>
+<p>
+  Bevor der Provider gespeichert werden kann, klicken Sie auf <strong>Dry-Run starten</strong>.
+  Die Probe lädt das OIDC-Discovery-Dokument, validiert den JWKS-Endpoint, die
+  konfigurierten Scopes und den Group-Claim-Namen. Das Ergebnis wird inline angezeigt:
+</p>
+<ul>
+  <li><strong>Erfolgreich</strong> &mdash; der <strong>Speichern</strong>-Button wird freigeschaltet.</li>
+  <li><strong>Fehlgeschlagen</strong> &mdash; klappen Sie die Zeile auf, um zu sehen,
+      welcher Check fehlgeschlagen ist (häufigste Ursachen: falsche Issuer-URL,
+      ausgehender Netzwerkverkehr blockiert, Scope am IdP nicht freigegeben).</li>
+</ul>
+<p>
+  Wird nach einem erfolgreichen Dry-Run ein Feld geändert, wird die Probe als
+  <em>veraltet</em> markiert &mdash; sie muss vor dem Speichern erneut ausgeführt werden.
+</p>
+
+<h4>4. Übergabe-Dokument</h4>
+<p>
+  Nach dem ersten Speichern können Sie auf der Provider-Editierseite ein
+  <strong>PDF- oder Markdown-Handoff-Dokument</strong> herunterladen. Es enthält
+  alles, was der IdP-Admin braucht (Redirect-URI, benötigte Scopes, Group-Claim)
+  und wird in der aktuellen UI-Sprache erzeugt &mdash; nützlich, wenn RoboScope
+  und IdP von unterschiedlichen Teams verwaltet werden.
+</p>
+
+<h4>5. Erste Anmeldung</h4>
+<p>
+  Sobald der Provider aktiv ist, zeigt die Login-Seite einen
+  <strong>Anmelden mit <em>&lt;Name&gt;</em></strong>-Button. Beim ersten
+  SSO-Login wird automatisch ein RoboScope-Benutzerkonto erzeugt und mit dem
+  IdP-Subject verknüpft. Existiert bereits ein lokales Passwort-Konto mit
+  derselben E-Mail, wird der Nutzer um Bestätigung der Verknüpfung gebeten
+  (Consent-Dialog).
+</p>
+
+<h4>Gruppen-zu-Team-Zuordnung</h4>
+<p>
+  Unter <strong>Admin &gt; Teams</strong> können Sie IdP-Gruppennamen auf
+  RoboScope-Teams mappen. Bei jedem SSO-Login werden die Team-Mitgliedschaften
+  des Nutzers anhand des konfigurierten Group-Claims neu synchronisiert. Mit
+  <strong>Teams aus IdP-Gruppen anlegen</strong> auf der Teams-Seite lassen sich
+  Mappings aus den bereits beobachteten Gruppen der letzten Logins bootstrappen.
+</p>
+
+<h4>Discovery-Cache</h4>
+<p>
+  OIDC-Discovery-Dokumente werden 24&nbsp;h zwischengespeichert, damit Logins
+  schnell bleiben und kurze IdP-Ausfälle abgefedert werden. Die Provider-Liste
+  zeigt ein <strong>Stale-Cache-Badge</strong>, wenn der Cache älter als 24&nbsp;h
+  ist. Manuelle Aktualisierung über die Provider-Liste.
+</p>
+
+<h4>Notfall-Bypass</h4>
+<p>
+  Ist Ihr IdP nicht erreichbar, kann sich ein Admin weiterhin mit dem lokalen
+  Konto <code>admin@roboscope.local</code> (oder einem anderen lokalen
+  Passwort-Konto) über den Link <strong>Stattdessen Passwort verwenden</strong>
+  auf der Login-Seite anmelden. Dieser Link kann unter
+  <strong>Einstellungen &gt; Sicherheit &gt; Passwortformular ausblenden</strong>
+  versteckt werden, sobald SSO vollständig ausgerollt ist.
+</p>`,
+        tip: 'Führen Sie die Dry-Run-Probe immer vor dem Speichern und vor dem Rollout an Endnutzer aus. Sie fängt 90&nbsp;% aller Fehlkonfigurationen (falscher Issuer, fehlender Scope, nicht erreichbarer JWKS) ab, ohne Endnutzer zu beeinträchtigen.'
       }
     ]
   },

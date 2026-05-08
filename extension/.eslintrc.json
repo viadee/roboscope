@@ -1,0 +1,23 @@
+{
+    "extends": ["airbnb-base", ".eslintrc-todo"],
+    "env": {
+      "mocha": true,
+      "browser": true
+    },
+    "rules": {
+      "comma-dangle": ["error", "only-multiline"],
+      "max-len": ["error", {"code":120, "comments": 120}],
+      "no-template-curly-in-string": "off",
+      "no-plusplus": "off",
+      "guard-for-in": "off",
+      "prefer-destructuring": "off",
+      "no-else-return": ["warn", {"allowElseIf": true}],
+      "globals": {
+        "window": "readonly"
+      },
+      "import/extensions": [ "always",
+        { "js": "always" }
+      ],
+      "import/prefer-default-export": "off"
+    }
+}

@@ -162,6 +162,11 @@ def _migrate_sqlite(conn) -> None:
         conn.execute(text("ALTER TABLE repositories ADD COLUMN sync_error TEXT"))
         logger.info("Migration: added sync_error column")
 
+    # Story REPO-3: pre-run sync flag
+    if "pre_run_sync" not in columns:
+        conn.execute(text("ALTER TABLE repositories ADD COLUMN pre_run_sync BOOLEAN DEFAULT 0"))
+        logger.info("Migration: added pre_run_sync column to repositories")
+
     # Re-read columns after possible changes
     result = conn.execute(text("PRAGMA table_info(repositories)"))
     columns = {row[1]: row for row in result.fetchall()}
@@ -208,6 +213,29 @@ def _migrate_sqlite(conn) -> None:
             "ALTER TABLE environments ADD COLUMN max_docker_containers INTEGER DEFAULT 1"
         ))
         logger.info("Migration: added max_docker_containers column to environments")
+
+    # Phase-4: users.first_login_complete
+    result = conn.execute(text("PRAGMA table_info(users)"))
+    user_columns = {row[1] for row in result.fetchall()}
+    if "first_login_complete" not in user_columns:
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN first_login_complete BOOLEAN NOT NULL DEFAULT 0"
+        ))
+        logger.info("Migration: added first_login_complete column to users")
+
+    # Story SECURITY-1: users.password_change_required
+    if "password_change_required" not in user_columns:
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN password_change_required BOOLEAN NOT NULL DEFAULT 0"
+        ))
+        logger.info("Migration: added password_change_required column to users")
+
+    # Phase-4: repositories.team_id (nullable; FK enforced by Alembic migration, not here)
+    result = conn.execute(text("PRAGMA table_info(repositories)"))
+    repo_columns = {row[1] for row in result.fetchall()}
+    if "team_id" not in repo_columns:
+        conn.execute(text("ALTER TABLE repositories ADD COLUMN team_id INTEGER"))
+        logger.info("Migration: added team_id column to repositories")
 
 
 def _migrate_postgres(conn) -> None:
@@ -292,6 +320,48 @@ def _migrate_postgres(conn) -> None:
             "ALTER TABLE environments ADD COLUMN max_docker_containers INTEGER DEFAULT 1"
         ))
         logger.info("Migration: added max_docker_containers column to environments")
+
+    # Phase-4: users.first_login_complete
+    result = conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'users' AND column_name = 'first_login_complete'"
+    ))
+    if not result.fetchone():
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN first_login_complete BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        logger.info("Migration: added first_login_complete column to users")
+
+    # Story SECURITY-1: users.password_change_required
+    result = conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'users' AND column_name = 'password_change_required'"
+    ))
+    if not result.fetchone():
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN password_change_required BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        logger.info("Migration: added password_change_required column to users")
+
+    # Phase-4: repositories.team_id (nullable; FK enforced by Alembic migration, not here)
+    result = conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'repositories' AND column_name = 'team_id'"
+    ))
+    if not result.fetchone():
+        conn.execute(text("ALTER TABLE repositories ADD COLUMN team_id INTEGER"))
+        logger.info("Migration: added team_id column to repositories")
+
+    # Story REPO-3: pre-run sync flag
+    result = conn.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'repositories' AND column_name = 'pre_run_sync'"
+    ))
+    if not result.fetchone():
+        conn.execute(text(
+            "ALTER TABLE repositories ADD COLUMN pre_run_sync BOOLEAN DEFAULT FALSE"
+        ))
+        logger.info("Migration: added pre_run_sync column to repositories")
 
 
 def drop_tables() -> None:

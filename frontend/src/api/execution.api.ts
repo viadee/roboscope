@@ -22,6 +22,101 @@ export async function getRun(id: number): Promise<ExecutionRun> {
   return response.data
 }
 
+export interface PendingBuildInfo {
+  environment_id: number
+  environment_name: string
+  status: string | null
+  log_tail: string
+}
+
+export interface PendingActivity {
+  status: string
+  queue_position: number | null
+  ahead_count: number
+  active_build: PendingBuildInfo | null
+  effective_runner_type: string | null
+}
+
+export async function getRunPendingActivity(id: number): Promise<PendingActivity> {
+  const response = await apiClient.get<PendingActivity>(`/runs/${id}/pending-activity`)
+  return response.data
+}
+
+export interface SelectorCandidateSnippet {
+  strategy: string
+  value: string
+  quality_score: number | null
+}
+
+export interface SelectorHealthHit {
+  raw_locator: string
+  candidates: SelectorCandidateSnippet[]
+}
+
+export interface SelectorHealth {
+  has_sidecar: boolean
+  sidecar_path: string | null
+  failed_locators: SelectorHealthHit[]
+}
+
+export async function getRunSelectorHealth(id: number): Promise<SelectorHealth> {
+  const response = await apiClient.get<SelectorHealth>(`/runs/${id}/selector-health`)
+  return response.data
+}
+
+// Story SH-2 — runtime heal report.
+
+export type HealOutcome = 'confirmed' | 'suspect' | 'skipped' | 'unknown'
+
+export interface HealAuditEntry {
+  timestamp: string
+  test_name: string
+  keyword: string
+  original_selector: string
+  healed_selector: string
+  confidence: number
+  source: string
+  outcome: HealOutcome
+  /**
+   * RECORDER-IDMAP — id of the recorded command this heal applied
+   * to (resolved at audit-write time by the heal library via
+   * sidecar lookup on `original_selector`). The matching .robot
+   * line carries the same id as a `# rbs:<id>` trailing comment,
+   * so the UI can link a heal entry to a step in the test source.
+   * Null for legacy runs (no sidecar / pre-IDMAP recordings).
+   */
+  command_id: string | null
+}
+
+export interface HealReport {
+  total_heals: number
+  confirmed: number
+  suspect: number
+  entries: HealAuditEntry[]
+}
+
+export async function getRunHealReport(id: number): Promise<HealReport> {
+  const response = await apiClient.get<HealReport>(`/runs/${id}/heal-report`)
+  return response.data
+}
+
+export interface HealPatchApplyResponse {
+  file_path: string
+  line_number: number
+  applied: boolean
+  reason?: string | null
+}
+
+export async function applyHealPatch(
+  runId: number,
+  healIndex: number,
+): Promise<HealPatchApplyResponse> {
+  const response = await apiClient.post<HealPatchApplyResponse>(
+    `/runs/${runId}/heal-report/${healIndex}/apply`,
+  )
+  return response.data
+}
+
 export async function cancelRun(id: number): Promise<ExecutionRun> {
   const response = await apiClient.post<ExecutionRun>(`/runs/${id}/cancel`)
   return response.data

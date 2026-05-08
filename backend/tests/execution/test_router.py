@@ -380,6 +380,140 @@ class TestExecutionRuns:
 
 
 # ---------------------------------------------------------------------------
+# Pending-run activity (Story EXEC-1)
+# ---------------------------------------------------------------------------
+
+
+class TestPendingActivity:
+    """GET /runs/{id}/pending-activity — queue position + active-build view."""
+
+    def test_404_when_run_missing(self, client, admin_user):
+        resp = client.get(
+            "/api/v1/runs/99999/pending-activity", headers=auth_header(admin_user)
+        )
+        assert resp.status_code == 404
+
+    def test_returns_queue_position_for_pending_behind_two(
+        self, client, runner_user, repo, db_session
+    ):
+        from src.execution.service import create_run as svc_create_run
+        from src.execution.schemas import RunCreate
+
+        # Three pending runs created in order. The third one should
+        # see queue_position == 3 and ahead_count == 2.
+        r1 = svc_create_run(
+            db_session,
+            RunCreate(repository_id=repo.id, target_path="t1", branch="main"),
+            runner_user.id,
+        )
+        r2 = svc_create_run(
+            db_session,
+            RunCreate(repository_id=repo.id, target_path="t2", branch="main"),
+            runner_user.id,
+        )
+        r3 = svc_create_run(
+            db_session,
+            RunCreate(repository_id=repo.id, target_path="t3", branch="main"),
+            runner_user.id,
+        )
+        # Sanity — all three should be PENDING by default.
+        assert r1.status == RunStatus.PENDING
+        assert r2.status == RunStatus.PENDING
+        assert r3.status == RunStatus.PENDING
+
+        resp = client.get(
+            f"/api/v1/runs/{r3.id}/pending-activity", headers=auth_header(runner_user)
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == RunStatus.PENDING
+        assert body["ahead_count"] == 2
+        assert body["queue_position"] == 3
+        assert body["active_build"] is None
+
+    def test_surfaces_active_docker_build(
+        self, client, runner_user, repo, db_session
+    ):
+        from src.environments.models import Environment
+        from src.execution.service import create_run as svc_create_run
+        from src.execution.schemas import RunCreate
+
+        env = Environment(
+            name="pending-test-env",
+            python_version="3.12",
+            default_runner_type=RunnerType.DOCKER,
+            docker_image="roboscope/test:latest",
+            docker_build_status="building",
+            docker_build_log="Step 1/5 : FROM python:3.12-slim\n...\nStep 3/5 : RUN pip install ...",
+            created_by=runner_user.id,
+        )
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+
+        run = svc_create_run(
+            db_session,
+            RunCreate(
+                repository_id=repo.id,
+                target_path="tests",
+                branch="main",
+                environment_id=env.id,
+                runner_type=RunnerType.DOCKER,
+            ),
+            runner_user.id,
+        )
+
+        resp = client.get(
+            f"/api/v1/runs/{run.id}/pending-activity", headers=auth_header(runner_user)
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["active_build"] is not None
+        ab = body["active_build"]
+        assert ab["environment_id"] == env.id
+        assert ab["environment_name"] == "pending-test-env"
+        assert ab["status"] == "building"
+        assert "Step 3/5" in ab["log_tail"]
+        assert body["effective_runner_type"] == RunnerType.DOCKER
+
+    def test_subprocess_run_with_docker_default_env_reports_docker_effective(
+        self, client, runner_user, repo, db_session
+    ):
+        from src.environments.models import Environment
+        from src.execution.service import create_run as svc_create_run
+        from src.execution.schemas import RunCreate
+
+        env = Environment(
+            name="docker-default-env",
+            python_version="3.12",
+            default_runner_type=RunnerType.DOCKER,
+            docker_image="roboscope/test:latest",
+            created_by=runner_user.id,
+        )
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+
+        run = svc_create_run(
+            db_session,
+            RunCreate(
+                repository_id=repo.id,
+                target_path="tests",
+                branch="main",
+                environment_id=env.id,
+                runner_type=RunnerType.SUBPROCESS,  # explicit subprocess on a docker-default env
+            ),
+            runner_user.id,
+        )
+
+        resp = client.get(
+            f"/api/v1/runs/{run.id}/pending-activity", headers=auth_header(runner_user)
+        )
+        assert resp.status_code == 200
+        assert resp.json()["effective_runner_type"] == RunnerType.DOCKER
+
+
+# ---------------------------------------------------------------------------
 # Schedules
 # ---------------------------------------------------------------------------
 

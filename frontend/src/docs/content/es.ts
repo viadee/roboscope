@@ -157,97 +157,64 @@ const es: DocsContent = [
         content: `
 <p>
   El <strong>Panel de control</strong> es la p\u00E1gina de inicio predeterminada
-  despu\u00E9s de iniciar sesi\u00F3n. Proporciona una visi\u00F3n general de alto
-  nivel de su actividad de pruebas y el estado de los repositorios, ayud\u00E1ndole
-  a evaluar r\u00E1pidamente el estado actual de su proyecto.
+  despu\u00E9s de iniciar sesi\u00F3n. Es una cuadr\u00EDcula de tarjetas que apunta a cada
+  secci\u00F3n navegable de RoboScope, para que un usuario nuevo pueda llegar a
+  Repositorios, Explorador, Ejecuciones, Estad\u00EDsticas, Grabador, Entornos,
+  Documentaci\u00F3n y Ajustes sin escanear la barra lateral.
 </p>
 <p>
-  El Panel de control se divide en tres secciones: <strong>Tarjetas KPI</strong>
-  en la parte superior, una tabla de <strong>Ejecuciones recientes</strong> en el
-  centro y un <strong>Resumen de repositorios</strong> en la parte inferior.
+  Junto a las tarjetas de navegaci\u00F3n, una tarjeta <strong>Consejo del d\u00EDa</strong>
+  rota diariamente entre 30 consejos espec\u00EDficos de RoboScope. Las m\u00E9tricas KPI
+  m\u00E1s profundas (recuentos de ejecuciones, tasa de \u00E9xito, tendencias de duraci\u00F3n)
+  viven en la p\u00E1gina <strong>Estad\u00EDsticas</strong>; las ejecuciones recientes y
+  el historial viven en la p\u00E1gina <strong>Ejecuciones</strong>.
 </p>`
       },
       {
-        id: 'kpi-cards',
-        title: 'Tarjetas KPI',
+        id: 'navigation-cards',
+        title: 'Tarjetas de navegaci\u00F3n',
         content: `
 <p>
-  Se muestran cuatro tarjetas de indicadores clave de rendimiento en la parte
-  superior del Panel de control:
+  Cada tarjeta es un atajo cliqueable. Al pasar el cursor aparece un chevron
+  animado y la tarjeta se eleva ligeramente para confirmar la affordance.
 </p>
 <table>
-  <thead>
-    <tr><th>Tarjeta</th><th>Descripci\u00F3n</th></tr>
-  </thead>
+  <thead><tr><th>Tarjeta</th><th>Apunta a</th></tr></thead>
   <tbody>
-    <tr>
-      <td><strong>Ejecuciones (30d)</strong></td>
-      <td>N\u00FAmero total de ejecuciones de pruebas realizadas en los \u00FAltimos 30 d\u00EDas.</td>
-    </tr>
-    <tr>
-      <td><strong>Tasa de \u00E9xito</strong></td>
-      <td>Porcentaje de ejecuciones completadas con todas las pruebas aprobadas (\u00FAltimos 30 d\u00EDas).</td>
-    </tr>
-    <tr>
-      <td><strong>Duraci\u00F3n media</strong></td>
-      <td>Tiempo medio de reloj de las ejecuciones de pruebas completadas en los \u00FAltimos 30 d\u00EDas.</td>
-    </tr>
-    <tr>
-      <td><strong>Repos activos</strong></td>
-      <td>N\u00FAmero de repositorios que han tenido al menos una ejecuci\u00F3n en los \u00FAltimos 30 d\u00EDas.</td>
-    </tr>
+    <tr><td><strong>Proyectos</strong></td><td>Configurar proyectos Git o locales, programar sincronizaci\u00F3n, gestionar permisos.</td></tr>
+    <tr><td><strong>Explorador</strong></td><td>Navegar el \u00E1rbol de archivos, editar tests Robot visualmente o en c\u00F3digo.</td></tr>
+    <tr><td><strong>Ejecuci\u00F3n</strong></td><td>Lanzar ejecuciones, seguir el progreso en vivo, programar ejecuciones recurrentes.</td></tr>
+    <tr><td><strong>Estad\u00EDsticas</strong></td><td>Tendencias pass/fail, tests \u00ABflaky\u00BB, tasa de auto-reparaci\u00F3n.</td></tr>
+    <tr><td><strong>Grabador</strong></td><td>Grabar interacciones en un navegador, generar tests Robot autom\u00E1ticamente. (Rol Editor o superior.)</td></tr>
+    <tr><td><strong>Entornos</strong></td><td>Gestionar venvs Python, instalar paquetes pip, construir im\u00E1genes Docker. (Rol Editor o superior.)</td></tr>
+    <tr><td><strong>Documentaci\u00F3n</strong></td><td>Esta documentaci\u00F3n, completamente buscable en cuatro idiomas.</td></tr>
+    <tr><td><strong>Ajustes</strong></td><td>Proveedores IA, retenci\u00F3n, secretos, registro de auditor\u00EDa, cumplimiento. (Rol Admin.)</td></tr>
   </tbody>
 </table>
 <p>
-  Cada tarjeta utiliza el sistema de dise\u00F1o de RoboScope: fondo blanco, acento
-  azul para tendencias positivas y \u00E1mbar para advertencias. Los valores se
-  actualizan autom\u00E1ticamente al navegar al Panel de control.
+  Las tarjetas visibles para un usuario respetan su rol: Grabador + Entornos
+  necesitan Editor o superior; Ajustes necesita Admin.
 </p>`,
-        tip: 'Las tarjetas KPI reflejan los \u00FAltimos 30 d\u00EDas de actividad. Para rangos de tiempo m\u00E1s largos, use la p\u00E1gina de Estad\u00EDsticas.'
+        tip: '\u00BFNuevo en RoboScope? Empiece por la tarjeta Proyectos \u2014 un proyecto Git por defecto \u00ABRobot Framework Examples\u00BB se inicializa al primer arranque, as\u00ED tiene algo con lo que jugar al instante.'
       },
       {
-        id: 'recent-runs',
-        title: 'Tabla de ejecuciones recientes',
+        id: 'tip-of-the-day',
+        title: 'Consejo del d\u00EDa',
         content: `
 <p>
-  Debajo de las tarjetas KPI, una tabla enumera las ejecuciones de pruebas m\u00E1s
-  recientes en todos los repositorios. Cada fila muestra:
+  Una peque\u00F1a tarjeta <strong>\u{1F4A1} Consejo del d\u00EDa</strong> se sit\u00FAa dentro
+  de la cuadr\u00EDcula, mostrando uno de los 30 breves consejos espec\u00EDficos de
+  RoboScope. Los consejos rotan en un ciclo de 30 d\u00EDas \u2014 cada d\u00EDa calendario
+  elige uno nuevo \u2014 para que los usuarios frecuentes aprendan una caracter\u00EDstica
+  nueva cada vez que abren el panel.
 </p>
-<ul>
-  <li><strong>ID de ejecuci\u00F3n</strong> &mdash; Un identificador \u00FAnico para la ejecuci\u00F3n.</li>
-  <li><strong>Repositorio</strong> &mdash; El nombre del repositorio contra el que se lanz\u00F3 la ejecuci\u00F3n.</li>
-  <li><strong>Estado</strong> &mdash; Una insignia de color que indica el estado de la ejecuci\u00F3n: <code>passed</code>, <code>failed</code>, <code>running</code>, <code>pending</code>, <code>error</code>, <code>cancelled</code> o <code>timeout</code>.</li>
-  <li><strong>Duraci\u00F3n</strong> &mdash; Cu\u00E1nto tiempo tard\u00F3 la ejecuci\u00F3n (o cu\u00E1nto tiempo lleva ejecut\u00E1ndose).</li>
-  <li><strong>Iniciado por</strong> &mdash; El usuario que inici\u00F3 la ejecuci\u00F3n.</li>
-  <li><strong>Fecha</strong> &mdash; Marca de tiempo de cu\u00E1ndo se inici\u00F3 la ejecuci\u00F3n.</li>
-</ul>
 <p>
-  Al hacer clic en una fila, se navega a la p\u00E1gina de <strong>Detalles de
-  la ejecuci\u00F3n</strong> donde puede inspeccionar los registros de salida,
-  reintentar o cancelar la ejecuci\u00F3n.
+  Los consejos se enfocan espec\u00EDficamente en las funcionalidades de RoboScope
+  (paleta del Editor de Flujo, selector del Grabador, palabras clave de
+  auto-reparaci\u00F3n, tasa de reparaci\u00F3n de Stats, auto-sync de repos, panel de
+  Detalles de Ejecuci\u00F3n, \u2026) \u2014 no consejos gen\u00E9ricos de Robot Framework. El
+  texto de los consejos est\u00E1 disponible en las cuatro localizaciones (EN/DE/FR/ES).
 </p>`
-      },
-      {
-        id: 'repo-summary',
-        title: 'Resumen de repositorios',
-        content: `
-<p>
-  La secci\u00F3n inferior del Panel de control muestra un resumen de todos los
-  repositorios registrados. Para cada repositorio, puede ver:
-</p>
-<ul>
-  <li>Nombre del repositorio y tipo (Git o Local).</li>
-  <li>N\u00FAmero de archivos de prueba detectados.</li>
-  <li>Marca de tiempo de la \u00FAltima sincronizaci\u00F3n.</li>
-  <li>Insignia de estado de la \u00FAltima ejecuci\u00F3n.</li>
-</ul>
-<p>
-  Esto proporciona una visi\u00F3n r\u00E1pida de qu\u00E9 repositorios est\u00E1n
-  en buen estado y cu\u00E1les pueden necesitar atenci\u00F3n. Al hacer clic en el
-  nombre de un repositorio, se accede a la vista del <strong>Explorador</strong>
-  de ese repositorio.
-</p>`,
-        tip: 'Si un repositorio muestra una marca de tiempo de sincronizaci\u00F3n obsoleta, navegue a Repositorios y lance una sincronizaci\u00F3n manual.'
       }
     ]
   },
@@ -335,7 +302,7 @@ const es: DocsContent = [
   (por ejemplo, conflictos de fusi\u00F3n), aparece una insignia de error junto
   al nombre del repositorio.
 </p>`,
-        tip: 'La auto-sincronizaci\u00F3n asegura que siempre pruebe contra el c\u00F3digo m\u00E1s reciente. Act\u00EDvela para flujos de trabajo tipo CI/CD.'
+        tip: 'Importante: Auto-Sync ahora ejecuta un git pull en segundo plano cada sync_interval_minutes (15 min por defecto). El planificador se activa cada 5 min, los intervalos cortos se redondean a 5 min. Use el bot\u00F3n "Sincronizar" expl\u00EDcito y guarde sus cambios antes con "Guardar N cambios" para evitar sobrescrituras.'
       },
       {
         id: 'branch-switching',
@@ -351,8 +318,23 @@ const es: DocsContent = [
 <h4>Casilla de Auto-Sync</h4>
 <p>
   La casilla <strong>Auto-Sync</strong> en cada tarjeta de proyecto controla si el
-  repositorio se sincroniza autom\u00E1ticamente antes de las ejecuciones de pruebas.
-  Act\u00EDvela para flujos CI/CD donde siempre quiera probar el c\u00F3digo m\u00E1s reciente.
+  repositorio se sincroniza en segundo plano cada <code>sync_interval_minutes</code>
+  (15 min por defecto). Act\u00EDvela para flujos CI/CD donde siempre quiera probar
+  el c\u00F3digo m\u00E1s reciente.
+</p>
+<h4>Sincronizar antes de ejecutar</h4>
+<p>
+  Active <strong>Sincronizar antes de ejecutar</strong> en un repositorio cuando
+  cada ejecuci\u00F3n de pruebas deba usar el commit m\u00E1s reciente. RoboScope
+  ejecuta un <code>git pull</code> s\u00EDncrono justo antes de que arranque el
+  runner, con un timeout de 60&nbsp;s. La opci\u00F3n est\u00E1 desactivada por
+  defecto y a\u00F1ade unos segundos por ejecuci\u00F3n; se combina con Auto-Sync
+  &mdash; puede activar ambos, uno o ninguno.
+</p>
+<p>
+  Si el pull falla (red, conflicto, timeout), la ejecuci\u00F3n arranca igualmente
+  con lo que haya en disco. El fallo se registra y el siguiente Auto-Sync lo
+  reintentar\u00E1.
 </p>`
       },
       {
@@ -539,9 +521,11 @@ const es: DocsContent = [
 </p>
 <h4>Tipos de nodos</h4>
 <ul>
-  <li><strong>Nodos Inicio/Fin</strong> &mdash; Nodos redondeados que muestran el nombre del caso de prueba, marcando el inicio y fin de cada flujo.</li>
+  <li><strong>Nodos Inicio/Fin</strong> &mdash; Nodos redondeados que marcan el inicio y fin de cada flujo. El nodo Inicio muestra el nombre del caso de prueba / palabra clave; haga clic para abrir un panel de ajustes con botones <strong>+ [&hellip;]</strong> para cada ajuste a\u00FAn no adjunto.</li>
   <li><strong>Nodos de palabra clave</strong> (azul) &mdash; Representan llamadas a palabras clave. Haga clic en un nodo para ver sus argumentos en el panel de detalles a la derecha.</li>
   <li><strong>Nodos de control</strong> (borde punteado) &mdash; Representan estructuras de control como <code>IF</code>, <code>FOR</code>, <code>WHILE</code> y <code>TRY/EXCEPT</code>. Codificados por color seg\u00FAn tipo (\u00E1mbar para IF, violeta para FOR/WHILE, turquesa para TRY, rojo para EXCEPT). Las etiquetas de las aristas muestran condiciones de ramificaci\u00F3n (true/false).</li>
+  <li><strong>Nodo RETURN</strong> (verde, glifo &uarr;) &mdash; Marca el punto de retorno de una definici\u00F3n de palabra clave. Cada valor de retorno se renderiza como un chip; haga clic en el nodo y use el panel <strong>Valores de retorno</strong> para a\u00F1adir / quitar celdas.</li>
+  <li><strong>Notas laterales</strong> (borde punteado, vista previa en cursiva) &mdash; Ajustes de caso de prueba / palabra clave renderizados a la izquierda del nodo Inicio. Vea la siguiente secci\u00F3n.</li>
 </ul>
 <h4>Paleta de palabras clave</h4>
 <p>
@@ -561,6 +545,72 @@ const es: DocsContent = [
   formulario del Visual Editor como el c\u00F3digo bruto <code>.robot</code>.
 </p>`,
         tip: 'Use el MiniMap en la esquina inferior derecha del lienzo para navegar por suites de pruebas grandes. El panel de controles permite hacer zoom y ajustar la vista.'
+      },
+      {
+        id: 'flow-editor-settings',
+        title: 'Ajustes de caso de prueba &amp; palabra clave (notas laterales)',
+        content: `
+<p>
+  Robot Framework permite adjuntar <strong>ajustes
+  <code>[&hellip;]</code></strong> a un caso de prueba
+  (<code>[Documentation]</code>, <code>[Tags]</code>, <code>[Setup]</code>,
+  <code>[Teardown]</code>, <code>[Template]</code>, <code>[Timeout]</code>) y
+  a una definición de palabra clave (los mismos más
+  <code>[Arguments]</code>). El editor de flujo muestra cada ajuste
+  poblado como su propia <strong>nota lateral</strong> apilada
+  verticalmente a la izquierda del nodo Inicio, conectada por una
+  arista discontinua.
+</p>
+<p>
+  Cada nota lateral muestra una etiqueta como <code>[Tags]</code> y
+  una breve vista previa en cursiva del valor (la documentación
+  multilínea se limita a dos líneas para que una
+  <code>[Documentation]</code> larga no desborde sobre la siguiente).
+  Haga clic en una nota lateral para abrir un panel de detalles
+  específico del tipo:
+</p>
+<ul>
+  <li><strong>[Documentation]</strong> &mdash; área de texto multilínea.
+  El texto multilínea se conserva como filas de continuación
+  <code>...</code> en el archivo <code>.robot</code> guardado.</li>
+  <li><strong>[Tags]</strong> / <strong>[Arguments]</strong> &mdash;
+  entrada separada por comas. <code>${'${name}'}=default</code> es una
+  especificación de argumento válida; <code>${'@{name}'}</code>
+  funciona para varargs.</li>
+  <li><strong>[Setup]</strong> / <strong>[Teardown]</strong> &mdash;
+  nombre de la palabra clave a invocar antes / después del cuerpo.
+  Sobrescribe Test Setup / Teardown a nivel de Suite solo para este
+  caso de prueba.</li>
+  <li><strong>[Template]</strong> (solo casos de prueba) &mdash;
+  convierte el cuerpo en un bucle guiado por datos donde cada fila
+  es una llamada a la palabra clave template.</li>
+  <li><strong>[Timeout]</strong> &mdash; tiempo máximo antes de
+  abortar (ej. <code>30s</code>, <code>5 minutes</code>).</li>
+</ul>
+<h4>Añadir un ajuste</h4>
+<p>
+  Haga clic en el nodo Inicio para abrir el panel
+  <strong>Ajustes del caso de prueba</strong> /
+  <strong>Ajustes de la palabra clave</strong>. Para cada tipo aún
+  no adjunto aparece un botón <strong>+ [&hellip;]</strong>; haga
+  clic en él y la nota lateral aparece con un placeholder atenuado
+  «haz clic para editar», listo para entrada. Una vez que cada tipo
+  está rellenado, el panel cae a una pista que apunta a las notas
+  laterales.
+</p>
+<h4>Quitar un ajuste</h4>
+<p>
+  Abra el panel de detalles de la nota lateral y use el botón
+  <strong>&times;</strong> en el encabezado. La nota lateral
+  desaparece del lienzo en cuanto el valor subyacente se vacía.
+</p>
+<p>
+  Las ediciones se almacenan en buffer localmente y se confirman al
+  formulario en el <strong>blur</strong> &mdash; teclear ya no
+  dispara un deep-watcher por cada pulsación, el panel sobrevive a
+  ediciones multi-carácter intactas.
+</p>`,
+        tip: 'Una nota lateral es solo una visualización de la línea [Documentation] / [Tags] / etc. subyacente — el serializador round-trip siempre produce la sintaxis .robot canónica, así que un archivo editado en la pestaña Flow y guardado se ve idéntico a uno escrito a mano.'
       },
       {
         id: 'explorer-search',
@@ -608,7 +658,237 @@ const es: DocsContent = [
     ]
   },
 
-  // ─── 5. Ejecuci\u00F3n ─────────────────────────────────────────────────
+  // ─── 5. Recorder ──────────────────────────────────────────────────
+  {
+    id: 'recorder',
+    title: 'Grabador',
+    icon: '\uD83D\uDD34',
+    subsections: [
+      {
+        id: 'recorder-overview',
+        title: '\u00BFQu\u00E9 es el Grabador?',
+        content: `
+<p>
+  El <strong>Grabador de RoboScope</strong> permite capturar interacciones del navegador y
+  generar autom\u00E1ticamente archivos de prueba <code>.robot</code>. Hay dos m\u00E9todos de grabaci\u00F3n:
+</p>
+<ul>
+  <li><strong>Recorder v2 (recomendado)</strong> &mdash; Abra el lanzador desde la entrada
+  <em>Recorder</em> de la barra lateral, o directamente desde la barra de herramientas del
+  Explorer mediante el bot\u00F3n <em>Recorder v2</em> (el bot\u00F3n del Explorer preselecciona el
+  repositorio actual). El lanzador ofrece un selector de transporte (Web / Desktop&nbsp;Windows),
+  un campo opcional <em>Abrir URL</em> para que el navegador controlado navegue directamente
+  a su p\u00E1gina de inicio (solo se aceptan URL <code>http://</code> / <code>https://</code>
+  &mdash; d\u00E9jelo en blanco para iniciar en <code>about:blank</code>), abre una sesi\u00F3n de
+  navegador controlada y transmite cada acci\u00F3n capturada mediante Server-Sent Events a la
+  lista de pasos en vivo &mdash; con candidatos de selector por paso.</li>
+  <li><strong>Extensi\u00F3n de Chrome</strong> &mdash; Instale la extensi\u00F3n RoboScope Recorder para grabar
+  directamente en su propio navegador. Las acciones se env\u00EDan a RoboScope a trav\u00E9s de la API cuando est\u00E1 conectado.
+  El bot\u00F3n del grabador integrado legacy que antes aparec\u00EDa en la barra de herramientas del Explorer ha sido eliminado;
+  los flujos de la extensi\u00F3n de Chrome no se ven afectados porque se comunican directamente con el backend.</li>
+</ul>
+<h4>Flujo de grabaci\u00F3n</h4>
+<ol>
+  <li>Iniciar una grabaci\u00F3n (integrada o mediante la extensi\u00F3n)</li>
+  <li>Interactuar con la aplicaci\u00F3n web a probar</li>
+  <li>Detener la grabaci\u00F3n &mdash; RoboScope genera un archivo <code>.robot</code></li>
+  <li>Revisar, editar y guardar la prueba generada en su proyecto</li>
+</ol>`,
+        tip: 'El grabador integrado funciona sin extensi\u00F3n del navegador. La extensi\u00F3n de Chrome es \u00FAtil para grabar en un navegador donde ya ha iniciado sesi\u00F3n.'
+      },
+      {
+        id: 'recorder-anatomy',
+        title: 'Anatom\u00EDa del archivo .robot generado',
+        content: `
+<p>
+  Las grabaciones web se convierten en un archivo <code>.robot</code> autocontenido con
+  un <strong>bloque Variables</strong> para el modo visible/headless y un bootstrap de
+  Browser-library calibrado para p\u00E1ginas reales.
+</p>
+<pre><code>*** Settings ***
+Library           Browser
+
+*** Variables ***
+\${HEADLESS}       false
+
+*** Test Cases ***
+Recording 21
+    New Browser    chromium    headless=\${HEADLESS}
+    New Context
+    New Page    https://example.com    wait_until=domcontentloaded
+    Click    text=Iniciar sesi\u00F3n
+    ...</code></pre>
+<h4>Por qu\u00E9 <code>\${HEADLESS}</code> como variable</h4>
+<p>
+  Permite alternar entre visible y headless sin tocar el cuerpo del test \u2014 basta con
+  sobrescribir al invocar:
+  <code>robot --variable HEADLESS:true tests/&lt;archivo&gt;.robot</code>. El valor
+  por defecto <code>false</code> (navegador visible) refleja el contexto interactivo
+  de grabaci\u00F3n.
+</p>
+<h4>Por qu\u00E9 <code>wait_until=domcontentloaded</code></h4>
+<p>
+  El default de Playwright <code>wait_until="load"</code> espera por cada subrecurso
+  (anuncios, trackers, etiquetas <code>&lt;script&gt;</code> tard\u00EDas). En p\u00E1ginas
+  reales eso a menudo no ocurre dentro del timeout de 10 s \u2014 el test falla aunque
+  la p\u00E1gina est\u00E9 visiblemente cargada.
+  <code>domcontentloaded</code> es suficiente: el DOM est\u00E1 analizado, cualquier
+  Click / Type Text / Scroll To Element posterior encuentra su objetivo.
+</p>
+<h4>Edici\u00F3n en el editor visual</h4>
+<p>
+  En el panel de detalles del Flow Editor, un peque\u00F1o bot\u00F3n <code>{}</code> junto a
+  cualquier entrada tipada (casilla / n\u00FAmero / lista) cambia el slot a entrada de
+  texto libre \u2014 \u00FAtil para introducir una variable como <code>\${HEADLESS}</code>
+  en un par\u00E1metro booleano, o valores que el recorder no haya podido inferir.
+</p>`
+      },
+      {
+        id: 'recorder-selector-verification',
+        title: 'Verificaci\u00F3n de selectores &amp; Shadow DOM',
+        content: `
+<p>
+  Cada acci\u00F3n capturada se env\u00EDa con una lista de selectores candidatos
+  &mdash; <code>data-testid</code>, <code>role + name</code>, <code>text</code>,
+  <code>css</code> (id, clase, parent-scoped), <code>xpath</code>, y una
+  cadena <code>host &gt;&gt; inner</code> aware de Shadow DOM cuando aplica.
+  RoboScope los clasifica para que el candidato activo sobreviva al
+  contrato de modo estricto de Playwright en el replay.
+</p>
+<h4>Unicidad consciente de la visibilidad</h4>
+<p>
+  Al capturar, el verificador resuelve cada candidato contra la p\u00E1gina
+  en vivo en un \u00FAnico viaje <code>evaluate_all</code> y devuelve
+  <code>{ total, visible, actionable }</code>:
+</p>
+<ul>
+  <li><strong>actionable = 1</strong> &mdash; oro; exactamente una
+  coincidencia visible + cliqueable.</li>
+  <li><strong>visible = 1</strong> &mdash; verificado, penalizaci\u00F3n
+  ligera (-5); el elemento es visible pero est\u00E1 deshabilitado
+  (ej. input read-only).</li>
+  <li><strong>visible &ge; 2</strong> &mdash; multi-coincidencia;
+  reescrito a un <code>:nth-match(1)</code> /
+  <code>... &gt;&gt; nth=0</code> seg\u00FAn la estrategia para que el
+  replay en modo estricto siga eligiendo un elemento. Penalizaci\u00F3n
+  -15 para que una alternativa desambiguada por contexto-padre
+  gane cuando exista.</li>
+  <li><strong>visible = 0, total &ge; 1</strong> &mdash; elemento
+  oculto; mantenido como red de seguridad (-25) para que un futuro
+  auto-heal pueda probarlo, pero cualquier alternativa visible
+  gana siempre.</li>
+  <li><strong>total = 0</strong> &mdash; el selector apunta a nada,
+  descartado.</li>
+</ul>
+<h4>Desambiguaci\u00F3n por contexto padre</h4>
+<p>
+  Un <code>button.submit-btn</code> desnudo que coincida con todos
+  los botones Submit de la p\u00E1gina es la causa m\u00E1s com\u00FAn de fallo
+  de modo estricto de Playwright en el replay. La estrategia CSS
+  ahora tambi\u00E9n emite una variante con scope de ancestro siempre
+  que un ancestro estable tenga id / data-testid &mdash; ej.
+  <code>#checkout-form button.submit-btn</code> &mdash; con un
+  bonus de calidad +10 sobre la cadena desnuda. El verificador la
+  prefiere siempre que desambig\u00FCe.
+</p>
+<h4>Shadow DOM</h4>
+<p>
+  El script de captura usa <code>ev.composedPath()[0]</code> en
+  cada evento para que un clic dentro de una shadow root abierta
+  capture el elemento *real* clicado, no el host en el light DOM.
+  La caminata de ancestros cruza fronteras shadow v\u00EDa el nodo
+  host; cada ancestro lleva una bandera <code>is_shadow_host</code>.
+</p>
+<p>
+  Cuando el elemento capturado vive dentro de una (o varias)
+  shadow roots abiertas, la s\u00EDntesis emite un candidato Playwright
+  encadenado <code>&lt;host-selector&gt; &gt;&gt; &lt;inner&gt;</code>
+  (ej. <code>my-dialog &gt;&gt; [data-testid=&quot;save-btn&quot;]</code>).
+  Esto atraviesa expl\u00EDcitamente la frontera shadow &mdash; depender
+  del piercing impl\u00EDcito de Playwright depende del motor y es
+  f\u00E1cil de configurar mal en el lado Browser library / runner RF.
+  Las shadow roots cerradas siguen siendo opacas para el JS
+  userspace, as\u00ED que los elementos en root cerrada caen al
+  selector del host capturado.
+</p>`,
+        tip: 'En la UI del recorder, una \u2713 verde junto a un selector significa que resuelve a un \u00FAnico elemento visible + accionable en la p\u00E1gina en vivo. Varios candidatos aparecen ordenados por rango \u2014 el selector permite cambiar a otro si la elecci\u00F3n autom\u00E1tica no coincide con su intenci\u00F3n.'
+      },
+      {
+        id: 'recorder-extension',
+        title: 'Extensi\u00F3n de Chrome',
+        content: `
+<p>
+  La extensi\u00F3n de Chrome <strong>RoboScope Recorder</strong> graba interacciones directamente
+  en su navegador &mdash; sin necesidad de una ventana separada. Especialmente \u00FAtil
+  para p\u00E1ginas que requieren autenticaci\u00F3n, ya que ya ha iniciado sesi\u00F3n.
+</p>
+<h4>Instalaci\u00F3n</h4>
+<ol>
+  <li>En el repositorio de RoboScope, encuentre el directorio <code>extension/</code></li>
+  <li>Abra <code>chrome://extensions</code> en Chrome o cualquier navegador basado en Chromium</li>
+  <li>Active el <strong>Modo de desarrollador</strong> (interruptor en la esquina superior derecha)</li>
+  <li>Haga clic en <strong>Cargar extensi\u00F3n sin empaquetar</strong> y seleccione la carpeta <code>extension/</code></li>
+  <li>El icono de RoboScope Recorder aparece en la barra de herramientas del navegador</li>
+</ol>
+<h4>Conexi\u00F3n con RoboScope</h4>
+<ol>
+  <li>Haga clic derecho en el icono de la extensi\u00F3n y seleccione <strong>Opciones</strong></li>
+  <li>Introduzca la <strong>URL del servidor</strong> (ej. <code>http://localhost:8000</code>)</li>
+  <li>Introduzca un <strong>Token API</strong> (cr\u00E9elo en RoboScope en Configuraci\u00F3n &rarr; Tokens API)</li>
+  <li>Haga clic en <strong>Probar conexi\u00F3n</strong> para verificar</li>
+  <li>Seleccione el <strong>Proyecto</strong> objetivo del men\u00FA desplegable</li>
+  <li>Haga clic en <strong>Guardar</strong></li>
+</ol>
+<p>
+  Una vez conectado, un indicador verde aparece en el popup de la extensi\u00F3n.
+  Todas las acciones grabadas se env\u00EDan autom\u00E1ticamente a su instancia de RoboScope.
+</p>`,
+        tip: 'La extensi\u00F3n tambi\u00E9n funciona en modo aut\u00F3nomo sin conexi\u00F3n a RoboScope &mdash; genera archivos .robot localmente para descargar.'
+      },
+      {
+        id: 'recorder-extension-usage',
+        title: 'Uso de la extensi\u00F3n',
+        content: `
+<p>
+  Haga clic en el icono de la extensi\u00F3n para abrir el popup:
+</p>
+<ol>
+  <li>Haga clic en <strong>Grabar</strong> para capturar acciones en la p\u00E1gina actual</li>
+  <li>Interact\u00FAe con la p\u00E1gina &mdash; clics, entradas de texto y selecciones se capturan</li>
+  <li>Haga clic en <strong>Detener</strong> para finalizar y generar el script</li>
+  <li>Use <strong>Copiar</strong> o <strong>Descargar</strong> para guardar el archivo <code>.robot</code> generado</li>
+</ol>
+<h4>Funciones adicionales</h4>
+<ul>
+  <li><strong>Pausa / Reanudar</strong> &mdash; Interrumpir temporalmente sin perder las acciones capturadas</li>
+  <li><strong>Escanear p\u00E1gina</strong> &mdash; Analizar la p\u00E1gina en busca de elementos interactivos y generar locators</li>
+  <li><strong>Consola XPath</strong> &mdash; Validar expresiones XPath con resaltado visual en la p\u00E1gina</li>
+  <li><strong>Plantillas</strong> &mdash; Insertar plantillas de scripts predefinidas (Login, Formulario, Navegaci\u00F3n)</li>
+  <li><strong>Configuraci\u00F3n</strong> &mdash; Elegir biblioteca objetivo, sintaxis e idioma</li>
+</ul>
+<h4>Biblioteca objetivo</h4>
+<table>
+  <thead>
+    <tr><th>Biblioteca</th><th>Keywords</th><th>Caso de uso</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Browser</strong></td>
+      <td><code>Click</code>, <code>Fill Text</code>, <code>Select Options By</code></td>
+      <td>Pruebas modernas basadas en Playwright</td>
+    </tr>
+    <tr>
+      <td><strong>SeleniumLibrary</strong></td>
+      <td><code>Click Element</code>, <code>Input Text</code>, <code>Select From List By Value</code></td>
+      <td>Pruebas legacy basadas en Selenium</td>
+    </tr>
+  </tbody>
+</table>`
+      }
+    ]
+  },
+
+  // ─── 6. Ejecuci\u00F3n ─────────────────────────────────────────────────
   {
     id: 'execution',
     title: 'Ejecuci\u00F3n',
@@ -637,7 +917,22 @@ const es: DocsContent = [
   La ejecuci\u00F3n entra en estado <code>pending</code> y es recogida por el ejecutor
   de tareas. Dado que RoboScope utiliza un ejecutor de un solo worker, las ejecuciones
   se procesan una a la vez en orden FIFO (primero en entrar, primero en salir).
-</p>`,
+</p>
+<h4>Panel de actividad pendiente</h4>
+<p>
+  Mientras una ejecuci\u00F3n est\u00E9 en estado <code>pending</code>, el panel de detalle muestra
+  un peque\u00F1o recuadro \u00E1mbar de <em>Actividad pendiente</em> que explica <strong>por qu\u00E9</strong>
+  a\u00FAn no ha comenzado:
+</p>
+<ul>
+  <li><strong>En espera detr\u00E1s de N run(s)</strong> &mdash; uno o m\u00E1s runs anteriores ocupan todav\u00EDa
+  el \u00FAnico slot del ejecutor. La posici\u00F3n en la cola se refresca cada pocos segundos.</li>
+  <li><strong>Esperando la construcci\u00F3n de la imagen Docker en &lt;entorno&gt;</strong> &mdash; el entorno
+  asignado est\u00E1 construyendo su imagen. La cola del log de build se muestra en el panel; el enlace
+  <em>Abrir Entornos</em> lleva al log completo.</li>
+  <li><strong>Preparando el run\u2026</strong> &mdash; estado transitorio breve que normalmente pasa a
+  <code>running</code> en pocos segundos.</li>
+</ul>`,
         tip: 'Si necesita ejecutar pruebas de m\u00FAltiples repositorios, p\u00F3ngalas en cola secuencialmente. Se ejecutar\u00E1n en orden.'
       },
       {
@@ -1087,6 +1382,167 @@ const es: DocsContent = [
   },
 
   // ─── 8. Entornos ──────────────────────────────────────────────────
+  // ─── 7.5 Auto-sanación y resiliencia ────────────────────────────
+  {
+    id: 'self-healing',
+    title: 'Auto-sanación y resiliencia',
+    icon: '🩹',
+    subsections: [
+      {
+        id: 'self-healing-overview',
+        title: 'Cómo funciona la auto-sanación',
+        content: `
+<p>
+  Los tests derivan. Un dev renombra <code>id=submit</code> a <code>id=submit-btn</code>,
+  o envuelve un botón en un nuevo <code>&lt;form&gt;</code>, y cada test que referenciaba
+  el locator antiguo se rompe. La librería de auto-sanación de RoboScope reintenta
+  los selectores fallidos en tiempo de ejecución contra el DOM vivo &mdash; el test
+  pasa mientras RoboScope registra el cambio para revisión.
+</p>
+<h4>Opt-in por keyword</h4>
+<p>
+  La auto-sanación no es automática. Importas la librería y usas la variante sanada
+  en lugar del keyword Browser simple:
+</p>
+<pre><code>*** Settings ***
+Library    Browser
+Library    RoboScopeHeal
+
+*** Test Cases ***
+Login Works
+    New Browser    chromium
+    New Page       https://app.example.com/login
+    Heal Fill Text    id=user      alice
+    Heal Fill Text    id=password  secret
+    Heal Click        id=submit
+    Get Text          .welcome-banner
+</code></pre>
+<h4>Tres niveles de fallback, en orden</h4>
+<ol>
+  <li><strong>Búsqueda en el sidecar</strong> &mdash; si el fichero <code>.robot</code> tiene
+  un hermano <code>&lt;name&gt;.rbs.json</code> del Recorder v2, RoboScope consulta la
+  lista de candidatos clasificados capturada en la grabación.</li>
+  <li><strong>Transposición de estrategia</strong> &mdash; <code>id=submit</code> prueba
+  <code>[data-testid=submit]</code>, <code>text=submit</code>, <code>css=input#submit</code>,
+  <code>role=button[name="submit"]</code>. Cada candidato se verifica contra el DOM
+  vivo via <code>Get Element Count</code> antes de probarlo &mdash; los no únicos / cero
+  coincidencias se descartan.</li>
+  <li><strong>Recorrido DOM por huella</strong> &mdash; último recurso. Si la grabación
+  guardó una huella (tag + id + testid + clases + rol + texto + cadena de ancestros),
+  RoboScope escanea los elementos interactivos y selecciona la mejor coincidencia
+  multi-señal por encima de un umbral.</li>
+</ol>`,
+        tip: 'La auto-sanación solo se dispara en errores de selector. Los fallos de aserción se propagan intactos — RoboScope se niega a tapar una regresión real con una sustitución silenciosa.'
+      },
+      {
+        id: 'self-healing-safety',
+        title: 'Sobre de seguridad',
+        content: `
+<p>
+  Hacer clic en el elemento equivocado en tiempo de ejecución es peor que fallar.
+  Cada operación pasa por cuatro barreras:
+</p>
+<ul>
+  <li><strong>Presupuesto por test</strong> &mdash; máximo tres sanaciones por defecto.</li>
+  <li><strong>Umbral de confianza</strong> &mdash; mutadores 0.7+; solo lectura 0.5+.</li>
+  <li><strong>Presupuesto de reintento por llamada</strong> &mdash; una alternativa.</li>
+  <li><strong>Clasificación de sospechosos</strong> &mdash; tras el run, las sanaciones se
+  cruzan con el resultado de cada test. Pasó → <em>confirmado</em>;
+  falló → <em>sospechoso</em>. Solo las confirmadas ofrecen botón Aplicar parche.</li>
+</ul>
+<h4>Válvula de escape: la etiqueta <code>no-heal</code></h4>
+<p>
+  Runs CI estrictos pueden desactivar la sanación por test añadiendo la etiqueta
+  <code>no-heal</code>. Los keywords <code>Heal *</code> delegan entonces directamente.
+</p>`,
+        tip: 'Umbrales, presupuestos y ruta del sidecar son todos configurables como argumentos de Library-import.'
+      },
+      {
+        id: 'self-healing-report',
+        title: 'Informe de sanaciones en el detalle del run',
+        content: `
+<p>
+  Cada sanación exitosa se añade a <code>&lt;output_dir&gt;/heal_audit.jsonl</code>.
+  El panel de detalle del run parsea este fichero y renderiza una tarjeta compacta
+  <strong>Selectores autoreparados</strong>.
+</p>
+<ul>
+  <li><strong>🩹 Confirmado</strong> &mdash; el test pasó. Ofrece <em>Copiar parche</em>
+  y <em>Aplicar parche</em> (solo Editor+).</li>
+  <li><strong>⚠️ Sospechoso</strong> &mdash; el test falló. <em>No</em> se ofrece botón
+  de parche.</li>
+</ul>
+<h4>Seguridad del Aplicar parche</h4>
+<p>
+  El endpoint escribe atómicamente (temp + rename), rechaza sospechosos / fuera de
+  rango / viewer, se niega si la línea del selector falta o es ambigua, y es
+  idempotente.
+</p>`,
+      },
+      {
+        id: 'self-healing-diagnosis',
+        title: 'Diagnóstico de selectores en runs fallidos',
+        content: `
+<p>
+  Para runs fallidos sin sanación, RoboScope sigue ayudando: escanea la salida buscando
+  firmas comunes de fallo de locator y busca cada una en el sidecar. Una tarjeta
+  <strong>Diagnóstico de selectores</strong> muestra el selector fallido y alternativas
+  clasificadas — un clic para copiar.
+</p>`,
+      },
+      {
+        id: 'self-healing-rate-kpi',
+        title: 'KPI de tasa de sanación',
+        content: `
+<p>
+  La sanación es un indicador adelantado. Una tasa creciente significa que la suite
+  está derivando. La vista general de Estadísticas expone esta señal vía la tarjeta
+  <strong>🩹 Selectores autoreparados</strong>: número grande, sub-línea con proporción
+  de runs, insignias confirmado/sospechoso, sparkline.
+</p>`,
+        tip: 'Vigila la columna Sospechosos. Un flujo constante significa que las heurísticas son incorrectas para tu base de código — abre una issue.'
+      },
+      {
+        id: 'flaky-quarantine',
+        title: 'Cuarentena de tests inestables',
+        content: `
+<p>
+  RoboScope detecta automáticamente los tests inestables en la tabla <strong>Tests
+  inestables</strong> de Estadísticas. La <strong>cuarentena</strong> permite marcarlos
+  para que se salten en ejecución.
+</p>
+<h4>Marcar un test en cuarentena</h4>
+<ul>
+  <li>Abre <strong>Estadísticas</strong>, localiza la tabla.</li>
+  <li>Editor+ ven un botón <strong>Silenciar</strong>. Clic → test registrado.</li>
+  <li>La fila recibe una insignia <strong>🔕 En cuarentena</strong>.</li>
+</ul>
+<h4>Efecto en tiempo de ejecución</h4>
+<p>
+  RoboScope registra un listener de Robot Framework que llama a
+  <code>BuiltIn().skip()</code> en tests coincidentes. Aparecen como <code>SKIP</code>
+  en <code>output.xml</code> — no como <code>FAIL</code>.
+</p>`,
+        tip: 'La cuarentena está siempre activa. Quitar vía el mismo botón.'
+      },
+      {
+        id: 'self-healing-ai-patches',
+        title: 'Parches sugeridos por IA',
+        content: `
+<p>
+  Al ejecutar <strong>Analizar fallos</strong>, el LLM emite parches unified-diff junto
+  al análisis en prosa cuando el arreglo es concreto. Una sección <strong>Parches
+  sugeridos</strong> aparece con vista previa del diff por fichero y botón
+  <em>Copiar parche</em>.
+</p>
+<p>
+  Estos parches son <em>sugerencias</em> — nunca se aplican automáticamente. RoboScope
+  no modificará tu repositorio sin acción explícita.
+</p>`,
+        tip: 'Los fallos ambiguos nunca producen un bloque de parche.'
+      },
+    ],
+  },
   {
     id: 'environments',
     title: 'Entornos',
@@ -1536,6 +1992,132 @@ const es: DocsContent = [
   <li>Los secretos en texto plano existentes (creados antes de habilitar el cifrado) siguen funcionando mediante una compatibilidad regresiva elegante.</li>
 </ul>`,
         tip: 'Use siempre un SECRET_KEY fuerte y \u00FAnico en producci\u00F3n. Si el SECRET_KEY cambia, los secretos cifrados anteriormente se volver\u00E1n ilegibles.'
+      },
+      {
+        id: 'identity-providers',
+        title: 'Proveedores de identidad (SSO)',
+        content: `
+<p>
+  RoboScope admite <strong>inicio de sesión único (SSO)</strong> mediante OpenID Connect (OIDC).
+  Una vez configurado y habilitado un proveedor de identidad, aparece un botón
+  <strong>Iniciar sesión con &hellip;</strong> en la pantalla de inicio de sesión y sus
+  usuarios ya no necesitan una contraseña separada de RoboScope.
+</p>
+<p>
+  Tipos de proveedor admitidos:
+</p>
+<ul>
+  <li><strong>Azure AD / Microsoft Entra ID</strong></li>
+  <li><strong>Google Workspace</strong></li>
+  <li><strong>GitHub</strong></li>
+  <li><strong>OIDC genérico</strong> &mdash; cualquier emisor OIDC compatible con los estándares
+      (Okta, Keycloak, Auth0, Authentik, &hellip;)</li>
+</ul>
+
+<h4>1. Preparar la aplicación en su IdP</h4>
+<p>
+  En la consola de administración de su IdP, registre una nueva aplicación web y
+  anote el <strong>Client ID</strong> y el <strong>Client Secret</strong>. Configure
+  la <strong>URI de redirección</strong> como:
+</p>
+<p><code>https://&lt;su-host-roboscope&gt;/auth/sso/callback</code></p>
+<p>
+  RoboScope muestra la URL exacta en el formulario de configuración (con un botón
+  para copiar). La aplicación debe poder solicitar como mínimo los scopes
+  <code>openid profile email</code>. Si desea asignación de equipos basada en
+  grupos, habilite también un claim <strong>groups</strong>
+  (Azure AD: <em>Configuración de tokens</em> &rarr; añadir el claim <em>groups</em>;
+  Keycloak: añadir un mapeador de <em>group membership</em>).
+</p>
+
+<h4>2. Crear el proveedor en RoboScope</h4>
+<ol>
+  <li>Abra <strong>Admin &gt; Proveedores de identidad</strong> en la barra lateral.</li>
+  <li>Haga clic en <strong>Añadir proveedor</strong>.</li>
+  <li>Complete el formulario:
+    <ul>
+      <li><strong>Nombre</strong> &mdash; etiqueta mostrada en el botón de inicio de sesión (p.&nbsp;ej. «SSO de la empresa»).</li>
+      <li><strong>Tipo de proveedor</strong> &mdash; uno de los cuatro tipos anteriores.</li>
+      <li><strong>URL del emisor</strong> &mdash; la URL base del emisor / descubrimiento OIDC.
+          Ejemplos:
+        <ul>
+          <li>Azure AD: <code>https://login.microsoftonline.com/&lt;tenant-id&gt;/v2.0</code></li>
+          <li>Google: <code>https://accounts.google.com</code></li>
+          <li>GitHub: <code>https://token.actions.githubusercontent.com</code> o su proxy OIDC</li>
+          <li>Genérico: la URL donde se sirve <code>/.well-known/openid-configuration</code></li>
+        </ul>
+      </li>
+      <li><strong>Client ID</strong> &mdash; de la aplicación IdP.</li>
+      <li><strong>Client Secret</strong> &mdash; de la aplicación IdP. Almacenado cifrado en reposo (Fernet).</li>
+      <li><strong>Scopes</strong> &mdash; por defecto <code>openid profile email</code>; añada otros (p.&nbsp;ej. <code>groups</code>, <code>offline_access</code>) como chips.</li>
+      <li><strong>Nombre del claim de grupo</strong> &mdash; el claim JWT que contiene los grupos del usuario (por defecto <code>groups</code>).</li>
+    </ul>
+  </li>
+</ol>
+
+<h4>3. Ejecutar la sonda Dry-Run</h4>
+<p>
+  Antes de poder guardar el proveedor, haga clic en <strong>Ejecutar Dry-Run</strong>.
+  La sonda obtiene el documento de descubrimiento OIDC, valida el endpoint JWKS,
+  los scopes configurados y el nombre del claim de grupo. El resultado se muestra en línea:
+</p>
+<ul>
+  <li><strong>Aprobado</strong> &mdash; el botón <strong>Guardar</strong> se desbloquea.</li>
+  <li><strong>Fallido</strong> &mdash; expanda la fila para ver qué comprobación falló
+      (causas más comunes: URL de emisor incorrecta, tráfico de red saliente bloqueado,
+      scope no autorizado en el IdP).</li>
+</ul>
+<p>
+  Editar cualquier campo después de un dry-run exitoso marca la sonda como
+  <em>obsoleta</em> &mdash; debe volver a ejecutarla antes de guardar.
+</p>
+
+<h4>4. Documento de transferencia</h4>
+<p>
+  Después del primer guardado, puede descargar un documento de
+  <strong>transferencia en PDF o Markdown</strong> desde la página de edición del proveedor.
+  El artefacto enumera todo lo que el administrador del IdP necesita (URI de redirección,
+  scopes requeridos, claim de grupo) y se genera en el mismo idioma que la interfaz
+  &mdash; útil cuando RoboScope y el IdP son gestionados por equipos diferentes.
+</p>
+
+<h4>5. Primer inicio de sesión del usuario</h4>
+<p>
+  Una vez habilitado el proveedor, la página de inicio de sesión muestra un botón
+  <strong>Iniciar sesión con <em>&lt;Nombre&gt;</em></strong>. En el primer inicio de sesión SSO,
+  se crea automáticamente una cuenta de usuario de RoboScope y se vincula al sujeto IdP.
+  Si ya existe una cuenta local con contraseña para el mismo correo electrónico,
+  se solicita al usuario que confirme la vinculación (pantalla de consentimiento).
+</p>
+
+<h4>Asignación de grupos a equipos</h4>
+<p>
+  En <strong>Admin &gt; Equipos</strong>, puede asignar nombres de grupos del IdP a
+  equipos de RoboScope. En cada inicio de sesión SSO, la pertenencia a equipos del
+  usuario se resincroniza desde el claim de grupo configurado. Use
+  <strong>Crear equipos en lote a partir de grupos del IdP</strong> en la página Equipos
+  para iniciar las asignaciones a partir de los grupos ya observados en inicios de sesión recientes.
+</p>
+
+<h4>Caché de descubrimiento</h4>
+<p>
+  Los documentos de descubrimiento OIDC se almacenan en caché durante 24&nbsp;h para
+  mantener los inicios de sesión rápidos y resilientes ante breves interrupciones del IdP.
+  La lista de proveedores muestra una <strong>insignia de caché obsoleta</strong> cuando
+  la caché tiene más de 24&nbsp;h. Active una actualización manual desde la página de
+  la lista de proveedores.
+</p>
+
+<h4>Bypass de emergencia</h4>
+<p>
+  Si su IdP no es accesible, un administrador aún puede iniciar sesión con la cuenta
+  local <code>admin@roboscope.local</code> (o cualquier otra cuenta local con
+  contraseña) mediante el enlace <strong>Usar contraseña en su lugar</strong> en la
+  página de inicio de sesión. Este enlace puede ocultarse en
+  <strong>Ajustes &gt; Seguridad &gt; Ocultar formulario de contraseña</strong> una vez
+  que el SSO esté completamente desplegado.
+</p>`,
+        tip: 'Ejecute siempre la sonda Dry-Run antes de guardar y antes de desplegar a los usuarios. Detecta el 90&nbsp;% de los errores de configuración (emisor incorrecto, scope faltante, JWKS inaccesible) sin afectar a los usuarios finales.'
       }
     ]
   },

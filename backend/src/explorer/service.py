@@ -1,5 +1,6 @@
 """Explorer service: filesystem traversal, Robot file parsing, file operations."""
 
+import os
 import platform
 import re
 import subprocess
@@ -524,7 +525,16 @@ def open_in_editor(base_path: str, relative_path: str) -> None:
     if system == "Darwin":
         subprocess.Popen(["open", str(target)])
     elif system == "Windows":
-        subprocess.Popen(["start", "", str(target)], shell=True)
+        # `os.startfile` calls Windows ShellExecuteW directly. The
+        # previous implementation used `subprocess.Popen(["start", "",
+        # str(target)], shell=True)` — `start` is a cmd.exe builtin,
+        # so the args were re-joined and passed to cmd.exe which
+        # interprets `& | > <` and friends. A user with EDITOR rights
+        # could create a file whose name contains shell metachars and
+        # trigger backend-host command execution by clicking "Open in
+        # editor". `os.startfile` does NOT go through cmd, so the
+        # filename is treated as a single ShellExecute lpFile arg.
+        os.startfile(str(target))  # type: ignore[attr-defined]  # Windows-only
     else:
         subprocess.Popen(["xdg-open", str(target)])
 

@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useExecutionStore } from '@/stores/execution.store'
 import { useEnvironmentsStore } from '@/stores/environments.store'
+import { useRecorderStore } from '@/stores/recorder.store'
 import { useUiStore } from '@/stores/ui.store'
 
 export function useWebSocket() {
@@ -13,6 +14,7 @@ export function useWebSocket() {
   const { t } = useI18n()
   const execution = useExecutionStore()
   const envStore = useEnvironmentsStore()
+  const recorder = useRecorderStore()
   const ui = useUiStore()
 
   function connect() {
@@ -106,6 +108,19 @@ export function useWebSocket() {
 
       case 'docker_build_log':
         envStore.appendBuildLog(data.environment_id, data.line, data.done)
+        break
+
+      case 'recording_status_changed':
+        recorder.handleRecordingStatusChanged(data.recording_id, data.status)
+        if (data.status === 'completed') {
+          ui.success(t('recorder.completed'), t('recorder.completedMsg'))
+        } else if (data.status === 'failed') {
+          ui.error(t('recorder.failed'), t('recorder.failedMsg'))
+        }
+        break
+
+      case 'recording_event':
+        recorder.handleRecordingEvent(data.recording_id, data.event)
         break
 
       case 'notification':

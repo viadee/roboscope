@@ -531,13 +531,16 @@ def _broadcast_docker_build_log(env_id: int, line: str, done: bool = False) -> N
     from src.main import _event_loop
 
     coro = ws_manager.broadcast_docker_build_log(env_id, line, done=done)
-    asyncio.run_coroutine_threadsafe(coro, _event_loop)
+
+    if _event_loop and _event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(coro, _event_loop)
+    else:
+        logger.warning("No event loop available to broadcast docker build log for env %d", env_id)
 
 
 def build_docker_image(env_id: int) -> dict:
     """Build a Docker image for an environment with all its packages."""
     import io
-    import json as _json
     import tarfile
 
     with get_sync_session() as session:
@@ -577,31 +580,9 @@ def build_docker_image(env_id: int) -> dict:
                 packages=pkg_specs,
             )
 
-            # Get Docker client (same fallback logic as docker_runner.py)
-            import docker
-
-            client = None
-            try:
-                client = docker.from_env()
-                client.ping()
-            except Exception:
-                base_url = None
-                try:
-                    out = subprocess.check_output(
-                        ["docker", "context", "inspect"], text=True, timeout=5,
-                    )
-                    ctx = _json.loads(out)
-                    if isinstance(ctx, list) and ctx:
-                        host = ctx[0].get("Endpoints", {}).get("docker", {}).get("Host", "")
-                        if host:
-                            base_url = host
-                except Exception:
-                    pass
-
-                if base_url:
-                    client = docker.DockerClient(base_url=base_url)
-                else:
-                    raise
+            # Story REFACTOR-1 — shared bootstrap helper.
+            from src.docker_client import get_docker_client
+            client = get_docker_client()
 
             # Build image from in-memory tarball
             dockerfile_bytes = dockerfile_content.encode("utf-8")
@@ -725,13 +706,16 @@ def rfbrowser_init_task(env_id: int) -> dict:
         if env is None or env.venv_path is None:
             return {"status": "error", "message": "Environment not found"}
 
-        browser_pkg = session.execute(
+        installed_packages = session.execute(
             select(EnvironmentPackage).where(
                 EnvironmentPackage.environment_id == env_id,
                 EnvironmentPackage.install_status == "installed",
             )
         ).scalars().all()
-        browser_pkg = next((p for p in browser_pkg if _is_browser_package(p.package_name)), None)
+        browser_pkg = next(
+            (p for p in installed_packages if _is_browser_package(p.package_name)),
+            None,
+        )
 
         try:
             _run_rfbrowser_init(env.venv_path, env_id, browser_pkg.package_name if browser_pkg else "robotframework-browser", browser_pkg, session)

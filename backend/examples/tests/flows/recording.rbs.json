@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "transport": "web_playwright",
+  "session_id": "23",
+  "name": null,
+  "commands": [
+    {
+      "index": 0,
+      "keyword": "Go To",
+      "args": {
+        "url": "https://www.heise.de/"
+      },
+      "selector_candidates": [],
+      "active_candidate_index": 0,
+      "element_fingerprint": null
+    },
+    {
+      "index": 1,
+      "keyword": "Go To",
+      "args": {
+        "url": "https://www.heise.de/"
+      },
+      "selector_candidates": [],
+      "active_candidate_index": 0,
+      "element_fingerprint": null
+    },
+    {
+      "index": 2,
+      "keyword": "Click",
+      "args": {},
+      "selector_candidates": [
+        {
+          "strategy": "text",
+          "value": "text=Developer",
+          "quality_score": 70,
+          "verified_unique": false
+        },
+        {
+          "strategy": "pw_locator",
+          "value": "getByText(\"Developer\", { exact: true })",
+          "quality_score": 70,
+          "verified_unique": false
+        },
+        {
+          "strategy": "xpath",
+          "value": "//a[normalize-space()=\"Developer\"]",
+          "quality_score": 65,
+          "verified_unique": false
+        },
+        {
+          "strategy": "xpath",
+          "value": "/li/ul/div/a-scroll-container/nav/div/header/div/a",
+          "quality_score": 25,
+          "verified_unique": false
+        }
+      ],
+      "active_candidate_index": 0,
+      "element_fingerprint": null
+    }
+  ]
+}

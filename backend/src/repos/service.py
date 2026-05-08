@@ -1,7 +1,7 @@
 """Repository management service: Git operations, CRUD."""
 
 import shutil
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy import select
@@ -48,6 +48,14 @@ def create_repository(
 ) -> Repository:
     """Create a new repository entry."""
     if data.repo_type == "local":
+        # `data.local_path` is `str | None` on the schema; the
+        # `validate_type_fields` model validator on RepoCreate enforces
+        # it's set whenever repo_type == 'local'. Mypy can't see across
+        # the validator, so we re-assert here.
+        assert data.local_path is not None, (
+            "RepoCreate.validate_type_fields should have rejected a "
+            "local repo without local_path before reaching this point"
+        )
         local_path = data.local_path
         path = Path(local_path)
         if not path.exists():
@@ -189,6 +197,484 @@ def checkout_branch(local_path: str, branch: str) -> str:
         return f"checked out {branch}"
     except GitCommandError as e:
         return f"error: {e}"
+
+
+# ---------------------------------------------------------------------------
+# Story REPO-1 — non-Git-user save loop (status / commit / push / publish)
+# ---------------------------------------------------------------------------
+
+
+class GitOperationError(Exception):
+    """Raised by the save-loop helpers for any git failure that the
+    router should translate to a structured error response. Carries
+    a stable `kind` discriminator so the router knows whether a
+    failure is a 404 / 400 / 409 / 502.
+
+    `kind` is one of:
+      - 'not_a_repo'         the path is not a git repo (404)
+      - 'nothing_to_commit'  the index is clean (400)
+      - 'non_fast_forward'   the remote rejected the push (409)
+      - 'auth'               remote authentication failed (502)
+      - 'other'              everything else (500)
+
+    Optional fields (set when commit succeeded but a subsequent step
+    like push failed — the router uses these to return 409 with the
+    commit-recovery payload so the user's local work isn't lost):
+      - commit_hash       — the SHA of the local commit that landed
+      - committed_files   — the paths in that commit
+    """
+
+    def __init__(self, kind: str, message: str):
+        super().__init__(message)
+        self.kind = kind
+        # Declared upfront so callers don't need
+        # `getattr(e, "commit_hash", None)` and the service-layer
+        # writes don't need `# type: ignore[attr-defined]`.
+        self.commit_hash: str | None = None
+        self.committed_files: list[str] | None = None
+
+
+def get_repo_status(local_path: str) -> dict:
+    """Snapshot of the working tree + tracking-branch divergence.
+
+    Returns a dict shaped for the API response:
+
+        {
+          "current_branch": str | None,
+          "ahead": int,
+          "behind": int,
+          "modified": [str, ...],
+          "staged":   [str, ...],
+          "untracked":[str, ...],
+          "deleted":  [str, ...],
+          "is_dirty": bool,
+        }
+
+    Non-existent or non-git paths yield a benign empty snapshot rather
+    than throwing — the router decides whether that is a 400.
+    """
+    from git import InvalidGitRepositoryError, Repo
+
+    empty = {
+        "current_branch": None,
+        "ahead": 0,
+        "behind": 0,
+        "modified": [],
+        "staged": [],
+        "untracked": [],
+        "deleted": [],
+        "is_dirty": False,
+    }
+    path = Path(local_path)
+    if not path.exists() or not (path / ".git").exists():
+        return empty
+
+    try:
+        repo = Repo(local_path)
+    except InvalidGitRepositoryError:
+        return empty
+
+    current_branch: str | None = None
+    if not repo.head.is_detached:
+        current_branch = repo.active_branch.name
+
+    ahead = 0
+    behind = 0
+    if current_branch is not None:
+        tracking = repo.active_branch.tracking_branch()
+        if tracking is not None:
+            try:
+                ahead = sum(
+                    1 for _ in repo.iter_commits(f"{tracking.name}..{current_branch}")
+                )
+                behind = sum(
+                    1 for _ in repo.iter_commits(f"{current_branch}..{tracking.name}")
+                )
+            except Exception:
+                pass
+
+    # `repo.index.diff(None)`     = working-tree-vs-index (unstaged edits + deletes)
+    # `repo.index.diff("HEAD")`   = index-vs-last-commit  (staged edits)
+    modified: list[str] = []
+    deleted: list[str] = []
+    for change in repo.index.diff(None):
+        path_str = change.a_path or change.b_path or ""
+        if change.change_type == "D":
+            deleted.append(path_str)
+        elif path_str:
+            modified.append(path_str)
+
+    staged: list[str] = []
+    try:
+        for change in repo.index.diff("HEAD"):
+            path_str = change.a_path or change.b_path or ""
+            if path_str and path_str not in staged:
+                staged.append(path_str)
+    except Exception:
+        # Empty repo (no HEAD yet) — index.diff("HEAD") raises.
+        pass
+
+    untracked = list(repo.untracked_files)
+
+    is_dirty = bool(modified or staged or untracked or deleted)
+
+    return {
+        "current_branch": current_branch,
+        "ahead": ahead,
+        "behind": behind,
+        "modified": sorted(modified),
+        "staged": sorted(staged),
+        "untracked": sorted(untracked),
+        "deleted": sorted(deleted),
+        "is_dirty": is_dirty,
+    }
+
+
+def commit_changes(
+    local_path: str,
+    message: str,
+    paths: list[str] | None,
+    author_name: str,
+    author_email: str,
+) -> dict:
+    """Stage `paths` (or every dirty path when None) and commit with
+    the given identity.
+
+    Identity is supplied PER-COMMAND (`-c user.email=… -c user.name=…`)
+    so concurrent commits by different users do not race on the
+    repository's `.git/config` file.
+
+    Raises `GitOperationError` with one of:
+      - 'not_a_repo'
+      - 'nothing_to_commit'
+      - 'other'
+    """
+    from git import GitCommandError, InvalidGitRepositoryError, Repo
+
+    path = Path(local_path)
+    if not path.exists() or not (path / ".git").exists():
+        raise GitOperationError("not_a_repo", "not a git repository")
+    try:
+        repo = Repo(local_path)
+    except InvalidGitRepositoryError:
+        raise GitOperationError("not_a_repo", "not a git repository") from None
+
+    if paths is None:
+        status = get_repo_status(local_path)
+        targets = (
+            list(status.get("modified") or [])
+            + list(status.get("untracked") or [])
+            + list(status.get("deleted") or [])
+            + list(status.get("staged") or [])
+        )
+    else:
+        targets = list(paths)
+
+    # `git add -A -- <paths…>` covers modified, untracked, and deleted
+    # in a single call. Empty list short-circuits to "nothing to stage".
+    if targets:
+        try:
+            repo.git.add("-A", "--", *targets)
+        except GitCommandError as e:
+            raise GitOperationError("other", f"git add failed: {e}") from e
+
+    try:
+        diff_to_head = list(repo.index.diff("HEAD"))
+        clean = not diff_to_head
+    except Exception:
+        # Empty repo: any staged entry counts as non-clean.
+        clean = not list(repo.index.entries)
+
+    if clean:
+        raise GitOperationError("nothing_to_commit", "no staged changes to commit")
+
+    try:
+        # Identity via env vars — no .git/config write, so concurrent
+        # commits by different users on the same repo can never race
+        # on the config file. Author AND committer are set so
+        # `git log --pretty=fuller` surfaces the real user (committer
+        # otherwise defaults to whatever `git config --global` says).
+        env = {
+            "GIT_AUTHOR_NAME": author_name,
+            "GIT_AUTHOR_EMAIL": author_email,
+            "GIT_COMMITTER_NAME": author_name,
+            "GIT_COMMITTER_EMAIL": author_email,
+        }
+        repo.git.update_environment(**env)
+        try:
+            repo.git.commit("-m", message)
+        finally:
+            # Drop the env so the same Repo instance doesn't carry the
+            # identity into unrelated subsequent commands.
+            for key in env:
+                repo.git.update_environment(**{key: None})
+        head_sha = repo.head.commit.hexsha
+    except GitCommandError as e:
+        if "nothing to commit" in str(e).lower():
+            raise GitOperationError("nothing_to_commit", "no staged changes to commit") from e
+        raise GitOperationError("other", f"git commit failed: {e}") from e
+
+    return {
+        "commit_hash": head_sha,
+        "message": message,
+        "files": sorted(targets),
+    }
+
+
+def push_branch(local_path: str, branch: str | None = None) -> dict:
+    """Push the given branch (or the current one) to its tracked
+    upstream. Returns `{branch, remote_ref, ahead_after}`.
+
+    Raises `GitOperationError` with one of:
+      - 'not_a_repo'
+      - 'non_fast_forward'
+      - 'auth'
+      - 'other'
+    """
+    from git import GitCommandError, InvalidGitRepositoryError, Repo
+
+    path = Path(local_path)
+    if not path.exists() or not (path / ".git").exists():
+        raise GitOperationError("not_a_repo", "not a git repository")
+    try:
+        repo = Repo(local_path)
+    except InvalidGitRepositoryError:
+        raise GitOperationError("not_a_repo", "not a git repository") from None
+
+    target_branch = branch
+    if target_branch is None:
+        if repo.head.is_detached:
+            raise GitOperationError("other", "HEAD is detached; checkout a branch first")
+        target_branch = repo.active_branch.name
+
+    try:
+        # Use `git push` directly so non-zero exit codes propagate as
+        # GitCommandError — the high-level `.push()` swallows them.
+        repo.git.push("origin", target_branch)
+        remote_ref = f"origin/{target_branch}"
+        ahead_after = 0
+        try:
+            tracking = repo.active_branch.tracking_branch()
+            if tracking is not None:
+                ahead_after = sum(
+                    1 for _ in repo.iter_commits(f"{tracking.name}..{target_branch}")
+                )
+        except Exception:
+            pass
+        return {
+            "branch": target_branch,
+            "remote_ref": remote_ref,
+            "ahead_after": ahead_after,
+        }
+    except GitCommandError as e:
+        msg = str(e).lower()
+        if (
+            "non-fast-forward" in msg
+            or "rejected" in msg
+            or "fetch first" in msg
+            or "updates were rejected" in msg
+        ):
+            raise GitOperationError("non_fast_forward", str(e)) from e
+        if (
+            "authentication" in msg
+            or "permission denied" in msg
+            or "could not read username" in msg
+            or "support for password authentication was removed" in msg
+        ):
+            raise GitOperationError("auth", str(e)) from e
+        raise GitOperationError("other", f"git push failed: {e}") from e
+
+
+def publish_changes(
+    local_path: str,
+    message: str,
+    paths: list[str] | None,
+    author_name: str,
+    author_email: str,
+) -> dict:
+    """Combined commit + push backing `POST /repos/{id}/publish`.
+
+    On full success returns:
+        {commit_hash, message, files, pushed: True, conflict: False, remote_ref}
+
+    On commit-succeeded-but-push-failed re-raises the push's
+    `GitOperationError` decorated with `commit_hash` + `committed_files`
+    so the router can include them in the 409 body — the local commit
+    stays in place so the user doesn't lose work.
+    """
+    commit_result = commit_changes(
+        local_path, message, paths, author_name, author_email
+    )
+    try:
+        push_result = push_branch(local_path)
+    except GitOperationError as e:
+        # Commit landed locally; surface that to the router via the
+        # declared exception fields (was previously stuffed via
+        # attr-defined ignores).
+        e.commit_hash = commit_result["commit_hash"]
+        e.committed_files = commit_result["files"]
+        raise
+
+    return {
+        **commit_result,
+        "pushed": True,
+        "conflict": False,
+        "remote_ref": push_result["remote_ref"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Story REPO-2 — auto-sync scheduler
+# ---------------------------------------------------------------------------
+
+
+def due_repos(db: Session, now: datetime | None = None) -> list[Repository]:
+    """Return every git repo whose auto-sync is overdue.
+
+    A repo is "due" when ALL of the following hold:
+      - `repo_type == 'git'` (local repos have nothing to pull)
+      - `git_url` is set (defensive: a repo with auto_sync=True but
+        no URL would crash the dispatch task)
+      - `auto_sync == True`
+      - `sync_status != 'syncing'` (a previous sync still running →
+        skip this tick instead of dispatching a duplicate)
+      - `last_synced_at IS NULL` (never synced) OR
+        `last_synced_at < now - sync_interval_minutes`
+
+    The interval comparison happens in Python because SQLite's
+    `datetime + interval` story is portability-hostile and the
+    candidate set (auto_sync=True repos) is tiny in practice.
+
+    `now` defaults to `datetime.now(UTC)`.
+    """
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    candidates = db.execute(
+        select(Repository).where(
+            Repository.repo_type == "git",
+            Repository.auto_sync.is_(True),
+            Repository.git_url.is_not(None),
+        )
+    ).scalars().all()
+
+    out: list[Repository] = []
+    for repo in candidates:
+        if repo.sync_status == "syncing":
+            continue
+        if repo.last_synced_at is None:
+            out.append(repo)
+            continue
+        # Review fix M2 — normalise BOTH sides to aware-UTC in one
+        # shot rather than dispatching on partial branches. Today
+        # SQLite + plain `Mapped[datetime]` give us naive values back;
+        # if the column is ever flipped to `DateTime(timezone=True)`
+        # for Postgres, this code keeps working without an audit.
+        last = repo.last_synced_at
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        now_aware = now if now.tzinfo is not None else now.replace(tzinfo=timezone.utc)
+        boundary = last + timedelta(minutes=repo.sync_interval_minutes)
+        if now_aware >= boundary:
+            out.append(repo)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Story REPO-3 — pre-run sync (best-effort pull right before each run)
+# ---------------------------------------------------------------------------
+
+
+def sync_for_run(
+    repo: Repository,
+    session: Session | None = None,
+    timeout_seconds: int = 60,
+) -> tuple[str, str | None]:
+    """Pull `origin/<default_branch>` synchronously *before* a test run.
+
+    Returns a `(status, detail)` tuple — the caller logs / decides
+    whether to update `last_synced_at`. **Never raises**: a pre-run
+    sync failure must not abort the run; the runner falls through with
+    whatever's on disk.
+
+    When `session` is provided, the helper flips `repo.sync_status` to
+    `'syncing'` *before* the pull and to `'success'` / `'error'` after
+    (review fix M2). This blocks the REPO-2 scheduler from racing a
+    second `git pull` on the same working copy. When `session` is
+    `None` (e.g. from unit tests that just want to exercise the return
+    contract), the status writes are skipped.
+
+    Possible status values:
+      - `"skipped"` — feature off, repo not git, or another sync in flight.
+        `detail` carries the reason for ops.
+      - `"ok"`     — pull succeeded; `detail` is the short message from
+        `sync_repository()` (e.g. `"synced to abc12345"`).
+      - `"error"`  — git surfaced a recoverable error (auth, ref not
+        found, dirty tree, …). `detail` is the message.
+      - `"timeout"` — the pull exceeded `timeout_seconds`. `detail` is
+        the timeout in seconds. The pull thread is leaked (it will
+        eventually finish in the background); see story risk notes.
+    """
+    if repo.repo_type != "git" or not repo.pre_run_sync:
+        return ("skipped", "pre_run_sync disabled")
+    if repo.sync_status == "syncing":
+        # AC5 — don't race a manual / scheduled sync.
+        return ("skipped", "another sync in progress")
+    if not repo.git_url:
+        return ("skipped", "no git url")
+
+    import concurrent.futures
+
+    # Review fix M2 — flip sync_status synchronously *before* dispatching
+    # so the auto-sync scheduler's `due_repos()` filter sees the in-flight
+    # state. Skip the write if the caller didn't pass a session (unit-test
+    # mode).
+    if session is not None:
+        repo.sync_status = "syncing"
+        session.commit()
+
+    # Review fix M1 — explicit pool + `shutdown(wait=False)` in `finally`.
+    # The naive `with ThreadPoolExecutor(...) as pool:` form blocks on
+    # __exit__ → shutdown(wait=True), which negates the wall-clock timeout
+    # we just imposed.
+    pool = concurrent.futures.ThreadPoolExecutor(
+        max_workers=1, thread_name_prefix="pre-run-sync"
+    )
+    msg: str | None = None
+    status: str
+    detail: str | None
+    try:
+        future = pool.submit(
+            sync_repository, repo.local_path, repo.default_branch
+        )
+        try:
+            msg = future.result(timeout=timeout_seconds)
+        except concurrent.futures.TimeoutError:
+            status, detail = "timeout", f"{timeout_seconds}s"
+        except Exception as exc:  # defensive — sync_repository swallows GitCommandError already
+            status, detail = "error", str(exc)[:200]
+        else:
+            # `sync_repository` returns "error: ..." for git failures.
+            if isinstance(msg, str) and msg.startswith("error"):
+                status, detail = "error", msg.removeprefix("error:").strip()
+            else:
+                status, detail = "ok", msg
+    finally:
+        pool.shutdown(wait=False)
+
+    if session is not None:
+        if status == "ok":
+            repo.sync_status = "success"
+            repo.sync_error = None
+        else:
+            # error / timeout — surface on the repo card so the user knows
+            # the most recent pull failed. The run itself still proceeds
+            # with whatever's on disk.
+            repo.sync_status = "error"
+            repo.sync_error = (detail or status)[:500]
+        session.commit()
+
+    return (status, detail)
 
 
 # ---------------------------------------------------------------------------

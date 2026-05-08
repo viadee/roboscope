@@ -27,6 +27,13 @@ export async function revokeToken(id: number): Promise<void> {
   await apiClient.delete(`/webhooks/tokens/${id}`)
 }
 
+export async function reassignToken(id: number, userId: number): Promise<ApiToken> {
+  const response = await apiClient.post<ApiToken>(`/webhooks/tokens/${id}/reassign`, {
+    user_id: userId,
+  })
+  return response.data
+}
+
 // --- Webhooks ---
 
 export async function getWebhooks(repositoryId?: number): Promise<WebhookConfig[]> {

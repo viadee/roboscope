@@ -1,19 +1,56 @@
 """Pydantic schemas for repository management."""
 
+import re
 from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 
+def derive_repo_name_from_git_url(git_url: str) -> str:
+    """Pull the repo basename out of a Git URL.
+
+    Handles the three common URL shapes:
+      - https://github.com/viadee/roboscope.git
+      - git@github.com:viadee/roboscope.git
+      - ssh://git@host/owner/repo
+
+    Strips a trailing `.git` and any trailing slash, then returns the
+    final path segment. Raises ValueError if no usable segment can be
+    extracted (e.g. the URL is just a hostname).
+    """
+    cleaned = git_url.strip().rstrip("/")
+    if cleaned.endswith(".git"):
+        cleaned = cleaned[:-4]
+    # SSH-shorthand `git@host:owner/repo` — split on the last `:`.
+    if ":" in cleaned and "://" not in cleaned:
+        cleaned = cleaned.split(":", 1)[1]
+    # Take the last path segment.
+    name = cleaned.rsplit("/", 1)[-1].strip()
+    # Defensive: filesystem-unsafe chars get replaced with `-` so the
+    # derived name can be used as a workspace directory.
+    name = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-._")
+    if not name:
+        raise ValueError(
+            "Could not derive a repository name from the Git URL — "
+            "please provide one explicitly."
+        )
+    return name
+
+
 class RepoCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=255)
+    # `name` is optional for git repos: when omitted we derive it from
+    # the git URL basename (e.g. `viadee/roboscope.git` → `roboscope`).
+    # For local repos a name is still required because the path may
+    # not have a filesystem-usable basename (`/`, mounted shares).
+    name: str | None = Field(default=None, max_length=255)
     repo_type: Literal["git", "local"] = "git"
     git_url: str | None = Field(default=None, max_length=500)
     local_path: str | None = Field(default=None, max_length=500)
     default_branch: str = Field(default="main", max_length=100)
     auto_sync: bool = True
     sync_interval_minutes: int = Field(default=15, ge=1, le=1440)
+    pre_run_sync: bool = False
     environment_id: int | None = None
 
     @model_validator(mode="after")
@@ -22,6 +59,15 @@ class RepoCreate(BaseModel):
             raise ValueError("git_url is required for git repositories")
         if self.repo_type == "local" and not self.local_path:
             raise ValueError("local_path is required for local repositories")
+        # Derive name from git_url when not explicitly provided. We do
+        # this in the validator so downstream code (service layer,
+        # response shaping) can rely on `self.name` being set.
+        if not self.name and self.repo_type == "git" and self.git_url:
+            self.name = derive_repo_name_from_git_url(self.git_url)
+        if not self.name:
+            raise ValueError("name is required for local repositories")
+        if len(self.name) < 1:
+            raise ValueError("name must be at least 1 character long")
         return self
 
 
@@ -30,6 +76,7 @@ class RepoUpdate(BaseModel):
     default_branch: str | None = None
     auto_sync: bool | None = None
     sync_interval_minutes: int | None = None
+    pre_run_sync: bool | None = None
     environment_id: int | None = None
 
 
@@ -43,14 +90,22 @@ class RepoResponse(BaseModel):
     last_synced_at: datetime | None = None
     auto_sync: bool
     sync_interval_minutes: int
+    pre_run_sync: bool = False
     sync_status: str | None = "idle"
     sync_error: str | None = None
     created_by: int
     environment_id: int | None = None
+    team_id: int | None = None
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class RepoTeamAssignRequest(BaseModel):
+    """Body of PUT /repos/{id}/team — assign or clear the owning team."""
+
+    team_id: int | None = None
 
 
 class BranchResponse(BaseModel):
@@ -62,6 +117,79 @@ class SyncResponse(BaseModel):
     status: str
     message: str
     task_id: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Story REPO-1 — non-Git-user save loop schemas
+# ---------------------------------------------------------------------------
+
+
+class RepoStatusResponse(BaseModel):
+    """Snapshot of a git repo's working-tree state.
+
+    Returned by `GET /repos/{id}/status`. Lists are repository-relative
+    paths. `current_branch` is null when the repo is in detached-HEAD
+    state. Non-git repos (`repo_type='local'`) return everything zeroed
+    out + `is_dirty=false`.
+    """
+
+    current_branch: str | None = None
+    ahead: int = 0
+    behind: int = 0
+    modified: list[str] = []
+    staged: list[str] = []
+    untracked: list[str] = []
+    deleted: list[str] = []
+    is_dirty: bool = False
+
+
+class CommitRequest(BaseModel):
+    """Body of `POST /repos/{id}/commit` and `POST /repos/{id}/publish`."""
+
+    message: str = Field(..., min_length=1, max_length=500)
+    # When `paths` is omitted, the service stages every dirty path it
+    # finds (modified + untracked + deleted). Pass an explicit list to
+    # commit a subset.
+    paths: list[str] | None = None
+
+
+class CommitResponse(BaseModel):
+    commit_hash: str
+    message: str
+    files: list[str]
+
+
+class PushResponse(BaseModel):
+    branch: str
+    remote_ref: str
+    ahead_after: int = 0
+
+
+class PublishResponse(BaseModel):
+    """Returned by the combined `POST /repos/{id}/publish` endpoint
+    on full success."""
+
+    commit_hash: str
+    message: str
+    files: list[str]
+    pushed: bool = True
+    conflict: bool = False
+    remote_ref: str
+
+
+class PublishConflictResponse(BaseModel):
+    """Returned with HTTP 409 when commit succeeded but push didn't.
+
+    The local commit STAYS — the user can resolve the conflict (e.g.
+    by hitting `/sync` and then `/push`) without losing their work.
+    """
+
+    commit_hash: str
+    message: str
+    files: list[str]
+    pushed: bool = False
+    conflict: bool = True
+    detail: str
 
 
 class ProjectMemberCreate(BaseModel):

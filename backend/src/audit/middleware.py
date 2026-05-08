@@ -26,7 +26,7 @@ _SKIP_PATTERNS = [
     re.compile(r"^/api/v1/audit"),
 ]
 
-# Map path patterns to resource types
+# Map path patterns to resource types — order matters; first match wins.
 _RESOURCE_MAP = [
     (re.compile(r"/api/v1/runs"), "run"),
     (re.compile(r"/api/v1/schedules"), "schedule"),
@@ -36,6 +36,11 @@ _RESOURCE_MAP = [
     (re.compile(r"/api/v1/settings"), "setting"),
     (re.compile(r"/api/v1/auth/users"), "user"),
     (re.compile(r"/api/v1/auth/login"), "auth"),
+    # Self-service auth routes (change-password, me/*) — same resource
+    # type as admin user-CRUD so audit-log filters by user-related
+    # actions catch both. Must come AFTER /auth/users so admin paths
+    # keep their more specific match.
+    (re.compile(r"/api/v1/auth/"), "user"),
     (re.compile(r"/api/v1/webhooks/tokens"), "api_token"),
     (re.compile(r"/api/v1/webhooks/hooks"), "webhook"),
     (re.compile(r"/api/v1/webhooks/git"), "git_webhook"),

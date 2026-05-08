@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAiStore } from '@/stores/ai.store'
+import { extractErrorDetail } from '@/utils/errors'
 import type { AiProvider } from '@/types/domain.types'
 import type { AiProviderCreateRequest } from '@/types/api.types'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -95,7 +96,7 @@ function openEditDialog(provider: AiProvider) {
   editingProvider.value = provider
   form.value = {
     name: provider.name,
-    provider_type: provider.provider_type as any,
+    provider_type: provider.provider_type,
     api_base_url: provider.api_base_url,
     api_key: null,
     model_name: provider.model_name,
@@ -126,8 +127,8 @@ async function handleAdd() {
   try {
     await aiStore.addProvider(form.value)
     showAddDialog.value = false
-  } catch (e: any) {
-    error.value = e.response?.data?.detail || t('common.error')
+  } catch (e: unknown) {
+    error.value = extractErrorDetail(e, t('common.error'))
   } finally {
     loading.value = false
   }
@@ -142,8 +143,8 @@ async function handleEdit() {
     if (!data.api_key) delete data.api_key
     await aiStore.editProvider(editingProvider.value.id, data)
     showEditDialog.value = false
-  } catch (e: any) {
-    error.value = e.response?.data?.detail || t('common.error')
+  } catch (e: unknown) {
+    error.value = extractErrorDetail(e, t('common.error'))
   } finally {
     loading.value = false
   }
@@ -153,8 +154,8 @@ async function handleDelete(provider: AiProvider) {
   if (!confirm(t('ai.confirmDeleteProvider', { name: provider.name }))) return
   try {
     await aiStore.removeProvider(provider.id)
-  } catch (e: any) {
-    error.value = e.response?.data?.detail || t('common.error')
+  } catch (e: unknown) {
+    error.value = extractErrorDetail(e, t('common.error'))
   }
 }
 

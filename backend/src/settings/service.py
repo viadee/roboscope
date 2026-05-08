@@ -23,6 +23,11 @@ DEFAULT_SETTINGS = [
     {"key": "rf_mcp_auto_start", "value": "false", "value_type": "bool", "category": "ai", "description": "Auto-start rf-mcp server on app startup"},
     {"key": "rf_mcp_environment_id", "value": "", "value_type": "string", "category": "ai", "description": "Environment ID for rf-mcp server"},
     {"key": "rf_mcp_port", "value": "9090", "value_type": "int", "category": "ai", "description": "Port for rf-mcp server"},
+    {"key": "sso_emergency_bypass", "value": "false", "value_type": "bool", "category": "auth", "description": "Enable local-login fallback during SSO outage."},
+    {"key": "sso_emergency_bypass_expires_at", "value": "", "value_type": "string", "category": "auth", "description": "ISO-8601 auto-expiry for emergency bypass (empty = inactive)."},
+    {"key": "deprovision_retention_days", "value": "90", "value_type": "int", "category": "auth", "description": "Days before deprovisioned-user cleanup."},
+    {"key": "admin_contact_email", "value": "admin@roboscope.local", "value_type": "string", "category": "auth", "description": "Displayed on SSO outage screen as admin contact."},
+    {"key": "hide_local_login_form", "value": "false", "value_type": "bool", "category": "auth", "description": "Hide the email/password login form when SSO is the only permitted login path."},
 ]
 
 

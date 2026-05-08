@@ -52,11 +52,16 @@ test.describe('Sidebar Navigation', () => {
   });
 
   test('should show admin-only nav items for admin user', async ({ page }) => {
-    // Admin user should see Umgebungen and Einstellungen
+    // 0.9.0 collapsed admin-only entries (Settings, Identity Providers,
+    // Teams, Emergency Bypass) into a `nav-more-toggle` "Mehr" section
+    // so the main sidebar stays short. Expand it before checking.
+    await page.locator('.nav-more-toggle').click();
     const allLabels = page.locator('.nav-label');
     const labels = await allLabels.allTextContents();
 
+    // Top-level admin item still in the main list:
     expect(labels).toContain('Paket-Manager');
+    // Admin-only item nested under Mehr:
     expect(labels).toContain('Einstellungen');
   });
 
@@ -68,6 +73,8 @@ test.describe('Sidebar Navigation', () => {
   });
 
   test('should navigate to Einstellungen (admin only)', async ({ page }) => {
+    // Settings sits under the collapsible "Mehr" group now.
+    await page.locator('.nav-more-toggle').click();
     const navItem = page.locator('.nav-item', { hasText: 'Einstellungen' });
     await navItem.click();
     await page.waitForURL('**/settings', { timeout: 5_000 });

@@ -1,0 +1,73 @@
+/**
+ * Story 5-2 — shared polling of the SSO emergency-bypass status so both
+ * the admin view and the app-shell banner read the same source.
+ *
+ * Lightweight singleton: one poller per page. Components that call
+ * `useBypassStatus()` get the same reactive refs. When no component is
+ * consuming it the poller is torn down.
+ */
+import { computed, ref } from 'vue'
+import { getBypassStatus, type BypassStatus } from '@/api/emergencyBypass.api'
+import { parseBackendDate } from '@/utils/formatDate'
+
+const status = ref<BypassStatus | null>(null)
+const subscribers = ref(0)
+let pollHandle: number | undefined
+
+const POLL_INTERVAL_MS = 60_000  // 60s — bypass state changes are infrequent
+
+async function refresh() {
+  // Gate on auth: when no access_token is present, skip the fetch
+  // entirely. An unauthenticated request to /settings/sso-emergency-bypass
+  // returns 401, and the axios interceptor reacts to 401 with a full
+  // page reload — which would re-mount DefaultLayout + AppHeader and
+  // re-invoke this composable, creating a redirect loop. Lesson
+  // documented in CLAUDE.md under "Singleton composables and auth".
+  if (!localStorage.getItem('access_token')) {
+    status.value = null
+    return
+  }
+  try {
+    status.value = await getBypassStatus()
+  } catch {
+    // 401 or 403 for non-admin users — silently ignore, banner is
+    // admin-only anyway (see `visibleForAdmin` guard in caller).
+    status.value = null
+  }
+}
+
+function startPolling() {
+  if (pollHandle !== undefined) return
+  refresh()
+  pollHandle = window.setInterval(refresh, POLL_INTERVAL_MS)
+}
+
+function stopPolling() {
+  if (pollHandle !== undefined) {
+    window.clearInterval(pollHandle)
+    pollHandle = undefined
+  }
+}
+
+export function useBypassStatus() {
+  subscribers.value += 1
+  if (subscribers.value === 1) startPolling()
+
+  function release() {
+    subscribers.value = Math.max(0, subscribers.value - 1)
+    if (subscribers.value === 0) stopPolling()
+  }
+
+  const active = computed(() => status.value?.active === true)
+  const remainingMinutes = computed(() => {
+    if (!status.value?.active || !status.value.expires_at) return null
+    // `parseBackendDate` treats naive ISO (no `Z` / no offset) as UTC.
+    // Without it, JS `new Date(...)` parses the bypass `expires_at`
+    // as local time, so for a user in UTC+2 a 30-minute bypass shows
+    // 0 minutes remaining the moment it's set.
+    const diff = parseBackendDate(status.value.expires_at).getTime() - Date.now()
+    return diff > 0 ? Math.round(diff / 60000) : 0
+  })
+
+  return { status, active, remainingMinutes, refresh, release }
+}

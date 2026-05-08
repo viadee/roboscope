@@ -101,7 +101,7 @@ test.describe('Git Sync — E2E', () => {
     const repoCard = page.locator('.card', { hasText: repoName });
     await expect(repoCard).toBeVisible({ timeout: 5_000 });
 
-    const syncButton = repoCard.getByRole('button', { name: 'Sync' });
+    const syncButton = repoCard.getByRole('button', { name: 'Sync', exact: true });
     await expect(syncButton).toBeVisible();
   });
 
@@ -128,7 +128,7 @@ test.describe('Git Sync — E2E', () => {
 
     const repoCard = page.locator('.card', { hasText: repoName });
     await expect(repoCard).toBeVisible({ timeout: 5_000 });
-    await repoCard.getByRole('button', { name: 'Sync' }).click();
+    await repoCard.getByRole('button', { name: 'Sync', exact: true }).click();
 
     // Wait for the API call
     await page.waitForTimeout(2_000);
@@ -158,7 +158,7 @@ test.describe('Git Sync — E2E', () => {
 
     const repoCard = page.locator('.card', { hasText: repoName });
     await expect(repoCard).toBeVisible({ timeout: 5_000 });
-    await repoCard.getByRole('button', { name: 'Sync' }).click();
+    await repoCard.getByRole('button', { name: 'Sync', exact: true }).click();
 
     // Should show an info toast with "Sync"
     await expect(page.locator('.toast', { hasText: /Sync/ })).toBeVisible({ timeout: 5_000 });
@@ -182,7 +182,7 @@ test.describe('Git Sync — E2E', () => {
 
     const repoCard = page.locator('.card', { hasText: repoName });
     await expect(repoCard).toBeVisible({ timeout: 5_000 });
-    await repoCard.getByRole('button', { name: 'Sync' }).click();
+    await repoCard.getByRole('button', { name: 'Sync', exact: true }).click();
 
     // Should show an error toast
     await expect(page.locator('.toast', { hasText: /fehlgeschlagen/i })).toBeVisible({ timeout: 5_000 });
@@ -200,17 +200,19 @@ test.describe('Git Sync — E2E', () => {
     await page.getByRole('button', { name: /Projekt hinzufügen/ }).click();
     await expect(page.getByPlaceholder('mein-projekt')).toBeVisible({ timeout: 3_000 });
 
-    // Switch to Git type (default is local)
+    // Switch to Git type (default is local). Note: switching also
+    // changes the name input's placeholder ('mein-projekt' →
+    // 'leer lassen, um aus der URL abzuleiten').
     await page.getByText('Git Repository').click();
 
-    await page.getByPlaceholder('mein-projekt').fill(repoName);
+    await page.getByPlaceholder('leer lassen, um aus der URL abzuleiten').fill(repoName);
     await page.getByPlaceholder('https://github.com/user/repo.git').fill(gitUrl);
 
     // Submit
     await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
 
     // Modal should close and repo should appear
-    await expect(page.getByPlaceholder('mein-projekt')).not.toBeVisible({ timeout: 5_000 });
+    await expect(page.getByPlaceholder('leer lassen, um aus der URL abzuleiten')).not.toBeVisible({ timeout: 5_000 });
     const repoCard = page.locator('.card', { hasText: repoName });
     await expect(repoCard).toBeVisible({ timeout: 5_000 });
 
@@ -218,7 +220,7 @@ test.describe('Git Sync — E2E', () => {
     await expect(repoCard.getByText(gitUrl)).toBeVisible();
 
     // Verify Sync button exists and click it
-    const syncButton = repoCard.getByRole('button', { name: 'Sync' });
+    const syncButton = repoCard.getByRole('button', { name: 'Sync', exact: true });
     await expect(syncButton).toBeVisible();
 
     // Intercept sync call to capture result

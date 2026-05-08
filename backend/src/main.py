@@ -18,6 +18,7 @@ from src.api.v1.router import api_router
 from src.config import settings
 from src.database import create_tables, SessionLocal
 from src.rate_limit import limiter
+from src.utc_response import UtcJSONResponse
 from src.websocket.manager import ws_manager
 
 logger = logging.getLogger("roboscope")
@@ -32,13 +33,21 @@ async def lifespan(app: FastAPI):
     global _event_loop
     _event_loop = asyncio.get_running_loop()
 
-    # Startup — structured JSON logging
+    # Startup — structured JSON logging with request-id correlation
+    # (story LOGGING-1: `RequestIdFilter` adds `record.request_id`
+    # whenever an HTTP middleware is active in the current async
+    # context; pythonjsonlogger picks up custom record attributes
+    # automatically — no fmt-string entry needed, so background-task
+    # / startup logs stay clean of phantom request_id fields).
+    from src.logging_context import RequestIdFilter
+
     handler = logging.StreamHandler()
     formatter = JsonFormatter(
         fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
         rename_fields={"asctime": "timestamp", "levelname": "level", "name": "logger"},
     )
     handler.setFormatter(formatter)
+    handler.addFilter(RequestIdFilter())
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
     root_logger.addHandler(handler)
@@ -94,9 +103,61 @@ async def lifespan(app: FastAPI):
             else:
                 logger.warning("Examples directory not found: %s", examples_dir)
 
+    # Seed "Robot Framework Examples" git project — public reference
+    # suite living at github.com/raffelino/robot-framework-examples.
+    # Covers the typical RF libraries + language concepts; first-time
+    # users get a working playground without configuring a Git URL by
+    # hand. Auto-sync is OFF by default so we don't surprise the user
+    # with background pulls; the manual Sync button still works.
+    with SessionLocal() as session:
+        from src.repos.models import Repository
+        from sqlalchemy import select
+        from src.task_executor import dispatch_task
+
+        EXAMPLES_REPO_NAME = "Robot Framework Examples"
+        EXAMPLES_REPO_URL = (
+            "https://github.com/raffelino/robot-framework-examples.git"
+        )
+        result = session.execute(
+            select(Repository).where(Repository.name == EXAMPLES_REPO_NAME)
+        )
+        if result.scalar_one_or_none() is None:
+            workspace = Path(settings.WORKSPACE_DIR)
+            workspace.mkdir(parents=True, exist_ok=True)
+            repo = Repository(
+                name=EXAMPLES_REPO_NAME,
+                repo_type="git",
+                git_url=EXAMPLES_REPO_URL,
+                default_branch="main",
+                local_path=str(workspace / "robot-framework-examples"),
+                auto_sync=False,
+                sync_interval_minutes=60,
+                pre_run_sync=False,
+                created_by=1,
+            )
+            session.add(repo)
+            session.commit()
+            logger.info(
+                "Seeded '%s' project (git): %s", EXAMPLES_REPO_NAME, EXAMPLES_REPO_URL,
+            )
+            # Kick off the initial clone in the background so the
+            # project shows up in the UI immediately and the working
+            # tree fills in within a few seconds.
+            try:
+                from src.repos.tasks import sync_repo
+                dispatch_task(sync_repo, repo.id)
+                logger.info("Dispatched initial clone for repo %d", repo.id)
+            except Exception:
+                logger.exception(
+                    "Initial clone dispatch failed for %s — user can "
+                    "click Sync manually to retry",
+                    EXAMPLES_REPO_NAME,
+                )
+
     # Reset stuck background tasks from previous runs
     with SessionLocal() as session:
         from src.environments.models import Environment, EnvironmentPackage
+        from src.repos.models import Repository
         stuck_builds = session.query(Environment).filter(
             Environment.docker_build_status == "building"
         ).all()
@@ -115,7 +176,19 @@ async def lifespan(app: FastAPI):
                 "Reset stuck package '%s' in env %d", pkg.package_name, pkg.environment_id,
             )
 
-        if stuck_builds or stuck_pkgs:
+        # Repositories whose `sync_repo` task was killed mid-pull keep
+        # `sync_status='syncing'` forever — auto-sync skips them as
+        # "in flight" and the UI shows an indefinite spinner. Surface
+        # the interrupt so the user can re-trigger a manual sync.
+        stuck_syncs = session.query(Repository).filter(
+            Repository.sync_status == "syncing"
+        ).all()
+        for repo in stuck_syncs:
+            repo.sync_status = "error"
+            repo.sync_error = "Sync interrupted — application was restarted."
+            logger.warning("Reset stuck sync for repo '%s' (id=%d)", repo.name, repo.id)
+
+        if stuck_builds or stuck_pkgs or stuck_syncs:
             session.commit()
 
     # Discover and load plugins
@@ -141,9 +214,12 @@ async def lifespan(app: FastAPI):
             logger.warning("Failed to auto-start rf-mcp", exc_info=True)
 
     # Start retention enforcement scheduler (daily cleanup)
+    from datetime import datetime, timedelta, timezone as _timezone
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.interval import IntervalTrigger
     from src.audit.retention import enforce_retention
+    from src.auth.discovery_refresh import refresh_discovery_cache
+    from src.auth.retention_cleanup import run_hourly_cleanup
 
     _scheduler = BackgroundScheduler()
     _scheduler.add_job(
@@ -153,8 +229,51 @@ async def lifespan(app: FastAPI):
         name="Retention Enforcement (daily)",
         replace_existing=True,
     )
+    # Defer first discovery refresh 24h after boot — preserves the zero-outbound-call
+    # boot invariant (AR16 / AC1). Without next_run_time, APScheduler fires immediately.
+    _scheduler.add_job(
+        refresh_discovery_cache,
+        trigger=IntervalTrigger(hours=24),
+        id="oidc_discovery_refresh",
+        name="OIDC Discovery Cache Refresh (24h)",
+        next_run_time=datetime.now(_timezone.utc) + timedelta(hours=24),
+        replace_existing=True,
+    )
+    # Story 5-5: hourly cleanup of expired OidcLoginAttempt and stale
+    # RateLimitCounter rows so Phase 4 tables don't grow unbounded.
+    _scheduler.add_job(
+        run_hourly_cleanup,
+        trigger=IntervalTrigger(hours=1),
+        id="phase4_hourly_cleanup",
+        name="Phase 4 retention cleanup (hourly)",
+        replace_existing=True,
+    )
+    # Story REPO-2: auto-sync scheduler. Every 5 min, find repos
+    # whose `auto_sync=True` and `last_synced_at < now - sync_interval_minutes`,
+    # dispatch a sync_repo task for each. The 5-min heartbeat is the
+    # finest granularity worth the wake-up cost; per-repo
+    # sync_interval_minutes is the actual cadence the user controls.
+    from src.repos.tasks import auto_sync_due_repos
+    _scheduler.add_job(
+        auto_sync_due_repos,
+        trigger=IntervalTrigger(minutes=5),
+        id="repo_auto_sync",
+        name="Repository auto-sync (every 5 min)",
+        replace_existing=True,
+        # Review fix S3 — APScheduler defaults are tight: a single
+        # delayed wake-up (e.g. behind a slow retention sweep) can drop
+        # the tick. `coalesce=True` collapses multiple missed runs into
+        # one; `misfire_grace_time=60` gives the scheduler a minute to
+        # catch up before declaring the run lost.
+        coalesce=True,
+        misfire_grace_time=60,
+    )
     _scheduler.start()
-    logger.info("Retention enforcement scheduler started (every 24h)")
+    logger.info(
+        "Scheduler started: retention (every 24h), OIDC discovery refresh "
+        "(every 24h, first run deferred), Phase 4 cleanup (every 1h), "
+        "repo auto-sync (every 5m)"
+    )
 
     logger.info("RoboScope started successfully")
     yield
@@ -189,6 +308,10 @@ def create_app() -> FastAPI:
         docs_url=f"{settings.API_V1_PREFIX}/docs",
         redoc_url=f"{settings.API_V1_PREFIX}/redoc",
         lifespan=lifespan,
+        # Naive UTC datetime → `...Z` on the wire. SQLAlchemy on SQLite
+        # strips `tzinfo` so Pydantic emits naive ISO; this guarantees
+        # every JS client reads timestamps as real UTC. See utc_response.py.
+        default_response_class=UtcJSONResponse,
     )
 
     # Rate limiting
@@ -208,13 +331,24 @@ def create_app() -> FastAPI:
     from src.audit.middleware import AuditMiddleware
     app.add_middleware(AuditMiddleware)
 
-    # Request ID middleware — attaches a unique ID to each request for log correlation
+    # Request ID middleware — attaches a unique ID to each request for log correlation.
+    # Story LOGGING-1: also publishes the ID on the
+    # `request_id_var` ContextVar so the `RequestIdFilter` can stamp
+    # every log record emitted during this request.
+    from src.logging_context import request_id_var
+
     @app.middleware("http")
     async def add_request_id(request: Request, call_next):
         request_id = request.headers.get("X-Request-ID", uuid.uuid4().hex[:12])
-        # Store on request state so handlers can access it
         request.state.request_id = request_id
-        response = await call_next(request)
+        token = request_id_var.set(request_id)
+        try:
+            response = await call_next(request)
+        finally:
+            # Reset on the way out — uvicorn reuses worker tasks for
+            # keep-alive, so leaking the ContextVar would leak the id
+            # into the *next* request.
+            request_id_var.reset(token)
         response.headers["X-Request-ID"] = request_id
         return response
 
@@ -222,14 +356,39 @@ def create_app() -> FastAPI:
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
     # Health check
+    # Story ROBUSTNESS-1: deep health-check. The previous endpoint
+    # returned 200 unconditionally — Kubernetes / ECS livenessProbes
+    # would never see a hung-DB pod and never restart it. Now we run
+    # a `SELECT 1` roundtrip; on failure we return 503 with the
+    # `unhealthy` status so orchestrators flag the pod for restart.
     @app.get("/health")
     async def health_check():
-        return {
+        from fastapi import Response
+        from sqlalchemy import text as sql_text
+
+        from src.database import engine
+
+        body = {
             "status": "healthy",
             "version": settings.VERSION,
             "database": "sqlite" if settings.is_sqlite else "postgresql",
             "task_executor": "in-process",
         }
+        try:
+            with engine.connect() as conn:
+                conn.execute(sql_text("SELECT 1"))
+        except Exception as e:
+            return Response(
+                content=__import__("json").dumps({
+                    **body,
+                    "status": "unhealthy",
+                    "reason": "database_unreachable",
+                    "error": str(e)[:200],
+                }),
+                status_code=503,
+                media_type="application/json",
+            )
+        return body
 
     # WebSocket auth helper: validate JWT token from query parameter
     def _ws_authenticate(token: str | None) -> bool:

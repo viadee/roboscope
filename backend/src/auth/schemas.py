@@ -1,10 +1,15 @@
 """Pydantic schemas for authentication."""
 
-from datetime import datetime
+from __future__ import annotations
 
-from pydantic import BaseModel, EmailStr, Field
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from src.auth.constants import Role
+
+ProviderType = Literal["oidc_azure_ad", "oidc_google", "oidc_github", "oidc_generic"]
 
 
 # --- Request Schemas ---
@@ -48,9 +53,151 @@ class UserResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TeamSummary(BaseModel):
+    """Slim Team shape for /auth/me — avoids circular imports."""
+
+    id: int
+    name: str
+
+    model_config = {"from_attributes": True}
+
+
+class MeResponse(UserResponse):
+    """Story 4-1: extended /auth/me response.
+
+    Additive-only — inherits every existing UserResponse field and adds:
+      - teams: every Team the user belongs to (empty list for solo users)
+      - default_team_id: the first team by id, or None
+      - effective_roles_by_repo: {repo_id: role} over every repo with
+        a team_id the user is a member of OR a ProjectMember grant
+      - first_login_complete: whether FirstLoginView has been dismissed
+    """
+
+    teams: list[TeamSummary] = []
+    default_team_id: int | None = None
+    effective_roles_by_repo: dict[int, Role] = {}
+    first_login_complete: bool = False
+    # Story SECURITY-1
+    password_change_required: bool = False
+
+
+class FirstLoginCompleteRequest(BaseModel):
+    value: bool = True
+
+
+class ChangePasswordRequest(BaseModel):
+    """Story SECURITY-1 — body of POST /auth/change-password."""
+
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
 class UserUpdate(BaseModel):
     email: str | None = None
     username: str | None = None
     role: Role | None = None
     is_active: bool | None = None
     password: str | None = Field(None, min_length=6, max_length=128)
+
+
+# --- Identity Provider Schemas ---
+
+
+class IdentityProviderCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    provider_type: ProviderType
+    issuer_url: str = Field(..., min_length=1, max_length=500)
+    client_id: str = Field(..., min_length=1, max_length=255)
+    client_secret: str = Field(..., min_length=1, max_length=500)
+    scopes: str = Field(default="openid profile email", max_length=500)
+    group_claim_name: str = Field(default="groups", max_length=100)
+
+    @field_validator("issuer_url")
+    @classmethod
+    def validate_issuer_url(cls, v: str) -> str:
+        if not v.startswith(("https://", "http://")):
+            raise ValueError("issuer_url must be an HTTP(S) URL")
+        return v
+
+
+class IdentityProviderUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
+    provider_type: ProviderType | None = None
+    issuer_url: str | None = Field(None, min_length=1, max_length=500)
+    client_id: str | None = Field(None, min_length=1, max_length=255)
+    client_secret: str | None = Field(None, min_length=1, max_length=500)
+    scopes: str | None = Field(None, max_length=500)
+    group_claim_name: str | None = Field(None, max_length=100)
+    is_enabled: bool | None = None
+
+    @field_validator("issuer_url")
+    @classmethod
+    def validate_issuer_url(cls, v: str | None) -> str | None:
+        if v is not None and not v.startswith(("https://", "http://")):
+            raise ValueError("issuer_url must be an HTTP(S) URL")
+        return v
+
+    @model_validator(mode="after")
+    def reject_null_client_secret(self) -> IdentityProviderUpdate:
+        if "client_secret" in self.model_fields_set and self.client_secret is None:
+            raise ValueError(
+                "client_secret cannot be null; omit the field to keep"
+                " the existing value"
+            )
+        return self
+
+
+class IdentityProviderResponse(BaseModel):
+    id: int
+    name: str
+    provider_type: str
+    issuer_url: str
+    client_id: str
+    scopes: str
+    group_claim_name: str
+    is_enabled: bool
+    last_dry_run_at: datetime | None = None
+    last_dry_run_status: str | None = None
+    discovery_cached_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DiscoveryCacheRefreshResponse(BaseModel):
+    status: Literal["completed"]
+    refreshed: int
+    failed: int
+    skipped: int
+
+
+# --- Dry-Run Probe Schemas ---
+
+
+class DryRunCheckRow(BaseModel):
+    check_name: str
+    status: Literal["passed", "warning", "failed"]
+    detail: str
+
+
+class DryRunProbeResponse(BaseModel):
+    overall_status: Literal["passed", "failed"]
+    checks: list[DryRunCheckRow]
+    elapsed_ms: int
+
+
+# --- SSO Public Schemas (Story 2-1) ---
+
+
+class SsoProviderPublic(BaseModel):
+    """Public-safe identity provider row — exposed on the unauthenticated
+    `GET /auth/sso/providers` endpoint. Intentionally narrow: only fields
+    the login view needs to render a provider button.
+    """
+
+    id: int
+    name: str
+    provider_type: str
+
+    model_config = {"from_attributes": True}

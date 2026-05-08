@@ -6,7 +6,9 @@ import { useExplorerStore } from '@/stores/explorer.store'
 import { useReposStore } from '@/stores/repos.store'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
+import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
 import { createRun } from '@/api/execution.api'
+import type { RunCreateRequest } from '@/types/api.types'
 import { checkLibraries } from '@/api/explorer.api'
 import { installPackage, buildDockerImage } from '@/api/environments.api'
 import { updateRepo } from '@/api/repos.api'
@@ -17,6 +19,9 @@ import BaseModal from '@/components/ui/BaseModal.vue'
 import GenerateModal from '@/components/ai/GenerateModal.vue'
 import SpecEditor from '@/components/ai/SpecEditor.vue'
 import RobotEditor from '@/components/editor/RobotEditor.vue'
+import PublishModal from '@/components/repos/PublishModal.vue'
+import { useAuthStore } from '@/stores/auth.store'
+import { useRepoStatusStore } from '@/stores/repoStatus.store'
 import type { TreeNode } from '@/types/domain.types'
 
 // CodeMirror imports
@@ -33,6 +38,7 @@ const router = useRouter()
 const explorer = useExplorerStore()
 const repos = useReposStore()
 const envs = useEnvironmentsStore()
+const auth = useAuthStore()
 const toast = useToast()
 const { t } = useI18n()
 
@@ -113,6 +119,30 @@ const currentRepo = computed(() =>
   repos.repos.find(r => r.id === selectedRepoId.value)
 )
 
+// Story REPO-1 — track dirty state for the active repo to render
+// the "Save N changes" badge.
+const repoStatus = useRepoStatusStore()
+const publishOpen = ref(false)
+const dirtyCount = computed(() => {
+  const id = selectedRepoId.value
+  if (id == null) return 0
+  if (currentRepo.value?.repo_type !== 'git') return 0
+  return repoStatus.dirtyCount(id)
+})
+const currentStatus = computed(() => {
+  const id = selectedRepoId.value
+  return id != null ? repoStatus.get(id) : null
+})
+
+// Refresh the status whenever the active repo changes or a save / file
+// edit lands. Polls quietly: a single GET; the badge can lag the
+// server by ~5 s and the user won't notice.
+watch(
+  selectedRepoId,
+  (id) => { if (id != null) repoStatus.refresh(id) },
+  { immediate: true },
+)
+
 const assignedEnv = computed(() => {
   const envId = currentRepo.value?.environment_id
   if (!envId) return null
@@ -163,7 +193,7 @@ async function autoAssignEnvironmentAndPreload(repoId: number) {
   if (!repo.environment_id && envs.environments.length > 0) {
     const env = envs.environments.find(e => e.name.toLowerCase() === 'default') || envs.environments[0]
     try {
-      const updated = await updateRepo(repoId, { environment_id: env.id } as any)
+      const updated = await updateRepo(repoId, { environment_id: env.id })
       // Update local repo object
       const idx = repos.repos.findIndex(r => r.id === repoId)
       if (idx >= 0) repos.repos[idx] = { ...repos.repos[idx], ...updated }
@@ -383,8 +413,8 @@ async function installEditorLib(lib: LibraryCheckItem) {
     await installPackage(envId, { package_name: lib.pypi_package })
     editorMissingLibs.value = editorMissingLibs.value.filter(l => l.library_name !== lib.library_name)
     toast.success(t('explorer.libInstalled', { name: lib.pypi_package }))
-  } catch (e: any) {
-    toast.error(e?.response?.data?.detail || 'Install failed')
+  } catch (e: unknown) {
+    toast.error(extractErrorDetail(e, 'Install failed'))
   }
   editorLibInstalling.value.delete(lib.library_name)
 }
@@ -458,12 +488,40 @@ function onEditorContentUpdate(content: string) {
 
 // --- File actions ---
 
+// Story EDITOR-1 — RobotEditor exposes saveSidecarIfDirty(); we call it
+// alongside the .robot save so a swapped selector candidate persists in
+// the same Save action that writes the .robot content. Passing the
+// about-to-save text lets the editor also prune sidecar entries whose
+// `# rbs:<id>` comment is no longer in the file (RECORDER-IDMAP — keeps
+// the sidecar from accreting orphan rows after the user deletes a step).
+const robotEditorRef = ref<{
+  saveSidecarIfDirty?: (robotContent?: string) => Promise<void>
+} | null>(null)
+
 async function handleSave() {
   if (!selectedRepoId.value || !explorer.selectedFile || !isDirty.value) return
   saving.value = true
   try {
+    // Persist the recording sidecar first (cheap; usually a no-op).
+    // If it fails we still try to save the .robot — better one half-saved
+    // than zero saved on a transient sidecar write error.
+    try {
+      await robotEditorRef.value?.saveSidecarIfDirty?.(editorContent.value)
+    } catch { /* noop */ }
     await explorer.saveFile(selectedRepoId.value, explorer.selectedFile.path, editorContent.value)
     isDirty.value = false
+    // Story REPO-1 — refresh the dirty-count badge after every save so
+    // the user sees the "Save N changes" indicator update without a
+    // page reload.
+    repoStatus.refresh(selectedRepoId.value)
+    // The .robot / .resource file we just wrote may have added or
+    // removed `Library` / `Resource` lines — re-introspect so the
+    // FlowEditor's keyword palette reflects the new imports without
+    // a manual refresh. Cheap: re-uses the wildcard preload path.
+    const path = explorer.selectedFile.path.toLowerCase()
+    if (path.endsWith('.robot') || path.endsWith('.resource')) {
+      explorer.refreshKeywords(selectedRepoId.value).catch(() => { /* non-critical */ })
+    }
   } finally {
     saving.value = false
   }
@@ -583,6 +641,12 @@ async function checkAndRunRobot(node: TreeNode) {
   doRunRobot(node)
 }
 
+// Story W.9 — route to the v2 launcher with the current repo pre-selected.
+function handleRecordV2() {
+  if (!selectedRepoId.value) return
+  router.push({ path: '/recordings/new', query: { repoId: String(selectedRepoId.value) } })
+}
+
 async function rebuildAndRun() {
   const defaultEnv = envs.environments.find(e => e.is_default)
   const envForRebuild = currentRepo.value?.environment_id
@@ -649,7 +713,7 @@ async function doRunRobot(node: TreeNode) {
   runOverlay.value = { show: true, fileName: node.name, runId: null, error: null }
   try {
     const defaultEnv = envs.environments.find(e => e.is_default)
-    const runPayload: Record<string, any> = {
+    const runPayload: RunCreateRequest = {
       repository_id: selectedRepoId.value,
       target_path: node.path,
     }
@@ -657,10 +721,16 @@ async function doRunRobot(node: TreeNode) {
       runPayload.environment_id = defaultEnv.id
       runPayload.runner_type = defaultEnv.default_runner_type
     }
-    const run = await createRun(runPayload as any)
+    const run = await createRun(runPayload)
     runOverlay.value.runId = run.id
-  } catch (e: any) {
-    runOverlay.value.error = e.response?.data?.detail || e.message
+  } catch (e: unknown) {
+    // Prefer the FastAPI detail; fall back to the native Error
+    // message when this is a non-axios path (network error, sync
+    // throw). Helper only handles the response-shape — `e.message`
+    // here is intentional.
+    const detail = extractErrorDetail(e, '')
+    runOverlay.value.error =
+      detail || (e instanceof Error ? e.message : t('common.error'))
   } finally {
     runningFile.value = null
   }
@@ -676,8 +746,8 @@ async function setupDefaultFromExplorer() {
       checkAndRunRobot(pendingRunNode.value)
       pendingRunNode.value = null
     }
-  } catch (e: any) {
-    if (e.response?.status === 409) {
+  } catch (e: unknown) {
+    if (extractErrorStatus(e) === 409) {
       toast.error(t('environments.setupDefault.alreadyExists'))
     } else {
       toast.error(t('environments.setupDefault.toastError'))
@@ -817,7 +887,7 @@ const flatNodes = computed(() => {
 </script>
 
 <template>
-  <div class="page-content">
+  <div class="page-content explorer-page">
     <div class="page-header">
       <h1>{{ t('explorer.title') }}</h1>
       <div class="flex gap-2 items-center">
@@ -874,6 +944,19 @@ const flatNodes = computed(() => {
             <button class="icon-btn" @click="openCreateDialog()" :title="t('explorer.newFile')">+</button>
           </div>
         </div>
+        <!-- Story REPO-1: dirty-state badge → opens the publish modal.
+             Lives on its OWN row below the icon controls so the
+             label "n Änderungen speichern" doesn't push the icon
+             buttons (📂 ⊞ ⊟ +) out of view in narrow tree-panels. -->
+        <button
+          v-if="dirtyCount > 0"
+          class="repo-save-btn repo-save-btn--row"
+          data-testid="repo-save-btn"
+          :title="t('repos.publish.badgeTitle', { n: dirtyCount })"
+          @click="publishOpen = true"
+        >
+          💾 {{ t('repos.publish.badgeLabel', { n: dirtyCount }) }}
+        </button>
         <div v-if="explorer.loading && !explorer.tree" class="tree-loading">
           <BaseSpinner />
         </div>
@@ -1004,6 +1087,13 @@ const flatNodes = computed(() => {
                 :disabled="!!runningFile"
                 :title="t('explorer.runRobot')"
               >▶ {{ t('explorer.run') }}</button>
+              <button
+                v-if="auth.hasMinRole('editor')"
+                class="action-btn record-btn"
+                @click="handleRecordV2"
+                :disabled="!selectedRepoId"
+                :title="t('explorer.recorderV2Title')"
+              >⏺ {{ t('explorer.recorderV2') }}</button>
             </div>
           </div>
           <!-- Binary file placeholder -->
@@ -1043,6 +1133,7 @@ const flatNodes = computed(() => {
           <!-- Visual editor for .robot / .resource files -->
           <RobotEditor
             v-else-if="isRobotOrResource"
+            ref="robotEditorRef"
             :content="editorContent"
             :file-path="explorer.selectedFile.path"
             :repo-id="selectedRepoId ?? undefined"
@@ -1059,6 +1150,7 @@ const flatNodes = computed(() => {
         <div v-else class="empty-state">
           <p class="text-muted">{{ t('explorer.selectFile') }}</p>
         </div>
+
       </div>
     </div>
 
@@ -1204,6 +1296,14 @@ const flatNodes = computed(() => {
         <BaseButton v-if="!runOverlay.error" size="sm" @click="goToExecution">{{ t('explorer.runOverlay.goToExecution') }}</BaseButton>
       </template>
     </BaseModal>
+
+    <!-- Story REPO-1: Save-to-repository modal -->
+    <PublishModal
+      v-if="selectedRepoId !== null"
+      v-model="publishOpen"
+      :repo-id="selectedRepoId"
+      :status="currentStatus"
+    />
   </div>
 </template>
 
@@ -1235,11 +1335,32 @@ const flatNodes = computed(() => {
   color: #fff;
 }
 
+/* Page-level flex column so the inner explorer-layout can flex
+   to fill the remaining height (header + search + repo-warning
+   chrome above it have variable heights, so a fixed `100vh - 200px`
+   left a permanent body scrollbar on shorter desktops). The page
+   takes its full container height; the layout below grows. */
+.page-content.explorer-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  /* Inner panels (tree-panel + preview-panel) already manage their
+     own overflow, so the page itself never needs to scroll — block
+     the body / main-content scrollbar from appearing. */
+  overflow: hidden;
+}
+
 .explorer-layout {
   display: grid;
   grid-template-columns: 300px 1fr;
   gap: 16px;
-  height: calc(100vh - 200px);
+  flex: 1;
+  /* min-height: 0 is the canonical fix for "flex-child with internal
+     overflow scrolls the wrong layer" — without it grid + auto
+     content makes this row push the page taller than its parent
+     and the body / main-content scrollbar reappears. */
+  min-height: 0;
 }
 
 /* --- Tree Panel --- */
@@ -1286,6 +1407,37 @@ const flatNodes = computed(() => {
   background: var(--color-primary);
   color: white;
   border-color: var(--color-primary);
+}
+
+/* Story REPO-1 — "Save N changes" badge */
+.repo-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--color-accent, #D4883E);
+  background: rgba(212, 136, 62, 0.10);
+  color: var(--color-accent, #D4883E);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.repo-save-btn:hover {
+  background: var(--color-accent, #D4883E);
+  color: #fff;
+}
+/* Row-style variant: lives below the icon controls, full-width.
+   Prevents the dirty-count label from pushing the icon buttons
+   out of view in a narrow file-tree panel. */
+.repo-save-btn--row {
+  display: flex;
+  justify-content: center;
+  margin: 0 16px 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  white-space: normal;
 }
 
 .tree-loading {
@@ -1464,6 +1616,13 @@ const flatNodes = computed(() => {
 
 .run-btn:hover { filter: brightness(0.9); }
 .run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.record-btn {
+  background: #dc2626;
+  color: white;
+}
+.record-btn:hover { filter: brightness(0.9); }
+.record-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .ai-btn {
   background: #7c3aed;

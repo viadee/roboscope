@@ -3,14 +3,16 @@
 import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.auth.constants import Role
+from src.auth.constants import ROLE_HIERARCHY, Role
 from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
+from src.auth.service import get_user_by_id
 from src.database import get_db
-from src.webhooks.models import Webhook
+from src.webhooks.models import ApiToken, Webhook
 from src.webhooks.schemas import (
     VALID_EVENTS,
     ApiTokenCreate,
@@ -82,6 +84,77 @@ def delete_token(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token not found")
 
 
+class ApiTokenReassignRequest(BaseModel):
+    user_id: int
+
+
+@router.post("/tokens/{token_id}/reassign", response_model=ApiTokenResponse)
+def reassign_token(
+    token_id: int,
+    data: ApiTokenReassignRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.ADMIN)),
+):
+    """Reassign a CI/CD API token from its current owner to `data.user_id`.
+
+    Story 5-4. The token's scoped role is re-capped at the new owner's
+    global User.role at reassign time — the cap is tightening-only, it
+    cannot elevate the token. Emits `api_token.reassigned` audit.
+    """
+    from src.audit.event_types import AuditEventType
+    from src.audit.service import log_event
+
+    token = db.get(ApiToken, token_id)
+    if token is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Token not found"
+        )
+
+    new_owner = get_user_by_id(db, data.user_id)
+    if new_owner is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="New owner user not found"
+        )
+    if not new_owner.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot reassign to an inactive user",
+        )
+
+    old_user_id = token.user_id
+    token_role_level = ROLE_HIERARCHY.get(Role(token.role), 0)
+    new_user_role_level = ROLE_HIERARCHY.get(Role(new_owner.role), 0)
+
+    # Story 5-4: re-cap the token at the new owner's global role.
+    # Never elevates — only tightens when the new owner is more restricted.
+    effective_role = (
+        token.role if token_role_level <= new_user_role_level else new_owner.role
+    )
+
+    previous_role = token.role
+    token.user_id = new_owner.id
+    token.role = effective_role
+    db.flush()
+
+    log_event(
+        db,
+        AuditEventType.API_TOKEN_REASSIGNED,
+        user_id=current_user.id,
+        resource_id=token.id,
+        detail={
+            "old_user_id": old_user_id,
+            "new_user_id": new_owner.id,
+            "previous_role": previous_role,
+            "new_role": effective_role,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+    db.commit()
+    db.refresh(token)
+    return token
+
+
 # --- Webhooks ---
 
 
@@ -101,7 +174,9 @@ def create_hook(
     try:
         webhook = create_webhook(db, data.model_dump(), current_user.id)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e),
+        ) from e
     return _webhook_to_response(webhook)
 
 
@@ -143,7 +218,9 @@ def update_hook(
     try:
         updated = update_webhook(db, webhook, data.model_dump(exclude_unset=True))
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e),
+        ) from e
     return _webhook_to_response(updated)
 
 
@@ -249,10 +326,26 @@ def git_webhook_inbound(
     db.add(run)
     db.commit()
 
-    # Dispatch to background executor
+    # Dispatch to background executor.
+    # Story REPO-4: for git repos, pre-dispatch a sync so the run uses
+    # the freshly pushed commit, not the on-disk state. The task
+    # executor runs with `max_workers=1`, so submitting the sync first
+    # guarantees it finishes before the run starts. A failure to
+    # dispatch the sync is logged but does NOT abort the run.
     try:
-        from src.task_executor import dispatch_task
+        from src.task_executor import TaskDispatchError, dispatch_task
         from src.execution.tasks import execute_test_run
+        from src.repos.tasks import sync_repo
+
+        if repo.repo_type == "git" and repo.git_url:
+            try:
+                dispatch_task(sync_repo, repo.id)
+            except TaskDispatchError as e:
+                logger.warning(
+                    "Webhook: pre-run sync dispatch failed for repo %d (%s): %s — "
+                    "run will use on-disk state",
+                    repo.id, repo.name, e,
+                )
 
         result = dispatch_task(execute_test_run, run.id)
         run.task_id = result.id
@@ -282,19 +375,25 @@ def _extract_git_url(payload: dict) -> str | None:
     if isinstance(repo, dict):
         # GitHub: clone_url or html_url
         for key in ("clone_url", "html_url", "ssh_url", "git_url"):
-            if key in repo:
-                return repo[key]
+            value = repo.get(key)
+            if isinstance(value, str):
+                return value
         # GitLab: git_http_url or git_ssh_url
         for key in ("git_http_url", "git_ssh_url", "url"):
-            if key in repo:
-                return repo[key]
+            value = repo.get(key)
+            if isinstance(value, str):
+                return value
     return None
 
 
 def _extract_branch(payload: dict) -> str | None:
     """Extract branch name from push payload."""
-    ref = payload.get("ref", "")
-    if ref.startswith("refs/heads/"):
+    # Webhook payloads come from external providers — `ref` is `Any`
+    # at the static-typing level; defend against missing or non-string
+    # values rather than crash with `AttributeError: 'int' object has
+    # no attribute 'startswith'`.
+    ref = payload.get("ref")
+    if isinstance(ref, str) and ref.startswith("refs/heads/"):
         return ref[len("refs/heads/"):]
     return None
 

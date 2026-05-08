@@ -139,16 +139,19 @@ test.describe('Report Detail Page', () => {
     await loginAndGoToDashboard(page);
   });
 
-  test('should show 3 tabs: Summary, Detailed Report, HTML Report', async ({ page }) => {
+  test('should show 2 tabs: Summary, HTML Report', async ({ page }) => {
+    // 0.9.0 merged the standalone "Detailed Report" tab into the
+    // Summary tab so the keyword tree is one scroll away rather
+    // than a tab click. Page now ships exactly 2 tabs.
     await page.goto('/reports/1');
     await page.waitForLoadState('networkidle');
 
-    // Check all 3 tabs are visible
+    // Both tabs are visible.
     await expect(page.locator('.tab-btn').nth(0)).toBeVisible();
     await expect(page.locator('.tab-btn').nth(1)).toBeVisible();
-    await expect(page.locator('.tab-btn').nth(2)).toBeVisible();
+    await expect(page.locator('.tab-btn')).toHaveCount(2);
 
-    // Summary tab should be active by default
+    // Summary tab is active by default.
     await expect(page.locator('.tab-btn.active')).toHaveCount(1);
   });
 
@@ -170,21 +173,20 @@ test.describe('Report Detail Page', () => {
     await page.goto('/reports/1');
     await page.waitForLoadState('networkidle');
 
-    // Click HTML Report tab (now 3rd tab)
-    await page.locator('.tab-btn').nth(2).click();
+    // HTML Report is the 2nd (last) tab now that Detailed Report
+    // has been merged into Summary.
+    await page.locator('.tab-btn').nth(1).click();
 
     // iframe should be visible
     await expect(page.locator('.html-report-iframe')).toBeVisible();
   });
 
-  test('should switch to Detailed Report tab and show tree', async ({ page }) => {
+  test('Summary tab embeds the keyword tree (formerly the Detailed Report tab)', async ({ page }) => {
     await page.goto('/reports/1');
     await page.waitForLoadState('networkidle');
 
-    // Click Detailed Report tab (now 2nd tab)
-    await page.locator('.tab-btn').nth(1).click();
-
-    // Wait for XML data to load
+    // The XML keyword tree now lives inside the Summary tab — no
+    // tab-switch needed. Wait for the data to load.
     await expect(page.locator('.xml-tree')).toBeVisible({ timeout: 10_000 });
 
     // Root suite should be visible
@@ -192,14 +194,11 @@ test.describe('Report Detail Page', () => {
     await expect(page.locator('.tree-label').first()).toContainText('Root Suite');
   });
 
-  test('should expand and collapse nodes in Detailed Report', async ({ page }) => {
+  test('keyword tree expand/collapse round-trip in Summary', async ({ page }) => {
     await page.goto('/reports/1');
     await page.waitForLoadState('networkidle');
 
-    // Click Detailed Report tab (now 2nd tab)
-    await page.locator('.tab-btn').nth(1).click();
     await expect(page.locator('.xml-tree')).toBeVisible({ timeout: 10_000 });
-
     const xmlTree = page.locator('.xml-tree');
 
     // Root Suite should be auto-expanded (showing doc text)
@@ -229,16 +228,18 @@ test.describe('Report Detail Page', () => {
     await page.goto('/reports/1');
     await page.waitForLoadState('networkidle');
 
-    // Go to Detailed Report
-    await page.locator('.tab-btn').nth(1).click();
+    // Summary holds both KPIs and the keyword tree.
+    await expect(page.locator('.kpi-card').first()).toBeVisible();
     await expect(page.locator('.xml-tree')).toBeVisible({ timeout: 10_000 });
 
-    // Go back to Summary
+    // Switch to HTML Report tab (2nd tab), then back to Summary.
+    await page.locator('.tab-btn').nth(1).click();
     await page.locator('.tab-btn').nth(0).click();
     await expect(page.locator('.kpi-card').first()).toBeVisible();
+    await expect(page.locator('.xml-tree')).toBeVisible();
 
-    // Go to HTML Report
-    await page.locator('.tab-btn').nth(2).click();
+    // Go to HTML Report (2nd tab)
+    await page.locator('.tab-btn').nth(1).click();
     await expect(page.locator('.html-report-iframe')).toBeVisible();
   });
 });

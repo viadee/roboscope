@@ -4,7 +4,10 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useTour } from '@/composables/useTour'
+import { computed, onBeforeUnmount } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import TeamSwitcher from '@/components/layout/TeamSwitcher.vue'
+import { useBypassStatus } from '@/composables/useBypassStatus'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -23,9 +26,38 @@ function logout() {
   auth.logout()
   router.push('/login')
 }
+
+const bypass = useBypassStatus()
+onBeforeUnmount(() => bypass.release())
+
+const bypassRemainingLabel = computed(() => {
+  const m = bypass.remainingMinutes.value
+  if (m === null) return ''
+  if (m < 60) return `${m} min`
+  const h = Math.floor(m / 60)
+  const r = m % 60
+  return r === 0 ? `${h} h` : `${h} h ${r} min`
+})
+
+const isAdmin = computed(() => auth.user?.role === 'admin')
 </script>
 
 <template>
+  <div
+    v-if="bypass.active.value"
+    class="bypass-banner"
+    role="status"
+    aria-live="polite"
+  >
+    <span>{{ t('bypass.headerBanner', { time: bypassRemainingLabel }) }}</span>
+    <router-link
+      v-if="isAdmin"
+      to="/admin/emergency-bypass"
+      class="bypass-banner__link"
+    >
+      {{ t('bypass.headerBannerAdminLink') }}
+    </router-link>
+  </div>
   <header class="app-header">
     <div class="header-left">
       <button class="toggle-btn" @click="ui.toggleSidebar" :aria-label="t('common.menu')">
@@ -33,12 +65,13 @@ function logout() {
       </button>
     </div>
     <div class="header-right">
-      <div class="lang-switcher">
+      <div class="lang-switcher" role="group" :aria-label="t('a11y.languageSwitcher')">
         <button
           v-for="lang in languages"
           :key="lang"
           class="lang-btn"
           :class="{ active: locale === lang }"
+          :aria-pressed="locale === lang"
           @click="switchLanguage(lang)"
         >
           {{ lang.toUpperCase() }}
@@ -48,18 +81,22 @@ function logout() {
         class="notification-btn"
         :class="{ active: ui.notificationsEnabled }"
         :title="ui.notificationsEnabled ? t('notifications.enabled') : t('notifications.disabled')"
+        :aria-label="ui.notificationsEnabled ? t('notifications.enabled') : t('notifications.disabled')"
+        :aria-pressed="ui.notificationsEnabled"
         @click="ui.toggleNotifications()"
       >
-        <span v-if="ui.notificationsEnabled">&#128276;</span>
-        <span v-else>&#128277;</span>
+        <span v-if="ui.notificationsEnabled" aria-hidden="true">&#128276;</span>
+        <span v-else aria-hidden="true">&#128277;</span>
       </button>
       <button
         class="notification-btn tour-btn"
         :title="t('tour.startTutorial')"
+        :aria-label="t('tour.startTutorial')"
         @click="startTour()"
       >
-        &#127891;
+        <span aria-hidden="true">&#127891;</span>
       </button>
+      <TeamSwitcher />
       <span class="header-user">{{ auth.user?.username }}</span>
       <BaseButton variant="ghost" size="sm" @click="logout">{{ t('common.logout') }}</BaseButton>
     </div>
@@ -185,5 +222,23 @@ function logout() {
     padding: 2px 5px;
     font-size: 10px;
   }
+}
+
+.bypass-banner {
+  background: #fff7e6;
+  border-bottom: 1px solid #f0c36d;
+  color: #7a4e00;
+  padding: 0.4rem 0.9rem;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.bypass-banner__link {
+  color: inherit;
+  text-decoration: underline;
 }
 </style>

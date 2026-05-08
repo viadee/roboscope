@@ -7,7 +7,7 @@ packages = ["src"]
 
 [project]
 name = "roboscope-backend"
-version = "0.8.1"
+version = "0.9.0"
 description = "RoboScope - Web-based Robot Framework Test Management Tool"
 requires-python = ">=3.11"
 dependencies = [
@@ -35,6 +35,14 @@ dependencies = [
     "python-json-logger>=3.0.0",
     "rf-mcp>=0.30.0",
     "fastmcp<3",
+    "playwright>=1.49.0",
+    "authlib>=1.6.10",
+    "reportlab>=4.4.10",
+    # XXE / billion-laughs hardening for any XML coming from
+    # subprocess output (output.xml is built from user-authored .robot
+    # tests, so external-entity references could exfiltrate files or
+    # DoS the parser if we used stdlib ET directly).
+    "defusedxml>=0.7.1",
 ]
 
 [project.optional-dependencies]
@@ -60,14 +68,18 @@ dev = [
     "ruff>=0.8.0",
     "mypy>=1.13.0",
     "pre-commit>=4.0.0",
+    "respx>=0.23.1",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -m 'not integration'"
 asyncio_mode = "auto"
 filterwarnings = [
     "ignore::DeprecationWarning",
+]
+markers = [
+    "integration: requires an installed playwright chromium browser; opt-in via -m integration",
 ]
 
 [tool.ruff]
@@ -76,10 +88,37 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N", "UP", "B", "C4", "SIM"]
-extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header", "fastapi.Path"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Mark FastAPI dependency-injection helpers as immutable so the
+# B008 rule ("Do not perform function call in argument defaults")
+# doesn't fire on every router signature. Nested under
+# flake8-bugbear because ruff 0.15+ rejects this option at the
+# top-level [tool.ruff.lint] section (the older flat form silently
+# broke `make lint` until this was moved).
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Header",
+    "fastapi.Path",
+    # Project-local role-gating factories called inside `Depends(...)`
+    # — they construct a dependency callable, evaluating them at
+    # function-definition time is the intended pattern.
+    "src.auth.dependencies.require_role",
+    "src.auth.dependencies.require_effective_role",
+    "src.auth.dependencies.require_effective_role_for_run",
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
+
+[tool.ruff.lint.per-file-ignores]
+# Pytest fixture pattern: import a fixture for discovery, then use
+# its name as a function parameter. Ruff sees the parameter as a
+# "redefinition" (F811) of the imported name even though the import
+# uses `# noqa: F401`. F811 is a real bug-class in production code,
+# so we silence it ONLY in tests/.
+"tests/**" = ["F811"]
 
 [tool.mypy]
 python_version = "3.12"

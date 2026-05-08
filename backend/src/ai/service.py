@@ -165,8 +165,21 @@ def list_jobs(db: Session, repository_id: int | None = None) -> list[AiJob]:
 
 
 def parse_spec(content: str) -> dict:
-    """Parse a .roboscope YAML spec and return the dict."""
-    return yaml.safe_load(content)
+    """Parse a .roboscope YAML spec and return the dict.
+
+    Raises a clean `ValueError` if the YAML is well-formed but
+    doesn't decode to a dict (e.g. a top-level list, scalar, or
+    None for an empty file). Without this guard, downstream
+    `parsed.get(...)` calls in the router would crash with
+    `AttributeError`.
+    """
+    parsed = yaml.safe_load(content)
+    if not isinstance(parsed, dict):
+        raise ValueError(
+            f"Spec must be a YAML mapping at the top level; got "
+            f"{type(parsed).__name__}",
+        )
+    return parsed
 
 
 def validate_spec(content: str) -> tuple[bool, list[str], int]:

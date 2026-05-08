@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth.store'
+import { extractErrorDetail } from '@/utils/errors'
 import BaseButton from '@/components/ui/BaseButton.vue'
 
 const router = useRouter()
@@ -43,8 +44,8 @@ async function handleLogin() {
     await auth.login(email.value, password.value)
     const redirect = (route.query.redirect as string) || '/dashboard'
     router.push(redirect)
-  } catch (e: any) {
-    error.value = e.response?.data?.detail || t('auth.loginFailed')
+  } catch (e: unknown) {
+    error.value = extractErrorDetail(e, t('auth.loginFailed'))
     showError.value = true
   } finally {
     loading.value = false
@@ -67,10 +68,16 @@ async function handleLogin() {
 
     <form @submit.prevent="handleLogin">
       <div class="form-group">
-        <label class="form-label">{{ t('auth.email') }}</label>
+        <!-- A11Y-2: explicit label-for / input-id pairing so screen
+             readers announce the label with the input, plus
+             autocomplete + type=email for password managers and
+             mobile keyboards. -->
+        <label for="login-email" class="form-label">{{ t('auth.email') }}</label>
         <input
+          id="login-email"
           v-model="email"
-          type="text"
+          type="email"
+          autocomplete="username"
           class="form-input"
           placeholder="admin@roboscope.local"
           required
@@ -78,10 +85,12 @@ async function handleLogin() {
         />
       </div>
       <div class="form-group">
-        <label class="form-label">{{ t('auth.password') }}</label>
+        <label for="login-password" class="form-label">{{ t('auth.password') }}</label>
         <input
+          id="login-password"
           v-model="password"
           type="password"
+          autocomplete="current-password"
           class="form-input"
           :placeholder="t('auth.password')"
           required

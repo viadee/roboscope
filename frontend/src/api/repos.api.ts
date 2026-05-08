@@ -87,3 +87,66 @@ export async function updateProjectMember(
 export async function removeProjectMember(repoId: number, memberId: number): Promise<void> {
   await apiClient.delete(`/repos/${repoId}/members/${memberId}`)
 }
+
+// ---------------------------------------------------------------------------
+// Story REPO-1 — non-Git-user save loop
+// ---------------------------------------------------------------------------
+
+export interface RepoStatus {
+  current_branch: string | null
+  ahead: number
+  behind: number
+  modified: string[]
+  staged: string[]
+  untracked: string[]
+  deleted: string[]
+  is_dirty: boolean
+}
+
+export interface PublishRequest {
+  message: string
+  paths?: string[]
+}
+
+export interface PublishOk {
+  commit_hash: string
+  message: string
+  files: string[]
+  pushed: true
+  conflict: false
+  remote_ref: string
+}
+
+/** Returned as `error.response.data.detail` for HTTP 409 from /publish. */
+export interface PublishConflict {
+  commit_hash: string
+  message: string
+  files: string[]
+  pushed: false
+  conflict: true
+  reason: string
+}
+
+export async function getRepoStatus(id: number): Promise<RepoStatus> {
+  const response = await apiClient.get<RepoStatus>(`/repos/${id}/status`)
+  return response.data
+}
+
+export async function commitRepo(id: number, body: PublishRequest): Promise<{
+  commit_hash: string; message: string; files: string[]
+}> {
+  const response = await apiClient.post(`/repos/${id}/commit`, body)
+  return response.data
+}
+
+export async function pushRepo(id: number): Promise<{
+  branch: string; remote_ref: string; ahead_after: number
+}> {
+  const response = await apiClient.post(`/repos/${id}/push`)
+  return response.data
+}
+
+export async function publishRepo(id: number, body: PublishRequest): Promise<PublishOk> {
+  const response = await apiClient.post<PublishOk>(`/repos/${id}/publish`, body)
+  return response.data
+}

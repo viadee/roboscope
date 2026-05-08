@@ -171,12 +171,15 @@ def get_flaky_tests(
     """Detect flaky tests (tests that alternate between pass and fail)."""
     since = date.today() - timedelta(days=days)
 
-    # Get all test results within the period
+    # Get all test results within the period, carrying repository_id
+    # through so we can match against the FlakyQuarantine table
+    # (Story FLAKY-1).
     query = (
         select(
             TestResult.test_name,
             TestResult.suite_name,
             TestResult.status,
+            ExecutionRun.repository_id,
         )
         .join(Report, TestResult.report_id == Report.id)
         .join(ExecutionRun, Report.execution_run_id == ExecutionRun.id)
@@ -188,21 +191,31 @@ def get_flaky_tests(
     result = db.execute(query)
     rows = result.all()
 
-    # Group by test name
-    test_map: dict[str, dict] = {}
+    # Group by (repo, suite, test) so results for the same name in
+    # different repos don't collide.
+    test_map: dict[tuple[int, str, str], dict] = {}
     for row in rows:
-        key = f"{row.suite_name}::{row.test_name}"
+        key = (row.repository_id, row.suite_name, row.test_name)
         if key not in test_map:
             test_map[key] = {
                 "test_name": row.test_name,
                 "suite_name": row.suite_name,
+                "repository_id": row.repository_id,
                 "statuses": [],
             }
         test_map[key]["statuses"].append(row.status)
 
-    # Find flaky tests
+    # Single shot: which (repo, suite, test) tuples are currently
+    # quarantined? Cheap — expected to be dozens of rows max.
+    from src.stats.models import FlakyQuarantine
+
+    quarantine_rows = db.execute(select(FlakyQuarantine)).scalars().all()
+    quarantine_index: dict[tuple[int, str, str], FlakyQuarantine] = {
+        (q.repository_id, q.suite_name, q.test_name): q for q in quarantine_rows
+    }
+
     flaky_tests: list[FlakyTest] = []
-    for key, data in test_map.items():
+    for (_repo_id, _suite, _test), data in test_map.items():
         statuses = data["statuses"]
         if len(statuses) < min_runs:
             continue
@@ -213,6 +226,9 @@ def get_flaky_tests(
         # A test is flaky if it has both passes and failures
         if pass_count > 0 and fail_count > 0:
             flaky_rate = min(pass_count, fail_count) / len(statuses)
+            q_row = quarantine_index.get(
+                (data["repository_id"], data["suite_name"], data["test_name"]),
+            )
             flaky_tests.append(FlakyTest(
                 test_name=data["test_name"],
                 suite_name=data["suite_name"],
@@ -221,11 +237,125 @@ def get_flaky_tests(
                 fail_count=fail_count,
                 flaky_rate=round(flaky_rate * 100, 1),
                 last_status=statuses[-1],
+                is_quarantined=q_row is not None,
+                quarantine_id=q_row.id if q_row is not None else None,
+                repository_id=data["repository_id"],
             ))
 
-    # Sort by flaky rate descending
-    flaky_tests.sort(key=lambda t: t.flaky_rate, reverse=True)
+    # Sort: quarantined tests first (so admins see outstanding muted
+    # items up top), then by flaky rate desc.
+    flaky_tests.sort(key=lambda t: (not t.is_quarantined, -t.flaky_rate))
     return flaky_tests
+
+
+def get_heal_rate(
+    db: Session,
+    days: int = 30,
+    repository_id: int | None = None,
+):
+    """Story SH-6 — aggregate heal audit files from recent runs.
+
+    Walks the last `days` worth of runs, reads each run's
+    `output_dir/heal_audit.jsonl` + cross-references with `output.xml`
+    for confirmed/suspect classification. Cheap-ish: one small file
+    read per run. No DB pre-aggregation.
+    """
+    from pathlib import Path
+
+    from src.execution.models import ExecutionRun
+    from src.recording.heal.heal_report import parse_heal_audit
+    from src.stats.schemas import HealRatePoint, HealRateResponse
+
+    since = date.today() - timedelta(days=days)
+    stmt = (
+        select(ExecutionRun)
+        .where(ExecutionRun.created_at >= str(since))
+    )
+    if repository_id is not None:
+        stmt = stmt.where(ExecutionRun.repository_id == repository_id)
+    runs = list(db.execute(stmt).scalars().all())
+
+    # Build zero-filled per-day buckets so the trend array always has
+    # `days` entries even when nothing happened that day.
+    day_buckets: dict[str, dict[str, int]] = {}
+    for offset in range(days):
+        d = date.today() - timedelta(days=days - 1 - offset)
+        day_buckets[d.isoformat()] = {"heals": 0, "confirmed": 0, "suspect": 0}
+
+    total_heals = 0
+    confirmed = 0
+    suspect = 0
+    runs_with_heals = 0
+
+    for run in runs:
+        if not run.output_dir:
+            continue
+        audit_path = Path(run.output_dir) / "heal_audit.jsonl"
+        if not audit_path.is_file():
+            continue
+        output_xml = Path(run.output_dir) / "output.xml"
+        report = parse_heal_audit(
+            audit_path,
+            output_xml=output_xml if output_xml.is_file() else None,
+        )
+        if report.total_heals == 0:
+            continue
+        runs_with_heals += 1
+        total_heals += report.total_heals
+        confirmed += report.confirmed
+        suspect += report.suspect
+
+        # Attribute heals to the run's created_at date (best available
+        # bucket when individual audit records don't carry a day key
+        # we trust across tz boundaries).
+        created = getattr(run, "created_at", None)
+        if created is None:
+            continue
+        bucket_key = _run_date_key(created)
+        if bucket_key in day_buckets:
+            day_buckets[bucket_key]["heals"] += report.total_heals
+            day_buckets[bucket_key]["confirmed"] += report.confirmed
+            day_buckets[bucket_key]["suspect"] += report.suspect
+
+    trend = [
+        HealRatePoint(
+            date=k,
+            heals=v["heals"],
+            confirmed=v["confirmed"],
+            suspect=v["suspect"],
+        )
+        for k, v in sorted(day_buckets.items())
+    ]
+
+    return HealRateResponse(
+        total_runs_in_window=len(runs),
+        runs_with_heals=runs_with_heals,
+        total_heals=total_heals,
+        confirmed_heals=confirmed,
+        suspect_heals=suspect,
+        trend=trend,
+    )
+
+
+def _run_date_key(created_at) -> str:
+    """Robust-ish mapping of ExecutionRun.created_at to a YYYY-MM-DD
+    bucket. `created_at` can be either a datetime or a string
+    (SQLite's column type is flexible); handle both."""
+    from datetime import datetime as _dt
+
+    if hasattr(created_at, "date"):
+        try:
+            return created_at.date().isoformat()
+        except Exception:
+            pass
+    s = str(created_at)
+    # ISO-ish first 10 chars → YYYY-MM-DD.
+    if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+        return s[:10]
+    try:
+        return _dt.fromisoformat(s).date().isoformat()
+    except Exception:
+        return date.today().isoformat()
 
 
 def get_duration_stats(

@@ -17,12 +17,19 @@ Built by [viadee Unternehmensberatung AG](https://www.viadee.de).
 - **Test Explorer** — Browse test files, parse Robot Framework keywords/tests, library dependency check
 - **Visual Flow Editor** — Node-based graphical test editor with keyword palette, drag & drop, control structures (IF/FOR/WHILE/TRY)
 - **Test Execution** — Run tests via subprocess or Docker, live WebSocket status updates, scheduling
+- **Recorder v2** — Record browser flows into `.robot` files end-to-end. Launch from the sidebar (Recorder) or from the Explorer toolbar (the Explorer button pre-selects the current repository). Transport picker for Web (Playwright) and Desktop Windows; each captured action streams live over SSE with ranked selector candidates (test-id, ARIA, text, CSS, XPath, Playwright locator). Saves a sidecar `<name>.rbs.json` alongside the `.robot` carrying all candidates — consumed later by the self-healing library. The external Chrome Recorder extension remains available as a separate HTTP client.
+- **Self-Healing Selectors** — Opt-in `RoboScopeHeal` Robot Framework library (Heal Click, Heal Fill Text, Heal Upload File, Heal Drag And Drop, ...). When a selector times out at runtime the library falls through three tiers: sidecar-stored alternatives → cross-strategy transposition (`id=X` → `[data-testid=X]` → `text=X` → ...) → DOM-walk fingerprint scoring (Healenium-style). Confirmed heals land as a "🩹 Apply patch" button on the run-detail panel; suspect heals (test still failed) never offer a patch. Per-test budget, confidence thresholds, and a `no-heal` tag keep the blast radius bounded.
+- **Selector Diagnosis** — Every failed run is scanned for "Element not found" / Playwright timeout signatures; recognised selectors are cross-referenced with the recording sidecar and their ranked alternatives surface as copy-chips on the run detail.
+- **Flaky-Test Quarantine** — Mark any flaky test from the Stats page as quarantined. A Robot Framework listener then skips those tests at runtime (SKIP, not FAIL) so CI pipelines stop drowning in known-flaky noise. Per-repository, audit-logged, reversible.
+- **AI Failure Analysis + Patch Suggestions** — The AI analyse pipeline emits prose root-cause analysis plus optional unified-diff patches for concrete fixes. Patches render as copy-to-clipboard diffs on the report page — no auto-commit.
+- **Heal-Rate KPI** — Stats overview shows a 30-day heal-rate card + sparkline as a leading indicator of test drift against the app.
 - **Environment Management** — Create Python virtual environments, install/manage packages, set variables, secrets encryption
 - **Report Analysis** — Parse `output.xml`, compare runs, view embedded HTML reports
 - **AI-Powered Analysis** — LLM-based failure root-cause analysis with fix suggestions (OpenAI, Anthropic, OpenRouter, Ollama)
 - **Statistics & KPIs** — Pass rate trends, flaky test detection, heatmaps, deep analysis (15 KPIs in 5 categories)
 - **AI Code Generation** — Generate `.robot` files from `.roboscope` YAML specs, reverse-engineer specs from `.robot` files
 - **CI/CD Integration** — API tokens for service accounts, outbound webhooks (6 events), git webhook triggers for automatic test runs
+- **Single Sign-On (SSO)** — OpenID Connect identity providers (Azure AD / Microsoft Entra ID, Google Workspace, GitHub, generic OIDC) with dry-run probe, group-to-team mapping and per-provider PDF/Markdown handoff document
 - **Audit & Compliance** — Full audit log with CSV export, retention enforcement, secrets encryption at rest
 - **rf-mcp Integration** — Optional Robot Framework keyword knowledge server for enhanced AI suggestions
 - **Role-Based Access** — Four roles: Viewer, Runner, Editor, Admin
@@ -171,6 +178,19 @@ bash scripts/build-mac-and-linux.sh
 | `REPORTS_DIR` | `~/.roboscope/reports` | Report files directory |
 | `VENVS_DIR` | `~/.roboscope/venvs` | Virtual environments directory |
 
+### Single Sign-On (SSO)
+
+RoboScope supports OIDC identity providers for **Azure AD / Microsoft Entra ID**, **Google Workspace**, **GitHub** and any standards-compliant OIDC issuer (Okta, Keycloak, Auth0, Authentik, …). High-level setup:
+
+1. Register a new web application at your IdP and note the **Client ID** + **Client Secret**.
+2. Set the **Redirect URI** to `https://<your-roboscope-host>/auth/sso/callback`.
+3. In RoboScope, log in as admin and open **Admin → Identity Providers → Add Provider**.
+4. Fill in name, type, **Issuer URL**, Client ID/Secret, scopes (default `openid profile email`) and the **Group claim name** (default `groups`).
+5. Click **Run Dry-Run** — only a passing probe unlocks **Save**.
+6. Optional: download the **Hand-off PDF/Markdown** (per language) for the IdP admin team, and map IdP groups to RoboScope teams under **Admin → Teams**.
+
+A local-password emergency bypass (`admin@roboscope.local` by default) remains available even if the IdP is unreachable. Full step-by-step guidance, including IdP-specific Issuer URL examples and group-mapping details, is in the **in-app documentation** under *Settings → Identity Providers (SSO)*.
+
 ## Contributing
 
 Contributions are welcome! Please:
@@ -182,6 +202,10 @@ Contributions are welcome! Please:
 5. Open a Pull Request
 
 Please follow the existing code style (Ruff for Python, ESLint for TypeScript) and include tests for new features.
+
+## Security
+
+Found a security issue? Please **don't** open a public issue. See [SECURITY.md](SECURITY.md) for the disclosure process and our supported-versions / known-advisories list.
 
 ## License
 

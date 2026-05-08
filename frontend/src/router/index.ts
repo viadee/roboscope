@@ -51,6 +51,15 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      // Pop-out for the keyword tree only — opened from the run
+      // detail panel via "↗ In neuem Tab öffnen". Renders without
+      // sidebar/header so the user gets a clean full-width deep view.
+      path: '/reports/:id/detailed',
+      name: 'report-detailed',
+      component: () => import('@/views/ReportDetailedView.vue'),
+      meta: { requiresAuth: true, layout: 'minimal' },
+    },
+    {
       path: '/test-history',
       name: 'test-history',
       component: () => import('@/views/TestHistoryView.vue'),
@@ -69,6 +78,24 @@ const router = createRouter({
       meta: { requiresAuth: true, minRole: 'admin' },
     },
     {
+      path: '/admin/identity-providers',
+      name: 'idp-providers',
+      component: () => import('@/views/IdpProviderListView.vue'),
+      meta: { requiresAuth: true, minRole: 'admin' },
+    },
+    {
+      path: '/admin/identity-providers/new',
+      name: 'idp-provider-new',
+      component: () => import('@/views/IdpProviderEditView.vue'),
+      meta: { requiresAuth: true, minRole: 'admin' },
+    },
+    {
+      path: '/admin/identity-providers/:id',
+      name: 'idp-provider-edit',
+      component: () => import('@/views/IdpProviderEditView.vue'),
+      meta: { requiresAuth: true, minRole: 'admin' },
+    },
+    {
       path: '/docs',
       name: 'docs',
       component: () => import('@/views/DocsView.vue'),
@@ -79,6 +106,48 @@ const router = createRouter({
       name: 'imprint',
       component: () => import('@/views/ImprintView.vue'),
       meta: { requiresAuth: true },
+    },
+    {
+      path: '/welcome',
+      name: 'welcome',
+      component: () => import('@/views/FirstLoginView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/admin/emergency-bypass',
+      name: 'emergency-bypass',
+      component: () => import('@/views/EmergencyBypassView.vue'),
+      meta: { requiresAuth: true, minRole: 'admin' },
+    },
+    {
+      path: '/admin/teams',
+      name: 'teams',
+      component: () => import('@/views/TeamListView.vue'),
+      meta: { requiresAuth: true, minRole: 'admin' },
+    },
+    {
+      path: '/admin/teams/:id',
+      name: 'team-detail',
+      component: () => import('@/views/TeamDetailView.vue'),
+      meta: { requiresAuth: true, minRole: 'admin' },
+    },
+    {
+      path: '/sso-link-consent',
+      name: 'sso-link-consent',
+      component: () => import('@/views/SsoLinkConsentView.vue'),
+      meta: { layout: 'auth', requiresAuth: false },
+    },
+    {
+      path: '/recordings/new',
+      name: 'recording-launcher',
+      component: () => import('@/views/RecordingLauncherView.vue'),
+      meta: { requiresAuth: true, minRole: 'editor' },
+    },
+    {
+      path: '/recordings/live/:sessionId',
+      name: 'recording-live',
+      component: () => import('@/views/RecordingLiveView.vue'),
+      meta: { requiresAuth: true, minRole: 'editor' },
     },
     {
       path: '/:pathMatch(.*)*',
@@ -129,6 +198,16 @@ router.beforeEach(async (to, from) => {
     if (userLevel < requiredLevel) {
       return { path: '/dashboard' }
     }
+  }
+
+  // Story 4-2: redirect first-time users to /welcome until they dismiss it.
+  if (
+    auth.user &&
+    auth.user.first_login_complete === false &&
+    to.name !== 'welcome' &&
+    to.path !== '/login'
+  ) {
+    return { path: '/welcome' }
   }
 
   if (to.path === '/login' && auth.isAuthenticated) {

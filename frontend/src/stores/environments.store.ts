@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as envsApi from '@/api/environments.api'
-import type { Environment, EnvironmentPackage, EnvironmentVariable } from '@/types/domain.types'
+import type { Environment, EnvironmentPackage, EnvironmentVariable, PackageInstallStatus } from '@/types/domain.types'
 import type { EnvCreateRequest, PackageCreateRequest } from '@/types/api.types'
 
 export const useEnvironmentsStore = defineStore('environments', () => {
@@ -74,14 +74,19 @@ export const useEnvironmentsStore = defineStore('environments', () => {
     variables.value[envId] = await envsApi.getVariables(envId)
   }
 
-  function updatePackageFromWs(envId: number, packageName: string, status: string, extra: Record<string, any>) {
+  function updatePackageFromWs(
+    envId: number,
+    packageName: string,
+    status: PackageInstallStatus,
+    extra: Record<string, any>,
+  ) {
     const pkgs = packages.value[envId]
     if (!pkgs) return
     const idx = pkgs.findIndex(p => p.package_name === packageName)
     if (idx < 0) return
     pkgs[idx] = {
       ...pkgs[idx],
-      install_status: status as any,
+      install_status: status,
       install_error: extra.error || null,
       installed_version: extra.installed_version || pkgs[idx].installed_version,
     }

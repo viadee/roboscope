@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useReposStore } from '@/stores/repos.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
+import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
@@ -123,7 +124,38 @@ async function deleteAll() {
 onMounted(() => {
   repos.fetchRepos()
   envStore.fetchEnvironments()
+  document.addEventListener('click', onDocumentClickForInfoTip)
+  document.addEventListener('keydown', onKeydownForInfoTip)
 })
+
+onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClickForInfoTip)
+  document.removeEventListener('keydown', onKeydownForInfoTip)
+})
+
+// Click-to-open info tooltip for the Sync / Auto-Sync / Pre-Run-Sync
+// labels. `openTipKey` is a per-repo + per-term identifier so only
+// one popover shows at a time across the whole view. Outside-click
+// and Escape close the popover; clicking the same icon a second
+// time toggles it back off.
+const openTipKey = ref<string | null>(null)
+function toggleInfoTip(key: string, ev: MouseEvent) {
+  ev.stopPropagation()
+  openTipKey.value = openTipKey.value === key ? null : key
+}
+function onDocumentClickForInfoTip(ev: MouseEvent) {
+  if (!openTipKey.value) return
+  // Click landed inside the open popover (or on the trigger itself
+  // — but the trigger uses @click.stop) — let it pass.
+  const tgt = ev.target as HTMLElement | null
+  if (tgt?.closest('.info-popover')) return
+  openTipKey.value = null
+}
+function onKeydownForInfoTip(ev: KeyboardEvent) {
+  if (ev.key === 'Escape' && openTipKey.value) {
+    openTipKey.value = null
+  }
+}
 
 // Branch loading state
 const branchLoading = ref<number | null>(null)
@@ -146,8 +178,8 @@ async function switchBranch(repoId: number, branch: string) {
   try {
     await repos.checkoutBranch(repoId, branch)
     toast.success(t('repos.toasts.branchSwitched'), branch)
-  } catch (e: any) {
-    toast.error(t('repos.toasts.branchSwitchFailed'), e.response?.data?.detail || '')
+  } catch (e: unknown) {
+    toast.error(t('repos.toasts.branchSwitchFailed'), extractErrorDetail(e, ''))
     await repos.fetchRepos() // revert UI
   } finally {
     branchSwitching.value = null
@@ -156,7 +188,16 @@ async function switchBranch(repoId: number, branch: string) {
 
 async function toggleAutoSync(repoId: number, enabled: boolean) {
   try {
-    await repos.updateRepo(repoId, { auto_sync: enabled } as any)
+    await repos.updateRepo(repoId, { auto_sync: enabled })
+  } catch {
+    toast.error(t('common.error'))
+    await repos.fetchRepos() // revert
+  }
+}
+
+async function togglePreRunSync(repoId: number, enabled: boolean) {
+  try {
+    await repos.updateRepo(repoId, { pre_run_sync: enabled })
   } catch {
     toast.error(t('common.error'))
     await repos.fetchRepos() // revert
@@ -201,8 +242,8 @@ async function addRepo() {
       }
     }
     await doCreateRepo()
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || t('repos.toasts.addError'))
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('repos.toasts.addError')))
   } finally {
     adding.value = false
   }
@@ -213,22 +254,29 @@ function selectFallbackBranch(branch: string) {
   showBranchFallbackDialog.value = false
   adding.value = true
   doCreateRepo()
-    .catch((e: any) => toast.error(t('common.error'), e.response?.data?.detail || t('repos.toasts.addError')))
+    .catch((e: unknown) => toast.error(t('common.error'), extractErrorDetail(e, t('repos.toasts.addError'))))
     .finally(() => { adding.value = false })
 }
 
 async function doCreateRepo() {
+  const trimmedName = newRepo.value.name.trim()
   const payload: RepoCreateRequest = {
-    name: newRepo.value.name,
     repo_type: newRepo.value.repo_type as 'git' | 'local',
     default_branch: newRepo.value.default_branch,
+    // Omit name on git repos when empty — backend derives it from
+    // the git URL basename. Always send for local repos.
+    ...(trimmedName ? { name: trimmedName } : {}),
     ...(newRepo.value.repo_type === 'git' ? { git_url: newRepo.value.git_url } : { local_path: newRepo.value.local_path }),
     ...(newRepo.value.environment_id != null ? { environment_id: newRepo.value.environment_id } : {}),
   }
+  // Best-effort display name for the toast — fall back to git URL
+  // when the user didn't provide one (the real name will surface in
+  // the list once the create response comes back).
+  const displayName = trimmedName || newRepo.value.git_url || ''
   await repos.addRepo(payload)
   const msg = newRepo.value.repo_type === 'git'
-    ? t('repos.toasts.cloning', { name: newRepo.value.name })
-    : t('repos.toasts.addedLocal', { name: newRepo.value.name })
+    ? t('repos.toasts.cloning', { name: displayName })
+    : t('repos.toasts.addedLocal', { name: displayName })
   toast.success(t('repos.toasts.added'), msg)
   showAddDialog.value = false
 }
@@ -239,8 +287,8 @@ async function syncRepo(id: number) {
     toast.info(t('repos.toasts.syncStarted'))
     // Poll for sync status updates
     pollSyncStatus(id)
-  } catch (e: any) {
-    toast.error(t('repos.toasts.syncFailed'), e.response?.data?.detail || '')
+  } catch (e: unknown) {
+    toast.error(t('repos.toasts.syncFailed'), extractErrorDetail(e, ''))
   }
 }
 
@@ -293,8 +341,8 @@ async function runLibCheck() {
   libCheckResults.value = null
   try {
     libCheckResults.value = await checkLibraries(libCheckRepoId.value, libCheckEnvId.value)
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || 'Library check failed')
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, 'Library check failed'))
   } finally {
     libCheckScanning.value = false
   }
@@ -312,8 +360,8 @@ async function installMissingPkg(lib: LibraryCheckItem) {
       libCheckResults.value.installed_count++
     }
     toast.success(t('common.installed'), lib.pypi_package)
-  } catch (e: any) {
-    toast.error(t('environments.toasts.installFailed'), e.response?.data?.detail || '')
+  } catch (e: unknown) {
+    toast.error(t('environments.toasts.installFailed'), extractErrorDetail(e, ''))
   } finally {
     libCheckInstallingPkg.value = null
   }
@@ -342,8 +390,8 @@ async function rebuildDocker() {
   try {
     await buildDockerImage(libCheckEnvId.value)
     toast.success(t('environments.docker.buildStarted'), t('environments.docker.buildStartedMsg'))
-  } catch (e: any) {
-    toast.error(t('environments.docker.buildFailed'), e.response?.data?.detail || '')
+  } catch (e: unknown) {
+    toast.error(t('environments.docker.buildFailed'), extractErrorDetail(e, ''))
   } finally {
     libCheckRebuilding.value = false
   }
@@ -361,8 +409,8 @@ async function setupDefaultFromLibCheck() {
       libCheckResults.value = null
       showLibCheckDialog.value = true
     }
-  } catch (e: any) {
-    if (e.response?.status === 409) {
+  } catch (e: unknown) {
+    if (extractErrorStatus(e) === 409) {
       toast.error(t('environments.setupDefault.alreadyExists'))
     } else {
       toast.error(t('environments.setupDefault.toastError'))
@@ -374,7 +422,7 @@ async function setupDefaultFromLibCheck() {
 
 async function changeRepoEnv(repoId: number, envId: number | null) {
   try {
-    await repos.updateRepo(repoId, { environment_id: envId } as any)
+    await repos.updateRepo(repoId, { environment_id: envId })
   } catch {
     toast.error(t('common.error'))
   }
@@ -418,8 +466,8 @@ async function addMember() {
     addMemberUserId.value = null
     addMemberRole.value = 'viewer'
     toast.success(t('repos.members.toasts.added'))
-  } catch (e: any) {
-    toast.error(t('common.error'), e.response?.data?.detail || t('repos.members.toasts.addError'))
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('repos.members.toasts.addError')))
   } finally {
     addingMember.value = false
   }
@@ -507,7 +555,11 @@ async function removeMember(member: ProjectMember) {
               @change="toggleSelect(repo.id)"
               @click.stop
             />
-            <div>
+            <router-link
+              :to="`/explorer/${repo.id}`"
+              class="repo-title-link"
+              :title="t('dashboard.openInExplorer', { name: repo.name })"
+            >
               <h3>
                 {{ repo.name }}
                 <BaseBadge :variant="repo.repo_type === 'git' ? 'info' : 'default'" style="margin-left: 8px; vertical-align: middle;">
@@ -515,7 +567,7 @@ async function removeMember(member: ProjectMember) {
                 </BaseBadge>
               </h3>
               <p class="text-muted text-sm">{{ repo.repo_type === 'git' ? repo.git_url : repo.local_path }}</p>
-            </div>
+            </router-link>
           </div>
         </div>
         <div class="repo-details">
@@ -553,7 +605,24 @@ async function removeMember(member: ProjectMember) {
             <span>{{ formatTimeAgo(repo.last_synced_at) }}</span>
           </div>
           <div v-if="repo.repo_type === 'git'" class="detail-row">
-            <span>{{ t('repos.autoSync') }}</span>
+            <span class="label-with-help">
+              {{ t('repos.autoSync') }}
+              <span class="info-tip-wrap">
+                <button
+                  type="button"
+                  class="info-tip"
+                  :title="t('repos.autoSyncHelp')"
+                  :aria-label="t('repos.autoSyncHelp')"
+                  :aria-expanded="openTipKey === `${repo.id}-auto`"
+                  @click="toggleInfoTip(`${repo.id}-auto`, $event)"
+                >i</button>
+                <span
+                  v-if="openTipKey === `${repo.id}-auto`"
+                  class="info-popover"
+                  role="tooltip"
+                >{{ t('repos.autoSyncHelp') }}</span>
+              </span>
+            </span>
             <label v-if="auth.hasMinRole('editor')" class="auto-sync-toggle">
               <input
                 type="checkbox"
@@ -564,6 +633,37 @@ async function removeMember(member: ProjectMember) {
               <span v-else class="text-sm text-muted">{{ t('common.no') }}</span>
             </label>
             <span v-else>{{ repo.auto_sync ? t('repos.autoSyncYes', { minutes: repo.sync_interval_minutes }) : t('common.no') }}</span>
+          </div>
+          <div v-if="repo.repo_type === 'git'" class="detail-row">
+            <span class="label-with-help">
+              {{ t('repos.preRunSync') }}
+              <span class="info-tip-wrap">
+                <button
+                  type="button"
+                  class="info-tip"
+                  :title="t('repos.preRunSyncHelp')"
+                  :aria-label="t('repos.preRunSyncHelp')"
+                  :aria-expanded="openTipKey === `${repo.id}-pre`"
+                  @click="toggleInfoTip(`${repo.id}-pre`, $event)"
+                >i</button>
+                <span
+                  v-if="openTipKey === `${repo.id}-pre`"
+                  class="info-popover"
+                  role="tooltip"
+                >{{ t('repos.preRunSyncHelp') }}</span>
+              </span>
+            </span>
+            <label v-if="auth.hasMinRole('editor')" class="auto-sync-toggle">
+              <input
+                type="checkbox"
+                :checked="repo.pre_run_sync"
+                @change="togglePreRunSync(repo.id, ($event.target as HTMLInputElement).checked)"
+              />
+              <span class="text-sm" :class="{ 'text-muted': !repo.pre_run_sync }">
+                {{ repo.pre_run_sync ? t('common.yes') : t('common.no') }}
+              </span>
+            </label>
+            <span v-else>{{ repo.pre_run_sync ? t('common.yes') : t('common.no') }}</span>
           </div>
           <div class="detail-row">
             <span>{{ t('repos.defaultEnv') }}</span>
@@ -580,7 +680,7 @@ async function removeMember(member: ProjectMember) {
           </div>
           <div v-if="repo.sync_status === 'error'" class="sync-error">
             <span class="sync-error-label">{{ t('repos.syncError') }}</span>
-            <span class="sync-error-msg">{{ repo.sync_error }}</span>
+            <span class="sync-error-msg">{{ repo.sync_error || t('repos.toasts.unknownError') }}</span>
           </div>
           <div v-if="repo.sync_status === 'syncing'" class="sync-syncing">
             {{ t('repos.syncing') }}
@@ -607,12 +707,31 @@ async function removeMember(member: ProjectMember) {
           >
             {{ t('repos.members.title') }}
           </BaseButton>
-          <BaseButton
+          <span
             v-if="auth.hasMinRole('editor') && repo.repo_type === 'git'"
-            variant="secondary" size="sm" @click="syncRepo(repo.id)"
+            class="sync-btn-group"
           >
-            {{ t('repos.sync') }}
-          </BaseButton>
+            <BaseButton
+              variant="secondary" size="sm"
+              :title="t('repos.syncHelp')"
+              @click="syncRepo(repo.id)"
+            >{{ t('repos.sync') }}</BaseButton>
+            <span class="info-tip-wrap">
+              <button
+                type="button"
+                class="info-tip"
+                :title="t('repos.syncHelp')"
+                :aria-label="t('repos.syncHelp')"
+                :aria-expanded="openTipKey === `${repo.id}-manual`"
+                @click="toggleInfoTip(`${repo.id}-manual`, $event)"
+              >i</button>
+              <span
+                v-if="openTipKey === `${repo.id}-manual`"
+                class="info-popover"
+                role="tooltip"
+              >{{ t('repos.syncHelp') }}</span>
+            </span>
+          </span>
           <BaseButton v-if="auth.hasMinRole('admin')" variant="danger" size="sm" @click="removeRepo(repo.id, repo.name)">
             {{ t('common.delete') }}
           </BaseButton>
@@ -652,8 +771,20 @@ async function removeMember(member: ProjectMember) {
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">{{ t('common.name') }}</label>
-          <input v-model="newRepo.name" class="form-input" placeholder="mein-projekt" required />
+          <label class="form-label">
+            {{ t('common.name') }}
+            <span v-if="newRepo.repo_type === 'git'" class="form-label-hint">
+              {{ t('repos.addDialog.nameOptional') }}
+            </span>
+          </label>
+          <input
+            v-model="newRepo.name"
+            class="form-input"
+            :placeholder="newRepo.repo_type === 'git'
+              ? t('repos.addDialog.namePlaceholderGit')
+              : 'mein-projekt'"
+            :required="newRepo.repo_type === 'local'"
+          />
         </div>
         <div v-if="newRepo.repo_type === 'git'" class="form-group">
           <label class="form-label">{{ t('repos.addDialog.gitUrl') }}</label>
@@ -940,6 +1071,39 @@ async function removeMember(member: ProjectMember) {
   margin-bottom: 16px;
 }
 
+/* Project name + url/path act as a deep-link to /explorer/{id}.
+   Strip the default underline and inherit the surrounding text
+   color so the card header looks unchanged at rest; hover surfaces
+   the affordance with a primary-color name + underline on the
+   subtitle. */
+.repo-title-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+.repo-title-link h3 {
+  margin: 0;
+  transition: color 0.15s;
+}
+.repo-title-link p {
+  margin: 4px 0 0;
+  word-break: break-all;
+}
+.repo-title-link:hover h3,
+.repo-title-link:focus-visible h3 {
+  color: var(--color-primary, #3B7DD8);
+}
+.repo-title-link:hover p,
+.repo-title-link:focus-visible p {
+  text-decoration: underline;
+}
+.repo-title-link:focus-visible {
+  outline: 2px solid var(--color-primary, #3B7DD8);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
 .detail-row {
   display: flex;
   justify-content: space-between;
@@ -948,6 +1112,84 @@ async function removeMember(member: ProjectMember) {
 
 .detail-row span:first-child {
   color: var(--color-text-muted);
+}
+
+/* Inline (i) icon next to a label — hover / focus surfaces the
+   browser's native title tooltip with the term's definition.
+   Tabindex=0 makes it keyboard-reachable so the explanation is
+   not mouse-only. */
+.label-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+/* Wrapper provides the positioning anchor for .info-popover so the
+   popover sits next to the icon regardless of which row it's in. */
+.info-tip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.info-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 11px;
+  font-weight: 700;
+  font-style: italic;
+  font-family: 'Times New Roman', Georgia, serif;
+  line-height: 1;
+  color: var(--color-text-muted, #5A6380);
+  background: transparent;
+  border: 1.5px solid var(--color-text-muted, #5A6380);
+  border-radius: 50%;
+  cursor: pointer;
+  user-select: none;
+  padding: 0;
+  text-indent: 0;
+}
+.info-tip:hover,
+.info-tip:focus {
+  color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #3B7DD8);
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 14%, transparent);
+  outline: none;
+}
+.info-tip[aria-expanded="true"] {
+  color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #3B7DD8);
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 18%, transparent);
+}
+/* Click-popover that surfaces the help text. Pinned right of the
+   icon, fixed max-width so long German strings wrap instead of
+   blowing out the card. z-index sits above the card surface. */
+.info-popover {
+  position: absolute;
+  left: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 30;
+  max-width: 320px;
+  width: max-content;
+  padding: 10px 12px;
+  background: var(--color-bg-card, #fff);
+  color: var(--color-text, #1A2D50);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.4;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(16, 25, 51, 0.18);
+  white-space: normal;
+}
+/* Group wrap for the manual Sync button + its info-tip so they
+   align inline rather than wrapping onto separate flex cells. */
+.sync-btn-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .repo-actions {

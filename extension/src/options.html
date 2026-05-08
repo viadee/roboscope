@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>RoboScope Recorder - Options</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/mark-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="../assets/mark-16.png">
+  <!-- Fonts: system stack for instant loading, no external dependency -->
+  <link rel="stylesheet" type="text/css" href="../assets/theme.css">
+  <link rel="stylesheet" type="text/css" href="../assets/style.css">
+  <link rel="stylesheet" type="text/css" href="../assets/options.css">
+</head>
+<body>
+<div class="panel-options">
+  <div class="options-header">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <rect width="22" height="22" rx="6" fill="var(--brand-500)"/>
+      <circle cx="8" cy="8" r="2" fill="white" opacity="0.9"/>
+      <circle cx="14" cy="8" r="2" fill="white" opacity="0.9"/>
+      <rect x="7" y="13" width="8" height="2" rx="1" fill="white" opacity="0.9"/>
+    </svg>
+    <h1 class="options-title">RF Recorder Options</h1>
+  </div>
+
+  <div class="options-card">
+    <div class="heading">
+      <h2 id="language-label">Language</h2>
+      <div id="language-hint">
+        <input type="radio" class="language-option" id="lang_en" name="language" value="en">
+        <label for="lang_en">English</label>
+        <input type="radio" class="language-option" id="lang_de" name="language" value="de">
+        <label for="lang_de">Deutsch</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="options-card">
+    <div class="heading">
+      <h2 id="custom-locators-heading">Custom Locators</h2>
+      <div id="hint">Add your own flavoured locators! Separate with a commas.</div>
+    </div>
+    <input type="text" id="custom-locators">
+    <div class="options-actions">
+      <button class="btn btn-wide" id="reset">Reset</button>
+      <button class="btn btn-wide btn-primary-action" id="update">Update</button>
+    </div>
+  </div>
+
+  <div class="options-card">
+    <div class="heading">
+      <h2 id="roboscope-heading">RoboScope Connection</h2>
+      <div id="roboscope-hint">Connect to a RoboScope server to save recordings directly into your projects.</div>
+    </div>
+    <div class="roboscope-field">
+      <label for="roboscope-url" id="roboscope-url-label">Server URL</label>
+      <input type="url" id="roboscope-url" placeholder="http://localhost:8000">
+    </div>
+    <div class="roboscope-field">
+      <label for="roboscope-token" id="roboscope-token-label">API Token</label>
+      <input type="password" id="roboscope-token" placeholder="rbs_...">
+    </div>
+    <div id="roboscope-status" class="roboscope-status hidden"></div>
+    <div class="options-actions">
+      <button class="btn btn-wide" id="roboscope-test">Test Connection</button>
+      <button class="btn btn-wide btn-primary-action" id="roboscope-save">Save</button>
+    </div>
+    <div id="roboscope-project-section" class="hidden">
+      <label for="roboscope-project" id="roboscope-project-label">Project</label>
+      <select id="roboscope-project"></select>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="options.js"></script>
+</body>
+
+</html>

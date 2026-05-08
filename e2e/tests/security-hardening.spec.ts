@@ -57,14 +57,34 @@ test.describe('Security Hardening — API Auth', () => {
     expect([200, 404]).toContain(res.status());
   });
 
-  // ─── Report Assets (optional auth, no rejection) ─────
+  // ─── Report Assets (auth required as of REPORT-1 / SECURITY-3) ─────
 
-  test('GET /reports/{id}/assets/* allows unauthenticated access', async ({ page }) => {
+  test('GET /reports/{id}/assets/* rejects unauthenticated requests with 401', async ({ page }) => {
+    // Pre-REPORT-1 this endpoint was anonymous (path-traversal was the
+    // only gate). REPORT-1 closed the hole — the endpoint now requires
+    // auth via Bearer header, `?token=<jwt>`, or `?at=<asset_token>`.
     const res = await page.request.get(`${API}/reports/999/assets/style.css`, {
       headers: {},
     });
-    // 404 is expected (no report), but NOT 401
-    expect(res.status()).not.toBe(401);
+    expect(res.status()).toBe(401);
+  });
+
+  test('GET /reports/{id}/assets/* accepts Bearer token', async ({ page }) => {
+    const token = await getAuthToken(page);
+    const res = await page.request.get(`${API}/reports/999/assets/style.css`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    // 404 = auth passed but the report or file doesn't exist — auth works.
+    expect([200, 404]).toContain(res.status());
+  });
+
+  test('GET /reports/{id}/assets/* accepts query param token', async ({ page }) => {
+    const token = await getAuthToken(page);
+    const res = await page.request.get(
+      `${API}/reports/999/assets/style.css?token=${token}`,
+      { headers: {} },
+    );
+    expect([200, 404]).toContain(res.status());
   });
 });
 

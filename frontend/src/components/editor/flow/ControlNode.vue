@@ -1,18 +1,47 @@
 <script setup lang="ts">
+import { ref, onBeforeUnmount } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
+import { DRAG_ARM_DELAY_MS } from './reorderDrag'
 import type { FlowNodeData } from './flowConverter'
 
 const props = defineProps<{
   data: FlowNodeData
   reorderEnabled?: boolean
+  /** Set by the parent FlowEditor when the user has clicked this
+   *  node — paints the thicker outline + primary tint so the
+   *  active node reads at a glance against the canvas. */
+  selected?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'reorder-drag-start', event: DragEvent): void
 }>()
 
+// See KeywordNode.vue — `draggable` only flips on after the user
+// holds the button for DRAG_ARM_DELAY_MS so a tap-and-release on the
+// handle doesn't start a reorder.
+const dragArmed = ref(false)
+let armTimer: number | null = null
+function armDrag() {
+  cancelArm()
+  armTimer = window.setTimeout(() => {
+    dragArmed.value = true
+  }, DRAG_ARM_DELAY_MS)
+}
+function cancelArm() {
+  if (armTimer != null) {
+    clearTimeout(armTimer)
+    armTimer = null
+  }
+  dragArmed.value = false
+}
+onBeforeUnmount(cancelArm)
+
 function onHandleDragStart(event: DragEvent) {
   emit('reorder-drag-start', event)
+}
+function onHandleDragEnd() {
+  cancelArm()
 }
 
 const colorMap: Record<string, string> = {
@@ -41,6 +70,7 @@ const iconMap: Record<string, string> = {
 <template>
   <div
     class="flow-node flow-node-control"
+    :class="{ 'flow-node--selected': selected }"
     :style="{ borderColor: colorMap[data.stepType] || '#888' }"
   >
     <Handle type="target" :position="Position.Top" />
@@ -48,9 +78,15 @@ const iconMap: Record<string, string> = {
       <div
         v-if="reorderEnabled"
         class="flow-drag-handle"
-        draggable="true"
+        :class="{ 'flow-drag-handle--armed': dragArmed }"
+        :draggable="dragArmed"
+        @pointerdown.stop="armDrag"
+        @pointerup="cancelArm"
+        @pointerleave="cancelArm"
+        @pointercancel="cancelArm"
         @mousedown.stop
         @dragstart.stop="onHandleDragStart"
+        @dragend="onHandleDragEnd"
       >&#x2630;</div>
       <span class="flow-node-icon" v-html="iconMap[data.stepType] || '&#x25C6;'"></span>
       <span class="flow-node-type">{{ data.stepType.toUpperCase().replace('_', ' ') }}</span>
@@ -81,6 +117,15 @@ const iconMap: Record<string, string> = {
   background: #FFFBF0;
   border: 2px solid #E8A838;
   border-style: dashed;
+}
+/* Selected-node highlight — outline + tint, mirrors KeywordNode and
+   the inline comment/flow-control nodes in FlowEditor.vue. */
+.flow-node--selected {
+  outline: 3px solid var(--color-primary, #3B7DD8);
+  outline-offset: 2px;
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 10%, #FFFBF0);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary, #3B7DD8) 18%, transparent),
+              0 2px 6px rgba(0, 0, 0, 0.1);
 }
 .flow-node-header {
   display: flex;
@@ -116,7 +161,10 @@ const iconMap: Record<string, string> = {
   opacity: 1;
   background: rgba(0, 0, 0, 0.06);
 }
-.flow-drag-handle:active {
+.flow-drag-handle:active,
+.flow-drag-handle--armed {
   cursor: grabbing;
+  background: rgba(232, 168, 56, 0.20);
+  opacity: 1;
 }
 </style>

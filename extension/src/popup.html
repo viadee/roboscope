@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>RoboScope Recorder</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/mark-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="../assets/mark-16.png">
+  <link rel="stylesheet" type="text/css" href="../assets/theme.css">
+  <link rel="stylesheet" type="text/css" href="../assets/style.css">
+</head>
+
+<body class="container">
+  <!-- Header -->
+  <header class="popup-header">
+    <div class="popup-header-left">
+      <div class="popup-logo">
+        <img src="../assets/mark-32.png" alt="RF Recorder" width="22" height="22">
+      </div>
+      <span class="popup-title">RF Recorder</span>
+    </div>
+    <div class="popup-header-right">
+      <button class="btn btn-icon" id="info" title="Toggle instructions" aria-label="Info"></button>
+      <button class="btn btn-icon" id="settings" title="Show/hide settings" aria-label="Settings" data-intro="Settings" data-position="bottom"></button>
+    </div>
+  </header>
+
+  <!-- RoboScope connection indicator -->
+  <div id="roboscope-bar" class="roboscope-bar hidden">
+    <span class="roboscope-dot"></span>
+    <span id="roboscope-label">RoboScope</span>
+  </div>
+
+  <!-- Status -->
+  <div class="status-bar">
+    <output id="status-field">Ready</output>
+  </div>
+
+  <!-- Primary Actions -->
+  <div class="actions-group">
+    <div class="actions-primary">
+      <button class="btn btn-record btn-wide" id="record" title="Record user action (Ctrl+Shift+R)" aria-label="Record" data-intro="Start recording actions" data-position="bottom">
+        Record
+      </button>
+
+      <button class="btn btn-stop btn-wide hidden" id="stop" title="Stop the recording (Ctrl+Shift+S)" aria-label="Stop">
+        Stop
+      </button>
+
+      <button class="btn btn-secondary btn-wide hidden" id="pause" title="Pause the recording (Ctrl+Shift+P)" aria-label="Pause">
+        Pause
+      </button>
+
+      <button class="btn btn-secondary btn-wide hidden" id="resume" title="Resume with the recording (Ctrl+Shift+P)" aria-label="Resume">
+        Resume
+      </button>
+    </div>
+
+    <div class="actions-secondary">
+      <button class="btn btn-icon-sm" id="scan" title="Scan entire page (Ctrl+Shift+E)" aria-label="Scan Page" data-intro="Generate a script referencing interactive elements on the page" data-position="bottom"></button>
+
+      <button class="btn btn-icon-sm" id="xpath-console" title="Show/hide XPath console (Ctrl+Shift+X)" aria-label="Validate XPath" data-intro="Open interactive XPath console" data-position="bottom"></button>
+
+      <button class="btn btn-icon-sm" id="open-actions-view" title="Open actions viewer" aria-label="Script View"></button>
+
+      <button class="btn btn-icon-sm" id="templates-btn" title="Insert a script template" aria-label="Templates"></button>
+    </div>
+
+    <!-- Templates Panel -->
+    <div id="templates-panel" class="hidden">
+      <div class="settings-card">
+        <h3>Script Templates</h3>
+        <button class="btn btn-ghost btn-wide" data-template="login">🔐 Login Flow</button>
+        <button class="btn btn-ghost btn-wide" data-template="form">📝 Form Fill</button>
+        <button class="btn btn-ghost btn-wide" data-template="navigation">🧭 Navigation Test</button>
+        <button class="btn btn-ghost btn-wide" data-template="empty">📄 Empty Template</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Panel -->
+  <div id="settings-panel" class="hidden">
+    <div class="panel-row">
+      <div class="settings-card">
+        <h3 id="target-library-label">Target Library</h3>
+        <div class="toggle toggle-last">
+          <input type="radio" class="target" id="target_rfbrowser" name="target_library">
+          <label for="target_rfbrowser" id="rfbrowser-label">RobotFramework Browser</label>
+        </div>
+        <div class="toggle">
+          <input type="radio" class="target" id="target_seleniumlibrary" name="target_library">
+          <label for="target_seleniumlibrary" id="selenium-label">RPA.Browser.Selenium / SeleniumLibrary</label>
+        </div>
+      </div>
+      <div class="settings-card">
+        <h3 id="target-syntax-label">Target RF Syntax</h3>
+        <div class="toggle">
+          <input type="radio" class="syntax" name="syntax" id="syntax_rpa">
+          <label for="syntax_rpa" id="rpa-label">RPA (Tasks)</label>
+        </div>
+        <div class="toggle toggle-last">
+          <input type="radio" class="syntax" name="syntax" id="syntax_testing">
+          <label for="syntax_testing" id="test-automation-label">Test Automation (Test cases)</label>
+        </div>
+      </div>
+      <div class="settings-card">
+        <h3 id="language-label">Language</h3>
+        <div class="toggle">
+          <input type="radio" class="language-option" id="lang_en" name="language" value="en">
+          <label for="lang_en">English</label>
+        </div>
+        <div class="toggle toggle-last">
+          <input type="radio" class="language-option" id="lang_de" name="language" value="de">
+          <label for="lang_de">Deutsch</label>
+        </div>
+      </div>
+      <div class="settings-card">
+        <h3 id="advanced-settings-label">Advanced settings</h3>
+        <div class="toggle">
+          <input type="checkbox" id="demo">
+          <label for="demo" id="demo-label"> Add a sleep after each action (for creating easy-to-showcase demo scripts) </label>
+        </div>
+        <div class="toggle">
+          <input type="checkbox" id="verify">
+          <label for="verify" id="verify-label">Check page contains element before performing the action</label>
+        </div>
+        <div class="toggle">
+          <input type="checkbox" id="add-waits">
+          <label for="add-waits" id="add-waits-label">Add wait before actions (Wait For Elements State / Wait Until Element Is Visible)</label>
+        </div>
+        <div class="toggle toggle-last">
+          <input type="checkbox" id="add-assertions">
+          <label for="add-assertions" id="add-assertions-label">Add assertions after actions (Get Element Count verification)</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Script Output -->
+  <div class="pad" id="script-container">
+    <div id="script-container-lines">
+      <div id="script-lines" class="script-lines" title="Generated script" role="list" aria-label="Generated script lines"></div>
+    </div>
+    <div id="auto-save-indicator" class="auto-save-indicator hidden">Auto-saved</div>
+    <div id="script-actions">
+      <div>
+        <button class="btn btn-context" id="copy" title="Copy to clipboard (Ctrl+C)" aria-label="Copy" disabled>
+          Copy
+        </button>
+        <button class="btn btn-context" id="save" disabled title="Download test script (Ctrl+S)" aria-label="Download">
+          Download
+        </button>
+      </div>
+      <div>
+        <button class="btn btn-context" id="undo" title="Undo" aria-label="Undo" disabled>
+          ↶ Undo
+        </button>
+        <button class="btn btn-context" id="redo" title="Redo" aria-label="Redo" disabled>
+          ↷ Redo
+        </button>
+        <button class="btn btn-context" id="add-line" title="Add new line" aria-label="Add line">
+          Add line
+        </button>
+        <button class="btn btn-context btn-last" id="clear-script" title="Clear script" aria-label="Clear">
+          Clear
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- XPath Console -->
+  <div class="hidden" id="xpath-inputs">
+    <input type="text" id="textinput-xpath" title="XPath expression" aria-label="XPath expression" class="horizontal-pad" placeholder="//xpath-to-validate">
+  </div>
+
+  <!-- Log -->
+  <div class="pad">
+    <textarea class="hidden" id="textarea-log" readonly aria-label="Log output"></textarea>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

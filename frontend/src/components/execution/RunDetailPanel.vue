@@ -1,15 +1,20 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useReportsStore } from '@/stores/reports.store'
 import { useAiStore } from '@/stores/ai.store'
 import { getRunReport } from '@/api/execution.api'
 import { getReportHtmlBlobUrl, getReportZipBlobUrl } from '@/api/reports.api'
+import { extractErrorDetail } from '@/utils/errors'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import ReportXmlView from '@/components/report/ReportXmlView.vue'
+import RunPendingActivity from '@/components/execution/RunPendingActivity.vue'
+import RunSelectorHealth from '@/components/execution/RunSelectorHealth.vue'
+import RunHealReport from '@/components/execution/RunHealReport.vue'
 import { formatDuration } from '@/utils/formatDuration'
 import { formatDateTime } from '@/utils/formatDate'
 import { renderMarkdown } from '@/utils/renderMarkdown'
@@ -44,9 +49,32 @@ const envName = computed(() => {
   return env?.name || '-'
 })
 
+const router = useRouter()
 const reportId = ref<number | null>(null)
 const loadingReport = ref(false)
-const activeTab = ref<'summary' | 'detailed' | 'html'>('summary')
+const activeTab = ref<'summary' | 'html'>('summary')
+
+/** Open the keyword-tree pop-out — `/reports/<id>/detailed` — in a
+ *  new tab. The route uses MinimalLayout (no sidebar / header) and
+ *  renders ONLY the keyword tree so the user gets exactly the
+ *  one component they wanted to inspect, full-width. */
+function openReportInNewTab() {
+  if (reportId.value == null) return
+  const href = router.resolve({
+    name: 'report-detailed',
+    params: { id: reportId.value },
+  }).href
+  window.open(href, '_blank', 'noopener,noreferrer')
+}
+
+/** Open the Robot HTML report in a new tab. The blob URL stays
+ *  alive for the lifetime of this panel; once the panel unmounts
+ *  the URL is revoked and the popup window goes blank. Acceptable
+ *  trade-off — users typically open the popup, scan it, and close. */
+function openHtmlReportInNewTab() {
+  if (!htmlReportUrl.value) return
+  window.open(htmlReportUrl.value, '_blank', 'noopener,noreferrer')
+}
 
 const hasReport = computed(() => reportId.value !== null)
 const isRunFinished = computed(() =>
@@ -119,8 +147,8 @@ async function startAnalysis() {
   analysisError.value = ''
   try {
     await aiStore.analyzeFailures(reportId.value)
-  } catch (e: any) {
-    analysisError.value = e.response?.data?.detail || 'Analysis failed'
+  } catch (e: unknown) {
+    analysisError.value = extractErrorDetail(e, 'Analysis failed')
   }
 }
 
@@ -187,6 +215,15 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
         </div>
       </div>
 
+      <!-- Pending-activity panel (Story EXEC-1) -->
+      <RunPendingActivity :run-id="run.id" :status="run.status" />
+
+      <!-- Selector-health diagnosis for failed runs (Story SH-1) -->
+      <RunSelectorHealth :run-id="run.id" :status="run.status" />
+
+      <!-- Runtime heal report (Story SH-2) -->
+      <RunHealReport :run-id="run.id" :status="run.status" />
+
       <!-- Error banner -->
       <div v-if="run.error_message" class="run-error-banner" :class="{ 'docker-error': isDockerError(run.error_message) }">
         <span class="run-error-icon">{{ isDockerError(run.error_message) ? '🐳' : '⚠' }}</span>
@@ -236,7 +273,11 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
       <BaseSpinner v-if="loadingReport" />
 
       <template v-else-if="hasReport && reports.activeReport">
-        <!-- Tab Navigation -->
+        <!-- Tab Navigation. Mirrors ReportDetailView: the standalone
+             "Detailbericht" tab is folded into the summary so the
+             keyword tree is one scroll away rather than a tab click;
+             HTML Report keeps its own tab because the iframe wants
+             its own viewport. -->
         <div class="tab-nav">
           <button
             class="tab-btn"
@@ -244,13 +285,6 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
             @click="activeTab = 'summary'"
           >
             {{ t('reportDetail.tabs.summary') }}
-          </button>
-          <button
-            class="tab-btn"
-            :class="{ active: activeTab === 'detailed' }"
-            @click="activeTab = 'detailed'"
-          >
-            {{ t('reportDetail.tabs.detailedReport') }}
           </button>
           <button
             class="tab-btn"
@@ -378,10 +412,37 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
               </div>
             </div>
           </div>
+
+          <!-- Detailed Keyword Tree (formerly its own tab — folded
+               into the summary so the deep view is one scroll away). -->
+          <div class="xml-view-card">
+            <div class="xml-view-header">
+              <h4 class="xml-view-heading">{{ t('reportDetail.tabs.detailedReport') }}</h4>
+              <BaseButton
+                variant="ghost"
+                size="sm"
+                :title="t('reportDetail.openInNewTab')"
+                @click="openReportInNewTab"
+              >
+                ↗ {{ t('reportDetail.openInNewTab') }}
+              </BaseButton>
+            </div>
+            <ReportXmlView :report-id="reportId!" />
+          </div>
         </div>
 
         <!-- HTML Report Tab -->
         <div v-show="activeTab === 'html'" class="tab-content">
+          <div class="html-report-toolbar">
+            <BaseButton
+              variant="ghost"
+              size="sm"
+              :title="t('reportDetail.openInNewTab')"
+              @click="openHtmlReportInNewTab"
+            >
+              ↗ {{ t('reportDetail.openInNewTab') }}
+            </BaseButton>
+          </div>
           <div class="html-report-card">
             <iframe
               :src="htmlReportUrl"
@@ -389,13 +450,6 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
               sandbox="allow-scripts allow-same-origin"
               referrerpolicy="no-referrer"
             ></iframe>
-          </div>
-        </div>
-
-        <!-- Detailed Report Tab -->
-        <div v-show="activeTab === 'detailed'" class="tab-content">
-          <div class="xml-view-card">
-            <ReportXmlView :report-id="reportId!" />
           </div>
         </div>
       </template>
@@ -562,13 +616,38 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
   display: block;
 }
 
-/* XML View */
+/* XML View — sits at the bottom of the summary tab below the AI
+   analysis section. Inner scroll cap lets the keyword tree be tall
+   without pushing every other section off-screen. */
 .xml-view-card {
+  margin-top: 16px;
   max-height: 500px;
   overflow-y: auto;
   border: 1px solid var(--color-border, #e2e8f0);
   border-radius: var(--radius-sm, 6px);
   padding: 12px;
+}
+.xml-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.xml-view-heading {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted, #5A6380);
+}
+/* Toolbar above the HTML iframe — gives the open-in-new-tab
+   affordance somewhere to live without overlapping the iframe. */
+.html-report-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
 }
 
 .no-report-msg {

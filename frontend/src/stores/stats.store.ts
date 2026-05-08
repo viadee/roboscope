@@ -1,13 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as statsApi from '@/api/stats.api'
-import type { AnalysisReport, FlakyTest, KpiMeta, OverviewKpi, SuccessRatePoint, TrendPoint } from '@/types/domain.types'
+import type { AnalysisReport, AnalysisStatus, FlakyTest, KpiMeta, OverviewKpi, SuccessRatePoint, TrendPoint } from '@/types/domain.types'
 
 export const useStatsStore = defineStore('stats', () => {
   const overview = ref<OverviewKpi | null>(null)
   const successRate = ref<SuccessRatePoint[]>([])
   const trends = ref<TrendPoint[]>([])
   const flakyTests = ref<FlakyTest[]>([])
+  const healRate = ref<statsApi.HealRateResponse | null>(null)
   const loading = ref(false)
 
   // Filter state
@@ -41,10 +42,29 @@ export const useStatsStore = defineStore('stats', () => {
     flakyTests.value = await statsApi.getFlakyTests({ days: filterDays.value, repository_id: filterRepoId.value ?? undefined })
   }
 
+  async function fetchHealRate() {
+    // Non-fatal — a failing scan must never take down the whole Stats page.
+    try {
+      healRate.value = await statsApi.getHealRate({
+        days: filterDays.value,
+        repository_id: filterRepoId.value ?? undefined,
+      })
+    } catch {
+      healRate.value = null
+    }
+  }
+
   async function fetchAll() {
     loading.value = true
     try {
-      await Promise.all([fetchOverview(), fetchSuccessRate(), fetchTrends(), fetchFlakyTests(), fetchDataStatus()])
+      await Promise.all([
+        fetchOverview(),
+        fetchSuccessRate(),
+        fetchTrends(),
+        fetchFlakyTests(),
+        fetchHealRate(),
+        fetchDataStatus(),
+      ])
     } finally {
       loading.value = false
     }
@@ -102,20 +122,21 @@ export const useStatsStore = defineStore('stats', () => {
     }
   }
 
-  function updateAnalysisFromWs(id: number, status: string, progress: number) {
+  function updateAnalysisFromWs(id: number, status: AnalysisStatus, progress: number) {
     const idx = analyses.value.findIndex(a => a.id === id)
     if (idx >= 0) {
-      analyses.value[idx] = { ...analyses.value[idx], status: status as any, progress }
+      analyses.value[idx] = { ...analyses.value[idx], status, progress }
     }
     if (currentAnalysis.value?.id === id) {
-      currentAnalysis.value = { ...currentAnalysis.value, status: status as any, progress }
+      currentAnalysis.value = { ...currentAnalysis.value, status, progress }
     }
   }
 
   return {
-    overview, successRate, trends, flakyTests, loading, filterDays, filterRepoId,
+    overview, successRate, trends, flakyTests, healRate, loading, filterDays, filterRepoId,
     lastAggregated, lastRunFinished, aggregating,
-    fetchOverview, fetchSuccessRate, fetchTrends, fetchFlakyTests, fetchAll, setFilter,
+    fetchOverview, fetchSuccessRate, fetchTrends, fetchFlakyTests, fetchHealRate,
+    fetchAll, setFilter,
     fetchDataStatus, aggregateKpis,
     analyses, currentAnalysis, availableKpis, analysisLoading,
     fetchAvailableKpis, fetchAnalyses, createAnalysis, fetchAnalysis, updateAnalysisFromWs,

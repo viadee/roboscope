@@ -53,8 +53,14 @@ def _authenticate_flexible(
     token: str | None,
     credentials: HTTPAuthorizationCredentials | None,
     db: Session,
-) -> User:
-    """Authenticate via query param token or Bearer header. Raises 401 if neither works."""
+) -> tuple[User, str]:
+    """Authenticate via query param token or Bearer header.
+
+    Returns the authenticated user *and* the raw JWT string — callers
+    that need to embed the token into served HTML (e.g. as an iframe
+    base href) can lift it from here without re-checking the request.
+    Raises 401 if neither auth scheme works.
+    """
     # Try query param token first (for iframe/download URLs)
     raw_token = token
     if not raw_token and credentials:
@@ -80,7 +86,7 @@ def _authenticate_flexible(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or inactive user",
             )
-        return user
+        return user, raw_token
     except (ValueError, KeyError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -153,15 +159,50 @@ def upload_archive(
             detail="File must be a .zip archive",
         )
 
-    # Read and validate ZIP (with size limit)
+    # Story ROBUSTNESS-1 — streaming upload-size guard. The previous
+    # implementation called `file.file.read()` *first* and only then
+    # checked `len(content) > MAX_UPLOAD_BYTES`. A hostile 10 GB POST
+    # therefore allocated 10 GB of process RAM before the 413 fired.
+    # Now: (a) reject up-front via Content-Length when the header is
+    # present and oversized, (b) read in 1 MiB chunks and abort the
+    # moment we cross the cap.
     MAX_UPLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
+    CHUNK_SIZE = 1024 * 1024              # 1 MiB
+
+    declared_length = request.headers.get("content-length")
+    if declared_length is not None:
+        try:
+            if int(declared_length) > MAX_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=(
+                        f"Declared Content-Length ({declared_length} bytes) "
+                        f"exceeds maximum {MAX_UPLOAD_BYTES} bytes."
+                    ),
+                )
+        except ValueError:
+            # Malformed header — let the streaming guard catch it.
+            pass
+
     try:
-        content = file.file.read()
-        if len(content) > MAX_UPLOAD_BYTES:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"File too large ({len(content)} bytes). Maximum is {MAX_UPLOAD_BYTES} bytes.",
-            )
+        buffer = io.BytesIO()
+        total = 0
+        while True:
+            chunk = file.file.read(CHUNK_SIZE)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=(
+                        f"Upload exceeded maximum {MAX_UPLOAD_BYTES} bytes "
+                        f"after {total} bytes received."
+                    ),
+                )
+            buffer.write(chunk)
+        content = buffer.getvalue()
+
         if not zipfile.is_zipfile(io.BytesIO(content)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -358,8 +399,28 @@ def get_report_html(
     credentials: HTTPAuthorizationCredentials | None = Depends(optional_bearer),
     db: Session = Depends(get_db),
 ):
-    """Serve the original Robot Framework HTML report with injected base tag."""
-    _authenticate_flexible(token, credentials, db)
+    """Resolve the report's HTML URL.
+
+    The endpoint authenticates the caller (JWT via Authorization header
+    OR `?token=<jwt>` query) and 302-redirects to the asset URL
+    `/reports/{id}/assets/report.html?at=<asset_token>` so the browser
+    follows up directly. The asset token is short-lived (1 h) and
+    report-scoped (Story SECURITY-3).
+
+    Why a redirect instead of streaming the HTML inline with a
+    `<base href>` injection (the previous implementation): when the
+    iframe is loaded from a Blob URL (or any URL that the report's
+    own JS doesn't see as `log.html`'s sibling), Robot Framework's
+    in-page click handlers do `window.location.href = "log.html#xxx"`
+    which resolves against the IFRAME'S URL — the `<base href>` only
+    affects HTML link resolution, not JS-driven navigation. Result:
+    clicking a test row navigated the iframe to a 404.
+
+    Serving the report from the asset URL means subsequent
+    `location.href = "log.html"` calls resolve to
+    `/reports/{id}/assets/log.html`, which IS the right file.
+    """
+    _user, _raw_token = _authenticate_flexible(token, credentials, db)
 
     report = get_report(db, report_id)
     if report is None:
@@ -378,49 +439,41 @@ def get_report_html(
             detail="HTML report file not found on disk",
         )
 
-    # Read and inject <base> tag so relative asset references resolve to the asset endpoint.
-    # Also inject a script to fix fragment-only links (href="#...") which would otherwise
-    # navigate to the base URL + fragment, causing 404 errors.
-    html_content = html_path.read_text(encoding="utf-8", errors="replace")
-    base_tag = f'<base href="/api/v1/reports/{report_id}/assets/">'
-    fragment_fix_script = (
-        "<script>"
-        "document.addEventListener('click',function(e){"
-        "var a=e.target.closest('a[href^=\"#\"]');"
-        "if(a){e.preventDefault();"
-        "var hash=a.getAttribute('href');"
-        "if(a.onclick)a.onclick(e);"
-        "window.location.hash=hash.substring(1);}"
-        "});"
-        "</script>"
+    from fastapi.responses import RedirectResponse
+    from src.reports.asset_tokens import mint_asset_token
+    asset_token = mint_asset_token(report_id)
+    return RedirectResponse(
+        url=f"/api/v1/reports/{report_id}/assets/report.html?at={asset_token}",
+        status_code=status.HTTP_302_FOUND,
     )
-    injected = base_tag + fragment_fix_script
-    if "<head>" in html_content:
-        html_content = html_content.replace("<head>", f"<head>{injected}", 1)
-    elif "<HEAD>" in html_content:
-        html_content = html_content.replace("<HEAD>", f"<HEAD>{injected}", 1)
-    else:
-        # Prepend if no <head> tag found
-        html_content = injected + html_content
-
-    return Response(content=html_content, media_type="text/html")
 
 
 @router.get("/{report_id}/assets/{file_path:path}")
 def get_report_asset(
     report_id: int,
     file_path: str,
+    token: str | None = Query(default=None),
+    at: str | None = Query(default=None),
     credentials: HTTPAuthorizationCredentials | None = Depends(optional_bearer),
     db: Session = Depends(get_db),
 ):
     """Serve a file from the report's output directory (screenshots, etc.).
 
-    Auth is optional — assets are scoped by report ID with path traversal protection.
-    When loaded from iframe'd HTML reports, requests arrive without auth headers.
-    Unauthenticated access is logged for audit purposes.
+    Story REPORT-1: requires authentication.
+    Story SECURITY-3: accepts a purpose-built signed asset token
+    (`?at=…`) in addition to the legacy `Bearer` header / `?token=<jwt>`
+    JWT path. The asset token is short-lived (1 h) and scoped to
+    a single report so iframe URLs leaking out have a tiny blast
+    radius. Path-traversal guard remains layered on top of auth.
     """
-    if not credentials:
-        logger.info("Unauthenticated asset access: report=%d file=%s", report_id, file_path)
+    # Asset-token path: try first, since it's the cheapest check (no DB
+    # roundtrip, no user lookup) and is what iframe-loaded HTML uses.
+    from src.reports.asset_tokens import verify_asset_token
+    if at and verify_asset_token(at, report_id):
+        pass  # authenticated
+    else:
+        # Fall back to JWT or Bearer auth.
+        _authenticate_flexible(token, credentials, db)
     report = get_report(db, report_id)
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
@@ -450,6 +503,62 @@ def get_report_asset(
         )
 
     media_type = mimetypes.guess_type(str(requested_path))[0] or "application/octet-stream"
+
+    # When serving an HTML file (report.html / log.html), inject a
+    # `<base href>` carrying a freshly-minted asset token so every
+    # relative link / asset URL inside the document inherits the
+    # auth context. Without this, Robot Framework's in-page JS
+    # constructs `location.href = "log.html#xxx"` and the browser
+    # navigates to `/api/v1/reports/X/assets/log.html` WITHOUT the
+    # `?at=…` query (RFC 3986 query-inheritance is observably
+    # unreliable when the source URL was built by JS rather than
+    # parsed from HTML), so the asset endpoint rejects it as
+    # unauthenticated. The injected `<base>` makes resolution
+    # deterministic for HTML-defined AND JS-driven navigation. */
+    if media_type == "text/html" or str(requested_path).lower().endswith(
+        (".html", ".htm")
+    ):
+        from src.reports.asset_tokens import mint_asset_token
+        try:
+            html_content = requested_path.read_text(
+                encoding="utf-8", errors="replace"
+            )
+        except OSError:
+            return FileResponse(str(requested_path), media_type=media_type)
+        fresh_token = mint_asset_token(report_id)
+        base_tag = (
+            f'<base href="/api/v1/reports/{report_id}/assets/?at={fresh_token}">'
+        )
+        # Robot's report.html uses fragment-only links like
+        # `<a href="#totals">`. With our base href those resolve to
+        # `<base>/?at=…#totals` — the asset endpoint receives an empty
+        # file_path and 404s ("File not found"). Intercept clicks on
+        # fragment-only anchors and just update window.location.hash
+        # so the browser scrolls without re-fetching the directory.
+        fragment_fix_script = (
+            "<script>"
+            "document.addEventListener('click',function(e){"
+            "var a=e.target&&e.target.closest&&e.target.closest('a[href^=\"#\"]');"
+            "if(a){"
+            "var hash=a.getAttribute('href');"
+            "if(hash&&hash!=='#'){"
+            "e.preventDefault();"
+            "if(typeof a.onclick==='function')a.onclick(e);"
+            "window.location.hash=hash.substring(1);"
+            "}"
+            "}"
+            "});"
+            "</script>"
+        )
+        injected = base_tag + fragment_fix_script
+        if "<head>" in html_content:
+            html_content = html_content.replace("<head>", f"<head>{injected}", 1)
+        elif "<HEAD>" in html_content:
+            html_content = html_content.replace("<HEAD>", f"<HEAD>{injected}", 1)
+        else:
+            html_content = injected + html_content
+        return Response(content=html_content, media_type="text/html")
+
     return FileResponse(str(requested_path), media_type=media_type)
 
 

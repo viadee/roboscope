@@ -24,6 +24,15 @@ apiClient.interceptors.response.use(
     // Skip token refresh/redirect for login requests — 401 means invalid credentials
     const isLoginRequest = originalRequest.url?.includes('/auth/login')
 
+    // Already on /login: clear any stale token but DO NOT reload — a
+    // reload from /login back to /login is the redirect loop the
+    // singleton composables (e.g. useBypassStatus) can trigger when
+    // they fire on the brief DefaultLayout render before the router
+    // resolves to AuthLayout. Always check the current path before
+    // forcing navigation from inside an interceptor.
+    const onLoginPage =
+      typeof window !== 'undefined' && window.location.pathname === '/login'
+
     if (error.response?.status === 401 && !originalRequest._retry && !isLoginRequest) {
       originalRequest._retry = true
 
@@ -42,11 +51,11 @@ apiClient.interceptors.response.use(
         } catch {
           localStorage.removeItem('access_token')
           localStorage.removeItem('refresh_token')
-          window.location.href = '/login'
+          if (!onLoginPage) window.location.href = '/login'
         }
       } else {
         localStorage.removeItem('access_token')
-        window.location.href = '/login'
+        if (!onLoginPage) window.location.href = '/login'
       }
     }
 

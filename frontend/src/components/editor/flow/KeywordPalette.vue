@@ -6,16 +6,80 @@ import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
 import { getProjectKeywords, type ProjectKeyword } from '@/api/explorer.api'
 import type { StepType, RobotStep } from './flowConverter'
 
+// Story TYPE-2: discriminated union for the palette categories.
+// Two shapes flow through `allCategories`:
+//   - keyword categories (BuiltIn, project libs, dynamic libs)
+//   - the control category (IF / FOR / VAR …)
+// Tagging by which key is present lets TS narrow inside the
+// `'keywords' in cat` / `'items' in cat` template branches without
+// `as any`.
+type ControlItem = { label: string; type: StepType }
+type KeywordCategory = {
+  name: string
+  keywords: string[]
+  /** True when this category comes from the hand-curated static
+   *  fallback list (`Browser`, `BuiltIn`, … with ~10 keywords
+   *  each), used when the dynamic libdoc introspection returns
+   *  nothing — typically because the repo has no environment
+   *  configured or the library isn't installed. The header gets a
+   *  small "(examples)" suffix so users don't mistake the curated
+   *  subset for the full library surface. */
+  isExamples?: boolean
+  /** True when this Project: category corresponds to the file the
+   *  user has open right now. Pinned to the top of the palette and
+   *  visually marked so the user can scan to "their own" keywords
+   *  faster than reading every Project: header. */
+  isCurrentFile?: boolean
+}
+type ControlCategory = { name: string; items: ControlItem[] }
+type PaletteCategory = KeywordCategory | ControlCategory
+
 const props = defineProps<{
   repoId?: number
+  /** Repo-relative path of the file the user is currently editing.
+   *  Used as a re-collapse signal — every time the user switches
+   *  files we clear `expandedCategories` so the palette opens
+   *  in the same condensed view, regardless of how the user had
+   *  expanded categories on the previous file. */
+  filePath?: string
+  /** Lower-cased names of libraries currently imported in the file
+   *  (`Library    Browser` → `'browser'`). `BuiltIn` is always
+   *  considered imported because RF auto-imports it. The palette
+   *  uses this to visually dim non-imported keywords and signal
+   *  that picking one will trigger an auto-import. */
+  importedLibraries?: Set<string>
+  /** Library → keyword-usage tally for the currently-open file.
+   *  Computed by the parent (FlowEditor) by walking every
+   *  keyword / assignment step in form.testCases + form.keywords
+   *  and resolving each step's keyword to its declaring library.
+   *  Used to sort library categories so the libs the user is
+   *  actively working with bubble to the top. */
+  usageCounts?: Map<string, number>
 }>()
 
 const { t } = useI18n()
 const explorer = useExplorerStore()
 
 const emit = defineEmits<{
-  (e: 'add-node', step: RobotStep): void
+  /** Add a step to the active section. `library` is the source
+   *  Library name when the keyword came from one (so the parent can
+   *  auto-import it if missing); `undefined` for Control items and
+   *  Project / Resource keywords. */
+  (e: 'add-node', step: RobotStep, library?: string): void
 }>()
+
+/** Decide if a category's keywords should render as "imported"
+ *  (full opacity) or "not imported" (dimmed + auto-import on pick).
+ *  Always-true for BuiltIn (RF auto-imports it), Control (not a
+ *  library), and Project / Resource categories (in-repo keywords
+ *  are always usable from the same repo). Everything else is
+ *  gated on `props.importedLibraries`. */
+function isCategoryImported(catName: string): boolean {
+  if (catName === 'BuiltIn' || catName === 'Control') return true
+  if (catName.startsWith('Project: ')) return true
+  if (!props.importedLibraries) return true  // no signal → don't dim
+  return props.importedLibraries.has(catName.toLowerCase())
+}
 
 // Dynamic keywords from environment + project .resource files
 const dynamicLibraries = ref<Map<string, RfKeywordResult[]>>(new Map())
@@ -85,35 +149,56 @@ watch(() => explorer.keywordsLoaded, (loaded) => {
 })
 
 const searchQuery = ref('')
-const collapsedCategories = ref<Set<string>>(new Set())
-const selectedKeyword = ref<{ name: string; type?: StepType } | null>(null)
+// Track only EXPANDED categories — the palette can list 100+
+// keywords across BuiltIn / Project / dynamic libs and an expanded
+// state buries the search box and "(examples)" hints. With the
+// default being "collapsed unless in the set", new categories that
+// pop in mid-load (e.g. libdoc finishing after the initial render)
+// stay collapsed automatically — no seed pass needed.
+const expandedCategories = ref<Set<string>>(new Set())
+const selectedKeyword = ref<{ name: string; type?: StepType; library?: string } | null>(null)
 
 function toggleCategory(name: string) {
-  if (collapsedCategories.value.has(name)) {
-    collapsedCategories.value.delete(name)
+  if (expandedCategories.value.has(name)) {
+    expandedCategories.value.delete(name)
   } else {
-    collapsedCategories.value.add(name)
+    expandedCategories.value.add(name)
   }
 }
 function isCategoryOpen(name: string): boolean {
   if (searchQuery.value) return true
-  return !collapsedCategories.value.has(name)
+  return expandedCategories.value.has(name)
 }
 function expandAll() {
-  collapsedCategories.value.clear()
+  for (const cat of allCategories.value) {
+    expandedCategories.value.add(cat.name)
+  }
 }
 function collapseAll() {
-  for (const cat of allCategories.value) {
-    collapsedCategories.value.add(cat.name)
-  }
+  expandedCategories.value.clear()
 }
 
 function getKeywordArgs(name: string): string[] {
   return keywordArgsMap.value.get(name) || []
 }
 
-function selectKeyword(name: string, type?: StepType) {
-  selectedKeyword.value = { name, type }
+/** Map a category name to a library name suitable for the
+ *  auto-import hint, or undefined when no auto-import should
+ *  happen. Skips BuiltIn (RF auto-imports it implicitly) and
+ *  Project: ... categories (those are .resource files, would need
+ *  a Resource import — out of scope for the auto-import quick
+ *  path; users can still add Resource manually via the library
+ *  panel). Everything else passes through verbatim — for both
+ *  dynamic categories (the lib name from libdoc) and static-
+ *  fallback categories (Browser, Collections, String). */
+function libraryHintFor(catName: string): string | undefined {
+  if (catName === 'BuiltIn' || catName === 'Control') return undefined
+  if (catName.startsWith('Project: ')) return undefined
+  return catName
+}
+
+function selectKeyword(name: string, type?: StepType, library?: string) {
+  selectedKeyword.value = { name, type, library }
 }
 function isSelected(name: string): boolean {
   return selectedKeyword.value?.name === name
@@ -123,13 +208,18 @@ function addSelectedKeyword() {
   if (selectedKeyword.value.type) {
     addControlNode(selectedKeyword.value.type)
   } else {
-    addKeywordNode(selectedKeyword.value.name)
+    addKeywordNode(selectedKeyword.value.name, selectedKeyword.value.library)
   }
   selectedKeyword.value = null
 }
 
-// Built-in keyword categories
-const categories = [
+// Built-in keyword categories. The list is curated, not exhaustive
+// — about 10 popular keywords per library — and is used to fill
+// gaps in what the dynamic libdoc returned (BuiltIn is always
+// stripped backend-side; common third-party libs may not be
+// installed in the env yet). See `allCategories` for how these
+// are merged with the dynamic data.
+const categories: PaletteCategory[] = [
   {
     name: 'BuiltIn',
     keywords: [
@@ -158,6 +248,35 @@ const categories = [
     ],
   },
   {
+    name: 'DateTime',
+    keywords: [
+      'Get Current Date', 'Convert Date', 'Convert Time',
+      'Subtract Date From Date', 'Add Time To Date', 'Get Time',
+    ],
+  },
+  {
+    name: 'OperatingSystem',
+    keywords: [
+      'Run', 'Run And Return Rc', 'File Should Exist', 'Directory Should Exist',
+      'Create File', 'Remove File', 'Copy File', 'Move File',
+      'List Directory', 'Get Environment Variable',
+    ],
+  },
+  {
+    name: 'Process',
+    keywords: [
+      'Run Process', 'Start Process', 'Wait For Process', 'Terminate Process',
+      'Get Process Result', 'Process Should Be Running',
+    ],
+  },
+  {
+    name: 'XML',
+    keywords: [
+      'Parse XML', 'Get Element', 'Get Element Text',
+      'Get Element Attribute', 'Element Should Exist',
+    ],
+  },
+  {
     name: 'Browser',
     keywords: [
       'New Browser', 'New Page', 'Click', 'Fill Text', 'Get Text',
@@ -166,52 +285,132 @@ const categories = [
     ],
   },
   {
+    name: 'SeleniumLibrary',
+    keywords: [
+      'Open Browser', 'Close Browser', 'Click Element', 'Input Text',
+      'Get Text', 'Wait Until Element Is Visible', 'Page Should Contain',
+      'Capture Page Screenshot', 'Get Title', 'Go To',
+    ],
+  },
+  {
+    name: 'RequestsLibrary',
+    keywords: [
+      'Create Session', 'GET', 'POST', 'PUT', 'DELETE', 'PATCH',
+      'Status Should Be', 'Should Be Equal As Strings',
+    ],
+  },
+  {
+    name: 'DatabaseLibrary',
+    keywords: [
+      'Connect To Database', 'Disconnect From Database', 'Execute Sql String',
+      'Query', 'Row Count Is Equal To', 'Check If Exists In Database',
+    ],
+  },
+  {
     name: 'Control',
     items: [
-      { label: 'IF / ELSE', type: 'if' as StepType },
-      { label: 'ELSE IF', type: 'else_if' as StepType },
-      { label: 'ELSE', type: 'else' as StepType },
-      { label: 'FOR Loop', type: 'for' as StepType },
-      { label: 'WHILE Loop', type: 'while' as StepType },
-      { label: 'TRY / EXCEPT', type: 'try' as StepType },
-      { label: 'VAR', type: 'var' as StepType },
-      { label: 'RETURN', type: 'return' as StepType },
-      { label: 'BREAK', type: 'break' as StepType },
-      { label: 'CONTINUE', type: 'continue' as StepType },
-      { label: 'Comment', type: 'comment' as StepType },
+      { label: 'IF / ELSE', type: 'if' },
+      { label: 'ELSE IF', type: 'else_if' },
+      { label: 'ELSE', type: 'else' },
+      { label: 'FOR Loop', type: 'for' },
+      { label: 'WHILE Loop', type: 'while' },
+      { label: 'TRY / EXCEPT', type: 'try' },
+      { label: 'VAR', type: 'var' },
+      { label: 'RETURN', type: 'return' },
+      { label: 'BREAK', type: 'break' },
+      { label: 'CONTINUE', type: 'continue' },
+      { label: 'Comment', type: 'comment' },
     ],
   },
 ]
 
-// Build categories: project keywords + dynamic (from rf-mcp) + static fallbacks + control
-const allCategories = computed(() => {
-  const cats: typeof categories = []
+/** Common library names we ALWAYS surface in the palette via the
+ *  static curated subset when the dynamic libdoc didn't return
+ *  them. RF-bundled libs (Collections, String, …) are shipped
+ *  with `robotframework` itself but still need an explicit
+ *  `Library    X` import to use; common third-party libs
+ *  (Browser, SeleniumLibrary, …) need pip install + import.
+ *  Either way, showing the curated subset gives the user
+ *  discovery + the auto-import / install path on click.
+ *  BuiltIn is the special case: always shown, never marked
+ *  examples (RF auto-imports it).
+ */
+const _ALWAYS_VISIBLE_LIBS = [
+  'BuiltIn',
+  // RF-bundled (no pip install needed, only `Library    X`):
+  'Collections', 'String', 'DateTime', 'OperatingSystem', 'Process', 'XML',
+  // Common third-party (pip install + Library import):
+  'Browser', 'SeleniumLibrary', 'RequestsLibrary', 'DatabaseLibrary',
+]
 
-  // Project keywords from .robot/.resource files (grouped by file)
+// Build categories: project keywords + dynamic (from rf-mcp)
+// + static curated examples for any always-visible lib not
+// covered by dynamic + control. Per-library mix instead of the
+// old all-or-nothing fallback so that an env with e.g. Selenium
+// installed still gets the curated Browser/Requests/DB examples
+// for discovery + auto-install.
+const allCategories = computed(() => {
+  const cats: PaletteCategory[] = []
+
+  // Project keywords from .robot/.resource files (grouped by file).
+  // The category for the file the user has currently open is pinned
+  // to the top of the palette and flagged via `isCurrentFile` so the
+  // template can render a "current" badge — saves the user from
+  // scanning every Project: header to find their own keywords.
   if (projectKeywords.value.length > 0) {
-    const byFile = new Map<string, string[]>()
+    const currentBase = props.filePath?.split('/').pop() || ''
+    const byFile = new Map<string, { paths: Set<string>; keywords: string[] }>()
     for (const kw of projectKeywords.value) {
       const file = kw.file_path.split('/').pop() || kw.file_path
-      if (!byFile.has(file)) byFile.set(file, [])
-      byFile.get(file)!.push(kw.name)
+      const entry = byFile.get(file) ?? { paths: new Set<string>(), keywords: [] }
+      entry.paths.add(kw.file_path)
+      entry.keywords.push(kw.name)
+      byFile.set(file, entry)
     }
-    for (const [file, names] of byFile) {
-      cats.push({ name: `Project: ${file}`, keywords: names } as any)
+    const projCats: KeywordCategory[] = []
+    for (const [file, entry] of byFile) {
+      // Match basenames first; if multiple files in different folders
+      // share a basename, only flag the one whose full path matches.
+      const isCurrent = file === currentBase
+        && (props.filePath ? entry.paths.has(props.filePath) || entry.paths.size === 1 : false)
+      projCats.push({ name: `Project: ${file}`, keywords: entry.keywords, isCurrentFile: isCurrent })
     }
+    projCats.sort((a, b) => Number(b.isCurrentFile) - Number(a.isCurrentFile))
+    cats.push(...projCats)
   }
 
-  // Dynamic library keywords (from rf-mcp, if available)
+  // Library categories (dynamic from libdoc + static-fallback for
+  // libs not covered by dynamic). Collected first, sorted by usage,
+  // then appended — so the libs the user actually uses bubble to the
+  // top regardless of insertion order.
+  const libCats: KeywordCategory[] = []
+  const dynamicLibNames = new Set<string>()
   for (const [lib, keywords] of dynamicLibraries.value) {
-    cats.push({
-      name: lib,
-      keywords: keywords.map(kw => kw.name),
-    } as any)
+    libCats.push({ name: lib, keywords: keywords.map(kw => kw.name) })
+    dynamicLibNames.add(lib)
   }
-
-  // If no dynamic keywords loaded, use static fallbacks
-  if (dynamicLibraries.value.size === 0 && projectKeywords.value.length === 0) {
-    cats.push(...categories.filter(c => c.name !== 'Control'))
+  // Always-visible curated subsets for libs not covered by dynamic.
+  // BuiltIn is never tagged isExamples (RF auto-imports it so the
+  // "configure an environment" hint doesn't apply). The rest get
+  // the (examples) badge.
+  for (const libName of _ALWAYS_VISIBLE_LIBS) {
+    if (dynamicLibNames.has(libName)) continue
+    const staticCat = categories.find(c => c.name === libName)
+    if (staticCat && 'keywords' in staticCat) {
+      libCats.push({
+        name: staticCat.name,
+        keywords: staticCat.keywords,
+        isExamples: libName !== 'BuiltIn',
+      })
+    }
   }
+  // Sort by usage count (desc) — Array.prototype.sort is stable, so
+  // libs with equal counts keep their existing relative order
+  // (dynamic libs first in their natural order, then the
+  // _ALWAYS_VISIBLE_LIBS fallback order).
+  const counts = props.usageCounts ?? new Map<string, number>()
+  libCats.sort((a, b) => (counts.get(b.name) ?? 0) - (counts.get(a.name) ?? 0))
+  cats.push(...libCats)
 
   // Always add Control category at the end
   const controlCat = categories.find(c => c.name === 'Control')
@@ -220,22 +419,39 @@ const allCategories = computed(() => {
   return cats
 })
 
-const filteredCategories = computed(() => {
+function collapseAllNow() {
+  expandedCategories.value.clear()
+}
+
+// Re-collapse on file switch — opening a different test file
+// shouldn't expose the expanded view from the previous file.
+watch(() => props.filePath, (next, prev) => {
+  if (!next || next === prev) return
+  collapseAllNow()
+})
+
+// Re-collapse on explorer keyword refresh — a fresh ExplorerView
+// load (page reload, repo switch, manual refresh) flips
+// `keywordsLoaded` from false to true and we want the palette to
+// open condensed every time, even if the user had categories
+// expanded before the refresh.
+watch(() => explorer.keywordsLoaded, (loaded, wasLoaded) => {
+  if (loaded && wasLoaded === false) collapseAllNow()
+})
+
+const filteredCategories = computed<PaletteCategory[]>(() => {
   const q = searchQuery.value.toLowerCase()
   if (!q) return allCategories.value
   return allCategories.value
-    .map(cat => {
-      if ('keywords' in cat && cat.keywords) {
-        const kws = cat.keywords.filter((kw: string) => kw.toLowerCase().includes(q))
+    .map((cat): PaletteCategory | null => {
+      if ('keywords' in cat) {
+        const kws = cat.keywords.filter(kw => kw.toLowerCase().includes(q))
         return kws.length ? { ...cat, keywords: kws } : null
       }
-      if ('items' in cat && cat.items) {
-        const items = cat.items.filter((it: { label: string }) => it.label.toLowerCase().includes(q))
-        return items.length ? { ...cat, items } : null
-      }
-      return null
+      const items = cat.items.filter(it => it.label.toLowerCase().includes(q))
+      return items.length ? { ...cat, items } : null
     })
-    .filter(Boolean)
+    .filter((cat): cat is PaletteCategory => cat !== null)
 })
 
 function makeStep(type: StepType = 'keyword'): RobotStep {
@@ -246,10 +462,10 @@ function makeStep(type: StepType = 'keyword'): RobotStep {
   }
 }
 
-function addKeywordNode(keyword: string) {
+function addKeywordNode(keyword: string, library?: string) {
   const step = makeStep('keyword')
   step.keyword = keyword
-  emit('add-node', step)
+  emit('add-node', step, library)
 }
 
 function addControlNode(type: StepType) {
@@ -264,8 +480,14 @@ function addControlNode(type: StepType) {
   emit('add-node', step)
 }
 
-function onDragStart(event: DragEvent, keyword: string) {
+function onDragStart(event: DragEvent, keyword: string, library?: string) {
   event.dataTransfer?.setData('application/rf-keyword', keyword)
+  // Tag with the source library so the canvas drop handler can
+  // auto-import it if missing. The caller (template) passes the
+  // category name when applicable; `libraryHintFor` already
+  // filtered out Project / Control / BuiltIn upstream so we can
+  // trust the value and write it verbatim.
+  if (library) event.dataTransfer?.setData('application/rf-library', library)
   event.dataTransfer!.effectAllowed = 'copy'
 }
 
@@ -304,39 +526,67 @@ function onControlDragStart(event: DragEvent, type: StepType) {
       <button class="palette-add-btn" @click="addSelectedKeyword">+</button>
     </div>
     <div class="palette-categories">
-      <div v-for="cat in filteredCategories" :key="cat!.name" class="palette-category">
-        <div class="category-header" @click="toggleCategory(cat!.name)">
-          <span class="collapse-icon">{{ isCategoryOpen(cat!.name) ? '\u25BC' : '\u25B6' }}</span>
-          <span class="category-name">{{ cat!.name }}</span>
+      <div
+        v-for="cat in filteredCategories"
+        :key="cat.name"
+        class="palette-category"
+        :class="{ 'palette-category--current': 'isCurrentFile' in cat && cat.isCurrentFile }"
+      >
+        <div class="category-header" @click="toggleCategory(cat.name)">
+          <span class="collapse-icon">{{ isCategoryOpen(cat.name) ? '\u25BC' : '\u25B6' }}</span>
+          <span class="category-name">{{ cat.name }}</span>
+          <span
+            v-if="'isCurrentFile' in cat && cat.isCurrentFile"
+            class="category-current-badge"
+            :title="t('flowEditor.currentFileCategoryHint')"
+          >{{ t('flowEditor.currentFileCategoryBadge') }}</span>
+          <span
+            v-if="'isExamples' in cat && cat.isExamples"
+            class="category-examples-badge"
+            :title="t('flowEditor.examplesCategoryHint')"
+          >{{ t('flowEditor.examplesCategoryBadge') }}</span>
           <span class="category-count">
-            {{ 'keywords' in cat! ? (cat as any).keywords?.length : (cat as any).items?.length }}
+            {{ 'keywords' in cat ? cat.keywords.length : cat.items.length }}
           </span>
         </div>
 
-        <template v-if="isCategoryOpen(cat!.name)">
+        <template v-if="isCategoryOpen(cat.name)">
           <!-- Keyword items -->
-          <template v-if="'keywords' in cat!">
+          <template v-if="'keywords' in cat">
             <div
-              v-for="kw in (cat as any).keywords"
+              v-for="kw in cat.keywords"
               :key="kw"
-              :class="['palette-item', 'palette-item-keyword', { selected: isSelected(kw) }]"
+              :class="[
+                'palette-item',
+                'palette-item-keyword',
+                { selected: isSelected(kw),
+                  'palette-item--not-imported': !isCategoryImported(cat.name) },
+              ]"
+              :title="!isCategoryImported(cat.name)
+                ? t('flowEditor.keywordNotImportedHint', { library: cat.name })
+                : undefined"
               draggable="true"
-              @dragstart="onDragStart($event, kw)"
-              @click="selectKeyword(kw)"
-              @dblclick="addKeywordNode(kw)"
+              @dragstart="onDragStart($event, kw, libraryHintFor(cat.name))"
+              @click="selectKeyword(kw, undefined, libraryHintFor(cat.name))"
+              @dblclick="addKeywordNode(kw, libraryHintFor(cat.name))"
             >
               <span class="palette-icon">&#x2699;</span>
               <div class="palette-item-content">
                 <span class="palette-item-name">{{ kw }}</span>
                 <span v-if="getKeywordArgs(kw).length" class="palette-item-argcount">({{ getKeywordArgs(kw).length }})</span>
+                <span
+                  v-if="!isCategoryImported(cat.name)"
+                  class="palette-item-import-badge"
+                  :title="t('flowEditor.keywordNotImportedBadgeTitle')"
+                >+ lib</span>
               </div>
             </div>
           </template>
 
           <!-- Control items -->
-          <template v-if="'items' in cat!">
+          <template v-if="'items' in cat">
             <div
-              v-for="item in (cat as any).items"
+              v-for="item in cat.items"
               :key="item.label"
               :class="['palette-item', 'palette-item-control', { selected: isSelected(item.label) }]"
               draggable="true"
@@ -504,6 +754,37 @@ function onControlDragStart(event: DragEvent, type: StepType) {
   padding: 1px 5px;
   border-radius: 8px;
 }
+/* Static-fallback hint: "BuiltIn (examples)", "Browser (examples)".
+   Signals that the listed keywords are a curated subset, not the
+   full library — kicks in when the dynamic libdoc introspection
+   returned nothing (no env, library not installed, rf-mcp off). */
+.category-examples-badge {
+  font-size: 9px;
+  font-style: italic;
+  color: var(--color-accent, #D4883E);
+  margin-right: 4px;
+}
+/* Highlights the Project: category for the file the user has open
+   right now — pinned to the top of the palette and tinted so it
+   stands out from the other Project: entries. */
+.palette-category--current .category-header {
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 8%, transparent);
+}
+.palette-category--current .category-name {
+  font-weight: 700;
+  color: var(--color-primary, #3B7DD8);
+}
+.category-current-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-primary, #3B7DD8);
+  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 14%, transparent);
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-right: 4px;
+}
 .palette-item {
   display: flex;
   align-items: center;
@@ -540,6 +821,33 @@ function onControlDragStart(event: DragEvent, type: StepType) {
   color: var(--color-text-muted, #5A6380);
   flex-shrink: 0;
 }
+
+/* Dimmed appearance for keywords whose owning library isn't
+   imported in the file yet. Hover restores opacity so the user can
+   read the name; the "+ lib" badge signals what will happen on
+   pick. The auto-import itself runs in FlowEditor. */
+.palette-item--not-imported {
+  opacity: 0.55;
+  border-style: dashed;
+}
+.palette-item--not-imported:hover {
+  opacity: 1;
+  border-style: solid;
+}
+.palette-item-import-badge {
+  flex-shrink: 0;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border: 1px solid var(--color-accent, #D4883E);
+  border-radius: 3px;
+  background: rgba(212, 136, 62, 0.10);
+  color: var(--color-accent, #D4883E);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .palette-item:active {
   cursor: grabbing;
 }

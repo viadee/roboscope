@@ -257,3 +257,188 @@ class TestGitWebhookInbound:
 
         assert resp.status_code == 200
         assert resp.json()["status"] == "triggered"
+
+    # -----------------------------------------------------------------
+    # Story REPO-4 — webhook pre-syncs the repo before triggering the run
+    # -----------------------------------------------------------------
+
+    def test_webhook_dispatches_sync_before_run(
+        self, client, db_session, admin_user,
+    ):
+        """The webhook must dispatch sync_repo BEFORE execute_test_run.
+        The task executor uses max_workers=1 so dispatch order = run order.
+        """
+        from src.repos.models import Repository
+        from src.repos.tasks import sync_repo
+        from src.execution.tasks import execute_test_run
+
+        repo = Repository(
+            name="Sync First",
+            repo_type="git",
+            git_url="https://github.com/test/sync-first.git",
+            local_path="/tmp/sync-first",
+            default_branch="main",
+            created_by=admin_user.id,
+        )
+        db_session.add(repo)
+        db_session.flush()
+
+        called: list = []
+
+        def record(fn, *args, **kwargs):
+            called.append(fn)
+            return MagicMock(id=f"task-{len(called)}")
+
+        with patch("src.task_executor.dispatch_task", side_effect=record):
+            resp = client.post(
+                "/api/v1/webhooks/git",
+                json={
+                    "ref": "refs/heads/main",
+                    "repository": {
+                        "clone_url": "https://github.com/test/sync-first.git",
+                    },
+                },
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "triggered"
+        # Order matters: sync_repo first, execute_test_run second.
+        assert called == [sync_repo, execute_test_run]
+
+    def test_webhook_skips_sync_for_local_repo(
+        self, client, db_session, admin_user,
+    ):
+        """Local repos have no upstream — no pre-sync, just dispatch the run."""
+        from src.repos.models import Repository
+        from src.execution.tasks import execute_test_run
+
+        # `repo_type='local'` shouldn't normally match a webhook payload
+        # (no git_url to compare against), but if a user mis-configured
+        # one with a URL we should still skip the sync.
+        repo = Repository(
+            name="Local Lookalike",
+            repo_type="local",
+            git_url="https://github.com/test/local.git",  # mis-configured
+            local_path="/tmp/local-lookalike",
+            default_branch="main",
+            created_by=admin_user.id,
+        )
+        db_session.add(repo)
+        db_session.flush()
+
+        called: list = []
+
+        def record(fn, *args, **kwargs):
+            called.append(fn)
+            return MagicMock(id=f"task-{len(called)}")
+
+        with patch("src.task_executor.dispatch_task", side_effect=record):
+            resp = client.post(
+                "/api/v1/webhooks/git",
+                json={
+                    "ref": "refs/heads/main",
+                    "repository": {
+                        "clone_url": "https://github.com/test/local.git",
+                    },
+                },
+            )
+
+        assert resp.status_code == 200
+        assert called == [execute_test_run]
+
+    def test_webhook_run_proceeds_when_sync_dispatch_fails(
+        self, client, db_session, admin_user,
+    ):
+        """A TaskDispatchError on the sync must NOT abort the run."""
+        from src.repos.models import Repository
+        from src.repos.tasks import sync_repo
+        from src.execution.tasks import execute_test_run
+        from src.task_executor import TaskDispatchError
+
+        repo = Repository(
+            name="Sync Fails",
+            repo_type="git",
+            git_url="https://github.com/test/sync-fails.git",
+            local_path="/tmp/sync-fails",
+            default_branch="main",
+            created_by=admin_user.id,
+        )
+        db_session.add(repo)
+        db_session.flush()
+
+        attempts: list = []
+
+        def record(fn, *args, **kwargs):
+            attempts.append(fn)
+            if fn is sync_repo:
+                raise TaskDispatchError("queue saturated")
+            return MagicMock(id=f"task-{len(attempts)}")
+
+        with patch("src.task_executor.dispatch_task", side_effect=record):
+            resp = client.post(
+                "/api/v1/webhooks/git",
+                json={
+                    "ref": "refs/heads/main",
+                    "repository": {
+                        "clone_url": "https://github.com/test/sync-fails.git",
+                    },
+                },
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "triggered"
+        # Both were attempted; the run dispatch succeeded after the sync
+        # dispatch raised.
+        assert attempts == [sync_repo, execute_test_run]
+
+
+class TestPayloadExtractors:
+    """Defensive-typing regression guard. Webhook payloads come from
+    untrusted external providers (GitHub, GitLab, attackers); the
+    extractor functions used to call `.startswith` and dict-access on
+    `Any` values, which mypy flagged as `no-any-return`. A malformed
+    payload with a non-string `ref` (`{"ref": 42}`) would crash with
+    `AttributeError`. The fix added `isinstance(...)` guards.
+    """
+
+    def test_extract_git_url_string_value(self):
+        from src.webhooks.router import _extract_git_url
+        assert _extract_git_url(
+            {"repository": {"clone_url": "https://github.com/x/y.git"}}
+        ) == "https://github.com/x/y.git"
+
+    def test_extract_git_url_gitlab_format(self):
+        from src.webhooks.router import _extract_git_url
+        assert _extract_git_url(
+            {"repository": {"git_http_url": "https://gitlab.com/x/y.git"}}
+        ) == "https://gitlab.com/x/y.git"
+
+    def test_extract_git_url_non_string_value_returns_none(self):
+        from src.webhooks.router import _extract_git_url
+        # Hostile / malformed payload — clone_url is an int.
+        assert _extract_git_url({"repository": {"clone_url": 42}}) is None
+
+    def test_extract_git_url_missing_repository_returns_none(self):
+        from src.webhooks.router import _extract_git_url
+        assert _extract_git_url({}) is None
+        assert _extract_git_url({"repository": "not a dict"}) is None
+
+    def test_extract_branch_string_ref(self):
+        from src.webhooks.router import _extract_branch
+        assert _extract_branch({"ref": "refs/heads/main"}) == "main"
+        assert _extract_branch({"ref": "refs/heads/feat/foo"}) == "feat/foo"
+
+    def test_extract_branch_non_branch_ref(self):
+        from src.webhooks.router import _extract_branch
+        assert _extract_branch({"ref": "refs/tags/v1.0"}) is None
+
+    def test_extract_branch_missing_ref(self):
+        from src.webhooks.router import _extract_branch
+        assert _extract_branch({}) is None
+
+    def test_extract_branch_non_string_ref_returns_none(self):
+        from src.webhooks.router import _extract_branch
+        # Pre-fix: this crashed with AttributeError on `.startswith`.
+        assert _extract_branch({"ref": 42}) is None
+        assert _extract_branch({"ref": None}) is None
+        assert _extract_branch({"ref": ["refs/heads/main"]}) is None

@@ -24,6 +24,7 @@ from src.ai.schemas import (
     GenerateRequest,
     JobAcceptRequest,
     ReverseRequest,
+    RfKeywordResult,
     RfKeywordSearchResponse,
     RfKnowledgeStatusResponse,
     RfMcpDetailedStatus,
@@ -389,9 +390,19 @@ async def rf_knowledge_keywords(
     from src.ai import rf_knowledge
 
     results = await rf_knowledge.search_keywords(q, repo_id=repo_id)
+    # Build typed `RfKeywordResult` instances directly. Pydantic
+    # would coerce dicts at the outer constructor anyway, but the
+    # explicit form satisfies mypy and surfaces the schema at the
+    # call site.
     return RfKeywordSearchResponse(
         results=[
-            {"name": r.get("name", ""), "library": r.get("library", ""), "doc": r.get("doc", ""), "args": r.get("args", [])}
+            RfKeywordResult(
+                name=r.get("name", ""),
+                library=r.get("library", ""),
+                doc=r.get("doc", ""),
+                doc_format=r.get("doc_format", "text"),
+                args=r.get("args", []),
+            )
             for r in results
         ]
     )
@@ -623,6 +634,11 @@ def _provider_to_response(provider: AiProvider) -> dict:
 
 def _job_to_response(job: AiJob) -> dict:
     """Convert job to response dict."""
+    # Story AI-2 — pull suggested patches out of the analysis markdown on
+    # read. Only relevant for the analyze job type; other job types are
+    # still valid calls — we just always get back [].
+    from src.ai.patch_extractor import extract_patch_suggestions
+
     return {
         "id": job.id,
         "job_type": job.job_type,
@@ -639,4 +655,6 @@ def _job_to_response(job: AiJob) -> dict:
         "started_at": job.started_at,
         "completed_at": job.completed_at,
         "created_at": job.created_at,
+        "suggested_patches": extract_patch_suggestions(job.result_preview)
+            if job.job_type == "analyze" else [],
     }

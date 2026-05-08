@@ -208,6 +208,56 @@ interface SpecForm {
   test_sets: TestSet[]
 }
 
+// --- YAML output schema (serialise-side) ---
+//
+// Mirrors `SpecForm` but with every "should be omitted when empty"
+// field marked optional. The serialiser conditionally adds keys only
+// when their value is non-empty, so the output type lets us drop the
+// previous `: any` annotations on each builder object while still
+// supporting `delete obj.metadata.last_generated` style cleanup
+// branches. Keep this type close to `SpecForm` — they should drift
+// together.
+interface YamlOutputMetadata {
+  title?: string
+  author?: string
+  created?: string
+  last_generated?: string | null
+  generation_hash?: string | null
+  target_file?: string
+  environment?: string | null
+  libraries?: string[]
+  external_id?: string
+}
+interface YamlOutputStep {
+  action: string
+  data?: string
+  expected_result?: string
+}
+interface YamlOutputTestCase {
+  name: string
+  description?: string
+  priority?: 'high' | 'medium' | 'low'
+  external_id?: string
+  preconditions?: string[]
+  steps?: (string | YamlOutputStep)[]
+  expected_result?: string
+}
+interface YamlOutputTestSet {
+  name: string
+  description?: string
+  tags?: string[]
+  setup?: string
+  teardown?: string
+  external_id?: string
+  preconditions?: string[]
+  test_cases?: YamlOutputTestCase[]
+}
+interface YamlOutput {
+  version: string
+  metadata: YamlOutputMetadata
+  test_sets?: YamlOutputTestSet[]
+}
+
 const form = reactive<SpecForm>({
   version: '2',
   metadata: {
@@ -405,9 +455,36 @@ function toggleStepType(tsIndex: number, tcIndex: number, stepIdx: number) {
 }
 
 // --- Parse/Serialize ---
+// YAML inputs are loose-typed (`yaml.load` returns `unknown`); the
+// parser narrows each level with `Record<string, unknown>` and
+// coerces per-field with `typeof` / `Array.isArray` guards. These
+// helpers do the per-field coercion so the call sites stay readable.
+// The previous `|| ''` fallback used to absorb any falsy non-string
+// into ''; we now require an actual string before propagating, which
+// is strictly safer (a `42` for `name` no longer leaks into the form
+// as a numeric type-mismatch).
+function _yamlStr(v: unknown): string {
+  return typeof v === 'string' ? v : ''
+}
+function _yamlStrOrNull(v: unknown): string | null {
+  return typeof v === 'string' ? v : null
+}
+function _yamlStrArr(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+}
+function _yamlPriority(v: unknown): 'high' | 'medium' | 'low' {
+  return v === 'high' || v === 'medium' || v === 'low' ? v : 'medium'
+}
+function _yamlObj(v: unknown): Record<string, unknown> {
+  return typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {}
+}
+
 function parseYamlToForm(yamlContent: string): boolean {
   try {
-    const parsed = yaml.load(yamlContent) as any
+    // `yaml.load` returns `unknown` by design — the spec is user-edited
+    // and may contain anything. Narrow once, then narrow per-level
+    // through the helpers above.
+    const parsed = yaml.load(yamlContent)
     if (!parsed || typeof parsed !== 'object') {
       form.version = '2'
       form.metadata = { title: '', author: '', created: '', last_generated: null, generation_hash: null, target_file: '', environment: null, libraries: [], external_id: '' }
@@ -415,58 +492,78 @@ function parseYamlToForm(yamlContent: string): boolean {
       parseError.value = null
       return true
     }
+    const root = parsed as Record<string, unknown>
 
-    form.version = String(parsed.version || '2')
-    const m = parsed.metadata || {}
-    form.metadata.title = m.title || ''
-    form.metadata.author = m.author || ''
-    form.metadata.created = m.created || ''
-    form.metadata.last_generated = m.last_generated || null
-    form.metadata.generation_hash = m.generation_hash || null
-    form.metadata.target_file = m.target_file || ''
-    form.metadata.environment = m.environment || null
-    form.metadata.libraries = Array.isArray(m.libraries) ? [...m.libraries] : []
-    form.metadata.external_id = m.external_id || ''
+    form.version = String(root.version || '2')
+    const m = _yamlObj(root.metadata)
+    form.metadata.title = _yamlStr(m.title)
+    form.metadata.author = _yamlStr(m.author)
+    form.metadata.created = _yamlStr(m.created)
+    form.metadata.last_generated = _yamlStrOrNull(m.last_generated)
+    form.metadata.generation_hash = _yamlStrOrNull(m.generation_hash)
+    form.metadata.target_file = _yamlStr(m.target_file)
+    form.metadata.environment = _yamlStrOrNull(m.environment)
+    form.metadata.libraries = _yamlStrArr(m.libraries)
+    form.metadata.external_id = _yamlStr(m.external_id)
 
-    form.test_sets = Array.isArray(parsed.test_sets) ? parsed.test_sets.map((ts: any) => ({
-      name: ts.name || '',
-      description: ts.description || '',
-      tags: Array.isArray(ts.tags) ? [...ts.tags] : [],
-      setup: ts.setup || '',
-      teardown: ts.teardown || '',
-      external_id: ts.external_id || '',
-      preconditions: Array.isArray(ts.preconditions) ? [...ts.preconditions] : [],
-      test_cases: Array.isArray(ts.test_cases) ? ts.test_cases.map((tc: any) => ({
-        name: tc.name || '',
-        description: tc.description || '',
-        priority: ['high', 'medium', 'low'].includes(tc.priority) ? tc.priority : 'medium',
-        steps: Array.isArray(tc.steps) ? tc.steps.map((step: any) => {
-          if (typeof step === 'string') return step
-          if (typeof step === 'object' && step !== null && 'action' in step) {
-            return {
-              action: step.action || '',
-              data: step.data || '',
-              expected_result: step.expected_result || '',
-            }
-          }
-          return String(step)
-        }) : [],
-        expected_result: tc.expected_result || '',
-        external_id: tc.external_id || '',
-        preconditions: Array.isArray(tc.preconditions) ? [...tc.preconditions] : [],
-      })) : [],
-    })) : []
+    form.test_sets = Array.isArray(root.test_sets)
+      ? root.test_sets
+          .filter((ts): ts is Record<string, unknown> =>
+            typeof ts === 'object' && ts !== null,
+          )
+          .map((ts): TestSet => ({
+            name: _yamlStr(ts.name),
+            description: _yamlStr(ts.description),
+            tags: _yamlStrArr(ts.tags),
+            setup: _yamlStr(ts.setup),
+            teardown: _yamlStr(ts.teardown),
+            external_id: _yamlStr(ts.external_id),
+            preconditions: _yamlStrArr(ts.preconditions),
+            test_cases: Array.isArray(ts.test_cases)
+              ? ts.test_cases
+                  .filter((tc): tc is Record<string, unknown> =>
+                    typeof tc === 'object' && tc !== null,
+                  )
+                  .map((tc): TestCase => ({
+                    name: _yamlStr(tc.name),
+                    description: _yamlStr(tc.description),
+                    priority: _yamlPriority(tc.priority),
+                    steps: Array.isArray(tc.steps)
+                      ? tc.steps.map((step: unknown): StepItem => {
+                          if (typeof step === 'string') return step
+                          if (
+                            typeof step === 'object'
+                            && step !== null
+                            && 'action' in step
+                          ) {
+                            const s = step as Record<string, unknown>
+                            return {
+                              action: _yamlStr(s.action),
+                              data: _yamlStr(s.data),
+                              expected_result: _yamlStr(s.expected_result),
+                            }
+                          }
+                          return String(step)
+                        })
+                      : [],
+                    expected_result: _yamlStr(tc.expected_result),
+                    external_id: _yamlStr(tc.external_id),
+                    preconditions: _yamlStrArr(tc.preconditions),
+                  }))
+              : [],
+          }))
+      : []
 
     parseError.value = null
     return true
-  } catch (e: any) {
-    parseError.value = e.message || 'Failed to parse YAML'
+  } catch (e: unknown) {
+    parseError.value = e instanceof Error ? e.message : 'Failed to parse YAML'
     return false
   }
 }
 
 function serializeFormToYaml(): string {
-  const obj: any = {
+  const obj: YamlOutput = {
     version: form.version,
     metadata: {
       title: form.metadata.title || undefined,
@@ -492,8 +589,8 @@ function serializeFormToYaml(): string {
   if (!obj.metadata.author) delete obj.metadata.author
 
   if (form.test_sets.length) {
-    obj.test_sets = form.test_sets.map(ts => {
-      const tsObj: any = { name: ts.name }
+    obj.test_sets = form.test_sets.map((ts): YamlOutputTestSet => {
+      const tsObj: YamlOutputTestSet = { name: ts.name }
       if (ts.description) tsObj.description = ts.description
       if (ts.tags.length) tsObj.tags = [...ts.tags]
       if (ts.setup) tsObj.setup = ts.setup
@@ -501,16 +598,16 @@ function serializeFormToYaml(): string {
       if (ts.external_id) tsObj.external_id = ts.external_id
       if (ts.preconditions.length) tsObj.preconditions = [...ts.preconditions]
       if (ts.test_cases.length) {
-        tsObj.test_cases = ts.test_cases.map(tc => {
-          const tcObj: any = { name: tc.name }
+        tsObj.test_cases = ts.test_cases.map((tc): YamlOutputTestCase => {
+          const tcObj: YamlOutputTestCase = { name: tc.name }
           if (tc.description) tcObj.description = tc.description
           if (tc.priority && tc.priority !== 'medium') tcObj.priority = tc.priority
           if (tc.external_id) tcObj.external_id = tc.external_id
           if (tc.preconditions.length) tcObj.preconditions = [...tc.preconditions]
           if (tc.steps.length) {
-            tcObj.steps = tc.steps.map(step => {
+            tcObj.steps = tc.steps.map((step): string | YamlOutputStep => {
               if (typeof step === 'string') return step
-              const stepObj: any = { action: step.action }
+              const stepObj: YamlOutputStep = { action: step.action }
               if (step.data) stepObj.data = step.data
               if (step.expected_result) stepObj.expected_result = step.expected_result
               return stepObj
@@ -775,7 +872,7 @@ function updateSimpleStep(tsIndex: number, tcIndex: number, stepIdx: number, val
 function updateStructuredStep(tsIndex: number, tcIndex: number, stepIdx: number, field: 'action' | 'data' | 'expected_result', value: string) {
   const step = form.test_sets[tsIndex].test_cases[tcIndex].steps[stepIdx]
   if (isStructuredStep(step)) {
-    (step as any)[field] = value
+    step[field] = value
   }
 }
 

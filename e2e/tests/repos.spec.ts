@@ -51,12 +51,15 @@ test.describe('Repository Management', () => {
     await page.getByRole('button', { name: /Projekt hinzufügen/ }).click();
     await expect(page.getByPlaceholder('mein-projekt')).toBeVisible({ timeout: 3_000 });
 
-    // Switch to Git type (default is local folder)
+    // Switch to Git type (default is local folder). Note: the name
+    // input's placeholder switches at the same time
+    // ('mein-projekt' → 'leer lassen, um aus der URL abzuleiten'),
+    // so target the input by its label-form-group instead.
     await page.getByText('Git Repository').click();
 
     // Fill form
     const repoName = `test-repo-${Date.now()}`;
-    await page.getByPlaceholder('mein-projekt').fill(repoName);
+    await page.getByPlaceholder('leer lassen, um aus der URL abzuleiten').fill(repoName);
     await page.getByPlaceholder('https://github.com/user/repo.git').fill(`https://github.com/test/${repoName}.git`);
 
     // Submit — use exact match to avoid matching "+ Projekt hinzufügen" button

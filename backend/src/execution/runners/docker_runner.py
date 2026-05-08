@@ -1,18 +1,23 @@
 """Docker-based test runner for isolated execution."""
 
+import logging
 import time
 from collections.abc import Callable
 from pathlib import Path
 
 from src.config import settings
+from src.docker_client import (
+    DockerNotAvailableError,  # re-exported for backwards-compat callers
+    get_docker_client,
+)
 from src.execution.runners.base import AbstractRunner, RunResult
 
+logger = logging.getLogger("roboscope.execution.docker")
 
-class DockerNotAvailableError(RuntimeError):
-    """Raised when Docker daemon is not reachable."""
-
-    def __init__(self) -> None:
-        super().__init__("DOCKER_NOT_AVAILABLE")
+# Backwards-compat: existing imports
+# `from src.execution.runners.docker_runner import DockerNotAvailableError`
+# keep working — the symbol lives in `src.docker_client` now (REFACTOR-1).
+__all__ = ["DockerNotAvailableError", "DockerImageNotFoundError", "DockerRunner"]
 
 
 class DockerImageNotFoundError(RuntimeError):
@@ -32,41 +37,13 @@ class DockerRunner(AbstractRunner):
         self._cancelled = False
 
     def _get_client(self):
-        """Lazy-load Docker client, resolving socket from Docker context if needed."""
+        """Lazy-load Docker client. Caches across calls on the same runner instance.
+
+        Story REFACTOR-1: bootstrap logic was moved to `src.docker_client`
+        — this is now a thin caching wrapper.
+        """
         if self._client is None:
-            import docker
-            try:
-                self._client = docker.from_env()
-                self._client.ping()
-            except Exception as orig_err:
-                # docker.from_env() fails when DOCKER_HOST is unset and the
-                # default /var/run/docker.sock doesn't exist (e.g. Rancher
-                # Desktop, Colima, Docker Desktop on macOS).  Fall back to the
-                # socket advertised by `docker context inspect`.
-                import json
-                import subprocess
-
-                base_url = None
-                try:
-                    out = subprocess.check_output(
-                        ["docker", "context", "inspect"], text=True, timeout=5,
-                    )
-                    ctx = json.loads(out)
-                    if isinstance(ctx, list) and ctx:
-                        host = ctx[0].get("Endpoints", {}).get("docker", {}).get("Host", "")
-                        if host:
-                            base_url = host
-                except Exception:
-                    pass
-
-                if base_url:
-                    try:
-                        self._client = docker.DockerClient(base_url=base_url)
-                        self._client.ping()
-                    except Exception:
-                        raise DockerNotAvailableError() from orig_err
-                else:
-                    raise DockerNotAvailableError() from orig_err
+            self._client = get_docker_client()
         return self._client
 
     def prepare(self, repo_path: str, target_path: str, env_config: dict | None = None) -> None:
@@ -96,11 +73,28 @@ class DockerRunner(AbstractRunner):
         tags_exclude: str | None = None,
         timeout: int = 3600,
         on_output: Callable[[str], None] | None = None,
+        listeners: list[str] | None = None,
     ) -> RunResult:
-        """Execute Robot Framework tests in a Docker container."""
+        """Execute Robot Framework tests in a Docker container.
+
+        `listeners` is accepted for runner-interface parity with
+        SubprocessRunner (Story FLAKY-2) but silently dropped in the
+        Docker path: the quarantine-skip listener module lives in the
+        host-side `src/execution/runners/` package, which isn't
+        reachable from inside the test container. Mounting the listener
+        file + propagating it is tracked as follow-up FLAKY-3.
+        """
         self._cancelled = False
         start_time = time.time()
         client = self._get_client()
+
+        if listeners:
+            logger.warning(
+                "DockerRunner ignoring %d listener(s) — quarantine-skip "
+                "filtering is not yet wired for the Docker runner "
+                "(Story FLAKY-3 follow-up).",
+                len(listeners),
+            )
 
         # Ensure output directory exists
         Path(output_dir).mkdir(parents=True, exist_ok=True)
