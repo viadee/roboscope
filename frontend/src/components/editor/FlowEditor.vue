@@ -15,7 +15,7 @@ import KeywordPalette from './flow/KeywordPalette.vue'
 import KeywordAutocompleteInput from './flow/KeywordAutocompleteInput.vue'
 import KeywordDocModal from './flow/KeywordDocModal.vue'
 import SelectorPicker from '@/components/recorder/SelectorPicker.vue'
-import { type RecordedFlow } from '@/types/recorder.types'
+import { type RecordedFlow, type SelectorCandidate, type SelectorStrategy } from '@/types/recorder.types'
 import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
 import {
   getArgLabel,
@@ -758,6 +758,71 @@ function onSelectorPickerSwap(newIndex: number) {
   }
 
   if (!applySelectorSwap(selectedNodeData.value.step, cmd, newIndex)) return
+  updateStepFromNode(props.form, selectedNodeData.value)
+  rebuildAndReselect()
+  emit('update:step', selectedNodeData.value)
+  if (props.sidecar) emit('update:sidecar', props.sidecar)
+}
+
+/**
+ * Story EDITOR-CUSTOM-SEL — user edited an existing candidate's
+ * value / strategy in the picker menu. Mutate the sidecar in place
+ * and demote the candidate's quality to `50` + `verified_unique=false`
+ * — user-trusted but never auto-verified, so a real visibility-
+ * checked candidate (gold == 95+) still outranks it on a re-verify
+ * pass. If the edited candidate IS the active one, also push the
+ * new value through to `step.args[0]` so the .robot saves consistent
+ * with what the user just typed.
+ */
+function onSelectorPickerEdit(payload: { index: number; value: string; strategy: SelectorStrategy }) {
+  if (!selectedNodeData.value) return
+  const cmd = selectedNodeData.value.recording
+  if (!cmd) return
+  const cand = cmd.selector_candidates[payload.index]
+  if (!cand) return
+  cand.value = payload.value
+  cand.strategy = payload.strategy
+  cand.quality_score = 50
+  cand.verified_unique = false
+  if (payload.index === cmd.active_candidate_index) {
+    if (selectedNodeData.value.step.args.length === 0) {
+      selectedNodeData.value.step.args.push(payload.value)
+    } else {
+      selectedNodeData.value.step.args[0] = payload.value
+    }
+    updateStepFromNode(props.form, selectedNodeData.value)
+  }
+  rebuildAndReselect()
+  emit('update:step', selectedNodeData.value)
+  if (props.sidecar) emit('update:sidecar', props.sidecar)
+}
+
+/**
+ * Story EDITOR-CUSTOM-SEL — user added a brand-new candidate via
+ * the picker's "+ Eigener Selektor" row. Append to the candidate
+ * list so the original ranking is preserved, then auto-activate it
+ * (the picker is a "the active one is what the user is committing
+ * to" affordance — adding a new one almost always means "I want to
+ * use this now").
+ */
+function onSelectorPickerAdd(payload: { value: string; strategy: SelectorStrategy }) {
+  if (!selectedNodeData.value) return
+  const cmd = selectedNodeData.value.recording
+  if (!cmd) return
+  const newCand: SelectorCandidate = {
+    strategy: payload.strategy,
+    value: payload.value,
+    quality_score: 50,
+    verified_unique: false,
+  }
+  cmd.selector_candidates.push(newCand)
+  const newIndex = cmd.selector_candidates.length - 1
+  cmd.active_candidate_index = newIndex
+  if (selectedNodeData.value.step.args.length === 0) {
+    selectedNodeData.value.step.args.push(payload.value)
+  } else {
+    selectedNodeData.value.step.args[0] = payload.value
+  }
   updateStepFromNode(props.form, selectedNodeData.value)
   rebuildAndReselect()
   emit('update:step', selectedNodeData.value)
@@ -1962,6 +2027,8 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
                 <SelectorPicker
                   :command="selectedNodeData.recording"
                   @update:active-index="onSelectorPickerSwap"
+                  @update:candidate="onSelectorPickerEdit"
+                  @add:candidate="onSelectorPickerAdd"
                 />
                 <span v-if="selectorIsCustom" class="flow-selector-custom-hint">
                   {{ t('flowEditor.selector.customValueHint') }}

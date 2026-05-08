@@ -1760,6 +1760,12 @@ export default {
     failedMsg: 'Ocurrió un error durante la grabación.',
     selector: {
       swapAriaLabel: 'Cambiar estrategia de selector',
+      editOrAddAriaLabel: 'Editar selector o añadir uno personalizado',
+      editTitle: 'Editar este selector',
+      addCustom: 'Añadir selector personalizado',
+      valuePlaceholder: 'css=.btn-primary, //button[…], text=Pulsa aquí, …',
+      strategyLabel: 'Estrategia',
+      verifiedUniqueTitle: 'Verificado único en la página al grabar',
       strategy: {
         testid: 'Test ID',
         aria: 'ARIA',

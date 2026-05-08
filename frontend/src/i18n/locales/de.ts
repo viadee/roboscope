@@ -1760,6 +1760,12 @@ export default {
     failedMsg: 'Ein Fehler ist bei der Aufnahme aufgetreten.',
     selector: {
       swapAriaLabel: 'Selektor-Strategie wechseln',
+      editOrAddAriaLabel: 'Selektor bearbeiten oder einen eigenen hinzufügen',
+      editTitle: 'Diesen Selektor bearbeiten',
+      addCustom: 'Eigenen Selektor hinzufügen',
+      valuePlaceholder: 'css=.btn-primary, //button[…], text=Klick mich, …',
+      strategyLabel: 'Strategie',
+      verifiedUniqueTitle: 'Beim Aufzeichnen als eindeutig auf der Live-Seite verifiziert',
       strategy: {
         testid: 'Test-ID',
         aria: 'ARIA',

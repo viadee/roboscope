@@ -1760,6 +1760,12 @@ export default {
     failedMsg: "Une erreur s'est produite lors de l'enregistrement.",
     selector: {
       swapAriaLabel: 'Changer la stratégie de sélecteur',
+      editOrAddAriaLabel: 'Éditer un sélecteur ou en ajouter un personnalisé',
+      editTitle: 'Éditer ce sélecteur',
+      addCustom: 'Ajouter un sélecteur personnalisé',
+      valuePlaceholder: 'css=.btn-primary, //button[…], text=Cliquez-moi, …',
+      strategyLabel: 'Stratégie',
+      verifiedUniqueTitle: 'Vérifié unique sur la page lors de l\'enregistrement',
       strategy: {
         testid: 'Test ID',
         aria: 'ARIA',

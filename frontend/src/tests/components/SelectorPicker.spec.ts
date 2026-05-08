@@ -106,14 +106,20 @@ describe('SelectorPicker', () => {
     expect(events![0]).toEqual([1])
   })
 
-  it('hides the toggle button when there is only one candidate', () => {
+  it('keeps the toggle button visible when there is only one candidate so user can edit / add', () => {
+    // Story EDITOR-CUSTOM-SEL — even with a single candidate the
+    // user must be able to OPEN the menu (to edit the candidate's
+    // value or add a new one). The toggle therefore renders as
+    // long as there's >= 1 candidate; only the *aria-label* swaps
+    // to "edit / add" mode when there are no swap targets.
     const cmd: RecordedCommand = {
       ...baseCmd,
       selector_candidates: [baseCmd.selector_candidates[0]],
       active_candidate_index: 0,
     }
     const w = mk(cmd)
-    expect(w.find('.selector-picker__toggle').exists()).toBe(false)
+    expect(w.find('.selector-picker__toggle').exists()).toBe(true)
+    expect(w.find('.selector-picker__toggle').attributes('aria-label')).toMatch(/edit/i)
   })
 
   it('renders nothing when there are zero candidates', () => {
@@ -193,9 +199,12 @@ describe('SelectorPicker', () => {
       expect(events![0]).toEqual([4])
     })
 
-    it('hides toggle when only one non-legacy candidate remains', () => {
-      // Construct a command whose only non-pw_locator survivor is
-      // a single testid row. The toggle button should disappear.
+    it('keeps the toggle visible when only one non-legacy candidate remains so user can edit / add', () => {
+      // Story EDITOR-CUSTOM-SEL — user can still want to edit the
+      // single survivor or append a custom alternative, even when
+      // the original sidecar's only non-pw_locator row is the
+      // single testid. Toggle stays open; the aria-label flips to
+      // "edit / add" to reflect the lack of swap targets.
       const cmd: RecordedCommand = {
         ...legacyCmd,
         selector_candidates: [
@@ -205,7 +214,8 @@ describe('SelectorPicker', () => {
         ],
       }
       const w = mk(cmd)
-      expect(w.find('.selector-picker__toggle').exists()).toBe(false)
+      expect(w.find('.selector-picker__toggle').exists()).toBe(true)
+      expect(w.find('.selector-picker__toggle').attributes('aria-label')).toMatch(/edit/i)
     })
 
     it('still displays the active candidate even if it is pw_locator', () => {
@@ -221,6 +231,114 @@ describe('SelectorPicker', () => {
       expect(w.find('.selector-picker__value').text()).toBe(
         'getByRole("button", { name: "Submit" })',
       )
+    })
+  })
+
+  /**
+   * Story EDITOR-CUSTOM-SEL — user edits an existing candidate or
+   * appends a brand-new one. Both flows go through emit; the
+   * parent FlowEditor mutates the sidecar in place.
+   */
+  describe('custom edit + add', () => {
+    it('edit pencil → opens an inline editor with the current value', async () => {
+      const w = mk(baseCmd)
+      await w.find('.selector-picker__toggle').trigger('click')
+
+      const items = w.findAll('.selector-picker__item')
+      // Click the ✏ pencil on the first row (testid).
+      await items[0].find('.selector-picker__edit').trigger('click')
+
+      // Inline editor renders the current value.
+      const input = items[0].find<HTMLInputElement>('.selector-picker__edit-input')
+      expect(input.exists()).toBe(true)
+      expect(input.element.value).toBe('[data-testid="submit"]')
+
+      // Strategy dropdown reflects the candidate's strategy.
+      const select = items[0].find<HTMLSelectElement>('.selector-picker__strategy-select')
+      expect(select.element.value).toBe('testid')
+    })
+
+    it('edit → save emits update:candidate with the new value + strategy', async () => {
+      const w = mk(baseCmd)
+      await w.find('.selector-picker__toggle').trigger('click')
+      const items = w.findAll('.selector-picker__item')
+      await items[0].find('.selector-picker__edit').trigger('click')
+
+      const input = items[0].find<HTMLInputElement>('.selector-picker__edit-input')
+      await input.setValue('[data-test-id="my-button"]')
+
+      // Click the ✓ save button.
+      await items[0].find('.selector-picker__edit-action--save').trigger('click')
+
+      const events = w.emitted('update:candidate')
+      expect(events).toBeTruthy()
+      expect(events![0]).toEqual([{
+        index: 0,
+        value: '[data-test-id="my-button"]',
+        strategy: 'testid',
+      }])
+    })
+
+    it('edit → cancel does NOT emit anything', async () => {
+      const w = mk(baseCmd)
+      await w.find('.selector-picker__toggle').trigger('click')
+      const items = w.findAll('.selector-picker__item')
+      await items[0].find('.selector-picker__edit').trigger('click')
+      await items[0].find('.selector-picker__edit-action--cancel').trigger('click')
+
+      expect(w.emitted('update:candidate')).toBeFalsy()
+    })
+
+    it('add custom row → emits add:candidate with auto-detected strategy', async () => {
+      const w = mk(baseCmd)
+      await w.find('.selector-picker__toggle').trigger('click')
+
+      // Click the "+ Add custom" trigger.
+      await w.find('[data-testid="selector-picker-add"]').trigger('click')
+
+      // Type an XPath value — strategy should auto-flip to xpath.
+      const input = w.find<HTMLInputElement>('.selector-picker__edit-input')
+      await input.setValue('//button[@aria-label="Save"]')
+
+      // Save.
+      await w.find('[data-testid="selector-picker-add-save"]').trigger('click')
+
+      const events = w.emitted('add:candidate')
+      expect(events).toBeTruthy()
+      expect(events![0]).toEqual([{
+        value: '//button[@aria-label="Save"]',
+        strategy: 'xpath',
+      }])
+    })
+
+    it('strategy auto-detect: text=foo → text', async () => {
+      const w = mk(baseCmd)
+      await w.find('.selector-picker__toggle').trigger('click')
+      await w.find('[data-testid="selector-picker-add"]').trigger('click')
+      await w.find<HTMLInputElement>('.selector-picker__edit-input').setValue('text=Login')
+      await w.find('[data-testid="selector-picker-add-save"]').trigger('click')
+      const events = w.emitted('add:candidate')
+      expect(events![0][0]).toMatchObject({ strategy: 'text' })
+    })
+
+    it('strategy auto-detect: [data-testid=…] → testid', async () => {
+      const w = mk(baseCmd)
+      await w.find('.selector-picker__toggle').trigger('click')
+      await w.find('[data-testid="selector-picker-add"]').trigger('click')
+      await w.find<HTMLInputElement>('.selector-picker__edit-input').setValue('[data-testid="x"]')
+      await w.find('[data-testid="selector-picker-add-save"]').trigger('click')
+      const events = w.emitted('add:candidate')
+      expect(events![0][0]).toMatchObject({ strategy: 'testid' })
+    })
+
+    it('strategy auto-detect: bare CSS → css', async () => {
+      const w = mk(baseCmd)
+      await w.find('.selector-picker__toggle').trigger('click')
+      await w.find('[data-testid="selector-picker-add"]').trigger('click')
+      await w.find<HTMLInputElement>('.selector-picker__edit-input').setValue('button.btn-primary')
+      await w.find('[data-testid="selector-picker-add-save"]').trigger('click')
+      const events = w.emitted('add:candidate')
+      expect(events![0][0]).toMatchObject({ strategy: 'css' })
     })
   })
 })

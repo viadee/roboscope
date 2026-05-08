@@ -1760,6 +1760,12 @@ export default {
     failedMsg: 'An error occurred during recording.',
     selector: {
       swapAriaLabel: 'Swap selector strategy',
+      editOrAddAriaLabel: 'Edit selector or add a custom one',
+      editTitle: 'Edit this selector',
+      addCustom: 'Add a custom selector',
+      valuePlaceholder: 'css=.btn-primary, //button[…], text=Click me, …',
+      strategyLabel: 'Strategy',
+      verifiedUniqueTitle: 'Verified unique on the live page at recording time',
       strategy: {
         testid: 'Test ID',
         aria: 'ARIA',
