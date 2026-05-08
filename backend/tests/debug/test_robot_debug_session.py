@@ -541,3 +541,208 @@ class TestRealRobotCodeSpawn:
             await session.continue_()
 
 
+# ---------------------------------------------------------------------------
+# DEBUG-6: control-button e2e — every panel button against real robotcode
+# ---------------------------------------------------------------------------
+
+
+async def _wait_for_kind(session: object, kind: str, timeout: float = 20.0) -> dict:
+    """Drain the events queue until an event of ``kind`` arrives.
+
+    Returns the event dict. Fails the test on `terminated` arriving
+    first (unless `kind == "terminated"`).
+    """
+    async def _loop() -> dict:
+        while True:
+            evt = await session.events.get()  # type: ignore[attr-defined]
+            k = evt.get("kind")
+            if k == kind:
+                return evt
+            if k == "terminated" and kind != "terminated":
+                pytest.fail(
+                    f"Got `terminated` while waiting for `{kind}`. "
+                    f"Recent boot log: {session._boot_log[-15:]}",  # type: ignore[attr-defined]  # noqa: SLF001
+                )
+
+    return await asyncio.wait_for(_loop(), timeout=timeout)
+
+
+def _make_multi_keyword_robot(tmp_path: Path) -> Path:
+    """A 5-keyword test where each keyword sits on its own line so step
+    semantics are unambiguous. Lines:
+
+      1: *** Test Cases ***
+      2: Demo
+      3:     Log    one
+      4:     Log    two
+      5:     Log    three
+      6:     Log    four
+      7:     Log    five
+    """
+    robot = tmp_path / "multi.robot"
+    robot.write_text(
+        "*** Test Cases ***\n"
+        "Demo\n"
+        "    Log    one\n"
+        "    Log    two\n"
+        "    Log    three\n"
+        "    Log    four\n"
+        "    Log    five\n",
+        encoding="utf-8",
+    )
+    return robot.resolve()
+
+
+@pytest.mark.integration
+class TestRealControlButtons(TestRealRobotCodeSpawn):
+    """Each test starts a real session, hits a breakpoint, then exercises
+    one DAP control method (``continue_``/``next_``/``step_in``/
+    ``step_out``/``disconnect``) and asserts the expected next event.
+    Mirrors what the four toolbar buttons in ``DebugPanel.vue`` and the
+    REST endpoints in ``debug/router.py`` actually trigger end-to-end.
+    """
+
+    @pytest.mark.asyncio
+    async def test_continue_resumes_until_terminated(
+        self, tmp_path: Path,
+    ) -> None:
+        """``Continue`` button: from a paused state, resume execution
+        until the test ends. Expect a `terminated` event without any
+        further `stopped`."""
+        env_python = self._check_or_skip()
+        robot = _make_multi_keyword_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            stopped = await _wait_for_kind(session, "stopped")
+            body = stopped.get("body") or {}
+            assert isinstance(body, dict) and body.get("reason") in {
+                "breakpoint", "Breakpoint hit",
+            }
+            await session.continue_()
+            # No further stop should fire — only the terminate.
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_next_steps_to_following_line(
+        self, tmp_path: Path,
+    ) -> None:
+        """``Step Over`` button: from a paused state, advance to the
+        next executable line in the same scope. Expect a fresh
+        `stopped` with reason `step` (not `breakpoint`)."""
+        env_python = self._check_or_skip()
+        robot = _make_multi_keyword_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            await _wait_for_kind(session, "stopped")
+            await session.next_()
+            second = await _wait_for_kind(session, "stopped", timeout=10.0)
+            body = second.get("body") or {}
+            assert isinstance(body, dict) and body.get("reason") in {
+                "step", "Next step",
+            }
+            await session.continue_()
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_step_in_advances_into_next_keyword(
+        self, tmp_path: Path,
+    ) -> None:
+        """``Step Into`` button: from a paused state, step into the
+        next keyword. With a built-in like Log there's no inner scope
+        to step into so this behaves like step-over for our test;
+        either way the next event must be a fresh `stopped`."""
+        env_python = self._check_or_skip()
+        robot = _make_multi_keyword_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            await _wait_for_kind(session, "stopped")
+            await session.step_in()
+            second = await _wait_for_kind(session, "stopped", timeout=10.0)
+            body = second.get("body") or {}
+            assert isinstance(body, dict) and body.get("reason") in {
+                "step", "Step in",
+            }
+            await session.continue_()
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_step_out_completes_current_scope(
+        self, tmp_path: Path,
+    ) -> None:
+        """``Step Out`` button: from a paused state, run until the
+        current scope returns. For a flat test of built-ins the
+        current scope is the test itself; stepping out completes the
+        whole test. Either a fresh `stopped` (suite/teardown) or
+        `terminated` is acceptable — both prove the request was
+        honored. The stuck-forever case is the regression we guard."""
+        env_python = self._check_or_skip()
+        robot = _make_multi_keyword_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            await _wait_for_kind(session, "stopped")
+            await session.step_out()
+
+            async def wait_either() -> str:
+                while True:
+                    evt = await session.events.get()
+                    k = evt.get("kind")
+                    if k in {"stopped", "terminated"}:
+                        return str(k)
+
+            kind = await asyncio.wait_for(wait_either(), timeout=15.0)
+            assert kind in {"stopped", "terminated"}
+
+    @pytest.mark.asyncio
+    async def test_disconnect_terminates_running_session(
+        self, tmp_path: Path,
+    ) -> None:
+        """``Stop`` button: from a paused state, ``disconnect``
+        (with terminateDebuggee) tears the run down cleanly. We
+        verify the subprocess actually exits — leaks here are the
+        scariest failure mode in production (zombie chromium etc.)."""
+        env_python = self._check_or_skip()
+        robot = _make_multi_keyword_robot(tmp_path)
+
+        session = RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        )
+        await session.__aenter__()
+        try:
+            await _wait_for_kind(session, "stopped")
+            await session.disconnect()
+            # Give cleanup a beat to actually reap.
+            await asyncio.sleep(0.5)
+        finally:
+            await session.__aexit__(None, None, None)
+
+        # Subprocess pid is gone.
+        assert session._proc is None  # noqa: SLF001
+
