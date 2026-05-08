@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useReportsStore } from '@/stores/reports.store'
 import { useAiStore } from '@/stores/ai.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { useDebugStore } from '@/stores/debug.store'
 import { getRunReport } from '@/api/execution.api'
 import { getReportHtmlBlobUrl, getReportZipBlobUrl } from '@/api/reports.api'
 import { extractErrorDetail } from '@/utils/errors'
@@ -15,6 +17,7 @@ import ReportXmlView from '@/components/report/ReportXmlView.vue'
 import RunPendingActivity from '@/components/execution/RunPendingActivity.vue'
 import RunSelectorHealth from '@/components/execution/RunSelectorHealth.vue'
 import RunHealReport from '@/components/execution/RunHealReport.vue'
+import DebugPanel from '@/components/debug/DebugPanel.vue'
 import { formatDuration } from '@/utils/formatDuration'
 import { formatDateTime } from '@/utils/formatDate'
 import { renderMarkdown } from '@/utils/renderMarkdown'
@@ -31,6 +34,40 @@ const { t } = useI18n()
 const reports = useReportsStore()
 const aiStore = useAiStore()
 const envs = useEnvironmentsStore()
+const auth = useAuthStore()
+const debug = useDebugStore()
+
+const showDebug = ref(false)
+const debugError = ref<string | null>(null)
+const canDebug = computed(() =>
+  props.run.status === 'failed' && auth.hasMinRole('runner'),
+)
+const debugAttachedToThisRun = computed(
+  () => debug.isActive && (showDebug.value || false),
+)
+
+async function startDebug(): Promise<void> {
+  debugError.value = null
+  try {
+    await debug.startFromRun(props.run.id)
+    showDebug.value = true
+  } catch (e: unknown) {
+    debugError.value = extractErrorDetail(e, t('debug.error.startFailed'))
+  }
+}
+
+function closeDebug(): void {
+  showDebug.value = false
+}
+
+watch(() => props.run.id, () => {
+  // Switching runs hides the panel — the user explicitly re-opens
+  // it on the new run if they want to debug there too. We don't
+  // touch the store: the session is keyed by (user, run_id) on the
+  // backend and stays alive until terminated.
+  showDebug.value = false
+  debugError.value = null
+})
 
 function isDockerError(msg: string): boolean {
   return msg.includes('DOCKER_NOT_AVAILABLE') || msg.includes('DOCKER_IMAGE_NOT_FOUND:')
@@ -224,6 +261,22 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
       <!-- Runtime heal report (Story SH-2) -->
       <RunHealReport :run-id="run.id" :status="run.status" />
 
+      <!-- DEBUG-2: live interactive debug panel. Opens when the user
+           clicks the 🐞 button on a failed run; survives panel-close
+           (gesture is "minimize") until they hit Stop. -->
+      <div v-if="debugError" class="run-error-banner">
+        <span class="run-error-icon">🐞</span>
+        <div class="run-error-content">
+          <strong>{{ t('debug.error.title') }}</strong>
+          <span>{{ debugError }}</span>
+        </div>
+      </div>
+      <DebugPanel
+        v-if="showDebug && debug.isActive"
+        :run-id="run.id"
+        @closed="closeDebug"
+      />
+
       <!-- Error banner -->
       <div v-if="run.error_message" class="run-error-banner" :class="{ 'docker-error': isDockerError(run.error_message) }">
         <span class="run-error-icon">{{ isDockerError(run.error_message) ? '🐳' : '⚠' }}</span>
@@ -248,6 +301,15 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
           @click="emit('retry', run.id)"
         >
           {{ t('common.retry') }}
+        </BaseButton>
+        <BaseButton
+          v-if="canDebug"
+          variant="secondary" size="sm"
+          :title="t('debug.btn.tooltip')"
+          data-testid="debug-btn"
+          @click="startDebug"
+        >
+          🐞 {{ t('debug.btn.label') }}
         </BaseButton>
         <BaseButton
           v-if="isRunFinished"

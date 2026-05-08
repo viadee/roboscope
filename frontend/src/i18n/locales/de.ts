@@ -993,6 +993,36 @@ export default {
     runFailedMsg: 'Run #{id} hat Fehler',
     runError: 'Test Run Fehler',
     runErrorMsg: 'Run #{id} ist fehlerhaft',
+  },
+  debug: {
+    btn: {
+      label: 'Debug',
+      tooltip: 'Test erneut ausführen und an der fehlgeschlagenen Zeile pausieren',
+    },
+    panel: {
+      paused: 'Pausiert',
+      terminated: 'Beendet',
+      notPaused: 'Warte auf ersten Stopp…',
+      callStack: 'Aufrufkette',
+      callStackEmpty: 'Noch kein Aufruf-Stack — Ausführung wurde nicht pausiert.',
+      scopes: 'Variablen',
+      scopesEmpty: 'Keine Bereiche verfügbar.',
+      scopeEmpty: 'Keine Variablen in diesem Bereich.',
+      output: 'Ausgabe',
+      outputEmpty: 'Noch keine Ausgabe.',
+      toolbar: {
+        continue: 'Fortsetzen',
+        stepOver: 'Schritt über',
+        stepIn: 'Schritt hinein',
+        stepOut: 'Schritt heraus',
+        stop: 'Stoppen',
+      },
+    },
+    error: {
+      title: 'Debug-Sitzung Fehler',
+      startFailed: 'Debug-Sitzung konnte nicht gestartet werden.',
+      commandFailed: 'Debug-Befehl fehlgeschlagen.',
+    },
   },  schedule: {
     tabRuns: 'Ausführungen',
     tabSchedules: 'Zeitpläne',

@@ -993,6 +993,36 @@ export default {
     runFailedMsg: 'Run #{id} tiene errores',
     runError: 'Error de test',
     runErrorMsg: 'Run #{id} es defectuoso',
+  },
+  debug: {
+    btn: {
+      label: 'Depurar',
+      tooltip: 'Volver a ejecutar este test y pausar en la línea fallida',
+    },
+    panel: {
+      paused: 'En pausa',
+      terminated: 'Finalizado',
+      notPaused: 'Esperando la primera parada…',
+      callStack: 'Pila de llamadas',
+      callStackEmpty: 'Sin pila de llamadas — la ejecución no se ha pausado.',
+      scopes: 'Variables',
+      scopesEmpty: 'Sin ámbitos disponibles.',
+      scopeEmpty: 'Sin variables en este ámbito.',
+      output: 'Salida',
+      outputEmpty: 'Sin salida todavía.',
+      toolbar: {
+        continue: 'Continuar',
+        stepOver: 'Saltar sobre',
+        stepIn: 'Entrar en',
+        stepOut: 'Salir de',
+        stop: 'Detener',
+      },
+    },
+    error: {
+      title: 'Error de sesión de depuración',
+      startFailed: 'No se pudo iniciar la sesión de depuración.',
+      commandFailed: 'El comando de depuración falló.',
+    },
   },  schedule: {
     tabRuns: 'Ejecuciones',
     tabSchedules: 'Programaciones',

@@ -993,6 +993,36 @@ export default {
     runFailedMsg: 'Run #{id} a des erreurs',
     runError: 'Erreur de test',
     runErrorMsg: 'Run #{id} est défaillant',
+  },
+  debug: {
+    btn: {
+      label: 'Déboguer',
+      tooltip: 'Relancer ce test et faire une pause à la ligne en échec',
+    },
+    panel: {
+      paused: 'En pause',
+      terminated: 'Terminé',
+      notPaused: 'En attente du premier arrêt…',
+      callStack: 'Pile d\'appels',
+      callStackEmpty: 'Aucune pile d\'appels — l\'exécution n\'a pas été interrompue.',
+      scopes: 'Variables',
+      scopesEmpty: 'Aucune portée disponible.',
+      scopeEmpty: 'Aucune variable dans cette portée.',
+      output: 'Sortie',
+      outputEmpty: 'Aucune sortie pour le moment.',
+      toolbar: {
+        continue: 'Continuer',
+        stepOver: 'Pas par-dessus',
+        stepIn: 'Entrer dans',
+        stepOut: 'Sortir',
+        stop: 'Arrêter',
+      },
+    },
+    error: {
+      title: 'Erreur de session de débogage',
+      startFailed: 'Impossible de démarrer la session de débogage.',
+      commandFailed: 'La commande de débogage a échoué.',
+    },
   },  schedule: {
     tabRuns: 'Exécutions',
     tabSchedules: 'Planifications',
