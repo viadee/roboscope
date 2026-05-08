@@ -77,18 +77,22 @@ make docker-up     # Production (PostgreSQL + Nginx)
 
 ### Standalone Deployment
 
-Download the latest `roboscope.zip` from [Releases](../../releases), then:
+Download the latest distribution archive from [Releases](../../releases) — pick the one matching your platform (`roboscope_offline_linux.zip`, `roboscope_offline_macos-arm64.zip`, `roboscope_offline_macos-x86_64.zip`, `roboscope_offline_windows.zip`, or the lightweight `roboscope.zip` if you have outbound internet at install time). Then:
 
 ```bash
-unzip roboscope.zip
+unzip roboscope_offline_linux.zip   # or your platform's archive
 cd roboscope
-./install-mac-and-linux.sh       # Creates venv, installs dependencies offline
-./start-mac-and-linux.sh         # Starts server at http://localhost:8000
+./install-mac-and-linux.sh          # Creates venv, installs dependencies offline
+./start-mac-and-linux.sh            # Starts the app
 ```
 
 On Windows, use `install-windows.bat` and `start-windows.bat` instead.
 
-Default login: `admin@roboscope.local` / `admin123`
+Once the start script reports it's up, open the app at:
+
+**`http://localhost:8145`**
+
+Default login: `admin@roboscope.local` / `admin123`. Override the port via the `PORT` environment variable (e.g. edit the bundled `.env`) — see `scripts/dist-README.md` inside the unpacked archive for the full env-var list.
 
 ## Screenshots
 
