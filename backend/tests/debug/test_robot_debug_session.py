@@ -456,9 +456,10 @@ class TestRealRobotCodeSpawn:
     @pytest.mark.asyncio
     @pytest.mark.xfail(
         reason=(
-            "Known regression: breakpoint stop is not yet wired through "
-            "the launcher → child proxy chain. Test runs end-to-end but "
-            "the `stopped` event never arrives. Tracked separately; this "
+            "Known regression — DEBUG-5: breakpoint stop is not yet "
+            "wired through the launcher → child proxy chain. Test runs "
+            "end-to-end but the `stopped` event never arrives. Spec at "
+            "_bmad-output/.../debug-5-breakpoint-resolution.md. This "
             "xfail prevents silent regressions when the proxy is fixed."
         ),
         strict=True,
@@ -496,5 +497,58 @@ class TestRealRobotCodeSpawn:
                     e = await asyncio.wait_for(session.events.get(), timeout=10.0)
                     if e.get("kind") == "terminated":
                         break
+
+    @pytest.mark.asyncio
+    @pytest.mark.xfail(
+        reason=(
+            "Known regression — DEBUG-5 layer-isolation: even an "
+            "unconditional `pause` request after configurationDone "
+            "never produces a `stopped` event. Strongly suggests the "
+            "bug is in the launcher → us event-proxy direction, not "
+            "in breakpoint path resolution. When this turns green at "
+            "the same time as the breakpoint test, the fix is the "
+            "same root cause."
+        ),
+        strict=True,
+    )
+    async def test_real_pause_request_pauses_execution(
+        self, tmp_path: Path,
+    ) -> None:
+        """Diagnostic isolation test: forces a stop via the DAP `pause`
+        request, completely bypassing breakpoint path-resolution. If
+        this xfails alongside the breakpoint test, the issue is in the
+        event-forwarding chain (launcher → us); if this passes but
+        breakpoint test still xfails, the issue is narrowly in
+        breakpoint path resolution. Either signal points the next
+        investigator at the right layer.
+        """
+        env_python = self._check_or_skip()
+        robot = self._make_demo_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[],  # No breakpoints — testing pause path only.
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            # Wait briefly for the run to start, then request pause.
+            await asyncio.sleep(1.5)
+            assert session._client is not None  # noqa: SLF001
+            # The DAP `pause` request takes a thread_id; RobotCode uses
+            # a single main thread and accepts any plausible ID.
+            with contextlib.suppress(Exception):
+                await session._client.request("pause", {"threadId": 1})  # noqa: SLF001
+
+            async def wait_for_stopped() -> dict[str, object]:
+                while True:
+                    evt = await session.events.get()
+                    if evt.get("kind") == "stopped":
+                        return evt
+                    if evt.get("kind") == "terminated":
+                        pytest.fail("Terminated before pause stop")
+
+            evt = await asyncio.wait_for(wait_for_stopped(), timeout=15.0)
+            assert evt["kind"] == "stopped"
 
 

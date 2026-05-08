@@ -474,6 +474,12 @@ class RobotDebugSession:
             "target": self.robot_path,
             "console": "internalConsole",
             "noDebug": False,
+            # Stream RF execution messages + log over the DAP `output`
+            # channel so the user (and the run-detail panel) can see
+            # progress while paused at a breakpoint, rather than
+            # waiting for the run summary at the end.
+            "outputMessages": True,
+            "outputLog": True,
         }
         if self.test_name:
             args["args"] = ["--test", self.test_name]
