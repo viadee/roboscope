@@ -1023,6 +1023,15 @@ export default {
       startFailed: 'Debug-Sitzung konnte nicht gestartet werden.',
       commandFailed: 'Debug-Befehl fehlgeschlagen.',
     },
+    prereq: {
+      title: 'Debugger nicht installiert',
+      body: '{package} ist nicht in der Python-Umgebung dieses Projekts installiert. RoboScope benötigt es für das interaktive Debugging. Jetzt installieren?',
+      install: 'Installieren',
+      cancel: 'Abbrechen',
+      installing: 'Installiere {package} …',
+      installFailed: 'Installation fehlgeschlagen. Details siehe Log.',
+      installSuccess: '{package} erfolgreich installiert.',
+    },
   },  schedule: {
     tabRuns: 'Ausführungen',
     tabSchedules: 'Zeitpläne',

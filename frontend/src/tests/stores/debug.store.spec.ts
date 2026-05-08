@@ -16,6 +16,7 @@ vi.mock('@/api/debug.api', () => ({
   postControl: vi.fn(),
   getDebugState: vi.fn(),
   disconnectViaBeacon: vi.fn(),
+  installPrerequisites: vi.fn(),
 }))
 
 import * as debugApi from '@/api/debug.api'
@@ -219,14 +220,15 @@ describe('debug.store', () => {
       vi.mocked(debugApi.startDebugFromStep).mockRejectedValueOnce(err)
 
       const store = useDebugStore()
-      const { resumed, resp } = await store.startFromStep({
+      const result = await store.startFromStep({
         file: 'tests.robot',
         test_name: 'Sample',
         line: 5,
         repo_id: 1,
       })
-      expect(resumed).toBe(true)
-      expect(resp.session_id).toBe('existing-sid')
+      expect(result).not.toBeNull()
+      expect(result!.resumed).toBe(true)
+      expect(result!.resp.session_id).toBe('existing-sid')
       expect(store.sessionId).toBe('existing-sid')
     })
 
@@ -341,6 +343,141 @@ describe('debug.store', () => {
       expect(
         (stepNode!.data as { step: { _lineNumber?: number } }).step._lineNumber,
       ).toBe(42)
+    })
+  })
+
+  describe('DEBUG-4 prereq install dialog flow', () => {
+    function fakeAxios424(detail: Record<string, unknown>) {
+      return Object.assign(new Error('failed dependency'), {
+        response: { status: 424, data: { detail } },
+      })
+    }
+
+    it('startFromRun returns null on 424 and stashes prereq state', async () => {
+      vi.mocked(debugApi.startDebugSession).mockRejectedValueOnce(
+        fakeAxios424({
+          code: 'robotcode_not_installed',
+          repo_id: 17,
+          env_id: 5,
+          package: 'robotcode',
+          message: 'RobotCode is not installed',
+        }),
+      )
+      const store = useDebugStore()
+      const resp = await store.startFromRun(99)
+
+      expect(resp).toBeNull()
+      expect(store.isActive).toBe(false)
+      expect(store.prereqMissing).toEqual({
+        repoId: 17,
+        envId: 5,
+        packageName: 'robotcode',
+        message: 'RobotCode is not installed',
+      })
+    })
+
+    it('startFromStep returns null on 424 and stashes step retry payload', async () => {
+      vi.mocked(debugApi.startDebugFromStep).mockRejectedValueOnce(
+        fakeAxios424({
+          code: 'robotcode_not_installed',
+          repo_id: 3,
+          env_id: 1,
+          package: 'robotcode',
+          message: '',
+        }),
+      )
+      const store = useDebugStore()
+      const result = await store.startFromStep({
+        file: 'tests/login.robot',
+        test_name: 'Login',
+        line: 4,
+        repo_id: 3,
+      })
+      expect(result).toBeNull()
+      expect(store.prereqMissing?.repoId).toBe(3)
+    })
+
+    it('installPrereqAndRetry installs then re-fires the original start', async () => {
+      // First call (initial start) fails with 424.
+      vi.mocked(debugApi.startDebugSession).mockRejectedValueOnce(
+        fakeAxios424({
+          code: 'robotcode_not_installed',
+          repo_id: 1,
+          env_id: 2,
+          package: 'robotcode',
+          message: '',
+        }),
+      )
+      // Install endpoint succeeds.
+      vi.mocked(debugApi.installPrerequisites).mockResolvedValueOnce({
+        already_installed: false,
+        log_tail: 'Installed robotcode 1.2.3',
+      })
+      // Retry call resolves successfully.
+      vi.mocked(debugApi.startDebugSession).mockResolvedValueOnce({
+        session_id: 's-after-install',
+        robot_file: 'tests.robot',
+        breakpoint_line: 7,
+        test_name: 'Sample',
+      })
+
+      const store = useDebugStore()
+      await store.startFromRun(42)
+      expect(store.prereqMissing).not.toBeNull()
+
+      const ok = await store.installPrereqAndRetry()
+      expect(ok).toBe(true)
+      expect(store.sessionId).toBe('s-after-install')
+      expect(store.isActive).toBe(true)
+      expect(store.prereqMissing).toBeNull()
+      expect(debugApi.installPrerequisites).toHaveBeenCalledWith(1)
+    })
+
+    it('installPrereqAndRetry surfaces install failure and keeps dialog open', async () => {
+      vi.mocked(debugApi.startDebugSession).mockRejectedValueOnce(
+        fakeAxios424({
+          code: 'robotcode_not_installed',
+          repo_id: 1,
+          env_id: 2,
+          package: 'robotcode',
+          message: '',
+        }),
+      )
+      vi.mocked(debugApi.installPrerequisites).mockRejectedValueOnce(
+        Object.assign(new Error('boom'), {
+          response: { status: 500, data: { detail: { message: 'pip failed' } } },
+        }),
+      )
+
+      const store = useDebugStore()
+      await store.startFromRun(42)
+
+      const ok = await store.installPrereqAndRetry()
+      expect(ok).toBe(false)
+      expect(store.installError).toBeTruthy()
+      expect(store.prereqMissing).not.toBeNull()
+      expect(store.isActive).toBe(false)
+    })
+
+    it('cancelPrereq clears all prereq state', async () => {
+      vi.mocked(debugApi.startDebugSession).mockRejectedValueOnce(
+        fakeAxios424({
+          code: 'robotcode_not_installed',
+          repo_id: 1,
+          env_id: 2,
+          package: 'robotcode',
+          message: '',
+        }),
+      )
+
+      const store = useDebugStore()
+      await store.startFromRun(42)
+      expect(store.prereqMissing).not.toBeNull()
+
+      store.cancelPrereq()
+      expect(store.prereqMissing).toBeNull()
+      expect(store.installing).toBe(false)
+      expect(store.installError).toBeNull()
     })
   })
 })

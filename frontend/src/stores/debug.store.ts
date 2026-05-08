@@ -22,7 +22,20 @@ import type {
   DebugSessionStartResponse,
   StartFromStepRequest,
 } from '@/api/debug.api'
-import { extractErrorStatus } from '@/utils/errors'
+import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
+
+/** DEBUG-4 — payload from a 424 reply that the dialog needs to drive
+ *  the install endpoint and retry the original start. */
+export interface PrereqMissingDetail {
+  repoId: number
+  envId: number
+  packageName: string
+  message: string
+}
+
+type PendingStart =
+  | { kind: 'run'; runId: number }
+  | { kind: 'step'; payload: StartFromStepRequest }
 
 const blankPausedAt: DebugPausedAt = { file: null, line: null, keyword: null }
 
@@ -46,19 +59,33 @@ export const useDebugStore = defineStore('debug', () => {
   const loading = ref(false)
   const lastError = ref<string | null>(null)
 
+  // DEBUG-4 — prereq dialog state.
+  const prereqMissing = ref<PrereqMissingDetail | null>(null)
+  const installing = ref(false)
+  const installError = ref<string | null>(null)
+  let pendingStart: PendingStart | null = null
+
   const isActive = computed(() => sessionId.value !== null && !state.value.terminated)
   const paused = computed(() => state.value.paused)
   const pausedAt = computed<DebugPausedAt>(() => state.value.paused_at)
   const scopes = computed<DebugScope[]>(() => state.value.scopes)
   const callStack = computed<DebugCallStackFrame[]>(() => state.value.call_stack)
 
-  async function startFromRun(runId: number): Promise<DebugSessionStartResponse> {
+  async function startFromRun(runId: number): Promise<DebugSessionStartResponse | null> {
     loading.value = true
     lastError.value = null
     try {
-      const resp = await debugApi.startDebugSession({ run_id: runId })
-      _adoptStart(resp)
-      return resp
+      try {
+        const resp = await debugApi.startDebugSession({ run_id: runId })
+        _adoptStart(resp)
+        return resp
+      } catch (e: unknown) {
+        if (extractErrorStatus(e) === 424) {
+          _capturePrereqMissing(e, { kind: 'run', runId })
+          return null
+        }
+        throw e
+      }
     } finally {
       loading.value = false
     }
@@ -74,7 +101,7 @@ export const useDebugStore = defineStore('debug', () => {
    */
   async function startFromStep(
     payload: StartFromStepRequest,
-  ): Promise<{ resp: DebugSessionStartResponse; resumed: boolean }> {
+  ): Promise<{ resp: DebugSessionStartResponse; resumed: boolean } | null> {
     loading.value = true
     lastError.value = null
     try {
@@ -83,6 +110,11 @@ export const useDebugStore = defineStore('debug', () => {
         _adoptStart(resp)
         return { resp, resumed: false }
       } catch (e: unknown) {
+        // DEBUG-4: 424 means RobotCode missing — surface the dialog.
+        if (extractErrorStatus(e) === 424) {
+          _capturePrereqMissing(e, { kind: 'step', payload })
+          return null
+        }
         // 409 is silent-resume — the response payload carries the
         // existing session metadata under detail.
         if (extractErrorStatus(e) === 409) {
@@ -159,6 +191,75 @@ export const useDebugStore = defineStore('debug', () => {
     state.value = { ...blankState }
     outputLog.value = []
     lastError.value = null
+    prereqMissing.value = null
+    installing.value = false
+    installError.value = null
+    pendingStart = null
+  }
+
+  // -- DEBUG-4: prereq install + retry --------------------------------------
+
+  function _capturePrereqMissing(err: unknown, retry: PendingStart): void {
+    pendingStart = retry
+    const detail = (err as { response?: { data?: { detail?: unknown } } })
+      ?.response?.data?.detail
+    if (detail && typeof detail === 'object') {
+      const d = detail as Record<string, unknown>
+      prereqMissing.value = {
+        repoId: Number(d.repo_id ?? 0),
+        envId: Number(d.env_id ?? 0),
+        packageName: String(d.package ?? 'robotcode'),
+        message: String(d.message ?? ''),
+      }
+    } else {
+      prereqMissing.value = {
+        repoId: 0,
+        envId: 0,
+        packageName: 'robotcode',
+        message: '',
+      }
+    }
+    installError.value = null
+  }
+
+  /** Install the missing prereq and retry the original start. Resolves
+   *  with `true` on a fully-recovered session, `false` when the install
+   *  succeeded but the retry failed (caller should still close the
+   *  dialog), and rejects with the error otherwise. */
+  async function installPrereqAndRetry(): Promise<boolean> {
+    if (!prereqMissing.value || !pendingStart) return false
+    installing.value = true
+    installError.value = null
+    try {
+      await debugApi.installPrerequisites(prereqMissing.value.repoId)
+    } catch (e: unknown) {
+      installError.value = extractErrorDetail(e, 'Install failed')
+      installing.value = false
+      return false
+    }
+    // Install succeeded — clear dialog state and retry the start.
+    const retry = pendingStart
+    prereqMissing.value = null
+    pendingStart = null
+    installing.value = false
+    try {
+      if (retry.kind === 'run') {
+        const resp = await startFromRun(retry.runId)
+        return resp !== null
+      }
+      const resp = await startFromStep(retry.payload)
+      return resp !== null
+    } catch (e: unknown) {
+      lastError.value = extractErrorDetail(e, 'Retry failed')
+      return false
+    }
+  }
+
+  function cancelPrereq(): void {
+    prereqMissing.value = null
+    pendingStart = null
+    installing.value = false
+    installError.value = null
   }
 
   /**
@@ -206,6 +307,9 @@ export const useDebugStore = defineStore('debug', () => {
     pausedAt,
     scopes,
     callStack,
+    prereqMissing,
+    installing,
+    installError,
     startFromRun,
     startFromStep,
     classifyStepClick,
@@ -214,5 +318,7 @@ export const useDebugStore = defineStore('debug', () => {
     stop,
     reset,
     handleWsEvent,
+    installPrereqAndRetry,
+    cancelPrereq,
   }
 })

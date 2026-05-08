@@ -1023,6 +1023,15 @@ export default {
       startFailed: 'Impossible de démarrer la session de débogage.',
       commandFailed: 'La commande de débogage a échoué.',
     },
+    prereq: {
+      title: 'Débogueur non installé',
+      body: '{package} n\'est pas installé dans l\'environnement Python de ce projet. RoboScope en a besoin pour le débogage interactif. L\'installer maintenant ?',
+      install: 'Installer',
+      cancel: 'Annuler',
+      installing: 'Installation de {package} …',
+      installFailed: 'Échec de l\'installation. Voir le log pour les détails.',
+      installSuccess: '{package} installé avec succès.',
+    },
   },  schedule: {
     tabRuns: 'Exécutions',
     tabSchedules: 'Planifications',

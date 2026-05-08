@@ -36,9 +36,17 @@ from src.debug.output_xml_walker import (
     FailingKeywordLocation,
     find_first_failing_keyword,
 )
+from src.debug.prereq import (
+    ROBOTCODE_PACKAGE,
+    PrereqInstallFailed,
+    check_robotcode_available,
+    install_robotcode,
+)
 from src.debug.schemas import (
     DebugSessionStartResponse,
     DebugSessionState,
+    InstallPrereqRequest,
+    InstallPrereqResponse,
     StartDebugSessionRequest,
 )
 from src.debug.session_manager import session_manager
@@ -76,14 +84,13 @@ def _ensure_runner(db: Session, user: User, repo: Repository) -> None:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
 
-def _resolve_env_python(db: Session, repo: Repository, run: ExecutionRun) -> str:
-    """Return the python executable for the run's project environment.
+def _resolve_env(db: Session, repo: Repository, run: ExecutionRun | None) -> Environment:
+    """Return the project's environment for run + repo, with 422 fallbacks.
 
-    Falls back to the repo's default environment when the run doesn't
-    pin one. 422 if there is no usable env (the test obviously needs
-    a Python to run in).
+    Falls back to the repo's default environment when ``run`` is ``None``
+    or doesn't pin one. 422 when there is no usable env at all.
     """
-    env_id = run.environment_id or repo.environment_id
+    env_id = (run.environment_id if run else None) or repo.environment_id
     if env_id is None:
         raise HTTPException(
             status_code=422,
@@ -96,7 +103,27 @@ def _resolve_env_python(db: Session, repo: Repository, run: ExecutionRun) -> str
             status_code=422,
             detail="Project environment has no venv yet — install packages first",
         )
-    return get_python_path(env.venv_path)
+    return env
+
+
+def _ensure_robotcode_or_424(env: Environment, repo: Repository) -> None:
+    """DEBUG-4: bail before spawn if RobotCode isn't installed.
+
+    The frontend catches the 424 and offers a one-click install via
+    ``POST /sessions/install-prerequisites``.
+    """
+    if check_robotcode_available(env.venv_path):
+        return
+    raise HTTPException(
+        status_code=424,
+        detail={
+            "code": "robotcode_not_installed",
+            "message": "RobotCode is not installed in this project's environment",
+            "repo_id": repo.id,
+            "env_id": env.id,
+            "package": ROBOTCODE_PACKAGE,
+        },
+    )
 
 
 def _resolve_failing_location(run: ExecutionRun) -> FailingKeywordLocation | None:
@@ -357,7 +384,9 @@ async def _start_from_run(
             detail=f"Robot file does not exist on disk: {robot_file_abs}",
         )
 
-    env_python = _resolve_env_python(db, repo, run)
+    env = _resolve_env(db, repo, run)
+    _ensure_robotcode_or_424(env, repo)
+    env_python = get_python_path(env.venv_path)
 
     # Audit BEFORE the spawn — if spawn fails the audit still records
     # that the user attempted to start a session, which matches the
@@ -460,18 +489,8 @@ async def _start_from_step(
 
     # The Flow-Editor path needs an environment too. Take the repo's
     # default env (the form has no per-run override yet).
-    env_id = repo.environment_id
-    if env_id is None:
-        raise HTTPException(
-            status_code=422,
-            detail="Repository has no default environment — install one first",
-        )
-    env = db.get(Environment, env_id)
-    if env is None or not env.venv_path:
-        raise HTTPException(
-            status_code=422,
-            detail="Repository environment has no venv yet — install packages first",
-        )
+    env = _resolve_env(db, repo, None)
+    _ensure_robotcode_or_424(env, repo)
     env_python = get_python_path(env.venv_path)
 
     log_event(
@@ -646,3 +665,65 @@ async def get_state(
         )
         return snap
     return DebugSessionState(session_id=session_id)
+
+
+# ---------------------------------------------------------------------------
+# DEBUG-4: Prerequisite install endpoint
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/sessions/install-prerequisites",
+    response_model=InstallPrereqResponse,
+)
+async def install_prerequisites(
+    payload: InstallPrereqRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> InstallPrereqResponse:
+    """Install RobotCode into the repository's project environment.
+
+    Triggered by the frontend dialog after a 424 from ``POST /sessions``.
+    Idempotent: if RobotCode is already there, returns
+    ``already_installed: true`` without rerunning ``uv pip install``.
+    Audited on success only.
+    """
+    repo = db.get(Repository, payload.repo_id)
+    if repo is None:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    _ensure_runner(db, user, repo)
+
+    env = _resolve_env(db, repo, None)
+    if check_robotcode_available(env.venv_path):
+        return InstallPrereqResponse(already_installed=True, log_tail=None)
+
+    try:
+        log_tail = await install_robotcode(env.venv_path)
+    except PrereqInstallFailed as e:
+        logger.warning("robotcode install failed for repo %s: %s", repo.id, e)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "robotcode_install_failed",
+                "message": str(e),
+            },
+        ) from e
+
+    log_event(
+        db,
+        AuditEventType.DEBUG_ROBOTCODE_INSTALLED,
+        user_id=user.id,
+        username=getattr(user, "username", None),
+        resource_id=repo.id,
+        detail={
+            "repo_id": repo.id,
+            "env_id": env.id,
+            "package": ROBOTCODE_PACKAGE,
+        },
+        ip_address=get_client_ip(request),
+    )
+    db.commit()
+
+    return InstallPrereqResponse(already_installed=False, log_tail=log_tail)

@@ -1023,6 +1023,15 @@ export default {
       startFailed: 'No se pudo iniciar la sesión de depuración.',
       commandFailed: 'El comando de depuración falló.',
     },
+    prereq: {
+      title: 'Depurador no instalado',
+      body: '{package} no está instalado en el entorno Python de este proyecto. RoboScope lo necesita para la depuración interactiva. ¿Instalarlo ahora?',
+      install: 'Instalar',
+      cancel: 'Cancelar',
+      installing: 'Instalando {package} …',
+      installFailed: 'Instalación fallida. Consulta el registro para más detalles.',
+      installSuccess: '{package} instalado correctamente.',
+    },
   },  schedule: {
     tabRuns: 'Ejecuciones',
     tabSchedules: 'Programaciones',

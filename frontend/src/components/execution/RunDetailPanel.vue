@@ -18,6 +18,7 @@ import RunPendingActivity from '@/components/execution/RunPendingActivity.vue'
 import RunSelectorHealth from '@/components/execution/RunSelectorHealth.vue'
 import RunHealReport from '@/components/execution/RunHealReport.vue'
 import DebugPanel from '@/components/debug/DebugPanel.vue'
+import DebugPrereqDialog from '@/components/debug/DebugPrereqDialog.vue'
 import { formatDuration } from '@/utils/formatDuration'
 import { formatDateTime } from '@/utils/formatDate'
 import { renderMarkdown } from '@/utils/renderMarkdown'
@@ -49,11 +50,29 @@ const debugAttachedToThisRun = computed(
 async function startDebug(): Promise<void> {
   debugError.value = null
   try {
-    await debug.startFromRun(props.run.id)
-    showDebug.value = true
+    const resp = await debug.startFromRun(props.run.id)
+    if (resp !== null) {
+      showDebug.value = true
+    }
+    // resp === null means RobotCode is missing — the prereq dialog
+    // will surface (open below). After install + retry succeeds,
+    // `onPrereqInstall` flips `showDebug`.
   } catch (e: unknown) {
     debugError.value = extractErrorDetail(e, t('debug.error.startFailed'))
   }
+}
+
+const showPrereqDialog = computed(() => debug.prereqMissing !== null)
+
+async function onPrereqInstall(): Promise<void> {
+  const ok = await debug.installPrereqAndRetry()
+  if (ok && debug.isActive) {
+    showDebug.value = true
+  }
+}
+
+function onPrereqCancel(): void {
+  debug.cancelPrereq()
 }
 
 function closeDebug(): void {
@@ -275,6 +294,16 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
         v-if="showDebug && debug.isActive"
         :run-id="run.id"
         @closed="closeDebug"
+      />
+
+      <!-- DEBUG-4: RobotCode-not-installed prereq dialog. -->
+      <DebugPrereqDialog
+        :open="showPrereqDialog"
+        :package-name="debug.prereqMissing?.packageName ?? 'robotcode'"
+        :installing="debug.installing"
+        :install-error="debug.installError"
+        @install="onPrereqInstall"
+        @cancel="onPrereqCancel"
       />
 
       <!-- Error banner -->
