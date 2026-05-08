@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import BaseModal from '@/components/ui/BaseModal.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
 
 const props = defineProps<{
   open: boolean
@@ -38,24 +39,23 @@ function onCancel(): void {
     </p>
 
     <template #footer>
-      <button
-        type="button"
-        class="btn-secondary"
+      <BaseButton
+        variant="ghost"
         :disabled="props.installing"
         @click="onCancel"
       >
         {{ t('debug.prereq.cancel') }}
-      </button>
-      <button
-        type="button"
-        class="btn-primary"
+      </BaseButton>
+      <BaseButton
+        variant="primary"
+        :loading="props.installing"
         :disabled="props.installing"
         @click="onInstall"
       >
         {{ props.installing
           ? t('debug.prereq.installing', { package: props.packageName })
           : t('debug.prereq.install') }}
-      </button>
+      </BaseButton>
     </template>
   </BaseModal>
 </template>
