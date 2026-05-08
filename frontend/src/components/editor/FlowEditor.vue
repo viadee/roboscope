@@ -41,6 +41,7 @@ import {
   robotFormToFlow,
   robotKeywordsToFlow,
   updateStepFromNode,
+  computeStepLine,
   NODE_START_Y,
   NODE_X,
   type RobotForm,
@@ -1624,8 +1625,13 @@ function _stepDebugPayload(): {
   if (!props.filePath || props.repoId === undefined) return null
   const tc: RobotTestCase | undefined = props.form.testCases[data.sectionIndex]
   if (!tc) return null
-  const line = data.step._lineNumber
-  if (line === undefined || line < 1) return null
+  // Recompute the source line LIVE — `step._lineNumber` was set once at
+  // parse time and goes stale the moment the user inserts/removes a
+  // step elsewhere in the file. The live computation mirrors the
+  // serializer, so it tracks any structural edit.
+  const isResource = props.filePath?.toLowerCase().endsWith('.resource') ?? false
+  const line = computeStepLine(props.form, isResource, data.sectionIndex, data.stepIndex)
+  if (line === null || line < 1) return null
   return {
     file: props.filePath,
     testName: tc.name,

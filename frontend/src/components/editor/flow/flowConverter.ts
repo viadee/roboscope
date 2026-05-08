@@ -821,3 +821,137 @@ function getEdgeLabel(step: RobotStep, prevStep?: RobotStep): string | undefined
   if (prevStep?.type === 'if' || prevStep?.type === 'else_if') return 'true'
   return undefined
 }
+
+// ---------------------------------------------------------------------------
+// DEBUG-3 follow-up: live step-line computation
+// ---------------------------------------------------------------------------
+//
+// `parseRobotToForm` annotates `step._lineNumber` on the steps it just
+// read from disk, but those numbers go stale the moment the user adds /
+// removes / reorders a step in the Flow Editor — every step below the
+// edit shifts, but its `_lineNumber` doesn't. The "Bis hier ausführen"
+// button needs the LIVE line number of the clicked step, otherwise it
+// asks the backend to break at the wrong line.
+//
+// `computeStepLine` mirrors `RobotEditor.vue::serializeFormToRobot`
+// line-for-line so the result is identical to the line the step would
+// occupy if the form were saved right now. Pure function, no side
+// effects, easy to unit-test in isolation.
+
+/** Number of source lines a multiline-`...`-continued setting occupies. */
+function _multilineLineCount(value: string): number {
+  if (!value) return 0
+  return value.split('\n').length
+}
+
+/** True iff the running emit-buffer's last line is non-empty (so the
+ *  serializer would prepend a blank before the next section header). */
+function _trailingNonBlank(lastLine: string | undefined): boolean {
+  return lastLine !== undefined && lastLine !== ''
+}
+
+/**
+ * Returns the 1-based source line where `form.testCases[testCaseIndex]
+ * .steps[stepIndex]` would land if the form were serialised right now,
+ * or ``null`` when the indices are out of range or the file is
+ * resource-only.
+ *
+ * Mirrors ``serializeFormToRobot`` exactly — every change to the
+ * serializer must be reflected here, otherwise the "Run up to here"
+ * button breaks at the wrong line. Pinned by tests in
+ * ``components/FlowEditorComputeStepLine.spec.ts``.
+ */
+export function computeStepLine(
+  form: RobotForm,
+  isResource: boolean,
+  testCaseIndex: number,
+  stepIndex: number,
+): number | null {
+  if (isResource) return null
+  if (testCaseIndex < 0 || testCaseIndex >= form.testCases.length) return null
+  const tc = form.testCases[testCaseIndex]
+  if (stepIndex < 0 || stepIndex >= tc.steps.length) return null
+
+  // Walk the same emit pipeline as the serializer. We only track the
+  // running line count + the last line's blank-ness; we don't need
+  // the actual string content.
+  let line = 0
+  let lastLine: string | undefined
+
+  // Preamble.
+  for (const pl of form.preambleLines) {
+    line += 1
+    lastLine = pl
+  }
+
+  // Settings.
+  if (form.settings.length > 0) {
+    if (line > 0 && _trailingNonBlank(lastLine)) {
+      line += 1
+      lastLine = ''
+    }
+    line += 1
+    lastLine = '*** Settings ***'
+    for (const s of form.settings) {
+      if (s.key === '#') {
+        line += 1
+        lastLine = s.value
+        continue
+      }
+      const span = s.value && s.value.includes('\n')
+        ? _multilineLineCount(s.value)
+        : 1
+      line += span
+      lastLine = 'set'
+    }
+  }
+
+  // Variables.
+  if (form.variables.length > 0) {
+    if (line > 0 && _trailingNonBlank(lastLine)) {
+      line += 1
+      lastLine = ''
+    }
+    line += 1
+    lastLine = '*** Variables ***'
+    for (const v of form.variables) {
+      line += 1
+      lastLine = v.name === '#' ? v.value : v.name
+    }
+  }
+
+  // Test cases. (Resource files were rejected at the top.)
+  if (form.testCases.length > 0) {
+    if (line > 0 && _trailingNonBlank(lastLine)) {
+      line += 1
+      lastLine = ''
+    }
+    line += 1
+    lastLine = '*** Test Cases ***'
+    for (let tcIdx = 0; tcIdx < form.testCases.length; tcIdx++) {
+      const cur = form.testCases[tcIdx]
+      // test name
+      line += 1
+      // metadata lines emitted in the serializer order
+      if (cur.documentation) line += _multilineLineCount(cur.documentation)
+      if (cur.tags.length > 0) line += 1
+      if (cur.setup) line += 1
+      if (cur.teardown) line += 1
+      if (cur.timeout) line += 1
+      if (cur.template) line += 1
+
+      // We're now at the line BEFORE the first step body. Steps fill
+      // line+1 .. line+steps.length.
+      if (tcIdx === testCaseIndex) {
+        return line + stepIndex + 1
+      }
+
+      line += cur.steps.length
+      // Trailing blank between test cases.
+      line += 1
+      lastLine = ''
+    }
+  }
+
+  return null
+}
