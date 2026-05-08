@@ -15,6 +15,7 @@ sit on it without spinning.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from pathlib import Path
 from typing import Any
 
@@ -97,8 +98,21 @@ def _swap_factory_and_clear():
     session_manager.set_forwarder(lambda *a, **kw: None)
     session_manager.set_state_fetcher(None)  # type: ignore[arg-type]
     yield
-    # Best-effort cleanup of any sessions left running.
-    asyncio.get_event_loop().run_until_complete(session_manager.stop_all())
+    # Best-effort cleanup of any sessions left running. ``asyncio.run``
+    # is robust to neighbour test files that close the thread's loop
+    # via their own ``asyncio.run`` calls (e.g. test_prereq.py).
+    try:
+        asyncio.run(session_manager.stop_all())
+    except RuntimeError:
+        # Already inside a running loop or a stale loop is current —
+        # try the legacy path as a fallback so we never block teardown.
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(session_manager.stop_all())
+        finally:
+            with contextlib.suppress(Exception):
+                loop.close()
 
 
 # ---------------------------------------------------------------------------
@@ -125,6 +139,9 @@ def _make_repo_run(db, user, tmp_path: Path, status: str = "failed") -> tuple[Re
     bin_dir = venv_dir / ("Scripts" if hasattr(__import__("os"), "name") and False else "bin")
     bin_dir.mkdir()
     (bin_dir / "python").write_text("# placeholder", encoding="utf-8")
+    # DEBUG-4: existing tests assume robotcode is installed. The prereq
+    # check looks for the binary on disk, so a placeholder file suffices.
+    (bin_dir / "robotcode").write_text("# placeholder", encoding="utf-8")
 
     env = Environment(
         name="test-env",
@@ -370,6 +387,7 @@ def _make_repo_with_test(
     bin_dir = venv_dir / "bin"
     bin_dir.mkdir(exist_ok=True)
     (bin_dir / "python").write_text("# placeholder", encoding="utf-8")
+    (bin_dir / "robotcode").write_text("# placeholder", encoding="utf-8")
 
     env = Environment(
         name=f"env-{user.id}",
@@ -618,3 +636,165 @@ class TestStartFromStepDedup:
         )
         assert second.status_code == 201
         assert second.json()["session_id"] != first.json()["session_id"]
+
+
+# ---------------------------------------------------------------------------
+# DEBUG-4 — robotcode prereq detection + install endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestPrereq424:
+    def test_run_shape_returns_424_when_robotcode_missing(
+        self, client: TestClient, db_session, runner_user, tmp_path
+    ):
+        _, run = _make_repo_run(db_session, runner_user, tmp_path)
+        # Drop the placeholder binary the fixture creates so the prereq
+        # check fires.
+        env = db_session.query(Environment).first()
+        assert env is not None
+        (Path(env.venv_path) / "bin" / "robotcode").unlink()
+
+        resp = client.post(
+            "/api/v1/debug/sessions",
+            json={"run_id": run.id},
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 424
+        body = resp.json()
+        assert body["detail"]["code"] == "robotcode_not_installed"
+        assert body["detail"]["package"] == "robotcode"
+        assert body["detail"]["repo_id"]
+        assert body["detail"]["env_id"]
+
+    def test_step_shape_returns_424_when_robotcode_missing(
+        self, client: TestClient, db_session, runner_user, tmp_path
+    ):
+        repo, rel_path = _make_repo_with_test(db_session, runner_user, tmp_path)
+        env = db_session.get(Environment, repo.environment_id)
+        assert env is not None
+        (Path(env.venv_path) / "bin" / "robotcode").unlink()
+
+        resp = client.post(
+            "/api/v1/debug/sessions",
+            json={
+                "file": str(rel_path),
+                "test_name": "Login Test",
+                "line": 3,
+                "repo_id": repo.id,
+            },
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 424
+        assert resp.json()["detail"]["code"] == "robotcode_not_installed"
+
+    def test_no_audit_emitted_for_424(
+        self, client: TestClient, db_session, runner_user, tmp_path
+    ):
+        _, run = _make_repo_run(db_session, runner_user, tmp_path)
+        env = db_session.query(Environment).first()
+        (Path(env.venv_path) / "bin" / "robotcode").unlink()
+
+        resp = client.post(
+            "/api/v1/debug/sessions",
+            json={"run_id": run.id},
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 424
+
+        rows = (
+            db_session.query(AuditLog)
+            .filter(AuditLog.action == AuditEventType.DEBUG_SESSION_STARTED.value)
+            .all()
+        )
+        assert rows == []
+
+
+class TestPrereqInstallEndpoint:
+    def test_install_returns_already_installed_when_present(
+        self, client: TestClient, db_session, runner_user, tmp_path
+    ):
+        repo, _ = _make_repo_run(db_session, runner_user, tmp_path)
+        # Fixture left robotcode in place — endpoint should short-circuit.
+        resp = client.post(
+            "/api/v1/debug/sessions/install-prerequisites",
+            json={"repo_id": repo.id},
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["already_installed"] is True
+        assert body["log_tail"] is None
+
+    def test_install_invokes_uv_pip_when_missing(
+        self, client: TestClient, db_session, runner_user, tmp_path, monkeypatch
+    ):
+        repo, _ = _make_repo_run(db_session, runner_user, tmp_path)
+        env = db_session.query(Environment).first()
+        (Path(env.venv_path) / "bin" / "robotcode").unlink()
+
+        # Stub the install: drop a fresh placeholder + return success.
+        async def fake_install(venv_path: str) -> str:
+            (Path(venv_path) / "bin" / "robotcode").write_text(
+                "# installed", encoding="utf-8",
+            )
+            return "Installed robotcode-1.2.3"
+
+        monkeypatch.setattr(
+            "src.debug.router.install_robotcode", fake_install
+        )
+
+        resp = client.post(
+            "/api/v1/debug/sessions/install-prerequisites",
+            json={"repo_id": repo.id},
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["already_installed"] is False
+        assert body["log_tail"] == "Installed robotcode-1.2.3"
+
+        # Audit row landed.
+        rows = (
+            db_session.query(AuditLog)
+            .filter(AuditLog.action == AuditEventType.DEBUG_ROBOTCODE_INSTALLED.value)
+            .all()
+        )
+        assert len(rows) == 1
+        assert rows[0].user_id == runner_user.id
+
+    def test_install_failure_returns_500(
+        self, client: TestClient, db_session, runner_user, tmp_path, monkeypatch
+    ):
+        repo, _ = _make_repo_run(db_session, runner_user, tmp_path)
+        env = db_session.query(Environment).first()
+        (Path(env.venv_path) / "bin" / "robotcode").unlink()
+
+        from src.debug.prereq import PrereqInstallFailed
+
+        async def fail_install(venv_path: str) -> str:
+            raise PrereqInstallFailed("uv pip install exited with code 1:\nERROR: …")
+
+        monkeypatch.setattr(
+            "src.debug.router.install_robotcode", fail_install
+        )
+
+        resp = client.post(
+            "/api/v1/debug/sessions/install-prerequisites",
+            json={"repo_id": repo.id},
+            headers=auth_header(runner_user),
+        )
+        assert resp.status_code == 500
+        body = resp.json()
+        assert body["detail"]["code"] == "robotcode_install_failed"
+        assert "uv pip install" in body["detail"]["message"]
+
+    def test_install_viewer_is_forbidden(
+        self, client: TestClient, db_session, viewer_user, tmp_path
+    ):
+        repo, _ = _make_repo_run(db_session, viewer_user, tmp_path)
+        resp = client.post(
+            "/api/v1/debug/sessions/install-prerequisites",
+            json={"repo_id": repo.id},
+            headers=auth_header(viewer_user),
+        )
+        assert resp.status_code == 403

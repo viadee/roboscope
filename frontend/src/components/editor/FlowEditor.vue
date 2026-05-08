@@ -17,6 +17,7 @@ import KeywordDocModal from './flow/KeywordDocModal.vue'
 import SelectorPicker from '@/components/recorder/SelectorPicker.vue'
 // Story DEBUG-3 — Flow Editor "Run up to here" debug action.
 import DebugPanel from '@/components/debug/DebugPanel.vue'
+import DebugPrereqDialog from '@/components/debug/DebugPrereqDialog.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useAuthStore } from '@/stores/auth.store'
@@ -1673,16 +1674,31 @@ async function _dispatchDebugStart(payload: {
   repoId: number
 }): Promise<void> {
   try {
-    await debug.startFromStep({
+    const resp = await debug.startFromStep({
       file: payload.file,
       test_name: payload.testName,
       line: payload.line,
       repo_id: payload.repoId,
     })
-    debugOverlayOpen.value = true
+    if (resp !== null) {
+      debugOverlayOpen.value = true
+    }
+    // resp === null → DEBUG-4 prereq missing; dialog will surface and
+    // `onDebugPrereqInstall` opens the overlay after install + retry.
   } catch (e: unknown) {
     debugError.value = extractErrorDetail(e, t('flowEditor.debug.startFailed'))
   }
+}
+
+async function onDebugPrereqInstall(): Promise<void> {
+  const ok = await debug.installPrereqAndRetry()
+  if (ok && debug.isActive) {
+    debugOverlayOpen.value = true
+  }
+}
+
+function onDebugPrereqCancel(): void {
+  debug.cancelPrereq()
 }
 
 async function onDebugConfirmRestart(): Promise<void> {
@@ -2510,6 +2526,16 @@ function onDebugOverlayClose(): void {
         </div>
       </div>
     </Teleport>
+
+    <!-- Story DEBUG-4: RobotCode prereq install dialog. -->
+    <DebugPrereqDialog
+      :open="debug.prereqMissing !== null"
+      :package-name="debug.prereqMissing?.packageName ?? 'robotcode'"
+      :installing="debug.installing"
+      :install-error="debug.installError"
+      @install="onDebugPrereqInstall"
+      @cancel="onDebugPrereqCancel"
+    />
   </div>
 </template>
 

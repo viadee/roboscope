@@ -107,6 +107,19 @@ class DebugSessionState(BaseModel):
     output_lines: list[str] = Field(default_factory=list)
 
 
+class InstallPrereqRequest(BaseModel):
+    """Body for ``POST /api/v1/debug/sessions/install-prerequisites``."""
+
+    repo_id: int
+
+
+class InstallPrereqResponse(BaseModel):
+    """Result of a prereq-install attempt."""
+
+    already_installed: bool
+    log_tail: str | None = None
+
+
 class DebugWebSocketEvent(BaseModel):
     """Envelope for DAP-derived events forwarded to the frontend.
 

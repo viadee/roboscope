@@ -44,6 +44,7 @@ class AuditEventType(StrEnum):
     HEAL_PATCH_APPLIED = "heal.patch.applied"
     DEBUG_SESSION_STARTED = "debug.session.started"
     DEBUG_SESSION_ENDED = "debug.session.ended"
+    DEBUG_ROBOTCODE_INSTALLED = "debug.robotcode.installed"
 
 
 def resource_type_for(event_type: AuditEventType) -> str:

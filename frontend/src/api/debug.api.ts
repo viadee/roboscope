@@ -86,6 +86,22 @@ export async function getDebugState(sessionId: string): Promise<DebugSessionStat
   return response.data
 }
 
+/** DEBUG-4 — install RobotCode into a project's environment after a 424. */
+export interface InstallPrereqResponse {
+  already_installed: boolean
+  log_tail: string | null
+}
+
+export async function installPrerequisites(
+  repoId: number,
+): Promise<InstallPrereqResponse> {
+  const response = await apiClient.post<InstallPrereqResponse>(
+    '/debug/sessions/install-prerequisites',
+    { repo_id: repoId },
+  )
+  return response.data
+}
+
 /** Tab-close fire-and-forget disconnect. Uses the navigator.sendBeacon
  *  path so an unloaded tab doesn't keep the paused subprocess alive. */
 export function disconnectViaBeacon(sessionId: string, token: string): void {

@@ -202,8 +202,9 @@ development_status:
   # user-facing entry points.
   epic-interactive-debugger: in-progress
   debug-1-dap-driver-foundation: done           # merged 2026-05-08 in v0.9.0
-  debug-2-rerun-failed-test-action: ready-for-dev
-  debug-3-run-up-to-selection-action: ready-for-dev
+  debug-2-rerun-failed-test-action: done        # merged 2026-05-08 post-0.9.0
+  debug-3-run-up-to-selection-action: done      # merged 2026-05-08 post-0.9.0
+  debug-4-robotcode-prereq-install-dialog: done # merged 2026-05-08 post-0.9.0
 
   # Epic: 0.9.1 Standalone-distribution UX polish
   # GH issue #39 + launch-1-windows-terminal-ux.md
