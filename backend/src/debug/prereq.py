@@ -18,7 +18,13 @@ from src.environments.venv_utils import pip_install_cmd
 
 logger = logging.getLogger("roboscope.debug.prereq")
 
-ROBOTCODE_PACKAGE = "robotcode"
+# The umbrella ``robotcode`` package alone gives us the CLI shell but
+# *not* the ``debug-launch`` subcommand — that's registered as a click
+# plugin by ``robotcode-debugger``. Installing ``robotcode[debugger]``
+# pulls both in (umbrella + debugger extra) and is the correct entry
+# for our use case. Without the extra, RobotCode CLI exits with
+# ``Error: No such command 'debug-launch'.``
+ROBOTCODE_PACKAGE = "robotcode[debugger]"
 INSTALL_TIMEOUT_SECONDS = 300
 LOG_TAIL_LINES = 50
 
@@ -27,8 +33,25 @@ class PrereqInstallFailed(RuntimeError):  # noqa: N818  # established in routers
     """Raised when the RobotCode install subprocess fails or times out."""
 
 
+def _site_packages(venv_path: Path) -> Path | None:
+    """Locate the venv's site-packages directory (cross-platform)."""
+    if sys.platform == "win32":
+        sp = venv_path / "Lib" / "site-packages"
+        return sp if sp.is_dir() else None
+    matches = list(venv_path.glob("lib/python*/site-packages"))
+    return matches[0] if matches else None
+
+
 def check_robotcode_available(venv_path: str | None) -> bool:
-    """True iff the ``robotcode`` CLI binary exists inside the given venv."""
+    """True iff the ``robotcode`` CLI **and** its debugger plugin are present.
+
+    Both pieces are required to spawn ``robotcode debug-launch``: the
+    umbrella registers the CLI binary, the ``robotcode-debugger`` package
+    registers the actual subcommand. Checking only the binary leaves us
+    open to the partial-install state where ``robotcode`` was installed
+    without the debugger extra and the spawn explodes with
+    ``No such command 'debug-launch'`` at runtime.
+    """
     if not venv_path:
         return False
     venv = Path(venv_path)
@@ -38,7 +61,12 @@ def check_robotcode_available(venv_path: str | None) -> bool:
         binary = venv / "Scripts" / "robotcode.exe"
     else:
         binary = venv / "bin" / "robotcode"
-    return binary.is_file()
+    if not binary.is_file():
+        return False
+    sp = _site_packages(venv)
+    if sp is None:
+        return False
+    return (sp / "robotcode" / "debugger").is_dir()
 
 
 async def install_robotcode(venv_path: str) -> str:

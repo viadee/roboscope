@@ -29,12 +29,34 @@ class TestCheckRobotcodeAvailable:
         # No `robotcode` binary written.
         assert check_robotcode_available(str(venv)) is False
 
-    def test_returns_true_when_binary_present(self, tmp_path):
+    def test_returns_false_when_binary_present_but_debugger_plugin_missing(self, tmp_path):
+        # Regression: the umbrella `robotcode` package alone produces a
+        # working CLI but no `debug-launch` subcommand. Prereq check
+        # must catch that BEFORE the spawn fails with "No such command".
         venv = tmp_path / "venv"
         bin_dir = venv / ("Scripts" if sys.platform == "win32" else "bin")
         bin_dir.mkdir(parents=True)
         binary_name = "robotcode.exe" if sys.platform == "win32" else "robotcode"
         (bin_dir / binary_name).write_text("# placeholder", encoding="utf-8")
+        # Site-packages exists but `robotcode/debugger/` doesn't.
+        if sys.platform == "win32":
+            sp = venv / "Lib" / "site-packages"
+        else:
+            sp = venv / "lib" / "python3.12" / "site-packages"
+        sp.mkdir(parents=True)
+        assert check_robotcode_available(str(venv)) is False
+
+    def test_returns_true_when_binary_and_debugger_plugin_present(self, tmp_path):
+        venv = tmp_path / "venv"
+        bin_dir = venv / ("Scripts" if sys.platform == "win32" else "bin")
+        bin_dir.mkdir(parents=True)
+        binary_name = "robotcode.exe" if sys.platform == "win32" else "robotcode"
+        (bin_dir / binary_name).write_text("# placeholder", encoding="utf-8")
+        if sys.platform == "win32":
+            sp = venv / "Lib" / "site-packages"
+        else:
+            sp = venv / "lib" / "python3.12" / "site-packages"
+        (sp / "robotcode" / "debugger").mkdir(parents=True)
         assert check_robotcode_available(str(venv)) is True
 
 

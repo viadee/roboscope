@@ -238,7 +238,9 @@ class TestSpawnAndHandshake:
                 robot_path=robot,
                 breakpoints=[Breakpoint(str(robot), 3)],
                 env_python_path=env_python,
-                port_parse_timeout=0.5,
+                # 2 s gives Python interpreter cold-start + two writes
+                # ample headroom while keeping the test fast.
+                port_parse_timeout=2.0,
             ):
                 pass
         msg = str(exc_info.value)

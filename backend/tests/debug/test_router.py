@@ -139,9 +139,13 @@ def _make_repo_run(db, user, tmp_path: Path, status: str = "failed") -> tuple[Re
     bin_dir = venv_dir / ("Scripts" if hasattr(__import__("os"), "name") and False else "bin")
     bin_dir.mkdir()
     (bin_dir / "python").write_text("# placeholder", encoding="utf-8")
-    # DEBUG-4: existing tests assume robotcode is installed. The prereq
-    # check looks for the binary on disk, so a placeholder file suffices.
+    # DEBUG-4: existing tests assume RobotCode + debugger plugin are
+    # installed. Prereq check looks for the binary AND the debugger
+    # site-packages dir, so seed both placeholders.
     (bin_dir / "robotcode").write_text("# placeholder", encoding="utf-8")
+    debugger_dir = venv_dir / "lib" / "python3.12" / "site-packages" / "robotcode" / "debugger"
+    debugger_dir.mkdir(parents=True)
+    (debugger_dir / "__init__.py").write_text("", encoding="utf-8")
 
     env = Environment(
         name="test-env",
@@ -388,6 +392,9 @@ def _make_repo_with_test(
     bin_dir.mkdir(exist_ok=True)
     (bin_dir / "python").write_text("# placeholder", encoding="utf-8")
     (bin_dir / "robotcode").write_text("# placeholder", encoding="utf-8")
+    debugger_dir = venv_dir / "lib" / "python3.12" / "site-packages" / "robotcode" / "debugger"
+    debugger_dir.mkdir(parents=True, exist_ok=True)
+    (debugger_dir / "__init__.py").write_text("", encoding="utf-8")
 
     env = Environment(
         name=f"env-{user.id}",
@@ -662,7 +669,7 @@ class TestPrereq424:
         assert resp.status_code == 424
         body = resp.json()
         assert body["detail"]["code"] == "robotcode_not_installed"
-        assert body["detail"]["package"] == "robotcode"
+        assert body["detail"]["package"] == "robotcode[debugger]"
         assert body["detail"]["repo_id"]
         assert body["detail"]["env_id"]
 
@@ -734,8 +741,10 @@ class TestPrereqInstallEndpoint:
 
         # Stub the install: drop a fresh placeholder + return success.
         async def fake_install(venv_path: str) -> str:
-            (Path(venv_path) / "bin" / "robotcode").write_text(
-                "# installed", encoding="utf-8",
+            v = Path(venv_path)
+            (v / "bin" / "robotcode").write_text("# installed", encoding="utf-8")
+            (v / "lib" / "python3.12" / "site-packages" / "robotcode" / "debugger").mkdir(
+                parents=True, exist_ok=True,
             )
             return "Installed robotcode-1.2.3"
 
