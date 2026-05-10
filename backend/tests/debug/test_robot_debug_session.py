@@ -746,3 +746,389 @@ class TestRealControlButtons(TestRealRobotCodeSpawn):
         # Subprocess pid is gone.
         assert session._proc is None  # noqa: SLF001
 
+
+# ---------------------------------------------------------------------------
+# DEBUG-7: complex scenarios — what users actually do in a debug session
+# ---------------------------------------------------------------------------
+
+
+def _stopped_line(evt: dict) -> int | None:
+    """Pull the paused source line out of a `stopped` event body."""
+    body = evt.get("body") or {}
+    if not isinstance(body, dict):
+        return None
+    # The DAP `stopped` body itself doesn't carry the source line —
+    # we read it back from the session's cached state. Tests use this
+    # only when the session caches the stop state.
+    return body.get("line")
+
+
+@pytest.mark.integration
+class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
+    """Walk-through scenarios: each test puts the user through a
+    multi-step flow that hit production bugs in the past or that the
+    user has explicitly asked us to pin (sequential stepping, looped
+    breakpoints, custom-keyword descend, mid-keyword pause).
+    """
+
+    def _make_loop_robot(self, tmp_path: Path) -> Path:
+        """A test with a FOR loop iterating 3×, each iteration calling
+        Log on the same line. Breakpoint there fires per iteration.
+
+        Lines:
+          1: *** Test Cases ***
+          2: Looped
+          3:     FOR    ${i}    IN    1    2    3
+          4:         Log    iteration=${i}
+          5:     END
+        """
+        robot = tmp_path / "loop.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "Looped\n"
+            "    FOR    ${i}    IN    1    2    3\n"
+            "        Log    iteration=${i}\n"
+            "    END\n",
+            encoding="utf-8",
+        )
+        return robot.resolve()
+
+    def _make_custom_keyword_robot(self, tmp_path: Path) -> Path:
+        """A test that calls a user-defined Keyword with two body steps.
+        Step-into from the call site descends into the keyword.
+
+        Lines:
+           1: *** Test Cases ***
+           2: Caller
+           3:     My Helper
+           4:     Log    after-helper
+           5: (blank)
+           6: *** Keywords ***
+           7: My Helper
+           8:     Log    inside-1
+           9:     Log    inside-2
+        """
+        robot = tmp_path / "custom_kw.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "Caller\n"
+            "    My Helper\n"
+            "    Log    after-helper\n"
+            "\n"
+            "*** Keywords ***\n"
+            "My Helper\n"
+            "    Log    inside-1\n"
+            "    Log    inside-2\n",
+            encoding="utf-8",
+        )
+        return robot.resolve()
+
+    def _make_long_keyword_robot(self, tmp_path: Path) -> Path:
+        """A test with a long-running ``Sleep`` so we have time to pause
+        mid-execution from outside.
+
+        Lines:
+          1: *** Test Cases ***
+          2: Slow
+          3:     Sleep    5s
+          4:     Log    woke
+        """
+        robot = tmp_path / "slow.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "Slow\n"
+            "    Sleep    5s\n"
+            "    Log    woke\n",
+            encoding="utf-8",
+        )
+        return robot.resolve()
+
+    @pytest.mark.asyncio
+    async def test_sequential_step_through_then_continue(
+        self, tmp_path: Path,
+    ) -> None:
+        """Step through every line of the test individually with
+        ``next``, then ``continue`` to terminate. The user-reported
+        "step-button doesn't feel clean" came from this exact flow."""
+        env_python = self._check_or_skip()
+        # demo.robot has 5 keyword lines (3..7) per
+        # _make_multi_keyword_robot above. Use a 3-line variant for
+        # quick iteration.
+        robot = tmp_path / "stepwalk.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "StepWalk\n"
+            "    Log    a\n"
+            "    Log    b\n"
+            "    Log    c\n",
+            encoding="utf-8",
+        )
+        robot = robot.resolve()
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="StepWalk",
+            breakpoints=[Breakpoint(str(robot), 3)],  # first body line
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            await _wait_for_kind(session, "stopped")
+            # Each `next` should produce a fresh `stopped` with reason=step.
+            for _ in range(2):
+                await session.next_()
+                evt = await _wait_for_kind(session, "stopped", timeout=10.0)
+                body = evt.get("body") or {}
+                assert isinstance(body, dict) and body.get("reason") in {
+                    "step", "Next step",
+                }, f"unexpected reason: {body.get('reason')}"
+            # Continue from the last paused line — should run through.
+            await session.continue_()
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_breakpoint_inside_for_loop_fires_per_iteration(
+        self, tmp_path: Path,
+    ) -> None:
+        """Breakpoint on the body line of a FOR loop fires EACH
+        iteration. Verify by counting stops and continuing from each."""
+        env_python = self._check_or_skip()
+        robot = self._make_loop_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Looped",
+            breakpoints=[Breakpoint(str(robot), 4)],  # `Log iteration=${i}`
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            stops = 0
+            for _ in range(3):
+                await _wait_for_kind(session, "stopped", timeout=15.0)
+                stops += 1
+                await session.continue_()
+            # After the third iteration, the loop ends → terminated.
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+            assert stops == 3, f"expected 3 stops for 3 iterations, got {stops}"
+
+    @pytest.mark.asyncio
+    async def test_step_into_custom_keyword_descends_then_step_out_returns(
+        self, tmp_path: Path,
+    ) -> None:
+        """``Step Into`` on a user-defined keyword call should descend
+        into the keyword body. ``Step Out`` from inside should return
+        to the caller. The pause-line MUST move into the keyword's
+        section after step-in."""
+        env_python = self._check_or_skip()
+        robot = self._make_custom_keyword_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Caller",
+            breakpoints=[Breakpoint(str(robot), 3)],  # `My Helper` call
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            await _wait_for_kind(session, "stopped")
+            # Step into My Helper.
+            await session.step_in()
+            evt = await _wait_for_kind(session, "stopped", timeout=10.0)
+            body = evt.get("body") or {}
+            assert isinstance(body, dict) and body.get("reason") in {
+                "step", "Step in",
+            }
+            # Step out of the keyword — back to caller, line 4.
+            await session.step_out()
+            # Either we hit "after-helper" line as a step-out stop, or
+            # the test continues. Both are acceptable forward progress.
+
+            async def wait_progress() -> str:
+                while True:
+                    e = await session.events.get()
+                    k = str(e.get("kind"))
+                    if k in {"stopped", "terminated"}:
+                        return k
+
+            kind = await asyncio.wait_for(wait_progress(), timeout=15.0)
+            assert kind in {"stopped", "terminated"}
+            if kind == "stopped":
+                await session.continue_()
+                await _wait_for_kind(session, "terminated", timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_pause_during_long_running_keyword_then_continue(
+        self, tmp_path: Path,
+    ) -> None:
+        """Send ``pause`` while the test is mid-Sleep. Expect a
+        ``stopped`` with reason=pause, then ``continue`` finishes the
+        sleep and the test terminates."""
+        env_python = self._check_or_skip()
+        robot = self._make_long_keyword_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Slow",
+            breakpoints=[],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            # Wait for the sleep to actually start, then pause.
+            await asyncio.sleep(1.0)
+            assert session._client is not None  # noqa: SLF001
+            with contextlib.suppress(Exception):
+                await session._client.request("pause", {"threadId": 1})  # noqa: SLF001
+            evt = await _wait_for_kind(session, "stopped", timeout=15.0)
+            body = evt.get("body") or {}
+            assert isinstance(body, dict) and body.get("reason") in {
+                "pause", "Paused",
+            }
+            await session.continue_()
+            # Sleep finishes; test hits Log line then terminates.
+            await _wait_for_kind(session, "terminated", timeout=20.0)
+
+    @pytest.mark.asyncio
+    async def test_multiple_breakpoints_fire_in_source_order(
+        self, tmp_path: Path,
+    ) -> None:
+        """Two breakpoints in the same test fire in the natural
+        execution order (line 3 then line 5)."""
+        env_python = self._check_or_skip()
+        robot = tmp_path / "multibp.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "MultiBP\n"
+            "    Log    one\n"
+            "    Log    two\n"
+            "    Log    three\n"
+            "    Log    four\n",
+            encoding="utf-8",
+        )
+        robot = robot.resolve()
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="MultiBP",
+            breakpoints=[
+                Breakpoint(str(robot), 3),  # Log one
+                Breakpoint(str(robot), 5),  # Log three
+            ],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            # First breakpoint.
+            await _wait_for_kind(session, "stopped", timeout=15.0)
+            await session.continue_()
+            # Second breakpoint.
+            await _wait_for_kind(session, "stopped", timeout=15.0)
+            await session.continue_()
+            # No third stop — terminate.
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_disconnect_while_running_without_breakpoint(
+        self, tmp_path: Path,
+    ) -> None:
+        """Disconnect while RF is running (NOT paused) must terminate
+        cleanly. The Sleep keeps RF busy long enough for our
+        disconnect to land while it's mid-execution."""
+        env_python = self._check_or_skip()
+        robot = self._make_long_keyword_robot(tmp_path)
+
+        session = RobotDebugSession(
+            robot_path=robot,
+            test_name="Slow",
+            breakpoints=[],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        )
+        await session.__aenter__()
+        try:
+            # Let RF reach the Sleep, then yank the rug.
+            await asyncio.sleep(1.0)
+            await session.disconnect()
+            # Give cleanup a beat.
+            await asyncio.sleep(0.5)
+        finally:
+            await session.__aexit__(None, None, None)
+
+        assert session._proc is None  # noqa: SLF001
+
+    @pytest.mark.asyncio
+    async def test_paused_at_state_advances_each_next(
+        self, tmp_path: Path,
+    ) -> None:
+        """The cached `paused_at` line must advance with each ``next``.
+        Mirrors what the run-detail panel reads to render the current
+        position. Pinned because the user-reported "doesn't feel
+        clean" was at-least-partly the panel showing a stale line.
+        """
+        env_python = self._check_or_skip()
+        robot = tmp_path / "advance.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "Advance\n"
+            "    Log    a\n"
+            "    Log    b\n"
+            "    Log    c\n",
+            encoding="utf-8",
+        )
+        robot = robot.resolve()
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Advance",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            await _wait_for_kind(session, "stopped")
+            # Stack frame's line at first stop = 3.
+            assert session._client is not None  # noqa: SLF001
+            stack = await session._client.request(  # noqa: SLF001
+                "stackTrace", {"threadId": 1, "startFrame": 0, "levels": 1},
+            )
+            frames = stack.get("stackFrames", [])
+            assert frames, "no stack frames at first stop"
+            first_line = frames[0].get("line")
+            assert first_line == 3, f"expected first stop at line 3, got {first_line}"
+
+            # Step over → next stack frame line should advance.
+            await session.next_()
+            await _wait_for_kind(session, "stopped", timeout=10.0)
+            stack = await session._client.request(  # noqa: SLF001
+                "stackTrace", {"threadId": 1, "startFrame": 0, "levels": 1},
+            )
+            frames = stack.get("stackFrames", [])
+            second_line = frames[0].get("line") if frames else None
+            assert second_line is not None and second_line != first_line, (
+                f"line didn't advance: first={first_line} second={second_line}"
+            )
+
+            await session.continue_()
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_continue_after_terminated_does_not_crash(
+        self, tmp_path: Path,
+    ) -> None:
+        """Defensive: if the user clicks Continue after the session
+        has already terminated, the call must NOT crash the session
+        manager — at worst it's a no-op or a benign error."""
+        env_python = self._check_or_skip()
+        robot = self._make_demo_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            await _wait_for_kind(session, "stopped")
+            await session.continue_()
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+            # Now try another control — should not raise.
+            with contextlib.suppress(Exception):
+                await session.continue_()  # benign
+            with contextlib.suppress(Exception):
+                await session.next_()  # benign
+

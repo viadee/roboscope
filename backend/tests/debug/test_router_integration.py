@@ -406,3 +406,191 @@ class TestRealRouterControls:
             headers=auth_header(runner_user),
         )
         assert disc2.status_code == 204
+
+
+# ---------------------------------------------------------------------------
+# DEBUG-7: complex scenarios via the HTTP router
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("real_session_factory")
+class TestComplexRouterScenarios:
+    """End-to-end flows that mirror what a user actually does in the
+    debug panel: pause, step several times, observe the cached state
+    update each time, then continue/disconnect cleanly. Each test
+    drives the same surface the frontend buttons hit."""
+
+    @pytest.mark.asyncio
+    async def test_full_walk_through_via_http(
+        self,
+        client: TestClient,
+        db_session,
+        runner_user,
+        tmp_path,
+    ) -> None:
+        """User flow: hit a breakpoint, step over twice, then continue
+        to terminate. The cached `paused_at.line` MUST advance with
+        each step — that's the field the run-detail panel header
+        renders, and it was the user's "doesn't feel clean" symptom."""
+        _check_or_skip()
+        _, run, _robot = _make_repo_run(db_session, runner_user, tmp_path)
+
+        start = client.post(
+            "/api/v1/debug/sessions",
+            json={"run_id": run.id},
+            headers=auth_header(runner_user),
+        )
+        assert start.status_code == 201
+        sid = start.json()["session_id"]
+
+        first = await _wait_for_paused(client, sid, runner_user)
+        line_a = (first.get("paused_at") or {}).get("line")
+        assert line_a is not None
+
+        # First step.
+        s1 = client.post(
+            f"/api/v1/debug/sessions/{sid}/next",
+            headers=auth_header(runner_user),
+        )
+        assert s1.status_code == 204
+        # Wait for the new line.
+        deadline = asyncio.get_running_loop().time() + 10.0
+        line_b = line_a
+        while asyncio.get_running_loop().time() < deadline:
+            r = client.get(
+                f"/api/v1/debug/sessions/{sid}/state",
+                headers=auth_header(runner_user),
+            )
+            if r.status_code == 404:
+                pytest.fail("session 404'd before second pause — disconnect raced")
+            body = r.json()
+            cur = (body.get("paused_at") or {}).get("line")
+            if body.get("paused") and cur and cur != line_a:
+                line_b = cur
+                break
+            await asyncio.sleep(0.2)
+        assert line_b != line_a, "first step did not advance line"
+
+        # Second step.
+        s2 = client.post(
+            f"/api/v1/debug/sessions/{sid}/next",
+            headers=auth_header(runner_user),
+        )
+        assert s2.status_code == 204
+        deadline = asyncio.get_running_loop().time() + 10.0
+        line_c = line_b
+        while asyncio.get_running_loop().time() < deadline:
+            r = client.get(
+                f"/api/v1/debug/sessions/{sid}/state",
+                headers=auth_header(runner_user),
+            )
+            if r.status_code == 404:
+                # Reached end of test → that's fine, second step ran past EOF.
+                line_c = -1
+                break
+            body = r.json()
+            cur = (body.get("paused_at") or {}).get("line")
+            if body.get("terminated"):
+                line_c = -1
+                break
+            if body.get("paused") and cur and cur != line_b:
+                line_c = cur
+                break
+            await asyncio.sleep(0.2)
+        assert line_c != line_b, "second step did not advance state"
+
+        # Continue (or disconnect) to clean up.
+        if line_c != -1:
+            client.post(
+                f"/api/v1/debug/sessions/{sid}/continue",
+                headers=auth_header(runner_user),
+            )
+        await _wait_for_terminated(client, sid, runner_user, timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_409_returns_existing_session_id(
+        self,
+        client: TestClient,
+        db_session,
+        runner_user,
+        tmp_path,
+    ) -> None:
+        """The frontend treats 409 as "silent resume" — the response
+        MUST include the existing session_id so the panel can attach."""
+        _check_or_skip()
+        _, run, _robot = _make_repo_run(db_session, runner_user, tmp_path)
+
+        first = client.post(
+            "/api/v1/debug/sessions",
+            json={"run_id": run.id},
+            headers=auth_header(runner_user),
+        )
+        assert first.status_code == 201
+        sid = first.json()["session_id"]
+
+        # Wait for the session to be active so dedup considers it.
+        await _wait_for_paused(client, sid, runner_user)
+
+        # Second start for the SAME run — must 409 with the existing id.
+        second = client.post(
+            "/api/v1/debug/sessions",
+            json={"run_id": run.id},
+            headers=auth_header(runner_user),
+        )
+        assert second.status_code == 409, second.text
+        detail = second.json()["detail"]
+        assert isinstance(detail, dict)
+        assert detail.get("session_id") == sid
+
+        client.post(
+            f"/api/v1/debug/sessions/{sid}/disconnect",
+            headers=auth_header(runner_user),
+        )
+
+    @pytest.mark.asyncio
+    async def test_control_after_disconnect_returns_404(
+        self,
+        client: TestClient,
+        db_session,
+        runner_user,
+        tmp_path,
+    ) -> None:
+        """After Stop the session is reaped — any further control hit
+        must 404, not crash. (Frontend has the disabled-state guard,
+        but a stale tab racing disconnect must not take down the
+        backend.)"""
+        _check_or_skip()
+        _, run, _robot = _make_repo_run(db_session, runner_user, tmp_path)
+
+        start = client.post(
+            "/api/v1/debug/sessions",
+            json={"run_id": run.id},
+            headers=auth_header(runner_user),
+        )
+        sid = start.json()["session_id"]
+        await _wait_for_paused(client, sid, runner_user)
+
+        client.post(
+            f"/api/v1/debug/sessions/{sid}/disconnect",
+            headers=auth_header(runner_user),
+        )
+        # disconnect is idempotent → 204
+        idem = client.post(
+            f"/api/v1/debug/sessions/{sid}/disconnect",
+            headers=auth_header(runner_user),
+        )
+        assert idem.status_code == 204
+
+        # Other controls 404 (the session is gone).
+        await asyncio.sleep(0.5)
+        cont = client.post(
+            f"/api/v1/debug/sessions/{sid}/continue",
+            headers=auth_header(runner_user),
+        )
+        assert cont.status_code == 404, cont.text
+        nxt = client.post(
+            f"/api/v1/debug/sessions/{sid}/next",
+            headers=auth_header(runner_user),
+        )
+        assert nxt.status_code == 404

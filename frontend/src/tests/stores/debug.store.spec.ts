@@ -480,4 +480,222 @@ describe('debug.store', () => {
       expect(store.installError).toBeNull()
     })
   })
+
+  // -------------------------------------------------------------------------
+  // DEBUG-7 — race conditions and complex sequences
+  // -------------------------------------------------------------------------
+
+  describe('event-stream edge cases', () => {
+    async function withActiveSession() {
+      vi.mocked(debugApi.startDebugSession).mockResolvedValueOnce({
+        session_id: 'sid-1',
+        robot_file: 'tests.robot',
+        breakpoint_line: 3,
+        test_name: null,
+      })
+      const store = useDebugStore()
+      await store.startFromRun(7)
+      return store
+    }
+
+    it('terminated event arriving DURING a pending control resolves cleanly', async () => {
+      const store = await withActiveSession()
+      // The user has clicked a step button — postControl is in flight.
+      // While we await, the test terminates and the WS sends terminated.
+      let resolveControl: () => void = () => {}
+      vi.mocked(debugApi.postControl).mockImplementationOnce(
+        () => new Promise<void>((r) => { resolveControl = r }),
+      )
+      const stepPromise = store.control('next')
+
+      // Terminated arrives BEFORE the step response.
+      store.handleWsEvent({
+        topic: 'debug:session:sid-1',
+        kind: 'terminated',
+        body: {},
+      })
+      // Step response finally lands.
+      resolveControl()
+      await stepPromise
+
+      // Both signals are honored: terminated wins for state.
+      expect(store.state.terminated).toBe(true)
+      expect(store.state.paused).toBe(false)
+      expect(store.isActive).toBe(false)
+    })
+
+    it('multiple state events update to the LAST one (last-write-wins)', async () => {
+      const store = await withActiveSession()
+
+      const stateA = {
+        session_id: 'sid-1',
+        paused: true,
+        terminated: false,
+        paused_at: { file: 'tests.robot', line: 3, keyword: 'Log' },
+        scopes: [], call_stack: [], output_lines: [],
+      }
+      const stateB = { ...stateA, paused_at: { file: 'tests.robot', line: 5, keyword: 'Log' } }
+      const stateC = { ...stateA, paused_at: { file: 'tests.robot', line: 7, keyword: 'Log' } }
+
+      // Simulate three rapid state events (e.g. user clicked Step
+      // three times very quickly).
+      store.handleWsEvent({ topic: 'debug:session:sid-1', kind: 'state', body: stateA })
+      store.handleWsEvent({ topic: 'debug:session:sid-1', kind: 'state', body: stateB })
+      store.handleWsEvent({ topic: 'debug:session:sid-1', kind: 'state', body: stateC })
+
+      expect(store.state.paused_at.line).toBe(7)
+    })
+
+    it('output buffer is capped at 300 lines on overflow', async () => {
+      const store = await withActiveSession()
+      // Pump 350 outputs in. Cap is 300.
+      for (let i = 0; i < 350; i++) {
+        store.handleWsEvent({
+          topic: 'debug:session:sid-1',
+          kind: 'output',
+          body: { output: `line-${i}\n` },
+        })
+      }
+      expect(store.outputLog.length).toBe(300)
+      // Last line is the most recent — first line was dropped.
+      expect(store.outputLog[299]).toBe('line-349')
+      expect(store.outputLog[0]).toBe('line-50')
+    })
+
+    it('events for a different session_id are silently ignored', async () => {
+      const store = await withActiveSession()
+      const before = { ...store.state }
+      store.handleWsEvent({
+        topic: 'debug:session:OTHER-SESSION',
+        kind: 'state',
+        body: {
+          session_id: 'OTHER-SESSION',
+          paused: true,
+          terminated: false,
+          paused_at: { file: 'other.robot', line: 99, keyword: 'X' },
+          scopes: [], call_stack: [], output_lines: [],
+        },
+      })
+      // No state change.
+      expect(store.state.paused_at.line).toBe(before.paused_at.line)
+    })
+
+    it('events arriving after store reset are ignored', async () => {
+      const store = await withActiveSession()
+      store.reset()
+      // Simulate a stale event after the panel was closed.
+      store.handleWsEvent({
+        topic: 'debug:session:sid-1',
+        kind: 'state',
+        body: {
+          session_id: 'sid-1',
+          paused: true,
+          terminated: false,
+          paused_at: { file: 'tests.robot', line: 3, keyword: 'Log' },
+          scopes: [], call_stack: [], output_lines: [],
+        },
+      })
+      expect(store.sessionId).toBeNull()
+      expect(store.state.paused).toBe(false)
+    })
+  })
+
+  describe('rapid control commands', () => {
+    it('rapid sequential control calls all dispatch (no implicit dedup)', async () => {
+      vi.mocked(debugApi.startDebugSession).mockResolvedValueOnce({
+        session_id: 'sid-r1',
+        robot_file: 'tests.robot',
+        breakpoint_line: 1,
+        test_name: null,
+      })
+      const store = useDebugStore()
+      await store.startFromRun(99)
+
+      // Three quick step clicks (UI normally disables the button
+      // between, but verify the store doesn't ALSO dedup — letting
+      // the disabled-state contract own that responsibility).
+      await Promise.all([
+        store.control('next'),
+        store.control('next'),
+        store.control('next'),
+      ])
+
+      expect(debugApi.postControl).toHaveBeenCalledTimes(3)
+      expect(debugApi.postControl).toHaveBeenNthCalledWith(1, 'sid-r1', 'next')
+      expect(debugApi.postControl).toHaveBeenNthCalledWith(2, 'sid-r1', 'next')
+      expect(debugApi.postControl).toHaveBeenNthCalledWith(3, 'sid-r1', 'next')
+    })
+
+    it('control call without an active session is a silent no-op', async () => {
+      const store = useDebugStore()
+      await store.control('continue')
+      await store.control('next')
+      await store.control('stepIn')
+      await store.control('stepOut')
+      expect(debugApi.postControl).not.toHaveBeenCalled()
+    })
+
+    it('stop after a session reset is a no-op (no double-disconnect)', async () => {
+      vi.mocked(debugApi.startDebugSession).mockResolvedValueOnce({
+        session_id: 'sid-s1',
+        robot_file: 'tests.robot',
+        breakpoint_line: 1,
+        test_name: null,
+      })
+      const store = useDebugStore()
+      await store.startFromRun(1)
+      await store.stop()
+      // postControl was called once for the disconnect.
+      expect(debugApi.postControl).toHaveBeenCalledTimes(1)
+
+      // Click Stop again — the store's session is already null, so
+      // nothing fires.
+      await store.stop()
+      expect(debugApi.postControl).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('session lifecycle transitions', () => {
+    it('sessionId is null until startFromRun, set during life, null after stop', async () => {
+      vi.mocked(debugApi.startDebugSession).mockResolvedValueOnce({
+        session_id: 'lifecycle-sid',
+        robot_file: 'tests.robot',
+        breakpoint_line: 5,
+        test_name: 'X',
+      })
+      const store = useDebugStore()
+      expect(store.sessionId).toBeNull()
+      expect(store.isActive).toBe(false)
+
+      await store.startFromRun(1)
+      expect(store.sessionId).toBe('lifecycle-sid')
+      expect(store.isActive).toBe(true)
+
+      await store.stop()
+      expect(store.sessionId).toBeNull()
+      expect(store.isActive).toBe(false)
+    })
+
+    it('terminated state correctly flips isActive false', async () => {
+      vi.mocked(debugApi.startDebugSession).mockResolvedValueOnce({
+        session_id: 'term-sid',
+        robot_file: 'tests.robot',
+        breakpoint_line: 5,
+        test_name: null,
+      })
+      const store = useDebugStore()
+      await store.startFromRun(1)
+      expect(store.isActive).toBe(true)
+
+      store.handleWsEvent({
+        topic: 'debug:session:term-sid',
+        kind: 'terminated',
+        body: {},
+      })
+      // isActive = sessionId !== null && !terminated → false now.
+      expect(store.isActive).toBe(false)
+      // sessionId still set so the user can see the terminated badge.
+      expect(store.sessionId).toBe('term-sid')
+    })
+  })
 })
