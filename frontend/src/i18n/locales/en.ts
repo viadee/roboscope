@@ -1895,6 +1895,7 @@ export default {
         error: 'Error',
       },
       uptimeTitle: 'Time since the browser became ready',
+      effectiveTitle: "The exact text that lands as the keyword's first argument in the .robot file.",
       restartBrowser: 'Restart browser',
       restartingBrowser: 'Restarting…',
       restartBrowserHint: 'Kills the current Chromium and spawns a fresh one. Captured commands are preserved; you may need to re-navigate to your test page.',

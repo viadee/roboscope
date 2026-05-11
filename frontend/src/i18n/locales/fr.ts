@@ -1895,6 +1895,7 @@ export default {
         error: 'Erreur',
       },
       uptimeTitle: 'Temps écoulé depuis que le navigateur est prêt',
+      effectiveTitle: 'Le texte exact écrit comme premier argument du keyword dans le fichier .robot.',
       restartBrowser: 'Redémarrer le navigateur',
       restartingBrowser: 'Redémarrage…',
       restartBrowserHint: 'Tue le Chromium en cours et en lance un nouveau. Les commandes capturées sont conservées ; il peut être nécessaire de renaviguer vers votre page de test.',

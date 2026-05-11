@@ -1895,6 +1895,7 @@ export default {
         error: 'Fehler',
       },
       uptimeTitle: 'Zeit seit Browser bereit ist',
+      effectiveTitle: 'Genau der Text, der als erstes Argument des Keywords in die .robot-Datei geschrieben wird.',
       restartBrowser: 'Browser neu starten',
       restartingBrowser: 'Starte neu…',
       restartBrowserHint: 'Beendet das aktuelle Chromium und startet ein frisches. Bereits aufgezeichnete Befehle bleiben erhalten; ggf. musst du die Testseite erneut aufrufen.',

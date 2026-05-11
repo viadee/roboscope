@@ -24,6 +24,7 @@ import {
   startV2Browser,
 } from '@/api/recording-v2.api'
 import { extractErrorDetail } from '@/utils/errors'
+import { effectiveSelector } from '@/utils/effectiveSelector'
 import type { RecordedCommand, RecordedFlow, RecordingTransport } from '@/types/recorder.types'
 import { RECORDER_SCHEMA_VERSION } from '@/types/recorder.types'
 import SelectorPicker from '@/components/recorder/SelectorPicker.vue'
@@ -279,6 +280,12 @@ function deleteCommand(cmdIndex: number): void {
  * Strips the protocol and any trailing path so the chip stays narrow
  * (`message-eu.sp-prod.net`, not the full URL with consent-id query).
  */
+/** Wrapper so the template can call into the `@/utils/effectiveSelector`
+ *  helper without exposing it as a setup-script binding by name. */
+function effectivePreview(cmd: RecordedCommand): string {
+  return effectiveSelector(cmd)
+}
+
 function frameHost(frameUrl: string | null | undefined): string {
   if (!frameUrl) return ''
   try {
@@ -416,6 +423,23 @@ const uptimeLabel = computed<string | null>(() => {
         <span v-if="cmd.args && Object.keys(cmd.args).length" class="recording-live__args">
           {{ Object.values(cmd.args).join(' · ') }}
         </span>
+        <!-- Story RECORDER-FRAMES-2 — preview of the COMPOSED line
+             that the emitter will write into the .robot file. The
+             picker above shows only the inner candidate; this preview
+             also folds in the iframe wrapper chain and the defensive
+             `>> nth=0` disambiguation, so what the user sees here is
+             exactly what they'll save. Hidden for top-frame keyword-
+             less commands (`Go To`, `Switch Page`) where the inner
+             candidate IS the full line. -->
+        <div
+          v-if="cmd.selector_candidates.length"
+          class="recording-live__effective"
+          :title="t('recorder.live.effectiveTitle')"
+          data-testid="recording-effective-selector"
+        >
+          <span class="recording-live__effective-label">.robot:</span>
+          <code class="recording-live__effective-value">{{ effectivePreview(cmd) }}</code>
+        </div>
         <!-- Story RECORDER-PRUNE-1 — per-step delete. Local-only;
              no undo (over-prune ⇒ stop and re-record). The button
              is visually subdued and right-aligned via flex so it
@@ -517,6 +541,32 @@ const uptimeLabel = computed<string | null>(() => {
 .recording-live__restart-browser:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+.recording-live__effective {
+  flex-basis: 100%;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #5A6380);
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.recording-live__effective-label {
+  color: var(--color-text-tertiary, #94a3b8);
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+}
+.recording-live__effective-value {
+  font-family: var(--font-mono, ui-monospace, "Cascadia Code", monospace);
+  font-size: 0.78rem;
+  color: var(--color-text-secondary, #4a5b75);
+  background: var(--color-bg, #fff);
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
 }
 .recording-live__crash {
   display: flex;

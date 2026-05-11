@@ -1895,6 +1895,7 @@ export default {
         error: 'Error',
       },
       uptimeTitle: 'Tiempo desde que el navegador está listo',
+      effectiveTitle: 'El texto exacto que se escribe como primer argumento del keyword en el archivo .robot.',
       restartBrowser: 'Reiniciar navegador',
       restartingBrowser: 'Reiniciando…',
       restartBrowserHint: 'Mata el Chromium actual y lanza uno nuevo. Los comandos capturados se conservan; puede que necesites volver a navegar a tu página de prueba.',

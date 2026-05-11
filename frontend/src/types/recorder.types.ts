@@ -69,6 +69,24 @@ export interface RecordedCommand {
    * when set.
    */
   frame_url?: string | null
+  /**
+   * Story RECORDER-FRAMES-2 — full iframe ancestry chain with proper
+   * selector candidates per rung. Captured at record-time from the
+   * top frame's proactive iframe inventory. Order: index 0 is the
+   * outermost iframe in the page, last entry is the iframe whose
+   * document the event originated from. The emitter composes them
+   * with `>>>` separators. Empty list on top-frame events or for
+   * sidecars recorded before RECORDER-FRAMES-2 shipped (the
+   * emitter falls back to the URL-only legacy strategy in that case).
+   */
+  frame_chain?: FrameDescriptor[]
+}
+
+export interface FrameDescriptor {
+  url: string
+  /** Sorted by (verified_unique DESC, quality_score DESC) at capture
+   * time — index 0 is the recommended pick. */
+  selector_candidates: SelectorCandidate[]
 }
 
 export interface RecordedFlow {

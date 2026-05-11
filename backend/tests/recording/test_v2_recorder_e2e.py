@@ -709,3 +709,112 @@ def test_iframe_click_when_iframe_detaches_falls_back_to_url_strategy():
         )
     finally:
         tear_down_server()
+
+
+@pytest.mark.skipif(not _HAS_PLAYWRIGHT, reason="playwright not installed")
+def test_iframe_loaded_after_DOMContentLoaded_still_registered():
+    """heise.de / Sourcepoint shape: the CMP iframe is INJECTED via
+    JS after the parent's DOMContentLoaded. A single ready-time scan
+    misses it. The retry-loop (100/300/700/1500/3000/5000 ms +
+    iframe load events) is supposed to catch it before the user
+    clicks, which the recorder doesn't until at least ~2 s into the
+    session.
+
+    Asserts:
+      - The captured iframe click has `frame_url` set.
+      - `frame_chain[0].selector_candidates` is NON-EMPTY — proving
+        the late-load was caught by the retry-scan.
+      - The emitted line uses an id/testid/name iframe locator (the
+        synthesised candidates), NOT the legacy URL-host fallback.
+    """
+    from playwright.async_api import async_playwright
+
+    async def _chromium_available():
+        try:
+            async with async_playwright() as pw:
+                b = await pw.chromium.launch(headless=True)
+                await b.close()
+            return True
+        except Exception:
+            return False
+
+    import asyncio
+    if not asyncio.run(_chromium_available()):
+        pytest.skip("playwright chromium not installed")
+
+    from src.recording.v2_recorder_task import run_v2_recorder_session
+    from src.recording.robot_emit import _emit_command
+
+    base_url, tear_down_server = _http_server_for_dir(FIXTURE_PATH.parent)
+    try:
+        target = f"{base_url}/recorder_iframe_late_load.html"
+        session_id = 424347
+        register_session(session_id)
+        spy = _CommandSpy()
+        spy.install()
+
+        async def actions(page):
+            # Give the injection setTimeout(600ms) PLUS our retry scan
+            # at 700ms time to register the iframe. The retry loop
+            # covers 100/300/700/1500/3000/5000ms — by 1500ms we're
+            # safely past the injection.
+            await page.wait_for_selector(
+                '[data-testid="cmp-banner"]', timeout=5000,
+            )
+            iframe_locator = page.frame_locator('[data-testid="cmp-banner"]')
+            await iframe_locator.locator(
+                '[data-testid="agree-btn"]',
+            ).wait_for(state="visible", timeout=5000)
+            await iframe_locator.locator('[data-testid="agree-btn"]').click()
+            await page.wait_for_timeout(800)
+
+        thread = threading.Thread(
+            target=run_v2_recorder_session,
+            args=(session_id, target),
+            kwargs={"headless": True, "test_actions": actions},
+            daemon=True,
+        )
+        thread.start()
+        thread.join(timeout=30)
+        assert not thread.is_alive()
+
+        spy.uninstall()
+        tear_down_session(session_id)
+
+        click_cmds = [c for c in spy.commands if c.keyword == "Click"]
+        iframe_clicks = [c for c in click_cmds if c.frame_url is not None]
+        assert iframe_clicks, "no iframe click was captured"
+        cmd = iframe_clicks[0]
+
+        # The critical assertion — the retry-scan caught the
+        # late-injected iframe BEFORE the user clicked, so the chain
+        # has real candidates.
+        assert cmd.frame_chain, (
+            "frame_chain is empty — retry-scan didn't catch the "
+            "late-loaded iframe in time"
+        )
+        rung = cmd.frame_chain[0]
+        assert rung.selector_candidates, (
+            "frame_chain rung is empty — retry-scan didn't register "
+            "the iframe (URL match miss?)"
+        )
+        cand_values = [c.value for c in rung.selector_candidates]
+        print(
+            f"\n[frames-2-late-load] frame_chain candidates: "
+            f"{cand_values!r}"
+        )
+
+        line = _emit_command(cmd)
+        print(f"[frames-2-late-load] emitted line: {line}")
+        assert any(
+            s in line for s in [
+                "iframe#sp_message_iframe_1234567",
+                'iframe[data-testid="cmp-banner"]',
+                'iframe[name="consent"]',
+            ]
+        ), (
+            f"emitted line doesn't use an id/testid/name iframe "
+            f"locator despite retry-scan catching the late load: {line!r}"
+        )
+    finally:
+        tear_down_server()
