@@ -999,12 +999,32 @@ function onHealSuiteToggle(): void {
   if (state === 'hidden') return
   const mode = state === 'on' ? 'disable' : 'enable'
   const { form: nextForm, changedKeywords } = applyHealToForm(form, mode)
-  // Apply by mutating the reactive in place — the existing deep
-  // watchers on settings/testCases/keywords will fire and emit
-  // `update:content` so the unsaved-changes badge appears.
+  // Apply by mutating the reactive in place. On `visual` / `flow`
+  // the deep watchers below emit `update:content` for us; on the
+  // `code` tab they are deliberately silenced (`inFormEditingTab`
+  // is false) so free typing in CodeMirror isn't echoed back —
+  // which means a toggle fired from the toolbar would silently
+  // diverge from the visible code buffer. Sync both sides
+  // explicitly here so the contract is the same on every tab:
+  // toggle → form rewritten, code editor buffer rewritten, parent
+  // sees an unsaved-content event, the next tab switch parses the
+  // new code (not the stale one).
   form.settings = nextForm.settings
   form.testCases = nextForm.testCases
   form.keywords = nextForm.keywords
+  if (activeTab.value === 'code') {
+    const code = serializeFormToRobot()
+    internalCode.value = code
+    if (codeEditorView.value) {
+      const currentDoc = codeEditorView.value.state.doc.toString()
+      if (currentDoc !== code) {
+        codeEditorView.value.dispatch({
+          changes: { from: 0, to: currentDoc.length, insert: code },
+        })
+      }
+    }
+    emitContent(code)
+  }
   if (changedKeywords > 0) {
     const key = mode === 'enable'
       ? 'robotEditor.heal.toastEnabled'
