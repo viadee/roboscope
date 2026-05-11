@@ -50,6 +50,15 @@ import {
   type RobotKeywordDef,
   type FlowNodeData,
 } from './flow/flowConverter'
+// Story HEAL-1 — per-step Self-Healing opt-in.
+import {
+  getHealVariant,
+  getBaseKeyword,
+  isHealedKeyword,
+  ensureRoboScopeHealLibrary,
+  removeRoboScopeHealLibraryIfUnused,
+  countHealedSteps,
+} from '@/utils/healToggle'
 
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
@@ -888,6 +897,47 @@ function argLabelAt(index: number): string {
 function onKeywordValueChange(v: string) {
   if (!selectedNodeData.value) return
   selectedNodeData.value.step.keyword = v
+}
+
+// Story HEAL-1 — per-step Self-Healing toggle.
+//
+// Mode is `'hidden'` for keywords that don't have a Heal variant (most),
+// `'on'` when the step already uses `Heal *`, `'off'` when it uses the
+// bare form. Only `keyword` and `assignment` step types ever surface
+// the checkbox.
+const selectedStepHealMode = computed<'on' | 'off' | 'hidden'>(() => {
+  const data = selectedNodeData.value
+  if (!data) return 'hidden'
+  if (data.stepType !== 'keyword' && data.stepType !== 'assignment') return 'hidden'
+  const kw = (data.step.keyword ?? '').trim()
+  if (isHealedKeyword(kw)) return 'on'
+  if (getHealVariant(kw) !== null) return 'off'
+  return 'hidden'
+})
+
+function onStepHealToggle(checked: boolean): void {
+  const data = selectedNodeData.value
+  if (!data) return
+  const currentKw = data.step.keyword.trim()
+  const nextKw = checked
+    ? getHealVariant(currentKw)
+    : getBaseKeyword(currentKw)
+  if (nextKw === null) return
+  data.step.keyword = nextKw
+  // Persist the rewrite via the normal step-edit path BEFORE we read
+  // `countHealedSteps` so the form reflects this step's new state.
+  onStepFieldChange()
+  // Library import: keep settings in sync with whether ANY heal'd
+  // keyword still exists across the file. The helper functions are
+  // idempotent and return the same array reference on no-op, so we
+  // only patch when they actually want to change something.
+  const stillUsed = countHealedSteps(props.form) > 0
+  const next = checked
+    ? ensureRoboScopeHealLibrary(props.form.settings)
+    : removeRoboScopeHealLibraryIfUnused(props.form.settings, stillUsed)
+  if (next !== props.form.settings) {
+    props.form.settings.splice(0, props.form.settings.length, ...next)
+  }
 }
 
 // Story EDITOR-7 — keyword doc modal toggle.
@@ -2179,6 +2229,30 @@ function onDebugOverlayClose(): void {
           />
         </div>
 
+        <!-- Story HEAL-1: Self-Healing per-step toggle. Only rendered
+             when the keyword is one of the 13 supported names (bare or
+             already heal'd). -->
+        <div
+          v-if="selectedStepHealMode !== 'hidden'"
+          class="flow-detail-row flow-detail-row--heal"
+        >
+          <label :for="'heal-toggle-' + selectedNode?.id">
+            {{ t('flowEditor.heal.toggleLabel') }}
+          </label>
+          <div class="flow-heal-toggle">
+            <input
+              :id="'heal-toggle-' + selectedNode?.id"
+              type="checkbox"
+              :checked="selectedStepHealMode === 'on'"
+              data-testid="flow-step-heal-toggle"
+              @change="onStepHealToggle(($event.target as HTMLInputElement).checked)"
+            />
+            <span class="flow-heal-toggle__hint">
+              {{ t('flowEditor.heal.toggleHint') }}
+            </span>
+          </div>
+        </div>
+
         <!-- Arguments -->
         <div v-if="['keyword', 'assignment'].includes(selectedNodeData.stepType)" class="flow-detail-row">
           <label>{{ t('flowEditor.arguments') }}</label>
@@ -3395,5 +3469,21 @@ function onDebugOverlayClose(): void {
   border-radius: 10px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
   padding: 12px;
+}
+
+/* Story HEAL-1 — Self-Healing per-step toggle row. */
+.flow-detail-row--heal .flow-heal-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.flow-detail-row--heal .flow-heal-toggle input[type='checkbox'] {
+  margin: 2px 0 0 0;
+  cursor: pointer;
+}
+.flow-heal-toggle__hint {
+  font-size: 11px;
+  color: var(--color-text-muted, #5A6380);
+  line-height: 1.4;
 }
 </style>

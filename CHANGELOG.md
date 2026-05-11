@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+### Self-Healing opt-in ergonomics (HEAL epic)
+
+- **HEAL-1 — per-step toggle in the Flow Editor.** When the
+  currently selected keyword step is one of the 13 RoboScopeHeal-
+  supported Browser keywords (Click, Fill Text, Hover, Press Keys,
+  Wait For Elements State, Upload File, Check Checkbox, Uncheck
+  Checkbox, Select Options By, Get Text, Get Element Count,
+  Drag And Drop, Type Text), the detail panel renders a
+  *Self-Healing* checkbox. Toggling rewrites that single step's
+  keyword name (`Click` ↔ `Heal Click`) via the form path — never
+  via raw-text regex — and adds or removes the bare
+  `Library    RoboScopeHeal` row in Settings based on whether any
+  Heal* keyword is left in the file. A user-configured library
+  row (`Library    RoboScopeHeal    budget=…`) is always
+  preserved.
+- **HEAL-2 — suite-level toggle in the editor toolbar.** A
+  `Self-Healing: On / Off` button next to the `.robot` badge,
+  visible only when the file contains heal-able keywords. One
+  click promotes every supported Browser keyword to its Heal
+  variant (and adds the library import); one more click reverts.
+  Operates through the same parsed-form path as HEAL-1 — every
+  rewrite is a one-line source diff the user reviews and saves
+  explicitly. The existing `no-heal` Robot tag is still the
+  per-test runtime opt-out layered on top of this source choice.
+- Both toggles share the new `frontend/src/utils/healToggle.ts`
+  utility (`HEAL_VARIANTS` map + `applyHealToForm` rewrite
+  function), pinned by 42 unit tests covering the 13-keyword map,
+  library-row idempotence, the `Run Keyword    Click ...`
+  edge case (keyword-as-argument is never rewritten), Heal-
+  prefixed user keywords outside the supported set (e.g.,
+  `Heal Login`) being left alone, and immutability of input
+  forms. i18n complete in EN/DE/FR/ES.
+
 ## [0.9.0] — 2026-05-06
 
 Headline: a substantial round of UX polish + stabilization driven

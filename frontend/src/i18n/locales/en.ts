@@ -1265,6 +1265,11 @@ export default {
       confirmReplace: 'A debug session for this file is paused at line {lineFrom}. Disconnect it and start a new one at line {lineTo}?',
       confirmReplaceConfirm: 'Disconnect and start',
     },
+    // Story HEAL-1 — per-step Self-Healing toggle in detail panel.
+    heal: {
+      toggleLabel: 'Self-Healing',
+      toggleHint: 'Replace this Browser keyword with its Heal variant (locator auto-recovers if the page layout drifts).',
+    },
     settingMeta: {
       allPresent: 'Every [...] setting is attached — click a side note to edit it.',
       emptyHint: 'click to edit',
@@ -1380,6 +1385,15 @@ export default {
     visualTab: 'Visual Editor',
     flowTab: 'Flow',
     codeTab: 'Code',
+    // Story HEAL-2 — suite-level Self-Healing toggle.
+    heal: {
+      toggleOn: 'Self-Healing: On',
+      toggleOff: 'Self-Healing: Off',
+      toggleOnHint: 'Click to revert every Heal* keyword in this file to its bare Browser-library form and remove the RoboScopeHeal import.',
+      toggleOffHint: 'Click to promote every Browser keyword (Click, Fill Text, …) to its Heal variant and add the RoboScopeHeal library import.',
+      toastEnabled: '{count} keywords switched to Self-Healing.',
+      toastDisabled: '{count} Heal keywords reverted to their bare form.',
+    },
     libraryNotInEnvTitle: 'Library "{library}" not installed in environment',
     libraryNotInEnvBody: 'The Library import was added to the file, but {library} is not installed in this repo\'s environment. Only example keywords are shown until you install the package — open the Environments view to add it.',
     libraryNoEnvAtAllBody: 'The Library import was added to {library}, but this repo has no environment configured. Configure one in the Environments view to install libraries.',

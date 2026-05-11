@@ -1265,6 +1265,11 @@ export default {
       confirmReplace: 'Eine Debug-Sitzung für diese Datei pausiert in Zeile {lineFrom}. Trennen und stattdessen in Zeile {lineTo} starten?',
       confirmReplaceConfirm: 'Trennen und starten',
     },
+    // Story HEAL-1 — Per-Step Self-Healing-Schalter im Detailpanel.
+    heal: {
+      toggleLabel: 'Self-Healing',
+      toggleHint: 'Dieses Browser-Keyword durch die Heal-Variante ersetzen (Locator erholt sich automatisch bei Layout-Änderungen).',
+    },
     settingMeta: {
       allPresent: 'Alle [...] Einstellungen sind vorhanden — klick auf eine Seitennotiz zum Bearbeiten.',
       emptyHint: 'klicken zum Bearbeiten',
@@ -1380,6 +1385,15 @@ export default {
     visualTab: 'Visueller Editor',
     flowTab: 'Flow',
     codeTab: 'Code',
+    // Story HEAL-2 — Suite-weiter Self-Healing-Schalter.
+    heal: {
+      toggleOn: 'Self-Healing: An',
+      toggleOff: 'Self-Healing: Aus',
+      toggleOnHint: 'Klicken, um alle Heal-Keywords in dieser Datei zurück auf die nackten Browser-Keywords zu setzen und den RoboScopeHeal-Import zu entfernen.',
+      toggleOffHint: 'Klicken, um alle Browser-Keywords (Click, Fill Text, …) durch ihre Heal-Variante zu ersetzen und den RoboScopeHeal-Import hinzuzufügen.',
+      toastEnabled: '{count} Keywords auf Self-Healing umgestellt.',
+      toastDisabled: '{count} Heal-Keywords auf die nackte Form zurückgesetzt.',
+    },
     libraryNotInEnvTitle: 'Library "{library}" nicht im Environment installiert',
     libraryNotInEnvBody: 'Der Library-Import wurde in die Datei eingefügt, aber {library} ist im Environment dieses Repos nicht installiert. Es werden nur Beispiel-Keywords gezeigt, bis das Paket installiert ist — öffne die Environments-Ansicht, um es hinzuzufügen.',
     libraryNoEnvAtAllBody: 'Der Library-Import {library} wurde eingefügt, aber dem Repo ist kein Environment zugeordnet. Konfiguriere eines in der Environments-Ansicht, um Libraries zu installieren.',

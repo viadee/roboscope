@@ -1265,6 +1265,11 @@ export default {
       confirmReplace: 'Une session de debug pour ce fichier est en pause à la ligne {lineFrom}. La déconnecter et en démarrer une nouvelle à la ligne {lineTo} ?',
       confirmReplaceConfirm: 'Déconnecter et démarrer',
     },
+    // Story HEAL-1 — bascule Self-Healing par étape dans le panneau de détails.
+    heal: {
+      toggleLabel: 'Auto-guérison',
+      toggleHint: 'Remplacer ce keyword Browser par sa variante Heal (le locator se rétablit automatiquement si la mise en page change).',
+    },
     settingMeta: {
       allPresent: 'Tous les paramètres [...] sont attachés — cliquez sur une note latérale pour l\'éditer.',
       emptyHint: 'cliquez pour éditer',
@@ -1380,6 +1385,15 @@ export default {
     visualTab: 'Éditeur visuel',
     flowTab: 'Flow',
     codeTab: 'Code',
+    // Story HEAL-2 — bascule Self-Healing au niveau de la suite.
+    heal: {
+      toggleOn: 'Auto-guérison : activée',
+      toggleOff: 'Auto-guérison : désactivée',
+      toggleOnHint: 'Cliquez pour rétablir tous les keywords Heal* de ce fichier à leur forme Browser nue et retirer l\'import RoboScopeHeal.',
+      toggleOffHint: 'Cliquez pour promouvoir tous les keywords Browser (Click, Fill Text, …) vers leur variante Heal et ajouter l\'import RoboScopeHeal.',
+      toastEnabled: '{count} keywords basculés en auto-guérison.',
+      toastDisabled: '{count} keywords Heal revenus à leur forme nue.',
+    },
     libraryNotInEnvTitle: 'Bibliothèque « {library} » non installée dans l\'environnement',
     libraryNotInEnvBody: 'L\'import de bibliothèque a été ajouté au fichier, mais {library} n\'est pas installée dans l\'environnement de ce dépôt. Seuls des mots-clés d\'exemple sont affichés tant que le paquet n\'est pas installé — ouvrez la vue Environnements pour l\'ajouter.',
     libraryNoEnvAtAllBody: 'L\'import de bibliothèque {library} a été ajouté, mais aucun environnement n\'est configuré pour ce dépôt. Configurez-en un dans la vue Environnements pour installer des bibliothèques.',

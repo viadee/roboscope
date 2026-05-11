@@ -1265,6 +1265,11 @@ export default {
       confirmReplace: 'Hay una sesión de depuración para este archivo en pausa en la línea {lineFrom}. ¿Desconectarla y comenzar una nueva en la línea {lineTo}?',
       confirmReplaceConfirm: 'Desconectar e iniciar',
     },
+    // Story HEAL-1 — interruptor de auto-sanación por paso en el panel de detalles.
+    heal: {
+      toggleLabel: 'Auto-sanación',
+      toggleHint: 'Reemplaza este keyword Browser por su variante Heal (el localizador se recupera automáticamente si cambia la maquetación).',
+    },
     settingMeta: {
       allPresent: 'Todos los ajustes [...] están adjuntos — haz clic en una nota lateral para editarla.',
       emptyHint: 'haz clic para editar',
@@ -1380,6 +1385,15 @@ export default {
     visualTab: 'Editor visual',
     flowTab: 'Flow',
     codeTab: 'Código',
+    // Story HEAL-2 — interruptor de auto-sanación a nivel de suite.
+    heal: {
+      toggleOn: 'Auto-sanación: activada',
+      toggleOff: 'Auto-sanación: desactivada',
+      toggleOnHint: 'Haz clic para revertir cada keyword Heal* de este archivo a su forma básica de Browser y quitar el import de RoboScopeHeal.',
+      toggleOffHint: 'Haz clic para promover cada keyword Browser (Click, Fill Text, …) a su variante Heal y añadir el import de RoboScopeHeal.',
+      toastEnabled: '{count} keywords cambiados a auto-sanación.',
+      toastDisabled: '{count} keywords Heal devueltos a su forma básica.',
+    },
     libraryNotInEnvTitle: 'Biblioteca "{library}" no instalada en el entorno',
     libraryNotInEnvBody: 'El import de biblioteca se añadió al archivo, pero {library} no está instalada en el entorno de este repo. Solo se muestran palabras clave de ejemplo hasta que el paquete esté instalado — abre la vista Entornos para añadirlo.',
     libraryNoEnvAtAllBody: 'Se añadió el import de biblioteca {library}, pero el repo no tiene entorno configurado. Configura uno en la vista Entornos para instalar bibliotecas.',

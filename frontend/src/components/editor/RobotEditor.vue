@@ -15,6 +15,12 @@ import { useReposStore } from '@/stores/repos.store'
 import { extractErrorDetail } from '@/utils/errors'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import type { RecordedFlow } from '@/types/recorder.types'
+// Story HEAL-2 — suite-level Self-Healing toggle.
+import {
+  applyHealToForm,
+  countHealedSteps,
+  countHealableSteps,
+} from '@/utils/healToggle'
 
 // CodeMirror imports
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightSpecialChars } from '@codemirror/view'
@@ -969,6 +975,43 @@ watch(() => form.settings, () => { if (inFormEditingTab.value) emitFormContent()
 watch(() => form.variables, () => { if (inFormEditingTab.value) emitFormContent() }, { deep: true })
 watch(() => form.testCases, () => { if (inFormEditingTab.value) emitFormContent() }, { deep: true })
 watch(() => form.keywords, () => { if (inFormEditingTab.value) emitFormContent() }, { deep: true })
+
+// --- Story HEAL-2: Suite-level Self-Healing toggle ---
+//
+// Visible only when the file contains at least one heal-able Browser
+// keyword (bare or already in Heal* form). State labels:
+//   - 'off'   — zero Heal* keywords; clicking promotes all heal-able
+//               keywords to their Heal variant and adds the library
+//               import.
+//   - 'on'    — at least one Heal* keyword; clicking reverts every
+//               supported Heal* to its bare form and removes the
+//               (bare) library import.
+const healSuiteState = computed<'on' | 'off' | 'hidden'>(() => {
+  const healed = countHealedSteps(form)
+  const healable = countHealableSteps(form)
+  if (healed === 0 && healable === 0) return 'hidden'
+  return healed > 0 ? 'on' : 'off'
+})
+
+const toast = useToast()
+function onHealSuiteToggle(): void {
+  const state = healSuiteState.value
+  if (state === 'hidden') return
+  const mode = state === 'on' ? 'disable' : 'enable'
+  const { form: nextForm, changedKeywords } = applyHealToForm(form, mode)
+  // Apply by mutating the reactive in place — the existing deep
+  // watchers on settings/testCases/keywords will fire and emit
+  // `update:content` so the unsaved-changes badge appears.
+  form.settings = nextForm.settings
+  form.testCases = nextForm.testCases
+  form.keywords = nextForm.keywords
+  if (changedKeywords > 0) {
+    const key = mode === 'enable'
+      ? 'robotEditor.heal.toastEnabled'
+      : 'robotEditor.heal.toastDisabled'
+    toast.success(t(key, { count: changedKeywords }))
+  }
+}
 
 // --- Story EDITOR-1: recording sidecar (`<file>.rbs.json`) ---
 const sidecar = ref<RecordedFlow | null>(null)
@@ -2065,6 +2108,23 @@ watch(() => props.content, (newContent) => {
         <span class="badge badge-robot">{{ isResource ? '.resource' : '.robot' }}</span>
         <span v-if="!isResource && testCaseCount > 0" class="badge badge-info">{{ testCaseCount }} {{ t('robotEditor.tests') }}</span>
         <span v-if="keywordCount > 0" class="badge badge-info">{{ keywordCount }} {{ t('robotEditor.keywordsCount') }}</span>
+        <!-- Story HEAL-2: suite-level Self-Healing toggle. Only shown
+             when the file has Browser keywords that can be healed. -->
+        <button
+          v-if="healSuiteState !== 'hidden'"
+          class="heal-toggle-btn"
+          :class="{ 'heal-toggle-btn--on': healSuiteState === 'on' }"
+          data-testid="suite-heal-toggle"
+          :title="healSuiteState === 'on'
+            ? t('robotEditor.heal.toggleOnHint')
+            : t('robotEditor.heal.toggleOffHint')"
+          @click="onHealSuiteToggle"
+        >
+          <span aria-hidden="true">🩹</span>
+          {{ healSuiteState === 'on'
+            ? t('robotEditor.heal.toggleOn')
+            : t('robotEditor.heal.toggleOff') }}
+        </button>
         <button v-if="activeTab === 'visual'" class="icon-btn" @click="expandAllSections" :title="t('robotEditor.expandAll')">&#x229E;</button>
         <button v-if="activeTab === 'visual'" class="icon-btn" @click="collapseAllSections" :title="t('robotEditor.collapseAll')">&#x229F;</button>
       </div>
@@ -3017,6 +3077,33 @@ watch(() => props.content, (newContent) => {
 .tab-toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
 .tab-toolbar .icon-btn { background: none; border: 1px solid var(--color-border); border-radius: 4px; cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; color: var(--color-text-muted); }
 .tab-toolbar .icon-btn:hover { background: var(--color-bg); color: var(--color-primary); border-color: var(--color-primary); }
+/* Story HEAL-2 — suite-level Self-Healing toggle. */
+.heal-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border, #d6dfeb);
+  border-radius: 4px;
+  background: var(--color-bg, #fff);
+  color: var(--color-text-muted, #5A6380);
+  font-size: 12px;
+  cursor: pointer;
+}
+.heal-toggle-btn:hover {
+  border-color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #3B7DD8);
+}
+.heal-toggle-btn--on {
+  background: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #3B7DD8);
+  color: #fff;
+}
+.heal-toggle-btn--on:hover {
+  background: var(--color-primary-dark, #2860b8);
+  border-color: var(--color-primary-dark, #2860b8);
+  color: #fff;
+}
 
 /* Badges */
 .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
