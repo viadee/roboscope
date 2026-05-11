@@ -652,3 +652,126 @@ class TestFrameChainEmit:
         )
         line = _emit_command(cmd)
         assert "iframe#outer-host >>> iframe[name=consent] >>> button.accept" in line
+
+
+# ──────────────────────────────────────────────────────────────────────
+# RECORDER-FRAMES-2 defensive disambiguation — when the verifier
+# couldn't run (iframe detached at verify time, Sourcepoint-banner
+# race) the active selector lands `verified_unique=False`. For risky
+# strategies (text, generic css, role, aria) we wrap with `>> nth=0`
+# at emit time so Browser library's strict mode doesn't crash with
+# "locator resolved to N elements" at replay.
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestDefensiveDisambiguation:
+    def test_unverified_text_gets_nth0_wrap(self) -> None:
+        """The heise.de Sourcepoint case: `text="Zustimmen"` matches
+        3 elements (button + 2 paragraphs), verifier couldn't run
+        because the iframe detached, candidate landed at slot 0
+        with `verified_unique=False`. Without this wrap, replay
+        crashes."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="text", value='text="Zustimmen"',
+                    quality_score=70, verified_unique=False,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        assert 'text="Zustimmen" >> nth=0' in line
+
+    def test_verified_text_does_not_get_wrapped(self) -> None:
+        """When verification ran cleanly and the candidate is
+        `verified_unique=True`, emit it bare. Disambiguation is
+        only a safety net for the unverified case."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="text", value='text="OnlyOne"',
+                    quality_score=70, verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        assert 'text="OnlyOne"' in line
+        assert ">> nth=0" not in line
+
+    def test_unverified_css_with_id_skips_wrap(self) -> None:
+        """A CSS selector with `#` is unique enough in practice that
+        wrapping would be noisy. Skip the defensive wrap."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="#login-form",
+                    quality_score=85, verified_unique=False,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        # `\#` is the comment-escape — unrelated to our wrap.
+        assert ">> nth=0" not in line
+
+    def test_unverified_xpath_does_not_get_wrap(self) -> None:
+        """Xpath strategies aren't in the risky-strategy set — xpath
+        is usually written explicit enough by the synthesis layer
+        not to need defensive disambiguation."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="xpath",
+                    value="//button[normalize-space()='Click me']",
+                    quality_score=60, verified_unique=False,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        assert ">> nth=0" not in line
+
+    def test_already_disambiguated_selector_is_not_double_wrapped(self) -> None:
+        """If the verifier already produced `text=X >> nth=0` (via
+        `_with_nth_match`), don't bolt a second `>> nth=0` on top."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="text", value='text="Zustimmen" >> nth=0',
+                    quality_score=55, verified_unique=False,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        # Exactly one `nth=0` in the output line.
+        assert line.count("nth=0") == 1
+
+    def test_unverified_generic_css_class_gets_wrap(self) -> None:
+        """A pure-class CSS selector is the textbook multi-match
+        risk — wrap defensively."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="button.primary",
+                    quality_score=50, verified_unique=False,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        assert "button.primary >> nth=0" in line

@@ -1003,6 +1003,7 @@ export default {
       paused: 'Paused',
       terminated: 'Terminated',
       notPaused: 'Waiting for first stop…',
+      lineLabel: 'Line',
       callStack: 'Call stack',
       callStackEmpty: 'No call stack yet — execution has not paused.',
       scopes: 'Variables',

@@ -1003,6 +1003,7 @@ export default {
       paused: 'En pause',
       terminated: 'Terminé',
       notPaused: 'En attente du premier arrêt…',
+      lineLabel: 'Ligne',
       callStack: 'Pile d\'appels',
       callStackEmpty: 'Aucune pile d\'appels — l\'exécution n\'a pas été interrompue.',
       scopes: 'Variables',

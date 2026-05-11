@@ -44,6 +44,19 @@ const headerLabel = computed(() => {
   return at.keyword ? `${at.keyword}  —  ${fileLine}` : fileLine
 })
 
+/** Filename only (no path) for the prominent line-callout area. The
+ *  full path is kept on the surrounding element's `title` attr so
+ *  hover still surfaces it. Catches typical RF/Browser file shapes
+ *  including Windows paths (forward + backslashes). */
+function basename(p: string | null | undefined): string {
+  if (!p) return ''
+  const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))
+  return i >= 0 ? p.slice(i + 1) : p
+}
+
+/** Filename without path for the line callout. */
+const pausedFileBasename = computed(() => basename(debug.pausedAt.file))
+
 async function onContinue() { await runCommand(() => debug.control('continue')) }
 async function onNext()     { await runCommand(() => debug.control('next')) }
 async function onStepIn()   { await runCommand(() => debug.control('stepIn')) }
@@ -121,6 +134,32 @@ function truncate(s: string, max = 200): string {
 
     <div v-if="error" class="debug-panel__error">{{ error }}</div>
 
+    <!-- Prominent paused-line callout. The default test-author
+         interaction with the debugger is "where am I?" — this answers
+         that question without scanning the smaller header pill. The
+         line number is the biggest thing on the panel; filename + the
+         current keyword sit next to it as secondary metadata. -->
+    <div
+      v-if="debug.paused && debug.pausedAt.line !== null"
+      class="debug-panel__line-callout"
+      data-testid="debug-line-callout"
+    >
+      <div class="debug-panel__line-number" data-testid="debug-line-number">
+        <span class="debug-panel__line-label">{{ t('debug.panel.lineLabel') }}</span>
+        <span class="debug-panel__line-value">{{ debug.pausedAt.line }}</span>
+      </div>
+      <div class="debug-panel__line-meta">
+        <span
+          v-if="pausedFileBasename"
+          class="debug-panel__line-file"
+          :title="debug.pausedAt.file ?? ''"
+        >{{ pausedFileBasename }}</span>
+        <span v-if="debug.pausedAt.keyword" class="debug-panel__line-keyword">
+          {{ debug.pausedAt.keyword }}
+        </span>
+      </div>
+    </div>
+
     <div class="debug-panel__body">
       <aside class="debug-panel__stack">
         <h3>{{ t('debug.panel.callStack') }}</h3>
@@ -130,9 +169,13 @@ function truncate(s: string, max = 200): string {
             :key="idx"
             :class="{ 'debug-panel__stack-item': true, 'is-top': idx === 0 }"
           >
-            <span class="debug-panel__stack-name">{{ frame.name }}</span>
-            <span v-if="frame.file" class="debug-panel__stack-file">
-              {{ frame.file }}<span v-if="frame.line">:{{ frame.line }}</span>
+            <span class="debug-panel__stack-name" :title="frame.name">{{ frame.name }}</span>
+            <span
+              v-if="frame.file"
+              class="debug-panel__stack-file"
+              :title="frame.file + (frame.line ? ':' + frame.line : '')"
+            >
+              {{ basename(frame.file) }}<span v-if="frame.line">:{{ frame.line }}</span>
             </span>
           </li>
         </ul>
@@ -242,8 +285,74 @@ function truncate(s: string, max = 200): string {
 }
 .debug-panel__body {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 12px;
+  /* `minmax(0, 1fr)` on the second column is the canonical fix for
+     "long content in column A pushes column B off-screen": without
+     it, grid tracks default to `auto`, which means the contents
+     drive the column width even when set to 1fr. Same trick is
+     used on the stack column below via `min-width: 0`. */
+}
+.debug-panel__stack {
+  min-width: 0;  /* allow long file paths to truncate, not overflow */
+}
+.debug-panel__scopes {
+  min-width: 0;
+}
+
+/* Prominent paused-line callout. */
+.debug-panel__line-callout {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  background: var(--color-primary-bg, #dbeafe);
+  border: 1px solid var(--color-primary, #3B7DD8);
+  border-radius: 8px;
+}
+.debug-panel__line-number {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 56px;
+  line-height: 1;
+}
+.debug-panel__line-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary, #6b7280);
+  margin-bottom: 3px;
+}
+.debug-panel__line-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--color-primary, #3B7DD8);
+  font-variant-numeric: tabular-nums;
+}
+.debug-panel__line-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.debug-panel__line-file {
+  font-family: var(--font-mono, ui-monospace, "Cascadia Code", monospace);
+  font-size: 12px;
+  color: var(--color-text-secondary, #4a5b75);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.debug-panel__line-keyword {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--color-text, #1f2937);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .debug-panel__stack h3,
 .debug-panel__scopes h3,
@@ -271,11 +380,22 @@ function truncate(s: string, max = 200): string {
 }
 .debug-panel__stack-name {
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .debug-panel__stack-file {
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 11px;
   color: var(--color-text-tertiary, #6b7280);
+  /* Truncate long paths instead of letting them push the call-stack
+     column out of its 220px lane and overlap the scopes panel on the
+     right. The full path is preserved on `title` so hover still
+     surfaces it (added in the template). */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
 }
 .debug-panel__scope {
   border: 1px solid var(--color-border, #d6dfeb);

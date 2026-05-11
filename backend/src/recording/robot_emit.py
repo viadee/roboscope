@@ -77,21 +77,68 @@ def _escape_rf_token(s: str) -> str:
     return s
 
 
+# Strategies that MAY resolve to multiple matches if not unique by ID
+# or testid. When the recorder couldn't verify uniqueness (iframe race,
+# detached frame at verify time), we wrap the value with `>> nth=0` to
+# force a first-match resolution and avoid strict-mode-violation
+# crashes at replay. Cosmetic noise, but safer-by-default for the
+# real-world Sourcepoint / OneTrust / TCF-banner case where the iframe
+# disappears between click and verify.
+#
+# The wrap is suppressed when the selector already carries `nth=` /
+# `:nth-match(` (already disambiguated) or `>>` (chained pierce) so we
+# don't double-wrap or interfere with hand-edited chains.
+_RISKY_UNVERIFIED_STRATEGIES = {"text", "css", "role", "aria"}
+
+
+def _is_already_disambiguated(value: str) -> bool:
+    return (
+        ">> nth=" in value
+        or ":nth-match(" in value
+        or ":nth-of-type(" in value
+        or ">>>" in value
+        or ">>" in value
+    )
+
+
 def _render_selector(cand: SelectorCandidate) -> str:
     """Return the on-disk representation of a selector for a Robot line.
 
     Browser library selectors are plain strings (it accepts css, xpath,
     text, role, and id= prefixes). We emit `strategy=value` only where
     Browser requires an explicit prefix; otherwise use the raw value.
+
+    Defensive disambiguation: when the candidate is `verified_unique=
+    False` AND uses a strategy known to be multi-match-prone (text,
+    role, aria, generic css without an id), we append `>> nth=0` so
+    Browser library's strict-mode picks the first match deterministically
+    instead of raising "locator resolved to N elements". The case this
+    catches is the heise.de Sourcepoint banner: `text="Zustimmen"`
+    matches 3 elements (button + two paragraphs), the iframe detached
+    before the verifier could disambiguate, and the candidate landed
+    unverified at slot 0. Without this wrap the recording is unrunnable.
     """
     value = cand.value
     if cand.strategy == "xpath":
-        return f"xpath={value}"
-    if cand.strategy == "text":
-        return value if value.startswith("text=") else f"text={value}"
-    # testid / css / aria / pw_locator / desktop strategies keep their value
-    # verbatim — Browser library + test-author both read them clearly.
-    return value
+        out = f"xpath={value}"
+    elif cand.strategy == "text":
+        out = value if value.startswith("text=") else f"text={value}"
+    else:
+        # testid / css / aria / pw_locator / desktop strategies keep
+        # their value verbatim — Browser library + test-author both
+        # read them clearly.
+        out = value
+
+    if (
+        not cand.verified_unique
+        and cand.strategy in _RISKY_UNVERIFIED_STRATEGIES
+        and not _is_already_disambiguated(out)
+        # css-with-id is unique enough that wrapping is overkill —
+        # `#login-form` rarely matches multiple elements in practice.
+        and not (cand.strategy == "css" and "#" in value)
+    ):
+        out = f"{out} >> nth=0"
+    return out
 
 
 def _iframe_chain_locator(cmd: RecordedCommand) -> str | None:
