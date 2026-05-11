@@ -50,6 +50,35 @@ class SelectorCandidate(BaseModel):
     model_config = {"frozen": True}
 
 
+class FrameDescriptor(BaseModel):
+    """Story RECORDER-FRAMES-2 — one rung of the iframe ancestry chain.
+
+    Before this, the recorder remembered only the **URL** of the iframe a
+    captured event came from and the emitter rebuilt the cross-frame
+    locator at serialise time via a single hardcoded strategy
+    (`iframe[src*="<host>"]`). That broke whenever the host alone wasn't
+    unique on the page (multiple CMP iframes from the same vendor) and
+    gave the user no way to pick a different iframe selector in the
+    picker.
+
+    `frame_chain` on `RecordedCommand` is the rung-by-rung descriptor
+    list — index 0 is the outermost iframe (child of the top page),
+    the last entry is the iframe whose document the event originated
+    from. Each rung carries its own URL plus a list of candidate
+    selectors for the `<iframe>` element itself, computed against the
+    PARENT frame's DOM, sorted (verified_unique DESC, quality_score
+    DESC) so `selector_candidates[0]` is the recommended pick.
+
+    Backward compat: older sidecars (pre-RECORDER-FRAMES-2) and any
+    top-frame event leave the field as an empty list. The emitter
+    falls back to the URL-based `iframe[src*="<host>"]` logic when
+    `frame_chain` is empty AND `frame_url` is set.
+    """
+
+    url: str
+    selector_candidates: list[SelectorCandidate] = Field(default_factory=list)
+
+
 def _new_command_id() -> str:
     """Stable identifier for one recorded command.
 
@@ -106,6 +135,13 @@ class RecordedCommand(BaseModel):
     # for capturing cross-origin consent banners (Sourcepoint / OneTrust /
     # TCF) which are virtually always inside an iframe.
     frame_url: str | None = None
+    # Story RECORDER-FRAMES-2 — full iframe ancestry chain with proper
+    # selector candidates per rung. Replaces the URL-only legacy. Empty
+    # list on top-frame events; the emitter falls back to the
+    # `iframe[src*="<host>"]` URL-derivation when this is empty AND
+    # `frame_url` is set, so legacy sidecars keep working without a
+    # re-record. See `FrameDescriptor` for the per-rung shape.
+    frame_chain: list[FrameDescriptor] = Field(default_factory=list)
 
     def model_post_init(self, _context) -> None:  # type: ignore[override]
         if self.selector_candidates:

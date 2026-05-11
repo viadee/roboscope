@@ -464,3 +464,219 @@ def test_click_inside_iframe_that_removes_itself_preserves_selectors():
         )
     finally:
         tear_down_server()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Story RECORDER-FRAMES-2 — iframe-element selectors live in
+# `cmd.frame_chain`, not just `cmd.frame_url`. These tests record a
+# click inside a real cross-document iframe and assert that:
+#   1. The sidecar payload (RecordedCommand on the queue) carries a
+#      populated `frame_chain` with selector candidates for the
+#      iframe element itself, NOT just the inner selectors.
+#   2. The emitter prefers a high-quality iframe candidate (id-based)
+#      over the legacy URL-derived `iframe[src*="<host>"]` fallback
+#      when serialising to .robot.
+#   3. When the iframe detaches mid-flight (Sourcepoint flow), the
+#      chain may be empty — the emitter still produces a valid line
+#      via the URL-derived legacy strategy AND the inner click is
+#      preserved with at least one candidate (the regression chain).
+# ──────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.skipif(not _HAS_PLAYWRIGHT, reason="playwright not installed")
+def test_iframe_click_records_frame_chain_with_id_candidate_in_sidecar():
+    """Records a click inside a STABLE iframe (no detach on click).
+
+    Asserts the captured Click ends up with:
+      - non-empty `frame_chain` (the structural fix)
+      - at least one rung whose `selector_candidates` includes the
+        id-based `iframe#consent-banner` strategy (the strongest
+        synthesis output)
+      - the emitted .robot line uses an id/testid/name-based iframe
+        locator, NOT the legacy `iframe[src*="<host>"]` fallback.
+
+    This is the post-FRAMES-2 happy path the user asked us to pin
+    in real-browser E2E.
+    """
+    from playwright.async_api import async_playwright
+
+    async def _chromium_available():
+        try:
+            async with async_playwright() as pw:
+                b = await pw.chromium.launch(headless=True)
+                await b.close()
+            return True
+        except Exception:
+            return False
+
+    import asyncio
+    if not asyncio.run(_chromium_available()):
+        pytest.skip("playwright chromium not installed")
+
+    from src.recording.v2_recorder_task import run_v2_recorder_session
+    from src.recording.robot_emit import _emit_command
+
+    base_url, tear_down_server = _http_server_for_dir(FIXTURE_PATH.parent)
+    try:
+        target = f"{base_url}/recorder_iframe_stable.html"
+        session_id = 424345
+        register_session(session_id)
+        spy = _CommandSpy()
+        spy.install()
+
+        async def actions(page):
+            await page.wait_for_selector(
+                '[data-testid="consent-banner"]', timeout=5000,
+            )
+            iframe_locator = page.frame_locator('[data-testid="consent-banner"]')
+            await iframe_locator.locator(
+                '[data-testid="agree-btn"]',
+            ).wait_for(state="visible", timeout=5000)
+            await iframe_locator.locator('[data-testid="agree-btn"]').click()
+            await page.wait_for_timeout(800)
+
+        thread = threading.Thread(
+            target=run_v2_recorder_session,
+            args=(session_id, target),
+            kwargs={"headless": True, "test_actions": actions},
+            daemon=True,
+        )
+        thread.start()
+        thread.join(timeout=30)
+        assert not thread.is_alive()
+
+        spy.uninstall()
+        tear_down_session(session_id)
+
+        click_cmds = [c for c in spy.commands if c.keyword == "Click"]
+        iframe_clicks = [c for c in click_cmds if c.frame_url is not None]
+        assert iframe_clicks, (
+            f"expected an iframe click, got "
+            f"frame_urls={[c.frame_url for c in click_cmds]!r}"
+        )
+        cmd = iframe_clicks[0]
+
+        # (1) The sidecar payload itself carries the chain.
+        assert cmd.frame_chain, (
+            f"frame_chain is empty on an iframe click — RECORDER-FRAMES-2 "
+            f"regression. Got: {cmd}"
+        )
+        assert len(cmd.frame_chain) == 1, (
+            f"expected 1 rung (no nesting), got "
+            f"{len(cmd.frame_chain)}: {cmd.frame_chain!r}"
+        )
+        rung = cmd.frame_chain[0]
+        cand_values = [c.value for c in rung.selector_candidates]
+        print(f"\n[frames-2] frame_chain rung candidates: {cand_values!r}")
+        assert rung.selector_candidates, (
+            f"frame_chain rung has no candidates — synthesis failed. "
+            f"rung={rung}"
+        )
+        first = rung.selector_candidates[0]
+        assert any(
+            s in first.value for s in [
+                "iframe#consent-banner",
+                'iframe[data-testid="consent-banner"]',
+                'iframe[name="consent"]',
+            ]
+        ), (
+            f"best iframe candidate isn't id/testid/name strategy: "
+            f"{first.value!r}"
+        )
+        assert first.verified_unique is True, (
+            f"best iframe candidate not verified_unique on a "
+            f"single-iframe fixture: {first!r}"
+        )
+
+        # (2) Emitter uses the chain, NOT the legacy URL-host pattern.
+        line = _emit_command(cmd)
+        print(f"[frames-2] emitted line: {line}")
+        assert 'iframe[src*="127.0.0.1"]' not in line
+        assert any(
+            s in line for s in [
+                "iframe#consent-banner >>>",
+                'iframe[data-testid="consent-banner"] >>>',
+                'iframe[name="consent"] >>>',
+            ]
+        ), (
+            f"emitted line doesn't use a high-quality iframe candidate: "
+            f"{line!r}"
+        )
+    finally:
+        tear_down_server()
+
+
+@pytest.mark.skipif(not _HAS_PLAYWRIGHT, reason="playwright not installed")
+def test_iframe_click_when_iframe_detaches_falls_back_to_url_strategy():
+    """Click inside the SELF-REMOVING iframe (Sourcepoint flow). The
+    iframe is gone by verify time, so `frame_element()` fails and
+    `frame_chain` may be empty. Asserts the emitter still produces a
+    valid line via the URL-derived legacy strategy."""
+    from playwright.async_api import async_playwright
+
+    async def _chromium_available():
+        try:
+            async with async_playwright() as pw:
+                b = await pw.chromium.launch(headless=True)
+                await b.close()
+            return True
+        except Exception:
+            return False
+
+    import asyncio
+    if not asyncio.run(_chromium_available()):
+        pytest.skip("playwright chromium not installed")
+
+    from src.recording.v2_recorder_task import run_v2_recorder_session
+    from src.recording.robot_emit import _emit_command
+
+    base_url, tear_down_server = _http_server_for_dir(FIXTURE_PATH.parent)
+    try:
+        target = f"{base_url}/recorder_iframe_banner.html"
+        session_id = 424346
+        register_session(session_id)
+        spy = _CommandSpy()
+        spy.install()
+
+        async def actions(page):
+            await page.wait_for_selector(
+                '[data-testid="banner-frame"]', timeout=5000,
+            )
+            iframe_locator = page.frame_locator('[data-testid="banner-frame"]')
+            await iframe_locator.locator(
+                '[data-testid="agree-btn"]',
+            ).wait_for(state="visible", timeout=5000)
+            await iframe_locator.locator('[data-testid="agree-btn"]').click()
+            await page.wait_for_timeout(800)
+
+        thread = threading.Thread(
+            target=run_v2_recorder_session,
+            args=(session_id, target),
+            kwargs={"headless": True, "test_actions": actions},
+            daemon=True,
+        )
+        thread.start()
+        thread.join(timeout=30)
+        assert not thread.is_alive()
+
+        spy.uninstall()
+        tear_down_session(session_id)
+
+        click_cmds = [c for c in spy.commands if c.keyword == "Click"]
+        iframe_clicks = [c for c in click_cmds if c.frame_url is not None]
+        assert iframe_clicks, "no iframe click was captured"
+        cmd = iframe_clicks[0]
+        assert cmd.frame_url is not None
+        assert cmd.selector_candidates, (
+            "iframe click lost all inner selectors — preserve-on-exception "
+            "regression"
+        )
+        line = _emit_command(cmd)
+        print(f"[frames-2-detach] emitted line: {line}")
+        # Either the chain was captured before detach (id-based prefix)
+        # OR the URL-host fallback. What's NOT acceptable is no wrapper.
+        assert "iframe" in line and ">>>" in line, (
+            f"emitted line lost its iframe wrapper: {line!r}"
+        )
+    finally:
+        tear_down_server()

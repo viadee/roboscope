@@ -519,3 +519,136 @@ class TestEmitMissingSelectorObservability:
         _emit_command(cmd)
         warnings = [r for r in caplog.records if r.levelname == "WARNING"]
         assert warnings == []
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Story RECORDER-FRAMES-2 — `frame_chain` overrides the legacy URL-only
+# `iframe[src*="<host>"]` strategy, falls back gracefully on partial
+# chains, and stacks across nested iframes.
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestFrameChainEmit:
+    def test_chain_with_id_candidate_replaces_legacy_host_match(self) -> None:
+        """When `frame_chain[0]` carries a verified-unique `iframe#id`
+        candidate, the emitter prefers it over the URL-derived
+        `iframe[src*="<host>"]` legacy locator."""
+        from src.recording.selector_schema import FrameDescriptor
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="button.accept",
+                    quality_score=80, verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+            frame_url="https://cmp.example.com/consent",
+            frame_chain=[
+                FrameDescriptor(
+                    url="https://cmp.example.com/consent",
+                    selector_candidates=[
+                        SelectorCandidate(
+                            strategy="css", value="iframe#cmp-banner",
+                            quality_score=90, verified_unique=True,
+                        ),
+                        SelectorCandidate(
+                            strategy="css",
+                            value='iframe[src*="cmp.example.com"]',
+                            quality_score=65, verified_unique=True,
+                        ),
+                    ],
+                ),
+            ],
+        )
+        line = _emit_command(cmd)
+        assert "iframe#cmp-banner >>> button.accept" in line
+        # The legacy URL-host pattern is NOT used when a better
+        # iframe candidate exists.
+        assert 'iframe[src*="cmp.example.com"]' not in line
+
+    def test_chain_empty_falls_back_to_legacy_url_host(self) -> None:
+        """No frame_chain → legacy `iframe[src*="<host>"]` path
+        unchanged. Confirms backward compat for pre-FRAMES-2 sidecars."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="button.accept",
+                    quality_score=80, verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+            frame_url="https://cmp.example.com/consent",
+        )
+        line = _emit_command(cmd)
+        assert 'iframe[src*="cmp.example.com"] >>> button.accept' in line
+
+    def test_chain_rung_without_candidates_falls_back_to_rung_url(self) -> None:
+        """`FrameDescriptor` with empty `selector_candidates` (iframe
+        detached mid-capture) falls back to its OWN url-derived
+        `iframe[src*="<host>"]` for that rung. Rest of the chain is
+        unaffected."""
+        from src.recording.selector_schema import FrameDescriptor
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="button.accept",
+                    quality_score=80, verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+            frame_url="https://cmp.example.com/consent",
+            frame_chain=[
+                FrameDescriptor(
+                    url="https://cmp.example.com/consent",
+                    selector_candidates=[],  # detached, couldn't synth
+                ),
+            ],
+        )
+        line = _emit_command(cmd)
+        assert 'iframe[src*="cmp.example.com"] >>> button.accept' in line
+
+    def test_chain_nested_iframes_compose_outer_to_inner(self) -> None:
+        """Two-rung chain (outer iframe wraps inner iframe) composes
+        as `outer >>> inner >>> element` — the index 0 rung is the
+        outermost."""
+        from src.recording.selector_schema import FrameDescriptor
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="button.accept",
+                    quality_score=80, verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+            frame_url="https://inner.example.com/",
+            frame_chain=[
+                FrameDescriptor(
+                    url="https://outer.example.com/",
+                    selector_candidates=[
+                        SelectorCandidate(
+                            strategy="css", value="iframe#outer-host",
+                            quality_score=90, verified_unique=True,
+                        ),
+                    ],
+                ),
+                FrameDescriptor(
+                    url="https://inner.example.com/",
+                    selector_candidates=[
+                        SelectorCandidate(
+                            strategy="css", value="iframe[name=consent]",
+                            quality_score=85, verified_unique=True,
+                        ),
+                    ],
+                ),
+            ],
+        )
+        line = _emit_command(cmd)
+        assert "iframe#outer-host >>> iframe[name=consent] >>> button.accept" in line

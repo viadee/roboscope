@@ -94,6 +94,42 @@ def _render_selector(cand: SelectorCandidate) -> str:
     return value
 
 
+def _iframe_chain_locator(cmd: RecordedCommand) -> str | None:
+    """Story RECORDER-FRAMES-2 — compose the iframe-wrapper portion of
+    a cross-frame Browser-library locator from `cmd.frame_chain`.
+
+    Each rung in `frame_chain` contributes `selector_candidates[0]`
+    (the highest-ranked one, since the list is pre-sorted by
+    `verified_unique DESC, quality_score DESC`). Rungs without
+    candidates fall back to the legacy `iframe[src*="<host>"]`
+    derived from the rung's URL — the same shape the URL-only path
+    in `_iframe_locator_from_url` emits, kept here so a partially-
+    captured chain (some rungs verified, some not) still produces a
+    valid composite locator instead of dropping the entire wrapper.
+
+    Returns the composed prefix `<outer> >>> <inner-iframe>` (no
+    trailing separator — the caller adds `>>> <element>` after).
+    Returns None when the chain is empty so the caller knows to fall
+    back to the legacy URL-only strategy.
+    """
+    if not cmd.frame_chain:
+        return None
+    pieces: list[str] = []
+    for rung in cmd.frame_chain:
+        if rung.selector_candidates:
+            pieces.append(rung.selector_candidates[0].value)
+        else:
+            # Rung without verified candidates — synthesise the
+            # legacy URL-based fallback so the chain doesn't break.
+            fallback = _iframe_locator_from_url(rung.url) if rung.url else None
+            if fallback is None:
+                # No URL either (unlikely but possible) — bail out;
+                # we can't safely compose a partial chain.
+                return None
+            pieces.append(fallback)
+    return " >>> ".join(pieces)
+
+
 def _iframe_locator_from_url(frame_url: str) -> str | None:
     """Build a Browser-library iframe locator that targets a frame by
     its host. Returns None if the URL has no usable host (data:, empty,
@@ -170,12 +206,23 @@ def _emit_command(cmd: RecordedCommand) -> str:
             inner = _render_selector(active)
             # Story RECORDER-FRAMES — events captured inside an iframe
             # carry their originating URL on the command; wrap the
-            # inner selector with `iframe[src*="<host>"] >>> ` so the
-            # replay locates the right document.
-            if cmd.frame_url:
-                iframe_loc = _iframe_locator_from_url(cmd.frame_url)
-                if iframe_loc is not None:
-                    inner = f"{iframe_loc} >>> {inner}"
+            # inner selector with `iframe[…] >>> ` so the replay
+            # locates the right document.
+            #
+            # Story RECORDER-FRAMES-2 — when `frame_chain` is present,
+            # pick each rung's best selector candidate (verified-
+            # unique > quality_score) so the user gets the ID-based
+            # iframe locator when available, falls back through
+            # name/src-exact/src-host/class as appropriate. Old
+            # sidecars without `frame_chain` keep using the legacy
+            # URL-derived `iframe[src*="<host>"]` strategy.
+            chain_prefix = _iframe_chain_locator(cmd)
+            if chain_prefix:
+                inner = f"{chain_prefix} >>> {inner}"
+            elif cmd.frame_url:
+                legacy = _iframe_locator_from_url(cmd.frame_url)
+                if legacy is not None:
+                    inner = f"{legacy} >>> {inner}"
             # RF-token escape — a CSS-ID selector `#login-form` would
             # be parsed as a comment by Robot Framework. The escape
             # `\#login-form` is consumed by RF's lexer before the

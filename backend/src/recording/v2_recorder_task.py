@@ -38,11 +38,182 @@ from src.recording.v2_command_queue import (
     finalize_session,
     tear_down_session,
 )
-from src.recording.selector_schema import RecordedCommand, SelectorCandidate
+from src.recording.selector_schema import (
+    FrameDescriptor,
+    RecordedCommand,
+    SelectorCandidate,
+)
 from src.recording.selector_verification import MatchInfo, verify_candidates
 from src.recording.v2_payload_translator import translate_payload
 
 logger = logging.getLogger("roboscope.recording.v2_recorder")
+
+
+async def _capture_frame_chain(frame_or_page: Any) -> list[FrameDescriptor]:
+    """Story RECORDER-FRAMES-2 — walk the parent-frame ancestry and
+    build a `FrameDescriptor` per rung, with selector candidates for
+    each `<iframe>` element synthesised against its PARENT document.
+
+    Why: the legacy emitter rebuilt the iframe locator at serialise
+    time from `frame_url` alone, hardcoded to
+    `iframe[src*="<host>"]`. That broke when the host wasn't unique
+    on the page (multiple CMP iframes from the same vendor) and gave
+    the picker no alternative iframe selector to switch to. This
+    helper produces 4-6 ranked candidates per iframe (id, testid,
+    name, src exact, src host, first stable class) using Playwright's
+    `frame_element()` API — works cross-origin because it's a
+    CDP-level call, not a browser-DOM-level one.
+
+    Returns an empty list when:
+      - `frame_or_page` is a Page (top-frame event, no iframe wrapper
+        needed),
+      - any `frame_element()` raises (iframe detached mid-flight, race
+        with the user's click handler — we still preserve the URL on
+        the cmd, so the emitter can fall back to the legacy strategy).
+
+    Order: index 0 is the outermost iframe in the page, last entry is
+    the iframe whose document the event originated from. The emitter
+    composes them with `>>>` separators in the same order.
+    """
+    if frame_or_page is None:
+        return []
+    # A Playwright Page has a `main_frame`; a Frame has `parent_frame`.
+    # Top-page events arrive with `page` here → no chain.
+    if not hasattr(frame_or_page, "parent_frame"):
+        return []
+
+    # Walk inner → outer, collecting one descriptor per non-root frame.
+    descriptors: list[FrameDescriptor] = []
+    cur: Any = frame_or_page
+    try:
+        while cur is not None and getattr(cur, "parent_frame", None) is not None:
+            parent = cur.parent_frame
+            url = cur.url if hasattr(cur, "url") else ""
+            try:
+                el = await asyncio.wait_for(cur.frame_element(), timeout=1.0)
+                candidates = await _synthesise_iframe_candidates(el, parent, url)
+            except Exception:
+                # iframe element already gone (typical Sourcepoint
+                # flow — banner removes itself on click). Record the
+                # url-only descriptor so the emitter can fall back to
+                # `iframe[src*="<host>"]`.
+                candidates = []
+            descriptors.append(
+                FrameDescriptor(url=url, selector_candidates=candidates),
+            )
+            cur = parent
+    except Exception:
+        # Unexpected — return what we managed to collect so far.
+        return list(reversed(descriptors))
+
+    # Walked inner → outer; flip to outer → inner so emitter chains
+    # `outer >>> inner >>> final`.
+    return list(reversed(descriptors))
+
+
+async def _synthesise_iframe_candidates(
+    element_handle: Any, parent_frame: Any, frame_url: str,
+) -> list[SelectorCandidate]:
+    """Build a ranked list of selectors that point at one specific
+    `<iframe>` element from within its parent document.
+
+    Strategies tried, in descending quality:
+      - `iframe#<id>`               (qs 90)
+      - `iframe[data-testid="…"]`   (qs 95)
+      - `iframe[name="…"]`          (qs 85)
+      - `iframe[src="<full>"]`      (qs 75)
+      - `iframe[src*="<host>"]`     (qs 65) — legacy fallback
+      - `iframe.<first-class>`      (qs 40) — last resort
+
+    Each candidate's `verified_unique` is set by a count() against
+    `parent_frame` so the picker can show the green check immediately
+    without a second pass through the standard verifier. Candidates
+    that resolve to 0 are dropped; candidates that resolve to 1 are
+    `verified_unique=True`; multi-match candidates are kept with the
+    flag False so the user is at least aware.
+    """
+    try:
+        info = await asyncio.wait_for(
+            element_handle.evaluate(
+                """(el) => {
+                    const cls = (el.className || "").split(/\\s+/).filter(Boolean);
+                    return {
+                        id: el.id || "",
+                        testid: el.getAttribute("data-testid") || "",
+                        name: el.getAttribute("name") || "",
+                        src: el.getAttribute("src") || "",
+                        classes: cls,
+                    };
+                }""",
+            ),
+            timeout=1.0,
+        )
+    except Exception:
+        return []
+    if not isinstance(info, dict):
+        return []
+
+    from urllib.parse import urlparse
+
+    raw: list[tuple[str, str, int]] = []  # (strategy, value, quality)
+
+    if info.get("id"):
+        raw.append(("css", f'iframe#{info["id"]}', 90))
+    if info.get("testid"):
+        raw.append(("testid", f'iframe[data-testid="{info["testid"]}"]', 95))
+    if info.get("name"):
+        raw.append(("css", f'iframe[name="{info["name"]}"]', 85))
+    src = info.get("src") or ""
+    if src:
+        raw.append(("css", f'iframe[src="{src}"]', 75))
+        try:
+            host = urlparse(src).netloc or urlparse(frame_url).netloc
+        except Exception:
+            host = ""
+        if host:
+            raw.append(("css", f'iframe[src*="{host}"]', 65))
+    elif frame_url:
+        try:
+            host = urlparse(frame_url).netloc
+        except Exception:
+            host = ""
+        if host:
+            raw.append(("css", f'iframe[src*="{host}"]', 65))
+    classes = info.get("classes") or []
+    if classes:
+        raw.append(("css", f'iframe.{classes[0]}', 40))
+
+    # Verify each candidate by counting matches in the parent frame.
+    # The iframe element lives in the parent, NOT in the iframe doc, so
+    # the count call goes against `parent_frame`, not `element_handle`.
+    out: list[SelectorCandidate] = []
+    for strategy, value, qs in raw:
+        try:
+            loc = parent_frame.locator(value)
+            count = await asyncio.wait_for(loc.count(), timeout=1.0)
+        except Exception:
+            # Couldn't verify — preserve as-is, unverified.
+            out.append(
+                SelectorCandidate(
+                    strategy=strategy, value=value,
+                    quality_score=qs, verified_unique=False,
+                ),
+            )
+            continue
+        if count == 0:
+            # Synthesis produced a selector that doesn't match — drop
+            # rather than ship a guaranteed-wrong locator.
+            continue
+        out.append(
+            SelectorCandidate(
+                strategy=strategy, value=value,
+                quality_score=qs, verified_unique=(count == 1),
+            ),
+        )
+    # Sort by (verified_unique DESC, quality_score DESC) — same
+    # contract as inner-element candidates.
+    out.sort(key=lambda c: (not c.verified_unique, -c.quality_score))
+    return out
 
 
 def _resolve_frame_target(source: Any) -> Any:
@@ -179,6 +350,13 @@ async def _verify_command_candidates(
             return None
 
     verified = await verify_candidates(cmd.selector_candidates, _resolve)
+    # Story RECORDER-FRAMES-2 — capture the iframe ancestry alongside
+    # the inner-element verification. Done in the same async pass so
+    # the iframe still exists in the parent DOM (best chance — the
+    # banner-removes-itself flow only takes effect after the user's
+    # original click handler runs to completion). Empty list for
+    # top-frame events.
+    frame_chain = await _capture_frame_chain(frame_or_page)
     # After re-sorting, index 0 is the best (verified > non-verified, then
     # quality_score desc). The original active index is meaningless now —
     # it referred to a position in the unsorted/un-pruned list. Resetting
@@ -202,6 +380,7 @@ async def _verify_command_candidates(
         active_candidate_index=0,
         element_fingerprint=cmd.element_fingerprint,
         frame_url=cmd.frame_url,
+        frame_chain=frame_chain,
     )
 
 # Per-session stop signal. The DELETE endpoint sets this; the recorder
