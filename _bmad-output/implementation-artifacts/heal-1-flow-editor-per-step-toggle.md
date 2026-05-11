@@ -84,6 +84,7 @@ EN/DE/FR/ES.
 | Case | Behaviour |
 |---|---|
 | Step keyword is unknown to the heal map | Checkbox is hidden. |
+| Step keyword IS in the heal map but the file does **not** import `Library    Browser` or `Library    RoboScopeHeal` | Checkbox is hidden. Same gate as HEAL-2: a step called `Click` in a file without Browser library import is almost certainly a custom user keyword, and rewriting it to `Heal Click` would break the test. |
 | Step is in a User Keyword (`*** Keywords ***`), not Test Case | Checkbox is shown — `Heal Click` is a valid keyword in any context. |
 | Step is `assignment` (`${var}=    Click    selector`) | Checkbox is shown; the keyword name still rewrites. The return-var list is untouched. |
 | User already added `Library    RoboScopeHeal` manually with extra args (e.g., budget config) | `ensureRoboScopeHealLibrary` is a no-op when a `Library` row with `value === 'RoboScopeHeal'` already exists. `removeRoboScopeHealLibraryIfUnused` only removes when `args.length === 0` — the user's configured row is preserved. |

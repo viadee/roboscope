@@ -17,6 +17,8 @@ import {
   countHealedSteps,
   countHealableSteps,
   applyHealToForm,
+  hasBrowserLibraryImport,
+  hasRoboScopeHealImport,
 } from '@/utils/healToggle'
 import type {
   RobotForm,
@@ -296,6 +298,100 @@ describe('countHealableSteps', () => {
       ],
     })
     expect(countHealableSteps(f)).toBe(0)
+  })
+})
+
+// ─── Library-import detection (HEAL-2 toggle gate) ─────────────────
+
+describe('hasBrowserLibraryImport', () => {
+  it('matches the canonical "Browser" library name', () => {
+    const f = form({
+      settings: [{ key: 'Library', value: 'Browser', args: [] }],
+    })
+    expect(hasBrowserLibraryImport(f)).toBe(true)
+  })
+
+  it('matches Library with extra args (auto_closing_level=...)', () => {
+    const f = form({
+      settings: [
+        { key: 'Library', value: 'Browser', args: ['auto_closing_level=KEEP'] },
+      ],
+    })
+    expect(hasBrowserLibraryImport(f)).toBe(true)
+  })
+
+  it('matches the pip-name variants', () => {
+    for (const name of [
+      'robotframework-browser',
+      'robotframework_browser',
+      'robotframework-browser-batteries',
+      'robotframework_browser_batteries',
+    ]) {
+      const f = form({
+        settings: [{ key: 'Library', value: name, args: [] }],
+      })
+      expect(hasBrowserLibraryImport(f)).toBe(true)
+    }
+  })
+
+  it('is case-insensitive on the library name', () => {
+    const f = form({
+      settings: [{ key: 'Library', value: 'BROWSER', args: [] }],
+    })
+    expect(hasBrowserLibraryImport(f)).toBe(true)
+  })
+
+  it('ignores whitespace around the value', () => {
+    const f = form({
+      settings: [{ key: 'Library', value: '  Browser  ', args: [] }],
+    })
+    expect(hasBrowserLibraryImport(f)).toBe(true)
+  })
+
+  it('returns false when no Library row matches', () => {
+    const f = form({
+      settings: [
+        { key: 'Library', value: 'SeleniumLibrary', args: [] },
+        { key: 'Library', value: 'RequestsLibrary', args: [] },
+      ],
+    })
+    expect(hasBrowserLibraryImport(f)).toBe(false)
+  })
+
+  it('does not match a non-Library row even if value is "Browser"', () => {
+    const f = form({
+      settings: [{ key: 'Documentation', value: 'Browser tests', args: [] }],
+    })
+    expect(hasBrowserLibraryImport(f)).toBe(false)
+  })
+
+  it('returns false for an empty settings list', () => {
+    expect(hasBrowserLibraryImport(form())).toBe(false)
+  })
+})
+
+describe('hasRoboScopeHealImport', () => {
+  it('matches the bare Library row', () => {
+    const f = form({
+      settings: [{ key: 'Library', value: 'RoboScopeHeal', args: [] }],
+    })
+    expect(hasRoboScopeHealImport(f)).toBe(true)
+  })
+
+  it('matches a user-configured row with args', () => {
+    const f = form({
+      settings: [
+        { key: 'Library', value: 'RoboScopeHeal', args: ['budget=10'] },
+      ],
+    })
+    expect(hasRoboScopeHealImport(f)).toBe(true)
+  })
+
+  it('returns false when only Browser is imported (no heal yet)', () => {
+    const f = form({
+      settings: [{ key: 'Library', value: 'Browser', args: [] }],
+    })
+    expect(hasRoboScopeHealImport(f)).toBe(false)
   })
 })
 

@@ -58,6 +58,8 @@ import {
   ensureRoboScopeHealLibrary,
   removeRoboScopeHealLibraryIfUnused,
   countHealedSteps,
+  hasBrowserLibraryImport,
+  hasRoboScopeHealImport,
 } from '@/utils/healToggle'
 
 import '@vue-flow/core/dist/style.css'
@@ -910,9 +912,18 @@ const selectedStepHealMode = computed<'on' | 'off' | 'hidden'>(() => {
   if (!data) return 'hidden'
   if (data.stepType !== 'keyword' && data.stepType !== 'assignment') return 'hidden'
   const kw = (data.step.keyword ?? '').trim()
-  if (isHealedKeyword(kw)) return 'on'
-  if (getHealVariant(kw) !== null) return 'off'
-  return 'hidden'
+  const isOn = isHealedKeyword(kw)
+  const isOff = getHealVariant(kw) !== null
+  if (!isOn && !isOff) return 'hidden'
+  // Story HEAL-1 refinement — same gate as HEAL-2: a step named
+  // `Click` could be a user-defined keyword, not the Browser
+  // library's. Without an explicit `Library    Browser` /
+  // `RoboScopeHeal` import in Settings, suppress the toggle so we
+  // never offer to rewrite a custom keyword.
+  if (!hasBrowserLibraryImport(props.form) && !hasRoboScopeHealImport(props.form)) {
+    return 'hidden'
+  }
+  return isOn ? 'on' : 'off'
 })
 
 function onStepHealToggle(checked: boolean): void {

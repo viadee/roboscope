@@ -154,6 +154,35 @@ export function countHealedSteps(form: RobotForm): number {
 }
 
 /**
+ * `true` when the file imports the Browser library (any of the
+ * common names: bare `Browser`, the pip-name variants
+ * `robotframework-browser` / `robotframework_browser` and the
+ * batteries fork). The toggle uses this to avoid offering "Heal"
+ * for files where a step keyword happens to be called `Click`
+ * but is actually a custom user keyword — rewriting it to
+ * `Heal Click` would break the test rather than heal it.
+ */
+export function hasBrowserLibraryImport(form: RobotForm): boolean {
+  return form.settings.some(s => {
+    if (s.key !== 'Library') return false
+    const v = s.value.trim()
+    return /^(?:Browser|robotframework[-_]browser(?:[-_]batteries)?)$/i.test(v)
+  })
+}
+
+/**
+ * `true` when the file already imports `Library    RoboScopeHeal`
+ * (any args). Once present, the user has explicitly opted into the
+ * heal contract, so the toggle stays visible even without an
+ * explicit Browser library import.
+ */
+export function hasRoboScopeHealImport(form: RobotForm): boolean {
+  return form.settings.some(
+    s => s.key === 'Library' && s.value.trim() === 'RoboScopeHeal',
+  )
+}
+
+/**
  * Walks every step in test cases + user keywords and returns the count
  * that use a bare heal-able keyword (i.e., would be promoted by
  * `enable`). Used by the UI to decide whether the suite-level toggle

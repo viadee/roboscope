@@ -20,6 +20,8 @@ import {
   applyHealToForm,
   countHealedSteps,
   countHealableSteps,
+  hasBrowserLibraryImport,
+  hasRoboScopeHealImport,
 } from '@/utils/healToggle'
 
 // CodeMirror imports
@@ -990,6 +992,15 @@ const healSuiteState = computed<'on' | 'off' | 'hidden'>(() => {
   const healed = countHealedSteps(form)
   const healable = countHealableSteps(form)
   if (healed === 0 && healable === 0) return 'hidden'
+  // Story HEAL-2 refinement — a step named `Click` doesn't
+  // necessarily MEAN a Browser-library Click. Without an explicit
+  // `Library    Browser` (or `RoboScopeHeal`) import in Settings,
+  // the step almost certainly resolves to a user-defined keyword
+  // with the same name; rewriting it to `Heal Click` would break
+  // the test rather than heal it. Suppress the toggle in that case.
+  if (!hasBrowserLibraryImport(form) && !hasRoboScopeHealImport(form)) {
+    return 'hidden'
+  }
   return healed > 0 ? 'on' : 'off'
 })
 

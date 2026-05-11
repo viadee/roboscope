@@ -78,6 +78,7 @@ The same `healToggle.ts` utility from HEAL-1, plus one extra:
 |---|---|
 | File with no Browser keywords at all | Toggle is hidden. |
 | File with `Library    Browser` but every step is `Log` / `Run Keyword` (none heal-able) | Toggle hidden. |
+| File has a step called `Click` but **no** `Library    Browser` import | Toggle hidden — the `Click` almost certainly resolves to a custom user keyword with the same name, and rewriting it to `Heal Click` would break the test rather than heal it. The gate (`hasBrowserLibraryImport \|\| hasRoboScopeHealImport`) is enforced by the new `healToggle.ts` helpers, with 11 unit tests pinning the matcher (canonical `Browser`, pip-name variants, case-insensitivity, the args-aware Library row, the no-Library negative path, …). |
 | User invokes `enable` on a file already fully heal'd | No-op rewrite (changedKeywords = 0), no toast (suppress when 0). |
 | User invokes `disable` on a file with mixed state | All Heal* rewritten to bare. Toast reports total switched. |
 | User had a custom `Library    RoboScopeHeal    budget=3` row | Preserved on enable (no second row added). On disable, also preserved if it carries args, even when no Heal keyword is left — assume user knows why. |
