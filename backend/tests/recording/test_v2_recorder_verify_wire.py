@@ -271,3 +271,51 @@ async def test_helper_uses_only_object_passed_in_never_a_global_page() -> None:
     out = await _verify_command_candidates(cmd, target)
     assert [c.value for c in out.selector_candidates] == ["#only-here"]
     assert target.locator_calls == ["#only-here", "#nowhere"]
+
+
+# ──────────────────────────────────────────────────────────────────────
+# BUG-FIX (RECORDER-VERIFY-FRAME) — Playwright's `expose_binding` callback
+# receives `source` as a DICT (`{context, page, frame}`), not as an
+# object. The previous `getattr(source, "frame", None)` therefore always
+# returned None on production captures, nulling the verifier silently.
+# These tests pin the new `_resolve_frame_target` helper across every
+# shape `on_capture` might see in the wild.
+# ──────────────────────────────────────────────────────────────────────
+
+
+from src.recording.v2_recorder_task import _resolve_frame_target
+
+
+class TestResolveFrameTarget:
+    def test_dict_source_resolves_to_frame(self) -> None:
+        # The canonical Playwright payload — verifier MUST get the frame.
+        src = {"context": "CTX", "page": "P", "frame": "F"}
+        assert _resolve_frame_target(src) == "F"
+
+    def test_dict_source_without_frame_falls_back_to_page(self) -> None:
+        # Belt-and-braces: top-page captures (no iframe) still verify.
+        src = {"context": "CTX", "page": "P", "frame": None}
+        assert _resolve_frame_target(src) == "P"
+
+    def test_dict_source_missing_keys_returns_none(self) -> None:
+        assert _resolve_frame_target({"context": "CTX"}) is None
+        assert _resolve_frame_target({}) is None
+
+    def test_none_source_returns_none(self) -> None:
+        # Synthetic events (the recorder's own _on_new_page emission)
+        # call `on_capture(None, payload)`. Must not crash.
+        assert _resolve_frame_target(None) is None
+
+    def test_attribute_source_kept_for_backward_compat_with_test_stubs(self) -> None:
+        # Some legacy unit tests still pass objects with `.frame` /
+        # `.page` attributes. The helper continues to support that
+        # shape via the getattr fallback.
+        class _AttrSrc:
+            frame = "F_ATTR"
+            page = "P_ATTR"
+        assert _resolve_frame_target(_AttrSrc()) == "F_ATTR"
+
+    def test_attribute_source_with_only_page_attribute(self) -> None:
+        class _AttrPageOnly:
+            page = "P_ONLY"
+        assert _resolve_frame_target(_AttrPageOnly()) == "P_ONLY"

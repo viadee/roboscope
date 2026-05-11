@@ -45,6 +45,34 @@ from src.recording.v2_payload_translator import translate_payload
 logger = logging.getLogger("roboscope.recording.v2_recorder")
 
 
+def _resolve_frame_target(source: Any) -> Any:
+    """Pick the locator target out of Playwright's `expose_binding`
+    source argument.
+
+    Playwright's runtime passes
+    `source = dict(context=ctx, page=page, frame=frame)` — a plain
+    `dict`. We previously used `getattr(source, "frame", None)`,
+    which on a dict always returns `None` (dicts hold keys, not
+    attributes). That silently nulled the verifier on every captured
+    event in production. See the wire-up comment in `on_capture`.
+
+    Returns:
+      - For the canonical Playwright path: the originating Frame
+        (iframe-aware) or, as fallback, the top Page.
+      - For synthetic events (`source=None`, e.g. the recorder's
+        own `_on_new_page` Switch Page emission): `None`. The
+        downstream helper short-circuits on `None`.
+      - For test stubs that expose `.frame` / `.page` attributes:
+        the attribute, so existing unit tests don't have to be
+        rewritten.
+    """
+    if source is None:
+        return None
+    if isinstance(source, dict):
+        return source.get("frame") or source.get("page")
+    return getattr(source, "frame", None) or getattr(source, "page", None)
+
+
 async def _verify_command_candidates(
     cmd: RecordedCommand,
     frame_or_page: Any,
@@ -309,7 +337,23 @@ async def _recorder_loop(
             # The helper sorts by `(verified_unique desc, quality_score
             # desc)`, so the picker's first option is the best verified
             # candidate (or the best unverified one if none is unique).
-            frame = getattr(source, "frame", None) or getattr(source, "page", None)
+            #
+            # BUG-FIX (RECORDER-VERIFY-FRAME): Playwright's
+            # `expose_binding` callback passes `source` as a
+            # `dict(context=..., page=..., frame=...)` — NOT as an
+            # object with `.frame`/`.page` attributes. The previous
+            # `getattr(source, "frame", None)` therefore ALWAYS
+            # returned None on production captures (dicts have keys,
+            # not attributes), `_verify_command_candidates` then
+            # short-circuited on `frame_or_page is None`, and every
+            # recorded command landed with `verified_unique=False`
+            # on every candidate — so the picker defaulted to
+            # whatever ranked first by static heuristic, even when
+            # it was non-unique against the live DOM. Use dict
+            # access for the canonical case, keep getattr as a
+            # fallback so legacy unit tests that pass fake objects
+            # with `.frame` still work.
+            frame = _resolve_frame_target(source)
             cmd = await _verify_command_candidates(cmd, frame)
             enqueue_command(session_id, cmd)
         except Exception:
