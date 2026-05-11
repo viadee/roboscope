@@ -23,6 +23,7 @@ import { computed, ref, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RecordedCommand, SelectorCandidate, SelectorStrategy } from '@/types/recorder.types'
 import { qualityBand } from '@/utils/selectorQuality'
+import { effectiveSelectorForCandidate } from '@/utils/effectiveSelector'
 
 const props = defineProps<{
   command: RecordedCommand
@@ -95,6 +96,18 @@ const hasMenu = computed(() => visibleCandidates.value.length >= 1)
 function pick(index: number) {
   emit('update:activeIndex', index)
   menuOpen.value = false
+}
+
+/** Helper bound for the template — what gets emitted as the
+ *  selector argument in the .robot line if THIS candidate were
+ *  active. Mirrors the Python emitter's composition exactly via
+ *  `effectiveSelectorForCandidate`, so the picker shows the
+ *  cross-frame wrapper + defensive `>> nth=0` disambiguation
+ *  alongside the raw candidate value. Closes the "the live view
+ *  shows just `text=Zustimmen` but the saved .robot is something
+ *  else" UX gap the user pointed at on the heise.de recording. */
+function effectiveFor(c: SelectorCandidate): string {
+  return effectiveSelectorForCandidate(props.command, c)
 }
 
 function strategyLabelKey(strategy: SelectorStrategy): string {
@@ -247,7 +260,13 @@ watch(addValue, (v) => {
       :title="t(strategyLabelKey(active.strategy)) + ` · ${active.quality_score}/100`"
       aria-hidden="true"
     />
-    <code class="selector-picker__value">{{ active.value }}</code>
+    <!-- Effective selector — what the emitter will write into the
+         .robot file (iframe wrapper + inner + defensive `>> nth=0`).
+         Falls back to the raw value for top-frame, fully-verified
+         candidates where the inner IS the full string. The picker's
+         user-facing contract is "what will I actually save?", not
+         "what does Pydantic call this field?", so show the composite. -->
+    <code class="selector-picker__value" :title="active.value">{{ effectiveFor(active) }}</code>
     <button
       v-if="hasMenu"
       type="button"
@@ -279,7 +298,11 @@ watch(addValue, (v) => {
             aria-hidden="true"
           />
           <span class="selector-picker__strategy">{{ t(strategyLabelKey(c.strategy)) }}</span>
-          <code class="selector-picker__value">{{ c.value }}</code>
+          <!-- Show the effective composite per-row so the user can
+               see what each alternative ACTUALLY emits before picking
+               it. Raw value stays on title= for hover when the user
+               wants to compare with the original candidate. -->
+          <code class="selector-picker__value" :title="c.value">{{ effectiveFor(c) }}</code>
           <span class="selector-picker__score">{{ c.quality_score }}</span>
           <span v-if="c.verified_unique" class="selector-picker__unique" aria-hidden="true" :title="t('recorder.selector.verifiedUniqueTitle')">✓</span>
           <button

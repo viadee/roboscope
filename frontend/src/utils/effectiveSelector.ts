@@ -100,17 +100,20 @@ export function iframeChainPrefix(cmd: RecordedCommand): string | null {
 }
 
 /**
- * Return the full effective selector string for one recorded command
- * — the exact text the emitter writes into the .robot file as the
- * keyword's first argument. Used by the live view to show
- * what-you-get instead of just the raw inner candidate.
+ * Compose the effective selector for ONE specific candidate within
+ * a command's iframe context. Inner half = `renderSelector(cand)`
+ * (with defensive disambiguation); outer half = the command's
+ * iframe chain prefix or its URL-derived fallback. The picker uses
+ * this to show "if I picked THIS row, what'd the .robot say" for
+ * each alternative — otherwise the user only sees the raw inner
+ * value and can't compare which alternative will actually run
+ * cleanly under Browser library's strict mode.
  */
-export function effectiveSelector(cmd: RecordedCommand): string {
-  const cands = cmd.selector_candidates ?? []
-  if (cands.length === 0) return ''
-  const idx = cmd.active_candidate_index ?? 0
-  const active = cands[idx] ?? cands[0]
-  const inner = renderSelector(active)
+export function effectiveSelectorForCandidate(
+  cmd: RecordedCommand,
+  cand: SelectorCandidate,
+): string {
+  const inner = renderSelector(cand)
   const chainPrefix = iframeChainPrefix(cmd)
   if (chainPrefix !== null) {
     return `${chainPrefix} >>> ${inner}`
@@ -122,4 +125,18 @@ export function effectiveSelector(cmd: RecordedCommand): string {
     }
   }
   return inner
+}
+
+/**
+ * Return the full effective selector string for one recorded command
+ * — the exact text the emitter writes into the .robot file as the
+ * keyword's first argument. Used by the live view to show
+ * what-you-get instead of just the raw inner candidate.
+ */
+export function effectiveSelector(cmd: RecordedCommand): string {
+  const cands = cmd.selector_candidates ?? []
+  if (cands.length === 0) return ''
+  const idx = cmd.active_candidate_index ?? 0
+  const active = cands[idx] ?? cands[0]
+  return effectiveSelectorForCandidate(cmd, active)
 }
