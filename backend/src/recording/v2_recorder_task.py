@@ -95,7 +95,7 @@ async def _verify_command_candidates(
     if not cmd.selector_candidates or frame_or_page is None:
         return cmd
 
-    async def _resolve(c: SelectorCandidate) -> MatchInfo:
+    async def _resolve(c: SelectorCandidate) -> MatchInfo | None:
         """Return total / visible / actionable counts for one
         candidate via a single JS round-trip per candidate.
 
@@ -112,10 +112,29 @@ async def _verify_command_candidates(
         non-zero box. Not perfect (no IntersectionObserver-level
         clipping check) but good enough for the recorder's intent
         of "would the user actually click this".
+
+        Return semantics:
+          - `MatchInfo(t, v, a)` — verification ran cleanly. `t > 0`
+            and the candidate gets classified + ranked; `t == 0`
+            means the selector resolves to nothing live and the
+            caller drops it.
+          - `None` — verification COULDN'T RUN (frame detached after
+            a navigation-triggering click, page closed mid-flight,
+            transient browser-side error). The caller preserves the
+            candidate at the tail of the list as unverified rather
+            than dropping it, because the failure has nothing to do
+            with whether the selector is good.
         """
         try:
             loc = frame_or_page.locator(c.value)
-            result = await loc.evaluate_all(
+            # Bound the JS round-trip. Without a timeout, a click on
+            # a page that's mid-navigation (or an iframe that just
+            # detached) can leave `evaluate_all` hanging until the
+            # default Playwright timeout — which is too long for an
+            # interactive recorder where the user might click 10
+            # things in 1 second. 1s is generous for a same-context
+            # JS call but fails fast on detached frames.
+            result = await asyncio.wait_for(loc.evaluate_all(
                 """(els) => {
                     let visible = 0, actionable = 0;
                     for (const el of els) {
@@ -138,19 +157,26 @@ async def _verify_command_candidates(
                     }
                     return { total: els.length, visible, actionable };
                 }""",
-            )
+            ), timeout=1.0)
             if not isinstance(result, dict):
-                return MatchInfo(0, 0, 0)
+                # Defensive — Playwright returned something we
+                # don't recognise. Treat as "couldn't verify"
+                # rather than silently dropping the candidate.
+                return None
             return MatchInfo(
                 total=int(result.get("total", 0)),
                 visible=int(result.get("visible", 0)),
                 actionable=int(result.get("actionable", 0)),
             )
         except Exception:
-            # Invalid selector syntax / detached frame / mid-mutation
-            # element — treat as 0-match so the candidate is dropped
-            # rather than leaking through unverified.
-            return MatchInfo(0, 0, 0)
+            # Navigation / detached frame / closed page / invalid
+            # selector — couldn't decide either way. Preserve the
+            # candidate as unverified so a click on a link or a
+            # cookie-banner-dismiss-which-removes-the-iframe doesn't
+            # nuke every candidate the synthesis layer just produced.
+            # The picker shows them without a green check and the
+            # user can still pick the obvious one.
+            return None
 
     verified = await verify_candidates(cmd.selector_candidates, _resolve)
     # After re-sorting, index 0 is the best (verified > non-verified, then

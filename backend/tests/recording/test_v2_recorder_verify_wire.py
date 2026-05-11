@@ -133,16 +133,26 @@ async def test_command_without_candidates_passes_through() -> None:
 
 
 @pytest.mark.asyncio
-async def test_invalid_selector_syntax_is_dropped_not_kept_unverified() -> None:
-    """If `page.locator(value).count()` raises (invalid CSS / xpath /
-    pw_locator syntax), the candidate is treated as 0-match and
-    dropped. Critical that we don't silently keep it as
-    `verified_unique=False` — that would mislead the picker into
-    showing it as a viable option."""
+async def test_locator_factory_raise_preserves_candidate_as_unverified() -> None:
+    """When `locator_factory(...)` raises — most commonly because a
+    navigation-triggering click detached the frame between the
+    `__roboscopeCapture` binding firing and `_verify_command_candidates`
+    running — the candidate is preserved at the TAIL of the result
+    list with `verified_unique=False`. The original Story-S.3
+    contract dropped it (treating the exception as "0 matches");
+    that turned every click on a link into "no selectors captured"
+    in production, defeating the entire recorder.
+
+    Real verifiable candidates still sort ahead of unverifiable ones,
+    so the picker default is unaffected when a clean match exists.
+    """
 
     class _BoomLocator(_FakeLocator):
         async def count(self) -> int:  # type: ignore[override]
-            raise ValueError("invalid selector syntax")
+            raise ValueError("frame was detached after navigation")
+
+        async def evaluate_all(self, _js: str) -> dict[str, int]:  # type: ignore[override]
+            raise ValueError("frame was detached after navigation")
 
     class _BoomPage(_FakePage):
         def locator(self, value: str) -> _FakeLocator:
@@ -162,7 +172,53 @@ async def test_invalid_selector_syntax_is_dropped_not_kept_unverified() -> None:
     page = _BoomPage({"button.real": 1})
 
     out = await _verify_command_candidates(cmd, page)
-    assert [c.value for c in out.selector_candidates] == ["button.real"]
+    # Verifiable real match → slot 0, verified. Unverifiable
+    # `boom` → slot 1, unverified. Both retained.
+    assert [c.value for c in out.selector_candidates] == [
+        "button.real",
+        "boom",
+    ]
+    assert out.selector_candidates[0].verified_unique is True
+    assert out.selector_candidates[1].verified_unique is False
+
+
+@pytest.mark.asyncio
+async def test_locator_factory_raise_preserves_candidate_when_no_other_match() -> None:
+    """Critical case from the heise.de cookie-banner bug: the click
+    dismisses the banner, the iframe detaches, and EVERY candidate's
+    `evaluate_all` raises. The original behaviour dropped them all
+    and the recorder emitted `# RBSCOPE: dropped Click — no selector
+    captured`. Now all candidates are preserved as unverified so the
+    user has something to pick from."""
+
+    class _AllBoomLocator(_FakeLocator):
+        async def count(self) -> int:  # type: ignore[override]
+            raise ValueError("frame was detached")
+
+        async def evaluate_all(self, _js: str) -> dict[str, int]:  # type: ignore[override]
+            raise ValueError("frame was detached")
+
+    class _AllBoomPage(_FakePage):
+        def locator(self, _value: str) -> _FakeLocator:
+            return _AllBoomLocator(0)
+
+    cmd = RecordedCommand(
+        index=0,
+        keyword="Click",
+        selector_candidates=[
+            _cand("text=Zustimmen", score=70, strategy="text"),
+            _cand("//button[normalize-space()='Zustimmen']", score=65, strategy="xpath"),
+            _cand("#notice button", score=45, strategy="css"),
+        ],
+        active_candidate_index=0,
+    )
+
+    out = await _verify_command_candidates(cmd, _AllBoomPage({}))
+    # All three preserved, sorted by quality_score desc.
+    assert len(out.selector_candidates) == 3
+    assert [c.quality_score for c in out.selector_candidates] == [70, 65, 45]
+    for c in out.selector_candidates:
+        assert c.verified_unique is False
 
 
 @pytest.mark.asyncio

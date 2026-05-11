@@ -129,16 +129,61 @@ async def test_multi_match_testid_strategy_disambiguated_via_nth_zero():
 
 
 @pytest.mark.asyncio
-async def test_factory_exception_drops_candidate():
-    """Broken selector (invalid xpath, etc.) raises inside count() —
-    the function swallows and drops rather than poisoning the list."""
+async def test_factory_exception_preserves_candidate_as_unverified():
+    """The factory raising means verification couldn't run — most
+    commonly because a navigation-triggering click detached the
+    frame between capture and verify. Preserve the candidate at the
+    tail of the output with `verified_unique=False` rather than
+    dropping it; synthesis produced it for a reason and a click on
+    a link shouldn't silently empty the candidate list."""
     async def boom(_cand):
-        raise ValueError("unparseable selector")
+        raise ValueError("frame was detached after navigation")
     out = await verify_candidates(
         [_c("xpath", "///invalid[")],
         boom,
     )
-    assert out == []
+    assert len(out) == 1
+    assert out[0].verified_unique is False
+    assert out[0].value == "///invalid["
+
+
+@pytest.mark.asyncio
+async def test_factory_none_return_preserves_candidate_as_unverified():
+    """Explicit `None` return from the factory carries the same
+    semantics as raising — couldn't verify, preserve as-is."""
+    async def cant_decide(_cand):
+        return None
+    out = await verify_candidates(
+        [_c("css", "button.maybe-real")],
+        cant_decide,
+    )
+    assert len(out) == 1
+    assert out[0].verified_unique is False
+
+
+@pytest.mark.asyncio
+async def test_factory_unverifiable_tail_sorted_after_verified():
+    """When SOME candidates verify cleanly and others can't be
+    verified, the verified ones lead the list (in their classified
+    order) and the unverifiable tail follows, ranked by their own
+    quality_score so the best static heuristic candidate is the
+    first unverified option."""
+    async def factory(c):
+        if c.value in ("good_a", "good_b"):
+            return MatchInfo(total=1, visible=1, actionable=1)
+        raise RuntimeError("locator died mid-flight")
+
+    out = await verify_candidates(
+        [
+            _c("text", "boom_high", score=90),
+            _c("css", "good_a", score=70),
+            _c("xpath", "boom_low", score=30),
+            _c("testid", "good_b", score=50),
+        ],
+        factory,
+    )
+    assert [c.value for c in out] == ["good_a", "good_b", "boom_high", "boom_low"]
+    assert [c.verified_unique for c in out] == [True, True, False, False]
 
 
 @pytest.mark.asyncio
