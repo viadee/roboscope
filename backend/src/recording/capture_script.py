@@ -294,6 +294,64 @@ CAPTURE_SCRIPT: str = r"""
     return rv;
   };
   window.addEventListener("popstate", () => maybeEmitNav("popstate"));
+
+  // RECORDER-FRAMES-2 — proactive iframe inventory (top-frame only).
+  // The capture script in the iframe document can't see the iframe
+  // element it lives inside. The top-frame script can. We enumerate
+  // iframes once the DOM is ready, synthesise candidate selectors
+  // per iframe, count matches synchronously, and post the result so
+  // the backend has the iframe's id/name/testid before any user
+  // click possibly detaches it.
+  if (isTopFrame) {
+    function _registerIframesOnce() {
+      var iframes = document.querySelectorAll("iframe");
+      for (var i = 0; i < iframes.length; i++) {
+        var iframe = iframes[i];
+        var src = iframe.getAttribute("src") || "";
+        var id = iframe.id || "";
+        var name = iframe.name || "";
+        var testid = iframe.getAttribute("data-testid") || "";
+        var classes = [];
+        try { classes = Array.prototype.slice.call(iframe.classList); }
+        catch (e) { classes = []; }
+        function countSel(sel) {
+          try { return document.querySelectorAll(sel).length; }
+          catch (e) { return 0; }
+        }
+        var cands = [];
+        if (testid) {
+          var v1 = 'iframe[data-testid="' + testid + '"]';
+          cands.push({ strategy: "testid", value: v1, quality_score: 95, count: countSel(v1) });
+        }
+        if (id) {
+          var v2 = "iframe#" + id;
+          cands.push({ strategy: "css", value: v2, quality_score: 90, count: countSel(v2) });
+        }
+        if (name) {
+          var v3 = 'iframe[name="' + name + '"]';
+          cands.push({ strategy: "css", value: v3, quality_score: 85, count: countSel(v3) });
+        }
+        if (src) {
+          var v4 = 'iframe[src="' + src + '"]';
+          cands.push({ strategy: "css", value: v4, quality_score: 75, count: countSel(v4) });
+        }
+        send({
+          kind: "iframe_register",
+          iframe_src: src,
+          iframe_id: id,
+          iframe_name: name,
+          iframe_testid: testid,
+          iframe_classes: classes,
+          candidates: cands,
+        });
+      }
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", _registerIframesOnce);
+    } else {
+      _registerIframesOnce();
+    }
+  }
 })();
 """
 

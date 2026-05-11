@@ -671,12 +671,41 @@ def test_iframe_click_when_iframe_detaches_falls_back_to_url_strategy():
             "iframe click lost all inner selectors — preserve-on-exception "
             "regression"
         )
+        # RECORDER-FRAMES-2 — the proactive inventory should have
+        # registered the iframe BEFORE the user click detached it, so
+        # the chain MUST carry id-based selectors even though
+        # `frame_element()` would now fail. Pre-inventory behaviour
+        # left this empty.
+        assert cmd.frame_chain, (
+            "frame_chain empty after iframe detach — proactive "
+            "inventory didn't fire in time. Got: " + repr(cmd)
+        )
+        rung = cmd.frame_chain[0]
+        assert rung.selector_candidates, (
+            "frame_chain rung has no candidates — inventory entry "
+            "missing for url=" + repr(rung.url)
+        )
+        cand_values = [c.value for c in rung.selector_candidates]
+        print(
+            f"\n[frames-2-detach] frame_chain candidates (post-detach): "
+            f"{cand_values!r}"
+        )
         line = _emit_command(cmd)
         print(f"[frames-2-detach] emitted line: {line}")
-        # Either the chain was captured before detach (id-based prefix)
-        # OR the URL-host fallback. What's NOT acceptable is no wrapper.
+        # Now the chain has a high-quality iframe selector, so the
+        # emitted line MUST use one of those — NOT just the URL host
+        # fallback (which used to be the only option pre-inventory).
         assert "iframe" in line and ">>>" in line, (
             f"emitted line lost its iframe wrapper: {line!r}"
+        )
+        assert any(
+            s in line for s in [
+                "iframe#banner-frame",
+                'iframe[data-testid="banner-frame"]',
+            ]
+        ), (
+            f"emitted line uses neither id nor testid iframe locator "
+            f"despite proactive inventory: {line!r}"
         )
     finally:
         tear_down_server()

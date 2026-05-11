@@ -49,7 +49,10 @@ from src.recording.v2_payload_translator import translate_payload
 logger = logging.getLogger("roboscope.recording.v2_recorder")
 
 
-async def _capture_frame_chain(frame_or_page: Any) -> list[FrameDescriptor]:
+async def _capture_frame_chain(
+    frame_or_page: Any,
+    iframe_inventory: dict[str, dict[str, Any]] | None = None,
+) -> list[FrameDescriptor]:
     """Story RECORDER-FRAMES-2 — walk the parent-frame ancestry and
     build a `FrameDescriptor` per rung, with selector candidates for
     each `<iframe>` element synthesised against its PARENT document.
@@ -89,15 +92,27 @@ async def _capture_frame_chain(frame_or_page: Any) -> list[FrameDescriptor]:
         while cur is not None and getattr(cur, "parent_frame", None) is not None:
             parent = cur.parent_frame
             url = cur.url if hasattr(cur, "url") else ""
-            try:
-                el = await asyncio.wait_for(cur.frame_element(), timeout=1.0)
-                candidates = await _synthesise_iframe_candidates(el, parent, url)
-            except Exception:
-                # iframe element already gone (typical Sourcepoint
-                # flow — banner removes itself on click). Record the
-                # url-only descriptor so the emitter can fall back to
-                # `iframe[src*="<host>"]`.
-                candidates = []
+            # RECORDER-FRAMES-2 — try the top-frame iframe inventory
+            # FIRST. The inventory was built by the capture script's
+            # `iframe_register` events at page-load + DOM-mutation time,
+            # so it contains synthesised + uniqueness-counted candidates
+            # for every iframe seen ever, INCLUDING ones that have
+            # since detached. This bypasses the race that makes
+            # `frame_element()` fail on self-removing CMP banners.
+            candidates = _candidates_from_inventory(iframe_inventory, url)
+            if not candidates:
+                # No inventory hit (cross-origin iframe whose contentUrl
+                # JS couldn't read, or scan didn't catch the iframe in
+                # time). Fall back to the live `frame_element()` call —
+                # works when the iframe is still attached.
+                try:
+                    el = await asyncio.wait_for(cur.frame_element(), timeout=1.0)
+                    candidates = await _synthesise_iframe_candidates(el, parent, url)
+                except Exception:
+                    # iframe element gone — record the url-only
+                    # descriptor; emitter will fall back to
+                    # `iframe[src*="<host>"]`.
+                    candidates = []
             descriptors.append(
                 FrameDescriptor(url=url, selector_candidates=candidates),
             )
@@ -109,6 +124,57 @@ async def _capture_frame_chain(frame_or_page: Any) -> list[FrameDescriptor]:
     # Walked inner → outer; flip to outer → inner so emitter chains
     # `outer >>> inner >>> final`.
     return list(reversed(descriptors))
+
+
+def _candidates_from_inventory(
+    inventory: dict[str, dict[str, Any]] | None,
+    frame_url: str,
+) -> list[SelectorCandidate]:
+    """Look up a frame URL in the proactive iframe inventory and
+    return its pre-built SelectorCandidate list, sorted by
+    (verified_unique DESC, quality_score DESC).
+
+    The inventory was assembled JS-side by the top-frame capture
+    script — each candidate already carries a `count` field (how
+    many parent-frame elements that selector resolves to), which
+    we map to `verified_unique = count == 1`. Synthesis happens
+    BEFORE any user click, so candidates survive a subsequent
+    iframe detach.
+
+    Returns an empty list when:
+      - inventory is None or empty,
+      - no entry matches `frame_url` by any of its index keys
+        (iframe_src, iframe_contentUrl).
+    """
+    if not inventory:
+        return []
+    entry = inventory.get(frame_url)
+    if entry is None:
+        # Loose match: many iframes do `src="about:blank"` and then
+        # navigate, so the frame_url won't match either iframe_src
+        # or contentUrl literally. Try a substring match on src.
+        for key, candidate_entry in inventory.items():
+            iframe_src = candidate_entry.get("iframe_src", "") or ""
+            if iframe_src and (iframe_src in frame_url or frame_url in iframe_src):
+                entry = candidate_entry
+                break
+    if entry is None:
+        return []
+    raw = entry.get("candidates", []) or []
+    out: list[SelectorCandidate] = []
+    for c in raw:
+        # Drop selectors that didn't match anything in the parent —
+        # synthesis produced them but they no longer apply.
+        if not c or c.get("count", 0) == 0:
+            continue
+        out.append(SelectorCandidate(
+            strategy=c.get("strategy", "css"),
+            value=c.get("value", ""),
+            quality_score=int(c.get("quality_score", 0)),
+            verified_unique=(c.get("count", 0) == 1),
+        ))
+    out.sort(key=lambda c: (not c.verified_unique, -c.quality_score))
+    return out
 
 
 async def _synthesise_iframe_candidates(
@@ -247,6 +313,8 @@ def _resolve_frame_target(source: Any) -> Any:
 async def _verify_command_candidates(
     cmd: RecordedCommand,
     frame_or_page: Any,
+    *,
+    iframe_inventory: dict[str, dict[str, Any]] | None = None,
 ) -> RecordedCommand:
     """Run `verify_candidates` against the originating frame, return
     an enriched copy with `verified_unique` flags populated.
@@ -356,7 +424,9 @@ async def _verify_command_candidates(
     # banner-removes-itself flow only takes effect after the user's
     # original click handler runs to completion). Empty list for
     # top-frame events.
-    frame_chain = await _capture_frame_chain(frame_or_page)
+    frame_chain = await _capture_frame_chain(
+        frame_or_page, iframe_inventory=iframe_inventory,
+    )
     # After re-sorting, index 0 is the best (verified > non-verified, then
     # quality_score desc). The original active index is meaningless now —
     # it referred to a position in the unsorted/un-pruned list. Resetting
@@ -525,10 +595,46 @@ async def _recorder_loop(
 
     command_index = 0
     index_lock = threading.Lock()
+    # RECORDER-FRAMES-2 — per-session iframe inventory built from the
+    # top-frame capture script's `iframe_register` payloads. Keyed by
+    # multiple candidate match keys: the iframe's `src` attribute, its
+    # `contentWindow.location.href` (same-origin only — captures URLs
+    # that the iframe navigated to internally), and its plain id. Any
+    # of these may be what shows up as `frame_url` on an iframe-
+    # internal event, so we register the entry under all three.
+    iframe_inventory: dict[str, dict[str, Any]] = {}
+
+    def _register_iframe(payload: dict[str, Any]) -> None:
+        entry = {
+            "iframe_src": payload.get("iframe_src", "") or "",
+            "iframe_id": payload.get("iframe_id", "") or "",
+            "iframe_name": payload.get("iframe_name", "") or "",
+            "iframe_testid": payload.get("iframe_testid", "") or "",
+            "iframe_classes": payload.get("iframe_classes", []) or [],
+            "candidates": payload.get("candidates", []) or [],
+        }
+        # Index under every key Playwright might surface later as
+        # `frame_url`. Cross-origin contentWindow access throws on
+        # JS side so `iframe_contentUrl` is "" in that case — only
+        # `iframe_src` is reliable for cross-origin frames.
+        for key in (
+            payload.get("iframe_src", ""),
+            payload.get("iframe_contentUrl", ""),
+        ):
+            if key:
+                iframe_inventory[key] = entry
 
     async def on_capture(source: Any, payload: dict[str, Any]) -> None:
         nonlocal command_index
         try:
+            # RECORDER-FRAMES-2 — iframe-register events are inventory
+            # updates, not user-interaction commands. Handle separately
+            # so they never get an index, never reach the queue, and
+            # never get a RecordedCommand.
+            if isinstance(payload, dict) and payload.get("kind") == "iframe_register":
+                _register_iframe(payload)
+                return
+
             with index_lock:
                 idx = command_index
                 command_index += 1
@@ -559,7 +665,9 @@ async def _recorder_loop(
             # fallback so legacy unit tests that pass fake objects
             # with `.frame` still work.
             frame = _resolve_frame_target(source)
-            cmd = await _verify_command_candidates(cmd, frame)
+            cmd = await _verify_command_candidates(
+                cmd, frame, iframe_inventory=iframe_inventory,
+            )
             enqueue_command(session_id, cmd)
         except Exception:
             # Must NEVER raise — the binding handler runs on the Playwright
