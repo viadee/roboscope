@@ -17,7 +17,12 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { abortV2Session, saveV2Flow, startV2Browser } from '@/api/recording-v2.api'
+import {
+  abortV2Session,
+  restartV2Browser,
+  saveV2Flow,
+  startV2Browser,
+} from '@/api/recording-v2.api'
 import { extractErrorDetail } from '@/utils/errors'
 import type { RecordedCommand, RecordedFlow, RecordingTransport } from '@/types/recorder.types'
 import { RECORDER_SCHEMA_VERSION } from '@/types/recorder.types'
@@ -29,10 +34,39 @@ const router = useRouter()
 
 const sessionId = Number(route.params.sessionId)
 const commands = ref<RecordedCommand[]>([])
-const streamState = ref<'connecting' | 'live' | 'done' | 'error'>('connecting')
+
+/**
+ * Story RECORDER-VIS-1 — richer state machine driven by both the SSE
+ * transport state and the new `event: lifecycle` payloads from the
+ * backend. `connecting` is the only transport-level state; everything
+ * else mirrors a `LifecyclePhase` from `v2_command_queue.py`.
+ */
+type RecorderPhase =
+  | 'connecting'
+  | 'browser_starting'
+  | 'browser_ready'
+  | 'browser_restarting'
+  | 'browser_crashed'
+  | 'done'
+  | 'error'
+
+const phase = ref<RecorderPhase>('connecting')
 const errorMsg = ref<string | null>(null)
+const crashMessage = ref<string | null>(null)
 const saving = ref(false)
+const restarting = ref(false)
 const savePathInput = ref('flows/recording')
+
+// `browser_ready` timestamp from the backend's lifecycle event — used
+// to drive the live uptime counter in the status card. `null` until
+// the first `browser_ready` arrives. Reset on `browser_restarting` so
+// the counter restarts from zero on the new browser.
+const readyAtMs = ref<number | null>(null)
+// `now` ticks each second once we're ready, so the template can render
+// `formatUptime(now - readyAtMs)` reactively without re-rendering the
+// rest of the view each tick.
+const now = ref<number>(Date.now())
+let uptimeInterval: ReturnType<typeof setInterval> | null = null
 
 let eventSource: EventSource | null = null
 
@@ -40,7 +74,13 @@ function handleCommand(ev: MessageEvent) {
   try {
     const cmd = JSON.parse(ev.data) as RecordedCommand
     commands.value.push(cmd)
-    streamState.value = 'live'
+    // First command arriving without an explicit `browser_ready` is
+    // still a strong signal that the browser is live. Catches the
+    // edge case where lifecycle events were dropped (queue cleared,
+    // network blip in the middle of the SSE handshake).
+    if (phase.value === 'connecting' || phase.value === 'browser_starting') {
+      _transitionTo('browser_ready')
+    }
   } catch (e) {
     // Malformed payload — log and continue; the capture layer is the
     // source of truth, not this consumer.
@@ -49,17 +89,58 @@ function handleCommand(ev: MessageEvent) {
   }
 }
 
+interface LifecyclePayload {
+  phase: 'browser_starting' | 'browser_ready' | 'browser_crashed' | 'browser_restarting'
+  ts: number
+  message?: string | null
+}
+
+function handleLifecycle(ev: MessageEvent) {
+  try {
+    const data = JSON.parse(ev.data) as LifecyclePayload
+    _transitionTo(data.phase, data.message ?? null)
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('Unparseable lifecycle event', e)
+  }
+}
+
+function _transitionTo(next: RecorderPhase, message: string | null = null): void {
+  phase.value = next
+  if (next === 'browser_ready') {
+    readyAtMs.value = Date.now()
+    crashMessage.value = null
+    errorMsg.value = null
+    if (uptimeInterval === null) {
+      uptimeInterval = setInterval(() => { now.value = Date.now() }, 1000)
+    }
+  } else if (next === 'browser_restarting' || next === 'browser_starting') {
+    readyAtMs.value = null
+  } else if (next === 'browser_crashed') {
+    crashMessage.value = message
+    readyAtMs.value = null
+    if (uptimeInterval !== null) {
+      clearInterval(uptimeInterval)
+      uptimeInterval = null
+    }
+  }
+}
+
 function handleEnd() {
-  streamState.value = 'done'
+  _transitionTo('done')
   if (eventSource) {
     eventSource.close()
     eventSource = null
   }
+  if (uptimeInterval !== null) {
+    clearInterval(uptimeInterval)
+    uptimeInterval = null
+  }
 }
 
 function handleError() {
-  if (streamState.value !== 'done') {
-    streamState.value = 'error'
+  if (phase.value !== 'done') {
+    _transitionTo('error')
     errorMsg.value = t('recorder.live.streamError')
   }
 }
@@ -87,15 +168,38 @@ function connectStream() {
   const tok = localStorage.getItem('access_token') || ''
   const url = `/api/v1/recordings/sessions/${sessionId}/commands?token=${encodeURIComponent(tok)}`
   eventSource = new EventSource(url, { withCredentials: true })
-  // Flip to 'live' as soon as the SSE handshake succeeds — otherwise
-  // users with no captured events yet stay on 'connecting' forever,
-  // which looks like a hang even though the stream is healthy.
+  // Old W.6 fallback — flip to a non-`connecting` phase as soon as
+  // the SSE handshake succeeds, even if the backend hasn't emitted a
+  // `browser_starting` lifecycle event yet. Catches the case where
+  // the queue already had commands before the consumer subscribed
+  // (restart, refresh, late-attach).
   eventSource.addEventListener('open', () => {
-    if (streamState.value === 'connecting') streamState.value = 'live'
+    if (phase.value === 'connecting') _transitionTo('browser_starting')
   })
   eventSource.addEventListener('command', handleCommand as EventListener)
+  // Story RECORDER-VIS-1 — backend now emits lifecycle events on the
+  // same SSE channel, marked with `event: lifecycle`. Handler routes
+  // them through the same state machine as transport events.
+  eventSource.addEventListener('lifecycle', handleLifecycle as EventListener)
   eventSource.addEventListener('end', handleEnd as EventListener)
   eventSource.addEventListener('error', handleError as EventListener)
+}
+
+async function onRestartBrowser(): Promise<void> {
+  if (!canRestartBrowser.value) return
+  restarting.value = true
+  errorMsg.value = null
+  try {
+    await restartV2Browser(sessionId)
+    // The backend emits `browser_restarting` → `browser_starting` →
+    // `browser_ready` on the SSE stream. We don't transition locally
+    // here so the user sees the canonical phase progression driven
+    // by the backend, not an optimistic UI lie.
+  } catch (e: unknown) {
+    errorMsg.value = extractErrorDetail(e, t('recorder.live.restartFailed'))
+  } finally {
+    restarting.value = false
+  }
 }
 
 async function restartRecording() {
@@ -194,22 +298,90 @@ onBeforeUnmount(() => {
     eventSource.close()
     eventSource = null
   }
+  if (uptimeInterval !== null) {
+    clearInterval(uptimeInterval)
+    uptimeInterval = null
+  }
 })
 
-const isTerminal = computed(() => streamState.value === 'done' || streamState.value === 'error')
+const isTerminal = computed(() => phase.value === 'done' || phase.value === 'error')
+
+/** Restart is offered while we're either healthy (`browser_ready`) or
+ * after a crash. During the transient `browser_starting` /
+ * `browser_restarting` phases the previous task hasn't released its
+ * slot yet — the backend would 409. */
+const canRestartBrowser = computed(
+  () => !restarting.value && (phase.value === 'browser_ready' || phase.value === 'browser_crashed'),
+)
+
+/** Uptime label since the latest `browser_ready` event, in mm:ss
+ * form. Returns null until the browser is ready so the template
+ * conditionally renders. */
+const uptimeLabel = computed<string | null>(() => {
+  const ready = readyAtMs.value
+  if (ready === null) return null
+  const elapsed = Math.max(0, Math.floor((now.value - ready) / 1000))
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0')
+  const ss = String(elapsed % 60).padStart(2, '0')
+  return `${mm}:${ss}`
+})
 </script>
 
 <template>
   <section class="recording-live">
     <header class="recording-live__header">
       <h1>{{ t('recorder.live.heading') }}</h1>
-      <span :class="['recording-live__status', `is-${streamState}`]">{{ t(`recorder.live.status.${streamState}`) }}</span>
+      <!-- Story RECORDER-VIS-1 — phase pill is driven by the lifecycle
+           events from the backend SSE channel; the live uptime + the
+           Restart-Browser button render alongside it so the user can
+           always tell whether Chromium is alive AND has an obvious
+           recovery affordance. -->
+      <div class="recording-live__phase-card" data-testid="recorder-phase-card">
+        <span
+          :class="['recording-live__status', `is-${phase}`]"
+          data-testid="recorder-phase-pill"
+        >
+          {{ t(`recorder.live.lifecycle.${phase}`) }}
+        </span>
+        <span
+          v-if="uptimeLabel !== null"
+          class="recording-live__uptime"
+          :title="t('recorder.live.uptimeTitle')"
+          data-testid="recorder-uptime"
+        >
+          ⏱ {{ uptimeLabel }}
+        </span>
+        <button
+          v-if="!isTerminal"
+          type="button"
+          class="recording-live__restart-browser"
+          :disabled="!canRestartBrowser"
+          :title="t('recorder.live.restartBrowserHint')"
+          data-testid="recorder-restart-browser"
+          @click="onRestartBrowser"
+        >
+          <span v-if="restarting" aria-hidden="true">⟳</span>
+          {{ restarting
+            ? t('recorder.live.restartingBrowser')
+            : t('recorder.live.restartBrowser') }}
+        </button>
+      </div>
     </header>
+
+    <div
+      v-if="phase === 'browser_crashed' && crashMessage"
+      class="recording-live__crash"
+      role="alert"
+      data-testid="recorder-crash-banner"
+    >
+      <strong>{{ t('recorder.live.crashTitle') }}</strong>
+      <span>{{ crashMessage }}</span>
+    </div>
 
     <div v-if="errorMsg" class="recording-live__error" role="alert">
       <span>{{ errorMsg }}</span>
       <button
-        v-if="streamState === 'error'"
+        v-if="phase === 'error'"
         type="button"
         class="recording-live__retry"
         @click="restartRecording"
@@ -261,7 +433,7 @@ const isTerminal = computed(() => streamState.value === 'done' || streamState.va
       </li>
     </ol>
 
-    <p v-if="!commands.length && streamState === 'live'" class="recording-live__hint">
+    <p v-if="!commands.length && phase === 'browser_ready'" class="recording-live__hint">
       {{ t('recorder.live.waiting') }}
     </p>
 
@@ -309,10 +481,55 @@ const isTerminal = computed(() => streamState.value === 'done' || streamState.va
   letter-spacing: 0.04em;
 }
 
-.recording-live__status.is-connecting { background: rgba(0, 0, 0, 0.08); }
-.recording-live__status.is-live       { background: rgba(44, 152, 70, 0.15); color: #1a5c2a; }
-.recording-live__status.is-done       { background: rgba(59, 125, 216, 0.15); color: #1a3c7a; }
-.recording-live__status.is-error      { background: #fee2e2; color: #7f1d1d; }
+.recording-live__status.is-connecting          { background: rgba(0, 0, 0, 0.08); }
+.recording-live__status.is-browser_starting    { background: rgba(212, 136, 62, 0.15); color: #6e3d09; }
+.recording-live__status.is-browser_ready       { background: rgba(44, 152, 70, 0.15); color: #1a5c2a; }
+.recording-live__status.is-browser_restarting  { background: rgba(212, 136, 62, 0.2);  color: #6e3d09; }
+.recording-live__status.is-browser_crashed     { background: #fee2e2; color: #7f1d1d; }
+.recording-live__status.is-done                { background: rgba(59, 125, 216, 0.15); color: #1a3c7a; }
+.recording-live__status.is-error               { background: #fee2e2; color: #7f1d1d; }
+
+/* Story RECORDER-VIS-1 — phase card next to the heading. */
+.recording-live__phase-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.recording-live__uptime {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #5A6380);
+  user-select: none;
+}
+.recording-live__restart-browser {
+  background: var(--color-bg, #fff);
+  border: 1px solid var(--color-border, #d6dfeb);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--color-text-muted, #5A6380);
+}
+.recording-live__restart-browser:hover:not(:disabled) {
+  border-color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #3B7DD8);
+}
+.recording-live__restart-browser:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.recording-live__crash {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+  color: #7f1d1d;
+  font-size: 0.85rem;
+}
 
 .recording-live__steps {
   list-style: decimal;

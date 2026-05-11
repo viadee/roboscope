@@ -2,6 +2,53 @@
 
 ## [Unreleased]
 
+### Recorder lifecycle visibility (RECORDER-VIS epic)
+
+- **RECORDER-VIS-1 — lifecycle SSE events + Restart browser.** The
+  Live recording view now shows what the recorder is actually
+  doing instead of an ambiguous "Connecting…" badge. The backend
+  SSE `/commands` stream carries a new `event: lifecycle` channel
+  alongside the existing `event: command` channel; `v2_recorder_
+  task` emits four phases as it boots and runs:
+  - `browser_starting` — right before `pw.chromium.launch(...)`.
+  - `browser_ready` — after the initial `page.goto` (or
+    `new_page` when there is no target URL) — the user can click
+    and see events.
+  - `browser_restarting` — emitted by the new
+    `POST /recordings/sessions/{id}/restart-browser` endpoint
+    just before it tears the current task down.
+  - `browser_crashed` — emitted in `_on_disconnect` when the
+    browser dies without a prior user stop, and from the outer
+    `except` wrapper with the exception message when the
+    Playwright loop raises (e.g. missing `$DISPLAY` on a Linux
+    server).
+  `RecordingLiveView.vue` consumes the channel, renders a phase
+  pill + live `mm:ss` uptime counter once ready, and offers an
+  always-visible "Restart browser" button enabled in
+  `browser_ready` / `browser_crashed` and disabled during the
+  transient `browser_starting` / `browser_restarting` phases.
+  Captured commands are preserved across a restart — the in-
+  process FIFO is keyed by session id, not task id, so the new
+  task slots into the same queue + DB row.
+- Internal: `v2_command_queue` generalised to a heterogeneous
+  `RecordedCommand | LifecycleEvent` stream via the new
+  `iterate_events()` iterator. `iterate_commands()` is kept as a
+  filter-only wrapper for backward compatibility. The recorder
+  task wrapper moved its terminal-status update
+  (`_mark_status(COMPLETED)`) out of the inner `_recorder_loop`
+  and into the wrapper so it can distinguish stop-for-restart
+  (skip mark, keep queue) from clean stop (mark, finalise).
+- 14 new backend tests in `test_v2_recorder_vis.py` cover the
+  queue's heterogeneous yield order, `signal_restart_v2`
+  behaviour, the restart endpoint's 404 / 403 / 409 / 501 paths
+  plus two happy-path branches (with and without a live task),
+  and end-to-end SSE multiplexing of `event: lifecycle` +
+  `event: command` over the streaming response. 17 frontend
+  tests in `RecordingLiveView.lifecycle.spec.ts` pin the
+  state-machine transitions across every lifecycle entry point,
+  the command-first fallback, and the `mm:ss` uptime formatter.
+- i18n complete in EN/DE/FR/ES.
+
 ### Self-Healing opt-in ergonomics (HEAL epic)
 
 - **HEAL-1 — per-step toggle in the Flow Editor.** When the

@@ -32,7 +32,9 @@ from src.recording.context_menu_script import CONTEXT_MENU_SCRIPT
 from src.recording.models import RecordingSession, RecordingStatus
 from src.recording.overlay_script import OVERLAY_SCRIPT
 from src.recording.v2_command_queue import (
+    LifecycleEvent,
     enqueue_command,
+    enqueue_lifecycle,
     finalize_session,
     tear_down_session,
 )
@@ -152,6 +154,14 @@ async def _verify_command_candidates(
 # loop awaits it via `_wait_for_stop_event`.
 _stop_signals: dict[int, threading.Event] = {}
 
+# Story RECORDER-VIS-1 — session ids whose current stop is a *restart*
+# request (the HTTP endpoint will dispatch a fresh task right after the
+# current one tears down). The wrapper checks this in its post-loop
+# branch and skips the COMPLETED/finalize_session bookkeeping so the
+# queue stays alive for the new task and the SSE consumer never sees
+# the end sentinel.
+_restart_pending: set[int] = set()
+
 
 async def _wait_for_stop_event(stop_event: threading.Event) -> None:
     """Async-friendly wait for a `threading.Event` to fire.
@@ -180,6 +190,19 @@ def signal_stop_v2(session_id: int) -> bool:
         evt.set()
         return True
     return False
+
+
+def signal_restart_v2(session_id: int) -> bool:
+    """Signal a restart: mark the session for a graceful tear-down WITHOUT
+    finalisation (the queue + DB row stay live), then set the stop event.
+
+    Returns False if no task is active for this session id — callers
+    should then 409 or treat it as already-torn-down.
+    """
+    if session_id not in _stop_signals:
+        return False
+    _restart_pending.add(session_id)
+    return signal_stop_v2(session_id)
 
 
 def is_v2_session_active(session_id: int) -> bool:
@@ -212,6 +235,7 @@ def run_v2_recorder_session(
     stop_event = threading.Event()
     _stop_signals[session_id] = stop_event
 
+    crashed = False
     try:
         asyncio.run(
             _recorder_loop(
@@ -219,14 +243,40 @@ def run_v2_recorder_session(
                 headless=headless, test_actions=test_actions,
             )
         )
-    except Exception:
+    except Exception as exc:
+        crashed = True
         logger.exception("v2 recorder session %d crashed", session_id)
+        # RECORDER-VIS-1 — surface the crash on the SSE stream so the
+        # live view can render an error banner + Restart button before
+        # the queue is torn down.
+        enqueue_lifecycle(
+            session_id,
+            LifecycleEvent(phase="browser_crashed", message=str(exc) or None),
+        )
         _mark_status(session_id, RecordingStatus.FAILED, message="recorder crashed")
     finally:
         _stop_signals.pop(session_id, None)
-        # Ensure the SSE subscriber wakes up and the queue is cleaned.
-        finalize_session(session_id)
-        tear_down_session(session_id)
+        # RECORDER-VIS-1 — if this stop was a restart request AND the
+        # task exited cleanly, keep the queue + DB row alive so the
+        # new task can resume seamlessly. Otherwise finalise normally
+        # (existing W.2 contract). Always clear the restart flag so a
+        # late call doesn't leak the entry.
+        was_restart = session_id in _restart_pending
+        _restart_pending.discard(session_id)
+        if was_restart and not crashed:
+            # Do NOT mark COMPLETED, do NOT push end-sentinel, do NOT
+            # tear down the queue — the restart endpoint dispatches a
+            # fresh task that will reuse all three.
+            pass
+        else:
+            if not crashed:
+                # Loop exited cleanly via user stop.
+                _mark_status(session_id, RecordingStatus.COMPLETED)
+            # The crash branch above already pushed `browser_crashed`
+            # onto the queue; the end sentinel below then closes the
+            # SSE stream cleanly.
+            finalize_session(session_id)
+            tear_down_session(session_id)
 
 
 async def _recorder_loop(
@@ -266,6 +316,12 @@ async def _recorder_loop(
             # Must NEVER raise — the binding handler runs on the Playwright
             # event loop and an exception would kill the whole session.
             logger.exception("v2 recorder capture handler failed")
+
+    # RECORDER-VIS-1 — tell the live view we're spawning so the pill
+    # leaves "connecting" before Chromium boot completes. Emitted from
+    # the same thread as the wrapper so there is no race with the
+    # consumer-side iterator already attached to this session id.
+    enqueue_lifecycle(session_id, LifecycleEvent(phase="browser_starting"))
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=headless)
@@ -313,9 +369,27 @@ async def _recorder_loop(
             except Exception:
                 logger.warning("v2 recorder: initial goto(%s) failed", target_url, exc_info=True)
 
+        # RECORDER-VIS-1 — at this point Chromium is up, the capture
+        # scripts are injected, the binding is registered, and the
+        # initial page is rendered. The user can click and see events
+        # arrive. Flip the live-view pill to "browser ready".
+        enqueue_lifecycle(session_id, LifecycleEvent(phase="browser_ready"))
+
         # Listener on browser disconnect → flip the stop event. Same
-        # safety as Story R-1.
+        # safety as Story R-1. If the disconnect is unexpected (user
+        # closed the window, OS killed the process, …) the stop_event
+        # wasn't set yet — RECORDER-VIS-1 turns that into an explicit
+        # `browser_crashed` lifecycle event so the live view can offer
+        # a Restart button.
         def _on_disconnect() -> None:
+            if not stop_event.is_set():
+                enqueue_lifecycle(
+                    session_id,
+                    LifecycleEvent(
+                        phase="browser_crashed",
+                        message="browser disconnected unexpectedly",
+                    ),
+                )
             stop_event.set()
 
         browser.on("disconnected", _on_disconnect)
@@ -354,7 +428,9 @@ async def _recorder_loop(
         except Exception:
             pass
 
-    _mark_status(session_id, RecordingStatus.COMPLETED)
+    # NOTE: terminal status update (COMPLETED) moved to the wrapper
+    # `run_v2_recorder_session` so it can distinguish stop-for-restart
+    # from real stop. See the RECORDER-VIS-1 changes above.
 
 
 def _mark_status(session_id: int, status: str, message: str | None = None) -> None:
