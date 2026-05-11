@@ -24,8 +24,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.recording.heal.candidate_finder import _split_iframe_wrap
-from src.recording.heal.library import RoboScopeHeal
+from RoboScopeHeal.candidate_finder import _split_iframe_wrap
+from RoboScopeHeal.library import RoboScopeHeal
 from src.recording.robot_emit import _iframe_locator_from_url
 
 

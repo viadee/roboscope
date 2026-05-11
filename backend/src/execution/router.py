@@ -427,7 +427,7 @@ def get_run_heal_report(
     (tests without any `Heal *` keywords).
     """
     from pathlib import Path
-    from src.recording.heal.heal_report import parse_heal_audit
+    from RoboScopeHeal.heal_report import parse_heal_audit
 
     run = db.get(ExecutionRun, run_id)
     if run is None:
@@ -486,7 +486,7 @@ def apply_heal_patch(
 
     from src.audit.event_types import AuditEventType
     from src.audit.service import log_event
-    from src.recording.heal.heal_report import parse_heal_audit
+    from RoboScopeHeal.heal_report import parse_heal_audit
     from src.repos.models import Repository
 
     run = db.get(ExecutionRun, run_id)

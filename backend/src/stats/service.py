@@ -263,7 +263,7 @@ def get_heal_rate(
     from pathlib import Path
 
     from src.execution.models import ExecutionRun
-    from src.recording.heal.heal_report import parse_heal_audit
+    from RoboScopeHeal.heal_report import parse_heal_audit
     from src.stats.schemas import HealRatePoint, HealRateResponse
 
     since = date.today() - timedelta(days=days)

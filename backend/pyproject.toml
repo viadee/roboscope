@@ -30,6 +30,16 @@ dependencies = [
     "cryptography>=43.0.0",
     "colorama>=0.4",
     "robotframework-roboview>=0.0.4",
+    # The Heal-library lives in a sibling repo (`roboscope-rfheal`)
+    # so it can be pip-installed standalone by anyone running RF
+    # tests against a recorder-emitted sidecar without dragging in
+    # all of RoboScope. Until v0.2 lands on PyPI as
+    # `robotframework-roboscopeheal`, install it editable from the
+    # local sibling checkout:
+    #   uv pip install -e ../roboscope-rfheal
+    # The version constraint matches what we tested against; lift
+    # it as new releases land.
+    "robotframework-roboscopeheal>=0.2",
     "httpx>=0.28.0",
     "slowapi>=0.1.9",
     "python-json-logger>=3.0.0",
