@@ -30,15 +30,15 @@ dependencies = [
     "cryptography>=43.0.0",
     "colorama>=0.4",
     "robotframework-roboview>=0.0.4",
-    # The Heal-library lives in a sibling repo (`roboscope-rfheal`)
-    # so it can be pip-installed standalone by anyone running RF
-    # tests against a recorder-emitted sidecar without dragging in
-    # all of RoboScope. Until v0.2 lands on PyPI as
-    # `robotframework-roboscopeheal`, install it editable from the
-    # local sibling checkout:
-    #   uv pip install -e ../roboscope-rfheal
-    # The version constraint matches what we tested against; lift
-    # it as new releases land.
+    # The Heal-library lives upstream in the standalone
+    # `robotframework-roboscopeheal` repo so it can be
+    # `pip install`-ed by anyone running RF tests against a
+    # recorder-emitted sidecar without dragging in all of RoboScope.
+    # Until v0.2 lands on PyPI, the vendored copy under
+    # `backend/vendor/robotframework-roboscopeheal/` is the source —
+    # see the `[tool.uv.sources]` block below for how `uv sync`
+    # resolves it. Fresh clones + offline release ZIPs both work
+    # without a separate sibling repo on disk.
     "robotframework-roboscopeheal>=0.2",
     "httpx>=0.28.0",
     "slowapi>=0.1.9",
@@ -80,6 +80,31 @@ dev = [
     "pre-commit>=4.0.0",
     "respx>=0.23.1",
 ]
+
+# Story HEAL-VENDORED — route `robotframework-roboscopeheal`
+# (declared as a regular runtime dep above) at the vendored source
+# tree under `backend/vendor/robotframework-roboscopeheal/`. The
+# vendored copy is committed in this repo so `uv sync` works on
+# every fresh clone without a sibling checkout, and the offline
+# release ZIP build script (`scripts/build-mac-and-linux.sh`)
+# produces the wheel from the same source so air-gapped installs
+# don't need PyPI either.
+#
+# Non-uv toolchains (pip + setuptools-style) ignore this entire
+# `[tool.uv.sources]` block and fall back to the standard
+# `dependencies = [...]` spec — the offline-build script's
+# pre-built wheel ends up in the bundled `wheels/` directory and
+# `install.sh`'s `pip install --no-index --find-links wheels/`
+# picks it up; for in-place dev installs without uv, run
+# `pip install -e backend/vendor/robotframework-roboscopeheal`
+# alongside the regular `pip install -e backend`.
+#
+# Remove this block when PyPI publication is done AND the vendored
+# copy is no longer wanted as an offline-install fallback. Both
+# decisions are independent: vendor can stay for offline ergonomics
+# even after the PyPI flip.
+[tool.uv.sources]
+robotframework-roboscopeheal = { path = "vendor/robotframework-roboscopeheal", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

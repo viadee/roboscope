@@ -1,0 +1,124 @@
+[project]
+name = "robotframework-roboscopeheal"
+version = "0.2.1"
+description = "Self-healing Robot Framework Browser-library keywords driven by recorded selector candidates."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+    { name = "viadee Unternehmensberatung AG" },
+]
+keywords = [
+    "robot-framework",
+    "robotframework",
+    "browser",
+    "self-healing",
+    "test-automation",
+    "playwright",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Robot Framework",
+    "Framework :: Robot Framework :: Library",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
+dependencies = [
+    "robotframework>=5.0",
+    # XML hardening for the heal-audit XML reader — the run's
+    # `output.xml` is built from user-authored .robot tests and could
+    # legitimately contain external-entity references that the stdlib
+    # ET would resolve. `defusedxml` blocks billion-laughs, external
+    # entities, and DTD-resolution by default.
+    "defusedxml>=0.7.1",
+]
+
+[project.optional-dependencies]
+# The `Browser` library is the runtime keyword target for every
+# `Heal *` keyword (`Heal Click` → `Browser.Click` via
+# `BuiltIn().run_keyword`). It is NOT imported at module level, so
+# the heal library installs and imports cleanly without it — but
+# tests that actually USE the Heal keywords against a live Chromium
+# need it. Made optional so air-gapped / metadata-only installs
+# (offline release bundles, library validation by RoboScope's
+# `make lint`) don't pull in Playwright + node + a Chromium binary
+# just to satisfy an import-time check that never happens.
+#
+# Users who run heal-decorated tests:
+#   pip install robotframework-roboscopeheal[browser]
+browser = [
+    "robotframework-browser>=18.0",
+]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+e2e = [
+    "playwright>=1.40",
+]
+dev = [
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "build>=1.2",
+    "twine>=5.0",
+]
+
+[project.urls]
+Homepage      = "https://github.com/viadee/robotframework-roboscopeheal"
+Documentation = "https://github.com/viadee/robotframework-roboscopeheal#readme"
+Repository    = "https://github.com/viadee/robotframework-roboscopeheal"
+Issues        = "https://github.com/viadee/robotframework-roboscopeheal/issues"
+Changelog     = "https://github.com/viadee/robotframework-roboscopeheal/blob/main/CHANGELOG.md"
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/RoboScopeHeal"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/RoboScopeHeal",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "CHANGELOG.md",
+    "pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["error"]
+markers = [
+    "e2e: real-browser end-to-end test (requires playwright + a Chromium binary)",
+    # `integration` is what test_fingerprint_e2e.py and
+    # test_real_browser_heal_e2e.py actually decorate with (4 spots).
+    # `filterwarnings = ["error"]` makes the unknown-marker warning
+    # a hard collection error → pytest can't start. Register the
+    # marker so collection succeeds; selective execution stays
+    # available via `pytest -m "not integration"`.
+    "integration: real-browser integration test (requires playwright + a Chromium binary)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+exclude = ["tests/"]
