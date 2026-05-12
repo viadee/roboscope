@@ -1831,6 +1831,12 @@ export default {
       valuePlaceholder: 'css=.btn-primary, //button[…], text=Cliquez-moi, …',
       strategyLabel: 'Stratégie',
       verifiedUniqueTitle: 'Vérifié unique sur la page lors de l\'enregistrement',
+      effectiveLabel: 'Effectif',
+      effectivePlaceholder: 'iframe[…] >>> sélecteur >> nth=0',
+      effectiveTitle: 'Ce qui est écrit textuellement dans le fichier .robot. Par défaut : composé automatiquement à partir de la stratégie + valeur + chaîne d\'iframe. Une valeur personnalisée ici remplace la composition.',
+      effectiveResetTitle: 'Réinitialiser à la valeur composée automatiquement',
+      effectiveOverrideTitle: 'Surcharge active — remplace l\'enveloppe iframe, le préfixe xpath= / text= et nth=0',
+      effectiveOverrideBadge: 'surcharge active',
       strategy: {
         testid: 'Test ID',
         aria: 'ARIA',

@@ -30,6 +30,22 @@ export interface SelectorCandidate {
   /** 0–100 — higher = more stable. See architecture doc AR-7 scoring rubric. */
   quality_score: number
   verified_unique: boolean
+  /**
+   * User-supplied verbatim emit form. When set + non-empty, the
+   * .robot emitter AND the FlowEditor's selector composer skip
+   * `frame_chain` wrapping, `renderSelector`'s `xpath=` / `text=`
+   * prefixing, and the defensive `>> nth=0` suffix — the override
+   * string lands in `step.args[0]` exactly as typed.
+   *
+   * Set via the SelectorPicker's ✏ edit form (the "Effektiv" field
+   * below value/strategy). Cleared by re-editing back to the
+   * auto-composed value or by leaving the field empty.
+   *
+   * Strategy + value still drive the quality dot + picker label
+   * so users can see what the recorder originally synthesised,
+   * even if their emission has been overridden.
+   */
+  effective_override?: string | null
 }
 
 export interface RecordedCommand {

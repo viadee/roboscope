@@ -1831,6 +1831,12 @@ export default {
       valuePlaceholder: 'css=.btn-primary, //button[…], text=Pulsa aquí, …',
       strategyLabel: 'Estrategia',
       verifiedUniqueTitle: 'Verificado único en la página al grabar',
+      effectiveLabel: 'Efectivo',
+      effectivePlaceholder: 'iframe[…] >>> selector >> nth=0',
+      effectiveTitle: 'Lo que se escribe textualmente en el archivo .robot. Predeterminado: compuesto automáticamente desde estrategia + valor + cadena iframe. Un valor personalizado aquí anula la composición.',
+      effectiveResetTitle: 'Restablecer al valor compuesto automáticamente',
+      effectiveOverrideTitle: 'Anulación activa — reemplaza el envoltorio iframe, prefijo xpath= / text= y nth=0',
+      effectiveOverrideBadge: 'anulación activa',
       strategy: {
         testid: 'Test ID',
         aria: 'ARIA',

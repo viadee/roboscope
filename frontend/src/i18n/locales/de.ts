@@ -1831,6 +1831,12 @@ export default {
       valuePlaceholder: 'css=.btn-primary, //button[…], text=Klick mich, …',
       strategyLabel: 'Strategie',
       verifiedUniqueTitle: 'Beim Aufzeichnen als eindeutig auf der Live-Seite verifiziert',
+      effectiveLabel: 'Effektiv',
+      effectivePlaceholder: 'iframe[…] >>> selektor >> nth=0',
+      effectiveTitle: 'Was exakt in die .robot-Datei geschrieben wird. Standard: aus Strategie + Wert + iframe-Kette automatisch zusammengesetzt. Eigener Wert hier überschreibt die Komposition.',
+      effectiveResetTitle: 'Auf automatisch zusammengesetzten Wert zurücksetzen',
+      effectiveOverrideTitle: 'Eigener Wert aktiv — überschreibt iframe-Wrap, xpath= / text= Prefix und nth=0',
+      effectiveOverrideBadge: 'Override aktiv',
       strategy: {
         testid: 'Test-ID',
         aria: 'ARIA',

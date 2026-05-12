@@ -251,4 +251,61 @@ describe('effectiveSelector', () => {
       expect(effectiveSelector(c)).toBe('#submit')
     })
   })
+
+  /**
+   * `effective_override` on a candidate is the verbatim emit-form
+   * set via the SelectorPicker's ✏ Edit form (the "Effektiv" field).
+   * It MUST short-circuit composition entirely so the user can drop
+   * an unwanted `>> nth=0`, replace the synthesised iframe rung, or
+   * write any cross-frame chain the recorder didn't produce — and
+   * that string round-trips through swap, the picker display, and
+   * the .robot emitter without re-decoration.
+   */
+  describe('effective_override', () => {
+    it('returns the override verbatim, skipping renderSelector + iframe chain', () => {
+      const c = makeCmd({
+        selector_candidates: [
+          {
+            strategy: 'text',
+            value: 'text=Welcome',
+            quality_score: 50,
+            verified_unique: false,
+            // Override removes the defensive nth=0 the auto-compose
+            // would have added.
+            effective_override: 'iframe.consent >>> text=Welcome',
+          },
+        ],
+        frame_chain: [
+          { url: 'https://cmp.example/', selector_candidates: [
+            { strategy: 'css', value: 'iframe#auto-synth', quality_score: 90, verified_unique: true },
+          ] },
+        ],
+      })
+      // Auto-compose would have produced
+      //   `iframe#auto-synth >>> text=Welcome >> nth=0`
+      // → the override completely supersedes it.
+      expect(effectiveSelector(c)).toBe('iframe.consent >>> text=Welcome')
+    })
+
+    it('treats null and empty-string override as "no override"', () => {
+      const baseCand: SelectorCandidate = {
+        strategy: 'css',
+        value: 'button#x',
+        quality_score: 80,
+        verified_unique: true,
+      }
+      const cmdNull = makeCmd({
+        selector_candidates: [{ ...baseCand, effective_override: null }],
+      })
+      const cmdEmpty = makeCmd({
+        selector_candidates: [{ ...baseCand, effective_override: '' }],
+      })
+      const cmdWhitespace = makeCmd({
+        selector_candidates: [{ ...baseCand, effective_override: '   ' }],
+      })
+      expect(effectiveSelector(cmdNull)).toBe('button#x')
+      expect(effectiveSelector(cmdEmpty)).toBe('button#x')
+      expect(effectiveSelector(cmdWhitespace)).toBe('button#x')
+    })
+  })
 })

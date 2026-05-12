@@ -40,12 +40,31 @@ SCHEMA_VERSION = 1
 
 
 class SelectorCandidate(BaseModel):
-    """One of several locator strings that points to the same element."""
+    """One of several locator strings that points to the same element.
+
+    `effective_override` is the user-supplied verbatim form for this
+    candidate's on-disk emission. When set, the FlowEditor + emitter
+    write it as-is to `step.args[0]`, bypassing the auto-composition
+    that combines `frame_chain` prefix, `renderSelector`'s
+    `xpath=` / `text=` prefix logic, and the defensive `>> nth=0`
+    disambiguation. None / empty means "use the auto-composed value"
+    (the default behaviour for every recorder-emitted candidate).
+
+    User journey: ✏ Edit on a candidate in the SelectorPicker exposes
+    the effective composite as an editable third field. The user can
+    drop the `>> nth=0`, swap the iframe-chain rung's selector for a
+    different shape, or paste any chained-locator the synthesizer
+    didn't pick — and that string round-trips through the sidecar.
+    Strategy / value stay tied to the QUALITY classification (so the
+    coloured dot still reflects the locator's stability), but they're
+    decoupled from the emit string when override is set.
+    """
 
     strategy: SelectorStrategy
     value: str
     quality_score: int = Field(ge=0, le=100)
     verified_unique: bool = False
+    effective_override: str | None = None
 
     model_config = {"frozen": True}
 

@@ -1831,6 +1831,12 @@ export default {
       valuePlaceholder: 'css=.btn-primary, //button[…], text=Click me, …',
       strategyLabel: 'Strategy',
       verifiedUniqueTitle: 'Verified unique on the live page at recording time',
+      effectiveLabel: 'Effective',
+      effectivePlaceholder: 'iframe[…] >>> selector >> nth=0',
+      effectiveTitle: 'What gets written verbatim to the .robot file. Default: auto-composed from strategy + value + iframe chain. A custom value here overrides the composition.',
+      effectiveResetTitle: 'Reset to auto-composed value',
+      effectiveOverrideTitle: 'Override active — replaces iframe wrap, xpath= / text= prefix and nth=0',
+      effectiveOverrideBadge: 'override active',
       strategy: {
         testid: 'Test ID',
         aria: 'ARIA',

@@ -113,6 +113,14 @@ export function effectiveSelectorForCandidate(
   cmd: RecordedCommand,
   cand: SelectorCandidate,
 ): string {
+  // User-supplied verbatim override — short-circuit BEFORE any
+  // composition so the picker display, the swap-write into
+  // `step.args[0]`, the custom-value detector and the Python
+  // emitter all agree on the same string. Empty-string override
+  // is treated as "no override" (cleared via the edit form).
+  if (cand.effective_override != null && cand.effective_override.trim() !== '') {
+    return cand.effective_override
+  }
   const inner = renderSelector(cand)
   const chainPrefix = iframeChainPrefix(cmd)
   if (chainPrefix !== null) {

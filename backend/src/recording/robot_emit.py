@@ -250,31 +250,43 @@ def _emit_command(cmd: RecordedCommand) -> str:
             )
             return comment_line
         else:
-            inner = _render_selector(active)
-            # Story RECORDER-FRAMES — events captured inside an iframe
-            # carry their originating URL on the command; wrap the
-            # inner selector with `iframe[…] >>> ` so the replay
-            # locates the right document.
-            #
-            # Story RECORDER-FRAMES-2 — when `frame_chain` is present,
-            # pick each rung's best selector candidate (verified-
-            # unique > quality_score) so the user gets the ID-based
-            # iframe locator when available, falls back through
-            # name/src-exact/src-host/class as appropriate. Old
-            # sidecars without `frame_chain` keep using the legacy
-            # URL-derived `iframe[src*="<host>"]` strategy.
-            chain_prefix = _iframe_chain_locator(cmd)
-            if chain_prefix:
-                inner = f"{chain_prefix} >>> {inner}"
-            elif cmd.frame_url:
-                legacy = _iframe_locator_from_url(cmd.frame_url)
-                if legacy is not None:
-                    inner = f"{legacy} >>> {inner}"
-            # RF-token escape — a CSS-ID selector `#login-form` would
-            # be parsed as a comment by Robot Framework. The escape
-            # `\#login-form` is consumed by RF's lexer before the
-            # value reaches Browser library.
-            parts.append(_escape_rf_token(inner))
+            # User-supplied verbatim override — the SelectorPicker's
+            # ✏ edit lets users set this when the auto-composed form
+            # is wrong (synthesised iframe rung that doesn't match,
+            # unwanted `>> nth=0` for a candidate they know is
+            # unique, hand-tuned cross-frame chain). When set, skip
+            # the chain + render + nth composition entirely and emit
+            # the override as-is. The RF-token escape still runs so a
+            # bare-`#`-prefixed override is parsed correctly by RF's
+            # lexer.
+            if active.effective_override is not None and active.effective_override.strip():
+                parts.append(_escape_rf_token(active.effective_override))
+            else:
+                inner = _render_selector(active)
+                # Story RECORDER-FRAMES — events captured inside an iframe
+                # carry their originating URL on the command; wrap the
+                # inner selector with `iframe[…] >>> ` so the replay
+                # locates the right document.
+                #
+                # Story RECORDER-FRAMES-2 — when `frame_chain` is present,
+                # pick each rung's best selector candidate (verified-
+                # unique > quality_score) so the user gets the ID-based
+                # iframe locator when available, falls back through
+                # name/src-exact/src-host/class as appropriate. Old
+                # sidecars without `frame_chain` keep using the legacy
+                # URL-derived `iframe[src*="<host>"]` strategy.
+                chain_prefix = _iframe_chain_locator(cmd)
+                if chain_prefix:
+                    inner = f"{chain_prefix} >>> {inner}"
+                elif cmd.frame_url:
+                    legacy = _iframe_locator_from_url(cmd.frame_url)
+                    if legacy is not None:
+                        inner = f"{legacy} >>> {inner}"
+                # RF-token escape — a CSS-ID selector `#login-form` would
+                # be parsed as a comment by Robot Framework. The escape
+                # `\#login-form` is consumed by RF's lexer before the
+                # value reaches Browser library.
+                parts.append(_escape_rf_token(inner))
 
     # Ordered args by convention: `url` first for navigation, `text` for
     # type/assert, `state` for wait, generic `value` last.
@@ -374,7 +386,15 @@ def _emit_desktop_command(cmd: RecordedCommand) -> str:
                 f"captured (cmd.id={cmd.id or '<none>'})"
             )
         else:
-            parts.append(_render_desktop_selector(active))
+            # Same override contract as web: a user-supplied verbatim
+            # form bypasses the strategy-prefix logic and lands in
+            # the emit as-is. Desktop has no iframe-chain wrapping
+            # to skip — the prefix mapping (`name:`, `id:`, `class:`,
+            # `xpath:`) is what would otherwise be applied.
+            if active.effective_override is not None and active.effective_override.strip():
+                parts.append(active.effective_override)
+            else:
+                parts.append(_render_desktop_selector(active))
 
     ordered = ("text", "value", "key")
     for key in ordered:

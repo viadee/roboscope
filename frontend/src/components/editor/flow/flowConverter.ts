@@ -6,8 +6,9 @@
  */
 
 import type { Node, Edge } from '@vue-flow/core'
-import type { RecordedCommand, RecordedFlow } from '@/types/recorder.types'
+import type { RecordedCommand, RecordedFlow, SelectorCandidate } from '@/types/recorder.types'
 import { parseArgSignature, type ParsedArg } from '@/utils/robotKeywordSignatures'
+import { effectiveSelectorForCandidate, renderSelector } from '@/utils/effectiveSelector'
 
 // Map of lowercase-keyword-name → raw libdoc args; produced by
 // `useKeywordSignatures()`. Threaded through the converter so node
@@ -226,9 +227,22 @@ export function resolveArgSpecs(
 
 /**
  * Apply a SelectorPicker swap to a step + its matched RecordedCommand.
- * Both arguments are mutated in place: `step.args[0]` becomes the new
- * candidate's value, and `cmd.active_candidate_index` is updated. Returns
- * `true` if anything changed (or `false` if the index was out of range).
+ * Both arguments are mutated in place: `step.args[0]` becomes the
+ * EFFECTIVE composite selector for the picked candidate (iframe-chain
+ * prefix + inner value + defensive `>> nth=0` disambiguation), and
+ * `cmd.active_candidate_index` is updated. Returns `true` if anything
+ * changed (or `false` if the index was out of range).
+ *
+ * Why the composite (not the raw `candidate.value`): the picker shows
+ * `effectiveSelectorForCandidate(cmd, c)` to every row — including the
+ * iframe-chain prefix synthesised from `cmd.frame_chain`. If we wrote
+ * just the raw inner here, the .robot file would lose the iframe wrap
+ * the moment the user swapped to a different candidate, even though
+ * the picker advertised the wrapped composite as "what gets saved".
+ * Mirroring the Python `_emit_command` composition keeps the swap
+ * round-trip-safe — the same string the user saw in the menu is the
+ * string that lands in args[0] and the same string the emitter would
+ * have written from `cmd.frame_chain` + the new active candidate.
  *
  * Pure data transform — extracted so it can be tested without mounting
  * Vue Flow / the visual editor.
@@ -240,58 +254,112 @@ export function applySelectorSwap(
 ): boolean {
   const candidate = cmd.selector_candidates[newIndex]
   if (!candidate) return false
+  const composite = effectiveSelectorForCandidate(cmd, candidate)
   if (step.args.length === 0) {
-    step.args.push(candidate.value)
+    step.args.push(composite)
   } else {
-    step.args[0] = candidate.value
+    step.args[0] = composite
   }
   cmd.active_candidate_index = newIndex
   return true
 }
 
 /**
+ * Shared composite-write helper for the EDIT and ADD picker paths.
+ * Same iframe-chain + defensive-nth composition as
+ * `applySelectorSwap`, but takes a free-standing `SelectorCandidate`
+ * (the user-typed payload) rather than indexing into `cmd`. Keeping
+ * a single composition site means the three picker actions
+ * (swap / edit-active / add-new) can never drift out of sync on
+ * iframe wrapping.
+ */
+export function composeEffectiveSelector(
+  cmd: RecordedCommand,
+  candidate: SelectorCandidate,
+): string {
+  return effectiveSelectorForCandidate(cmd, candidate)
+}
+
+/**
  * Detects whether `step.args[0]` is a value the user typed by hand
  * rather than one of the recorded selector candidates. Used to gate a
- * confirmation prompt before overwriting a custom selector during swap.
+ * confirmation prompt before overwriting a custom selector during swap
+ * AND a "custom value" badge in the detail panel.
  *
- * Why the value-stripping: the recorder emits selectors with two
- * decorations that are NOT mirrored in the sidecar candidate values —
+ * Match strategy — try, in order:
  *
- * 1. **iframe wrapping** — events captured in an iframe get prefixed
- *    with `iframe[src*="<host>"] >>> ` so the replay locates the
- *    right document. The sidecar stores the inner selector
- *    (`text="Zustimmen"`) without the iframe prefix.
- * 2. **disambiguation suffix** — when a multi-match locator gets
- *    `>> nth=0` appended for strict-mode safety, the sidecar may
- *    still hold the un-disambiguated value depending on when the
- *    snapshot was taken vs. the verifier ran.
+ * 1. **Raw exact match** against `candidate.value`. Catches legacy
+ *    .robot files written before the defensive-nth + iframe-chain
+ *    composition existed, hand-edited values that happen to equal a
+ *    candidate verbatim, and the simple top-frame `Click  text=X`
+ *    case where the emitter's renderSelector would have produced
+ *    the identical string anyway.
  *
- * Both lived only on the emit side. Without stripping, a recorded
- * `Click text="Zustimmen"` inside a Sourcepoint consent iframe shows
- * up as `iframe[src*="…"] >>> text="Zustimmen"` in the .robot but
- * `text="Zustimmen"` in the sidecar — match fails, the picker shows
- * "eigener Wert, nicht aus der Aufzeichnung", which is wrong.
+ * 2. **Effective-composite match** — compute
+ *    `effectiveSelectorForCandidate(cmd, c)` for every candidate
+ *    and compare against `current`. This is the SAME function the
+ *    `applySelectorSwap` / `composeEffectiveSelector` write path
+ *    uses, so the comparison is symmetric with the write by
+ *    construction: any value that COULD have been written by a
+ *    legitimate swap of any candidate is recognised here as
+ *    non-custom. Handles iframe-chain prefix (any strategy), the
+ *    `xpath=` / `text=` prefixes that `renderSelector` adds, and
+ *    the defensive `>> nth=0` suffix uniformly.
+ *
+ * Returns true only when neither match hits — i.e. the user genuinely
+ * typed something the picker would never have produced.
+ *
+ * The earlier shape-specific strip approach was abandoned as the
+ * PRIMARY check because it required knowing every decoration the
+ * emitter might add (iframe prefix shapes, `xpath=` vs `text=`
+ * prefixes, defensive nth thresholds, future strategies) and would
+ * silently mis-classify any value whose decoration set didn't fit the
+ * regex. The composite comparison delegates that knowledge to the
+ * single source of truth (`effectiveSelectorForCandidate`).
+ *
+ * Step 3 (loose fallback) is the only remaining piece that uses the
+ * strip — it's a backward-compat path for **legacy sidecars** where
+ * `frame_chain` wasn't yet captured but the .robot still has an
+ * iframe wrap (older recordings, hand-merged sidecars, frame_url-
+ * only fallbacks where the URL-derived prefix happens to differ
+ * from what the user typed in the .robot). The strip is defensive
+ * (`lastIndexOf(' >>> ')` covers any frame-rung strategy + nesting
+ * depth) and the comparison still anchors on the inner half — so a
+ * genuinely-typed value like `iframe[...] >>> #manual-id` correctly
+ * stays "custom" because no candidate's inner matches `#manual-id`.
  */
-const _IFRAME_PREFIX_RE = /^iframe\[[^\]]+\]\s*>>>\s*/
 const _NTH_SUFFIX_RE = /\s*>>\s*nth=\d+\s*$/
-function _stripSelectorDecorations(value: string): string {
-  return value
-    .replace(_IFRAME_PREFIX_RE, '')
-    .replace(_NTH_SUFFIX_RE, '')
-    .trim()
+function _stripFrameChainAndNth(value: string): string {
+  let out = value
+  const lastChain = out.lastIndexOf(' >>> ')
+  if (lastChain >= 0) out = out.slice(lastChain + 5)
+  return out.replace(_NTH_SUFFIX_RE, '').trim()
 }
 
 export function isCustomSelectorValue(step: RobotStep, cmd: RecordedCommand): boolean {
   if (cmd.selector_candidates.length === 0) return false
   const current = step.args[0] ?? ''
   if (current === '') return false
+  // 1. Raw exact match — fastest, covers hand-written / legacy bare
+  //    values and the simple top-frame case where the emitter would
+  //    have produced the identical string anyway.
   if (cmd.selector_candidates.some((c) => c.value === current)) return false
-  // Compare again after stripping iframe-wrapping + nth-disambiguation,
-  // both of which the emitter adds but the sidecar typically doesn't.
-  const stripped = _stripSelectorDecorations(current)
-  if (stripped === current) return true
+  // 2. Strict composite match — symmetric with `applySelectorSwap` /
+  //    `composeEffectiveSelector`. Anything any swap COULD have
+  //    written is recognised as non-custom by construction.
+  if (cmd.selector_candidates.some(
+    (c) => effectiveSelectorForCandidate(cmd, c) === current,
+  )) return false
+  // 3. Loose fallback for legacy sidecars (no `frame_chain` /
+  //    `frame_url`) whose .robot still has an iframe wrap from a
+  //    previous recording. Strip a frame-chain prefix + defensive
+  //    nth from `current` and match the inner against each
+  //    candidate's raw value OR its `renderSelector` form
+  //    (covers the `xpath=` / `text=` asymmetry too).
+  const inner = _stripFrameChainAndNth(current)
+  if (inner === current) return true
   return !cmd.selector_candidates.some(
-    (c) => _stripSelectorDecorations(c.value) === stripped,
+    (c) => c.value === inner || renderSelector(c) === inner,
   )
 }
 

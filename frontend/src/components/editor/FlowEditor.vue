@@ -35,6 +35,7 @@ import {
 } from '@/utils/robotKeywordSignatures'
 import {
   applySelectorSwap,
+  composeEffectiveSelector,
   estimateNodeHeight,
   isCustomSelectorValue,
   isStepType,
@@ -800,7 +801,7 @@ function onSelectorPickerSwap(newIndex: number) {
  * new value through to `step.args[0]` so the .robot saves consistent
  * with what the user just typed.
  */
-function onSelectorPickerEdit(payload: { index: number; value: string; strategy: SelectorStrategy }) {
+function onSelectorPickerEdit(payload: { index: number; value: string; strategy: SelectorStrategy; effective?: string }) {
   if (!selectedNodeData.value) return
   const cmd = selectedNodeData.value.recording
   if (!cmd) return
@@ -810,11 +811,23 @@ function onSelectorPickerEdit(payload: { index: number; value: string; strategy:
   cand.strategy = payload.strategy
   cand.quality_score = 50
   cand.verified_unique = false
+  // Verbatim emit-form override — see SelectorPicker emit payload.
+  // Empty string clears any existing override (back to auto-compose);
+  // non-empty replaces the override; `undefined` (legacy callers
+  // before this field shipped) leaves the field untouched.
+  if (payload.effective !== undefined) {
+    cand.effective_override = payload.effective === '' ? null : payload.effective
+  }
   if (payload.index === cmd.active_candidate_index) {
+    // Compose via `composeEffectiveSelector` → `effectiveSelectorForCandidate`
+    // → returns override verbatim when set, otherwise composes with
+    // iframe-chain + defensive nth. Same single source of truth as
+    // the swap path and the Python emitter.
+    const composite = composeEffectiveSelector(cmd, cand)
     if (selectedNodeData.value.step.args.length === 0) {
-      selectedNodeData.value.step.args.push(payload.value)
+      selectedNodeData.value.step.args.push(composite)
     } else {
-      selectedNodeData.value.step.args[0] = payload.value
+      selectedNodeData.value.step.args[0] = composite
     }
     updateStepFromNode(props.form, selectedNodeData.value)
   }
@@ -831,7 +844,7 @@ function onSelectorPickerEdit(payload: { index: number; value: string; strategy:
  * to" affordance — adding a new one almost always means "I want to
  * use this now").
  */
-function onSelectorPickerAdd(payload: { value: string; strategy: SelectorStrategy }) {
+function onSelectorPickerAdd(payload: { value: string; strategy: SelectorStrategy; effective?: string }) {
   if (!selectedNodeData.value) return
   const cmd = selectedNodeData.value.recording
   if (!cmd) return
@@ -840,14 +853,24 @@ function onSelectorPickerAdd(payload: { value: string; strategy: SelectorStrateg
     value: payload.value,
     quality_score: 50,
     verified_unique: false,
+    effective_override:
+      payload.effective !== undefined && payload.effective !== ''
+        ? payload.effective
+        : null,
   }
   cmd.selector_candidates.push(newCand)
   const newIndex = cmd.selector_candidates.length - 1
   cmd.active_candidate_index = newIndex
+  // Same composition as swap / edit. `composeEffectiveSelector`
+  // returns the override verbatim when set, otherwise auto-composes
+  // (iframe-chain + defensive nth), so a user adding a custom value
+  // inside an iframe gets the wrap by default OR overrides it
+  // explicitly via the Effektiv field — both paths land here.
+  const composite = composeEffectiveSelector(cmd, newCand)
   if (selectedNodeData.value.step.args.length === 0) {
-    selectedNodeData.value.step.args.push(payload.value)
+    selectedNodeData.value.step.args.push(composite)
   } else {
-    selectedNodeData.value.step.args[0] = payload.value
+    selectedNodeData.value.step.args[0] = composite
   }
   updateStepFromNode(props.form, selectedNodeData.value)
   rebuildAndReselect()

@@ -6,6 +6,7 @@ import pytest
 
 from src.recording.robot_emit import _emit_command, emit_robot
 from src.recording.selector_schema import (
+    FrameDescriptor,
     RecordedCommand,
     RecordedFlow,
     SelectorCandidate,
@@ -775,3 +776,94 @@ class TestDefensiveDisambiguation:
         )
         line = _emit_command(cmd)
         assert "button.primary >> nth=0" in line
+
+
+class TestEffectiveOverride:
+    """User-supplied verbatim emit-form (set via the FlowEditor
+    SelectorPicker's ✏ Effektiv field) MUST short-circuit the
+    iframe-chain wrap + renderSelector prefix + defensive nth
+    composition. The override string lands in the .robot line
+    exactly as typed (modulo the RF-token escape on leading `#`)."""
+
+    def test_override_skips_iframe_wrap_and_nth(self) -> None:
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="text", value='text="Zustimmen"',
+                    quality_score=70, verified_unique=False,
+                    # User wants to drop the auto-composed
+                    # `iframe#auto-synth >>> text="Zustimmen" >> nth=0`
+                    # in favour of a hand-tuned chain.
+                    effective_override='iframe.consent >>> text="Zustimmen"',
+                ),
+            ],
+            active_candidate_index=0,
+            frame_chain=[
+                FrameDescriptor(url="https://cmp.example/", selector_candidates=[
+                    SelectorCandidate(
+                        strategy="css", value="iframe#auto-synth",
+                        quality_score=90, verified_unique=True,
+                    ),
+                ]),
+            ],
+        )
+        line = _emit_command(cmd)
+        assert 'iframe.consent >>> text="Zustimmen"' in line
+        # The auto-composed prefix is gone — user override fully replaces.
+        assert "iframe#auto-synth" not in line
+        assert ">> nth=0" not in line
+
+    def test_empty_override_falls_back_to_auto_compose(self) -> None:
+        """`effective_override=None` AND empty / whitespace-only
+        strings are treated as 'no override' — the emitter walks the
+        normal compose path (iframe-chain + render + defensive nth)."""
+        for empty in (None, "", "   "):
+            cmd = RecordedCommand(
+                index=0,
+                keyword="Click",
+                selector_candidates=[
+                    SelectorCandidate(
+                        strategy="text", value="text=Welcome",
+                        quality_score=50, verified_unique=False,
+                        effective_override=empty,
+                    ),
+                ],
+                active_candidate_index=0,
+            )
+            line = _emit_command(cmd)
+            assert "text=Welcome >> nth=0" in line, (
+                f"empty override {empty!r} should not block auto-compose"
+            )
+
+    def test_override_round_trips_through_json(self) -> None:
+        """Sidecars persist as JSON — the field MUST round-trip
+        unchanged so a save → reload preserves the user's override."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="button.x",
+                    quality_score=50, verified_unique=False,
+                    effective_override="iframe#x >>> button.x",
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        payload = cmd.model_dump_json()
+        round_tripped = RecordedCommand.model_validate_json(payload)
+        assert round_tripped.selector_candidates[0].effective_override == \
+            "iframe#x >>> button.x"
+
+    def test_legacy_sidecar_without_field_loads_with_none(self) -> None:
+        """JSON from a sidecar saved before this field shipped must
+        still validate — the field defaults to None and the emitter
+        falls back to auto-compose."""
+        legacy_json = (
+            '{"strategy": "css", "value": "button.x", '
+            '"quality_score": 70, "verified_unique": true}'
+        )
+        cand = SelectorCandidate.model_validate_json(legacy_json)
+        assert cand.effective_override is None
