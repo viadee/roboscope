@@ -46,6 +46,49 @@ def _vendored_heal_path() -> Path:
     )
 
 
+# Registry of packages that ship vendored inside RoboScope.
+#
+# When a user asks the UI to install one of these by NAME (no
+# explicit version), the install path resolves to the on-disk
+# vendor tree under `backend/vendor/<dir>/` instead of going to
+# PyPI. An explicit version request still goes to PyPI — that's
+# the "I want to upgrade past what RoboScope ships" override path.
+#
+# Add entries here when vendoring a new library. The directory
+# name MUST be the on-disk folder under `backend/vendor/` and
+# needs a `pyproject.toml` at its root so `uv pip install <path>`
+# can build a wheel from source.
+_SHIPPED_VENDOR_PACKAGES: dict[str, str] = {
+    "robotframework-roboscopeheal": "robotframework-roboscopeheal",
+}
+
+
+def _shipped_vendor_path(package_name: str) -> Path | None:
+    """Return the vendored source path for a shipped package, or
+    None when the package isn't shipped with RoboScope OR the
+    vendor directory is missing on disk (defensive — a stripped
+    release tree shouldn't break PyPI installs of OTHER packages).
+
+    Normalised to lowercase to match `pip`'s case-insensitive
+    distribution-name handling.
+    """
+    vendor_dir = _SHIPPED_VENDOR_PACKAGES.get(package_name.lower())
+    if vendor_dir is None:
+        return None
+    path = (
+        Path(__file__).resolve().parent.parent.parent
+        / "vendor" / vendor_dir
+    )
+    if not path.is_dir():
+        logger.warning(
+            "_shipped_vendor_path: %s registered but vendor dir "
+            "missing at %s — falling back to PyPI",
+            package_name, path,
+        )
+        return None
+    return path
+
+
 def _install_vendored_heal_into_venv(venv_path: str, env_id: int) -> None:
     """Seed `robotframework-roboscopeheal` into a freshly-created
     project venv. Non-fatal — heal is opt-in test ergonomics, not a
@@ -374,7 +417,27 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
             _broadcast_package_status(env_id, package_name, "installing")
 
         try:
-            pkg_spec = f"{package_name}=={version}" if version else package_name
+            # Shipped-with-RoboScope packages: when the UI asks for an
+            # install with NO explicit version, resolve to the vendored
+            # source tree on disk instead of going to PyPI. The package
+            # may not be on PyPI yet (RoboScopeHeal isn't, today) OR
+            # PyPI may have a version that diverges from what this
+            # RoboScope release was tested against — the vendored copy
+            # is the deterministic ship-with-RoboScope answer.
+            # An explicit version request bypasses the vendor and goes
+            # to PyPI as usual: that's the "I want to upgrade past what
+            # RoboScope ships" path, and it should only succeed once
+            # PyPI actually carries the package.
+            shipped_path = _shipped_vendor_path(package_name) if version is None else None
+            if shipped_path is not None:
+                pkg_spec = str(shipped_path)
+                logger.info(
+                    "install_package: resolving %s (no version) to "
+                    "vendored source at %s (env %d)",
+                    package_name, shipped_path, env_id,
+                )
+            else:
+                pkg_spec = f"{package_name}=={version}" if version else package_name
 
             subprocess.run(
                 pip_install_cmd(

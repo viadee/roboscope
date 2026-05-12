@@ -310,7 +310,16 @@ def dismiss_docker_build_error(
 
 # --- Packages ---
 
-# Popular Robot Framework libraries for quick install
+# Popular Robot Framework libraries for quick install.
+#
+# `shipped_with_roboscope: True` marks libraries that ship vendored
+# inside RoboScope itself — they're auto-installed into every fresh
+# project venv (see `environments/tasks.py::create_venv`), so an
+# explicit install request from the UI should resolve to the
+# vendored source path rather than PyPI (which may not have the
+# package yet, or may have a different / older version than what
+# RoboScope was tested against). The frontend renders these with a
+# "ships with RoboScope" badge instead of a regular install button.
 POPULAR_RF_LIBRARIES = [
     {"name": "robotframework", "description": "Robot Framework core"},
     {"name": "robotframework-seleniumlibrary", "description": "Web testing with Selenium"},
@@ -325,6 +334,14 @@ POPULAR_RF_LIBRARIES = [
         "description": "Web testing with Playwright — self-contained, no Node.js needed",
         "group": "browser",
         "variant": "batteries",
+    },
+    {
+        "name": "robotframework-roboscopeheal",
+        "description": (
+            "Self-healing locators for Browser library — ships with RoboScope "
+            "(auto-installed in every project venv), upgradable from PyPI once published"
+        ),
+        "shipped_with_roboscope": True,
     },
     {"name": "robotframework-requests", "description": "HTTP API testing"},
     {"name": "robotframework-databaselibrary", "description": "Database testing"},

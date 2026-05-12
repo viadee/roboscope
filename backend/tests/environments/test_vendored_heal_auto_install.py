@@ -125,3 +125,61 @@ def test_install_subprocess_raise_is_caught(
         "vendored heal install raised" in r.message
         for r in caplog.records
     )
+
+
+# --- Shipped-vendor registry (`_shipped_vendor_path`) ---
+#
+# Pins the contract used by `install_package` when a user clicks
+# "install" on a `shipped_with_roboscope: True` entry in the UI:
+#   - known shipped name + vendor dir present → returns the path
+#   - unknown name → returns None (caller proceeds to PyPI)
+#   - known name + vendor dir missing on disk → returns None + WARN
+#   - case-insensitive lookup (PyPI distribution names are
+#     case-insensitive; pip accepts any case)
+
+from src.environments.tasks import _shipped_vendor_path  # noqa: E402
+
+
+def test_shipped_vendor_path_resolves_known_package() -> None:
+    p = _shipped_vendor_path("robotframework-roboscopeheal")
+    assert p is not None
+    assert p.is_absolute()
+    assert p.name == "robotframework-roboscopeheal"
+    assert (p / "pyproject.toml").is_file()
+
+
+def test_shipped_vendor_path_is_case_insensitive() -> None:
+    """pip normalises distribution names — the registry lookup
+    must match regardless of how the UI sent the name."""
+    mixed = _shipped_vendor_path("RobotFramework-RoboscopeHeal")
+    upper = _shipped_vendor_path("ROBOTFRAMEWORK-ROBOSCOPEHEAL")
+    assert mixed is not None
+    assert upper is not None
+    assert mixed == upper
+
+
+def test_shipped_vendor_path_unknown_package_returns_none() -> None:
+    """Non-shipped packages (the vast majority of PyPI) fall
+    through to the normal `pip install <name>` PyPI path."""
+    assert _shipped_vendor_path("robotframework-requests") is None
+    assert _shipped_vendor_path("robotframework-browser") is None
+    assert _shipped_vendor_path("definitely-not-a-real-package") is None
+
+
+def test_shipped_vendor_path_logs_when_dir_missing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """If a package IS registered as shipped but the vendor
+    directory got stripped (build artefact, dev cleanup, …),
+    return None + WARN — the caller falls back to PyPI cleanly
+    instead of trying to install from a path that doesn't exist."""
+    with patch.dict(
+        "src.environments.tasks._SHIPPED_VENDOR_PACKAGES",
+        {"some-broken-shipped-pkg": "does-not-exist-on-disk"},
+    ), caplog.at_level(logging.WARNING, logger="roboscope.environments.tasks"):
+        result = _shipped_vendor_path("some-broken-shipped-pkg")
+    assert result is None
+    assert any(
+        "vendor dir missing" in r.message
+        for r in caplog.records
+    )

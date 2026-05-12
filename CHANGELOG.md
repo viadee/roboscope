@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+### Self-healing library distribution model
+
+- **`robotframework-roboscopeheal` now visible + installable from
+  the Package Management UI.** The library is added to the
+  `/api/v1/environments/packages/popular` list with a new
+  `shipped_with_roboscope: true` flag. The Environments view renders
+  a blue "ships with RoboScope" / "mit RoboScope ausgeliefert" badge
+  on entries that carry the flag (translated in EN/DE/FR/ES).
+- **Install resolution: vendor for default, PyPI for explicit
+  pins.** The install path (`environments/tasks.py::install_package`)
+  now consults a `_SHIPPED_VENDOR_PACKAGES` registry. When the UI
+  asks to install a shipped package WITHOUT specifying a version,
+  the install resolves to the on-disk vendored source tree
+  (`backend/vendor/<dir>/`) and the wheel is built from there. An
+  EXPLICIT version request bypasses the vendor and goes to PyPI —
+  that's the "I want to upgrade past what RoboScope ships" path.
+  Today this means a no-version click installs heal 0.2.1 from the
+  bundled tree; tomorrow (once PyPI carries the package) a pinned
+  `0.4.0` request fetches PyPI as expected. No code change needed
+  at flip-time other than potentially removing entries from the
+  registry when a vendored library is replaced by a hard PyPI
+  dependency. Backend test pin in
+  `test_tasks.py::test_shipped_no_version_installs_from_vendor_path`
+  + `test_shipped_with_version_goes_to_pypi`. Registry contract
+  pinned in `test_vendored_heal_auto_install.py` (case-insensitive
+  lookup, missing-vendor-dir warns + falls back to None).
+
 ### Recorder lifecycle visibility (RECORDER-VIS epic)
 
 - **RECORDER-VIS-1 — lifecycle SSE events + Restart browser.** The

@@ -36,7 +36,7 @@ const installEnvId = ref<number>(0)
 const installMode = ref<'search' | 'popular'>('popular')
 const searchQuery = ref('')
 const searchResults = ref<{ name: string; version: string; summary: string; author: string }[]>([])
-const popularPackages = ref<{ name: string; description: string; group?: string; variant?: string }[]>([])
+const popularPackages = ref<{ name: string; description: string; group?: string; variant?: string; shipped_with_roboscope?: boolean }[]>([])
 const searching = ref(false)
 const installing = ref<string | null>(null)
 const installVersion = ref('')
@@ -588,6 +588,7 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
             <strong>{{ pkg.name }}</strong>
             <span v-if="pkg.variant === 'batteries'" class="variant-badge recommended">{{ t('environments.recommended') }}</span>
             <span v-if="pkg.variant === 'standard'" class="variant-badge standard">{{ t('environments.requiresNodeJs') }}</span>
+            <span v-if="pkg.shipped_with_roboscope" class="variant-badge shipped" :title="t('environments.shippedWithRoboscopeTitle')">{{ t('environments.shippedWithRoboscope') }}</span>
             <span class="text-muted text-sm">{{ pkg.description }}</span>
           </div>
           <BaseButton
@@ -1080,6 +1081,13 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
 .variant-badge.standard {
   background: #fef3c7;
   color: #92400e;
+}
+/* `shipped_with_roboscope: true` packages — RoboScope ships a
+   vendored copy and auto-installs it into every project venv.
+   Clicking "install" resolves to the vendor path, not PyPI. */
+.variant-badge.shipped {
+  background: #dbeafe;
+  color: #1e40af;
 }
 
 /* Setup default card */

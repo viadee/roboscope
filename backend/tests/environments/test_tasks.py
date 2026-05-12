@@ -58,13 +58,22 @@ class TestCreateVenv:
             result = create_venv(env.id)
 
         assert result["status"] == "success"
-        # First call: uv venv, second call: uv pip install robotframework
-        assert mock_run.call_count == 2
+        # Three subprocess calls:
+        #   1) `uv venv <path>` — create the empty venv
+        #   2) `uv pip install robotframework` — RF core
+        #   3) `uv pip install <vendor>/robotframework-roboscopeheal`
+        #      — Story HEAL-VENDORED phase-2 auto-install
+        assert mock_run.call_count == 3
         venv_cmd = mock_run.call_args_list[0][0][0]
         assert "venv" in venv_cmd
         install_cmd = mock_run.call_args_list[1][0][0]
         assert "install" in install_cmd
         assert "robotframework" in install_cmd
+        heal_cmd = mock_run.call_args_list[2][0][0]
+        assert any(
+            "vendor/robotframework-roboscopeheal" in str(arg)
+            for arg in heal_cmd
+        ), f"heal vendor path missing from third subprocess call: {heal_cmd!r}"
 
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")
@@ -142,6 +151,85 @@ class TestInstallPackage:
             result = install_package(env.id, "nonexistent-pkg")
 
         assert result["status"] == "error"
+
+    @patch("src.environments.tasks._broadcast_package_status")
+    @patch("subprocess.run")
+    def test_shipped_no_version_installs_from_vendor_path(
+        self, mock_run, mock_broadcast, db_session,
+    ):
+        """User clicks "install" on RoboScopeHeal in the package UI
+        (no version specified). The install path resolves the name
+        to the on-disk vendored source tree rather than going to
+        PyPI — that's the deterministic "ship with RoboScope" path
+        documented in CLAUDE.md."""
+        env = _make_env(db_session, create_dir=True)
+        _make_package(db_session, env.id, "robotframework-roboscopeheal")
+        db_session.commit()
+
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),
+            MagicMock(
+                returncode=0,
+                stdout="Name: robotframework-roboscopeheal\nVersion: 0.2.1\n",
+                stderr="",
+            ),
+        ]
+
+        with patch("src.environments.tasks.get_sync_session") as mock_gs:
+            mock_gs.return_value.__enter__ = MagicMock(return_value=db_session)
+            mock_gs.return_value.__exit__ = MagicMock(return_value=False)
+            result = install_package(env.id, "robotframework-roboscopeheal")
+
+        assert result["status"] == "success"
+        install_cmd = mock_run.call_args_list[0][0][0]
+        # The argv positional should be the absolute vendor path,
+        # NOT the bare package name (which would trigger PyPI).
+        assert any(
+            "vendor/robotframework-roboscopeheal" in str(arg)
+            for arg in install_cmd
+        ), f"vendor path not in pip argv: {install_cmd!r}"
+        assert "robotframework-roboscopeheal" not in install_cmd, (
+            "bare package name leaked into argv — would resolve to PyPI"
+        )
+
+    @patch("src.environments.tasks._broadcast_package_status")
+    @patch("subprocess.run")
+    def test_shipped_with_version_goes_to_pypi(
+        self, mock_run, mock_broadcast, db_session,
+    ):
+        """An EXPLICIT version request bypasses the vendor and goes
+        to PyPI — that's the "I want to upgrade past what RoboScope
+        ships" path. Only works once PyPI carries the package; here
+        we just pin that the argv carries the `name==version` spec
+        not the vendor path."""
+        env = _make_env(db_session, create_dir=True)
+        _make_package(db_session, env.id, "robotframework-roboscopeheal")
+        db_session.commit()
+
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),
+            MagicMock(
+                returncode=0,
+                stdout="Name: robotframework-roboscopeheal\nVersion: 0.4.0\n",
+                stderr="",
+            ),
+        ]
+
+        with patch("src.environments.tasks.get_sync_session") as mock_gs:
+            mock_gs.return_value.__enter__ = MagicMock(return_value=db_session)
+            mock_gs.return_value.__exit__ = MagicMock(return_value=False)
+            result = install_package(
+                env.id, "robotframework-roboscopeheal", version="0.4.0",
+            )
+
+        assert result["status"] == "success"
+        install_cmd = mock_run.call_args_list[0][0][0]
+        # PyPI-style pinned spec — no vendor path leakage.
+        assert "robotframework-roboscopeheal==0.4.0" in install_cmd
+        assert not any(
+            "vendor/robotframework-roboscopeheal" in str(arg)
+            for arg in install_cmd
+        ), "vendor path leaked into versioned install argv"
 
 
 class TestUpgradePackage:

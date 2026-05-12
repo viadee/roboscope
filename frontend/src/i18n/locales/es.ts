@@ -449,6 +449,8 @@ export default {
     rfbrowserInit: 'Ejecutar rfbrowser init',
     recommended: 'Recomendado',
     requiresNodeJs: 'Requiere Node.js',
+    shippedWithRoboscope: 'incluido con RoboScope',
+    shippedWithRoboscopeTitle: 'Una versión de esta biblioteca se entrega junto con RoboScope y se instala automáticamente en cada nuevo entorno virtual de proyecto. Al hacer clic en «Instalar» se usa la copia incluida. Especifique una versión explícita para instalar desde PyPI (cuando esté publicado).',
     conflictInstalled: 'Otra variante instalada',
     noPackages: 'No hay paquetes instalados.',
     showAllPip: 'Mostrar todos los paquetes instalados ({count})',
