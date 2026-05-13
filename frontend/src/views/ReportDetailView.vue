@@ -10,6 +10,7 @@ import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import ReportXmlView from '@/components/report/ReportXmlView.vue'
+import RunDiagnosticBanner from '@/components/reports/RunDiagnosticBanner.vue'
 import { formatDuration } from '@/utils/formatDuration'
 import { renderMarkdown } from '@/utils/renderMarkdown'
 import { extractErrorDetail } from '@/utils/errors'
@@ -188,6 +189,16 @@ async function copyPatch(unifiedDiff: string) {
           {{ t('reportDetail.tabs.htmlReport') }}
         </button>
       </div>
+
+      <!-- Diagnostic banner — surfaced ABOVE all tabs so it's
+           visible regardless of which view the user is on. The
+           backend's `detect_report_diagnostic` produces this; null
+           means "no known actionable failure mode" and the
+           component renders nothing. -->
+      <RunDiagnosticBanner
+        v-if="reports.activeReport.diagnostic"
+        :diagnostic="reports.activeReport.diagnostic"
+      />
 
       <!-- Summary Tab -->
       <div v-show="activeTab === 'summary'" class="tab-content">

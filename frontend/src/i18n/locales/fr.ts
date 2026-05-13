@@ -541,6 +541,16 @@ export default {
   reports: {
     title: 'Rapports',
     deleteAll: 'Tout supprimer',
+    diagnostic: {
+      startedBadge: 'démarré',
+      startedMessage: "L'initialisation s'exécute en arrière-plan. Cela peut prendre 2 à 5 minutes (téléchargement Chromium). Consultez la vue Environments pour le suivi, puis relancez le test.",
+      failedMessage: 'Échec du déclenchement',
+      playwright_browser_missing: {
+        title: 'Binaires de navigateur manquants',
+        description: "Browser library ne peut pas lancer Chromium car les binaires Playwright de cet environnement ne sont pas téléchargés. Lancer « rfbrowser init » les récupère (~250 Mo).",
+        action: 'Lancer rfbrowser init',
+      },
+    },
     run: 'Run',
     source: 'Source',
     archive: 'Archive',

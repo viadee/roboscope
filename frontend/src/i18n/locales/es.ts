@@ -541,6 +541,16 @@ export default {
   reports: {
     title: 'Informes',
     deleteAll: 'Eliminar todo',
+    diagnostic: {
+      startedBadge: 'iniciado',
+      startedMessage: 'Init se ejecuta en segundo plano. Puede tardar 2–5 minutos (descarga de Chromium). Comprueba la vista Environments para el progreso y luego vuelve a ejecutar la prueba.',
+      failedMessage: 'Activación fallida',
+      playwright_browser_missing: {
+        title: 'Faltan binarios del navegador',
+        description: 'Browser library no puede lanzar Chromium porque los binarios de Playwright para este entorno no se han descargado. Ejecutar «rfbrowser init» los obtiene (~250 MB).',
+        action: 'Ejecutar rfbrowser init',
+      },
+    },
     run: 'Run',
     source: 'Fuente',
     archive: 'Archivo',

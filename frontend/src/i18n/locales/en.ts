@@ -541,6 +541,16 @@ export default {
   reports: {
     title: 'Reports',
     deleteAll: 'Delete All',
+    diagnostic: {
+      startedBadge: 'started',
+      startedMessage: 'Init is running in the background. This can take 2–5 minutes (Chromium download). Check the Environments view for progress, then re-run the test.',
+      failedMessage: 'Trigger failed',
+      playwright_browser_missing: {
+        title: 'Browser binaries missing',
+        description: "Browser library can't launch Chromium because the Playwright binaries for this environment haven't been downloaded. Running `rfbrowser init` fetches them (~250 MB).",
+        action: 'Run rfbrowser init',
+      },
+    },
     run: 'Run',
     source: 'Source',
     archive: 'Archive',

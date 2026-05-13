@@ -386,9 +386,26 @@ def get_report_detail(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
 
     results = get_test_results(db, report_id)
+
+    # Diagnostic detection — pattern-match on the run + test result
+    # error messages and surface an actionable banner code if any
+    # well-known failure mode is recognised (e.g. missing Playwright
+    # browser binaries → suggest `rfbrowser init`). Returns None
+    # silently when nothing matches; banner stays hidden.
+    from src.execution.diagnostics import detect_report_diagnostic
+    from src.execution.models import ExecutionRun
+
+    diagnostic: dict | None = None
+    if report.execution_run_id is not None:
+        run = db.execute(
+            select(ExecutionRun).where(ExecutionRun.id == report.execution_run_id)
+        ).scalar_one_or_none()
+        diagnostic = detect_report_diagnostic(run, results)
+
     return ReportDetailResponse(
         report=ReportResponse.model_validate(report),
         test_results=[TestResultResponse.model_validate(r) for r in results],
+        diagnostic=diagnostic,
     )
 
 
