@@ -1,6 +1,6 @@
 # Story HEAL-2: Suite-level Self-Healing toggle in the editor toolbar
 
-Status: ready-for-dev
+Status: review
 
 Epic: HEAL — Self-Healing opt-in ergonomics
 Story Key: `heal-2-explorer-suite-level-toggle`
@@ -116,3 +116,26 @@ The same `healToggle.ts` utility from HEAL-1, plus one extra:
   in `HEAL_VARIANTS` (e.g., a custom Heal-prefixed user keyword
   they wrote themselves), `disable` will not touch it. Asserted
   by a test.
+
+## Dev Agent Record
+
+### Completion Notes (2026-05-15)
+
+Implementation was already complete on `feat/heal-toggle`. The following were present and verified:
+
+- `frontend/src/utils/healToggle.ts` — `applyHealToForm`, `countHealedSteps`, `countHealableSteps`, `hasBrowserLibraryImport`, `hasRoboScopeHealImport` (shared with HEAL-1).
+- `frontend/src/components/editor/RobotEditor.vue` — `healSuiteState` computed + `onHealSuiteToggle` handler + toolbar button with `data-testid="suite-heal-toggle"`. Code-tab sync path handled explicitly so the toggle works on all three tabs.
+- i18n `robotEditor.heal.{toggleOn,toggleOff,toggleOnHint,toggleOffHint,toastEnabled,toastDisabled}` in EN/DE/FR/ES — locale parity test passes.
+- `frontend/src/tests/components/RobotEditorHealToggle.spec.ts` — 19 tests (created this session) mirroring `healSuiteState` state-machine and `simulateToggle` action: hidden/off/on classification, enable/disable paths, library import add/remove, state flip after toggle.
+
+vitest full suite: 717 passed, 0 failed.
+
+### File List
+
+- `frontend/src/utils/healToggle.ts` (new — shared with HEAL-1)
+- `frontend/src/tests/components/RobotEditorHealToggle.spec.ts` (new)
+- `frontend/src/components/editor/RobotEditor.vue` (modified — HEAL-2 toggle)
+- `frontend/src/i18n/locales/en.ts` (modified — `robotEditor.heal.*`)
+- `frontend/src/i18n/locales/de.ts` (modified — `robotEditor.heal.*`)
+- `frontend/src/i18n/locales/fr.ts` (modified — `robotEditor.heal.*`)
+- `frontend/src/i18n/locales/es.ts` (modified — `robotEditor.heal.*`)

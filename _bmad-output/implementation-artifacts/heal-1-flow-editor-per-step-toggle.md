@@ -1,6 +1,6 @@
 # Story HEAL-1: Per-step Self-Healing toggle in the Flow Editor
 
-Status: ready-for-dev
+Status: review
 
 Epic: HEAL — Self-Healing opt-in ergonomics
 Story Key: `heal-1-flow-editor-per-step-toggle`
@@ -106,3 +106,28 @@ EN/DE/FR/ES.
   visible on a heal-able step, and that toggling it rewrites the
   step's keyword in the emitted form.
 - vitest stays at 100 %; vue-tsc + prod build clean.
+
+## Dev Agent Record
+
+### Completion Notes (2026-05-15)
+
+Implementation was already complete on `feat/heal-toggle`. The following were present and verified:
+
+- `frontend/src/utils/healToggle.ts` — 13-entry `HEAL_VARIANTS` map, `getHealVariant`, `getBaseKeyword`, `isHealableKeyword`, `isHealedKeyword`, `ensureRoboScopeHealLibrary`, `removeRoboScopeHealLibraryIfUnused`, `countHealedSteps`, `hasBrowserLibraryImport`, `hasRoboScopeHealImport`.
+- `frontend/src/components/editor/FlowEditor.vue` — `selectedStepHealMode` computed + `onStepHealToggle` handler + checkbox UI in detail panel with `data-testid="flow-step-heal-toggle"`.
+- i18n `flowEditor.heal.toggleLabel` / `toggleHint` in EN/DE/FR/ES — locale parity test passes.
+- `frontend/src/tests/utils/healToggle.spec.ts` — 53 tests covering map, classifiers, library import add/remove, `applyHealToForm`, immutability.
+- `frontend/src/tests/components/FlowEditorHealToggle.spec.ts` — 28 tests (created this session) mirroring `selectedStepHealMode` and `computeNextKeyword` logic: hidden for non-keyword steps / non-heal-able keywords / missing library import; off/on classification; rewrite roundtrip for all 13 variants.
+
+vitest full suite: 717 passed, 0 failed.
+
+### File List
+
+- `frontend/src/utils/healToggle.ts` (new)
+- `frontend/src/tests/utils/healToggle.spec.ts` (new)
+- `frontend/src/tests/components/FlowEditorHealToggle.spec.ts` (new)
+- `frontend/src/components/editor/FlowEditor.vue` (modified — HEAL-1 toggle)
+- `frontend/src/i18n/locales/en.ts` (modified — `flowEditor.heal.*`)
+- `frontend/src/i18n/locales/de.ts` (modified — `flowEditor.heal.*`)
+- `frontend/src/i18n/locales/fr.ts` (modified — `flowEditor.heal.*`)
+- `frontend/src/i18n/locales/es.ts` (modified — `flowEditor.heal.*`)

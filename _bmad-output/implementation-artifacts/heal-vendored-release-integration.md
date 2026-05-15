@@ -1,6 +1,6 @@
 # Story HEAL-VENDORED: ship `robotframework-roboscopeheal` with every RoboScope release
 
-Status: ready-for-dev
+Status: review
 
 Epic: HEAL — Self-Healing opt-in ergonomics
 Story Key: `heal-vendored-release-integration`
@@ -180,3 +180,35 @@ needed.
   `--find-links` flow. If we ever need bit-for-bit reproducible
   release bundles, switch to a `python -m build --no-isolation`
   with pinned `build` + `hatchling` versions.
+
+## Dev Agent Record
+
+### Completion Notes (2026-05-15)
+
+Implementation was already complete on `feat/heal-toggle`. The following were present and verified:
+
+- `backend/vendor/robotframework-roboscopeheal/` — vendored source tree with pyproject.toml (v0.2.1), LICENSE, NOTICE, README.md, CHANGELOG.md, and four source files under `src/RoboScopeHeal/`.
+- `backend/pyproject.toml` — `[tool.uv.sources]` re-pointed from sibling repo to `vendor/robotframework-roboscopeheal` (editable=true).
+- `scripts/sync-roboscopeheal.sh` — one-shot copy from sibling into vendor with pre-overwrite diff prompt.
+- `scripts/build-mac-and-linux.sh` — builds the vendored wheel during offline bundle creation.
+- `backend/tests/test_vendored_rfheal_present.py` — 11 tests: vendor dir exists, 5 canonical files present, distribution name check, installed version matches pyproject.toml.
+
+Backend test suite: 11 passed, 0 failed.
+
+### File List
+
+- `backend/vendor/robotframework-roboscopeheal/` (new directory, committed source tree)
+- `backend/vendor/robotframework-roboscopeheal/pyproject.toml` (new)
+- `backend/vendor/robotframework-roboscopeheal/LICENSE` (new)
+- `backend/vendor/robotframework-roboscopeheal/NOTICE` (new)
+- `backend/vendor/robotframework-roboscopeheal/README.md` (new)
+- `backend/vendor/robotframework-roboscopeheal/CHANGELOG.md` (new)
+- `backend/vendor/robotframework-roboscopeheal/src/RoboScopeHeal/__init__.py` (new)
+- `backend/vendor/robotframework-roboscopeheal/src/RoboScopeHeal/candidate_finder.py` (new)
+- `backend/vendor/robotframework-roboscopeheal/src/RoboScopeHeal/fingerprint.py` (new)
+- `backend/vendor/robotframework-roboscopeheal/src/RoboScopeHeal/heal_report.py` (new)
+- `backend/vendor/robotframework-roboscopeheal/src/RoboScopeHeal/library.py` (new)
+- `backend/pyproject.toml` (modified — uv.sources vendored path)
+- `scripts/sync-roboscopeheal.sh` (new)
+- `scripts/build-mac-and-linux.sh` (modified — wheel build step)
+- `backend/tests/test_vendored_rfheal_present.py` (new)
