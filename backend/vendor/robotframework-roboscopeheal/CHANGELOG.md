@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-05-19
+
+### Fixed
+- Every `Heal *` keyword now declares the selector parameter(s) as **positional-only** (Python `/` separator). Without this, Robot Framework's `NamedArgumentResolver` saw the keyword's `**kwargs` and routed any `name=value`-shaped argument into kwargs — including Browser-library locator strategy prefixes such as `xpath=//a[…]`, `css=…`, `text=…`, `id=…`, `role=…`. The positional `selector` parameter therefore arrived unbound and RF aborted the test with `Keyword 'RoboScopeHeal.Heal Click' expected at least 1 non-named argument, got 0.` Marking the selector positional-only forces RF to peel it off as `arguments[:N]` before named-arg resolution, so locator strings reach the heal path verbatim. The two-selector `Heal Drag And Drop` gets both `source_selector` and `target_selector` made positional-only for the same reason.
+
 ## [0.2.1] — 2026-05-11
 
 ### Changed

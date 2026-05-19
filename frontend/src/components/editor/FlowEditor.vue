@@ -1137,11 +1137,22 @@ const addArgOptions = computed<AddArgOption[]>(() => {
   const data = selectedNodeData.value
   if (!data?.argSpecs) return []
   const args = data.step.args
+  const specNames = new Set(data.argSpecs.map((s) => s.name))
   const usedNames = new Set<string>()
   for (let i = 0; i < args.length; i++) {
     const v = args[i]
+    // Only treat a leading `name=` as a Robot Framework named-arg form
+    // when `name` actually appears in the keyword's signature.
+    // Browser-library selectors carry locator-strategy prefixes
+    // (`xpath=`, `css=`, `text=`, `id=`, `role=`, `nth=`, …) that look
+    // identical to named args at the regex level but are part of the
+    // selector value, not a kwarg name. Without this guard, the picker
+    // sees args[0]=`xpath=//a[…]` and assumes `xpath` is the named arg
+    // sitting in slot 0 — `selector` stays "unused" and the picker
+    // offers to add `selector=` as a phantom second arg, which then
+    // fails at run-time with "expected at least 1 non-named argument".
     const m = /^([A-Za-z_][\w]*)\s*=/.exec(v)
-    if (m) {
+    if (m && specNames.has(m[1])) {
       usedNames.add(m[1])
     } else {
       const positional = data.argSpecs[i]

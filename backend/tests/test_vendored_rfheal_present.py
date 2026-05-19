@@ -82,6 +82,58 @@ class TestVendoredHealLibPresent:
             f"repo OR update backend/pyproject.toml in lockstep."
         )
 
+    @pytest.mark.parametrize("keyword_method,positional_only_params", [
+        ("heal_click", ("selector",)),
+        ("heal_fill_text", ("selector",)),
+        ("heal_type_text", ("selector",)),
+        ("heal_hover", ("selector",)),
+        ("heal_press_keys", ("selector",)),
+        ("heal_wait_for_elements_state", ("selector",)),
+        ("heal_upload_file", ("selector",)),
+        ("heal_check_checkbox", ("selector",)),
+        ("heal_uncheck_checkbox", ("selector",)),
+        ("heal_select_options_by", ("selector",)),
+        ("heal_get_text", ("selector",)),
+        ("heal_get_element_count", ("selector",)),
+        ("heal_drag_and_drop", ("source_selector", "target_selector")),
+    ])
+    def test_selector_params_are_positional_only(
+        self, keyword_method: str, positional_only_params: tuple[str, ...]
+    ) -> None:
+        """Regression — selector parameters MUST be Python positional-only
+        (declared with `/` after them in the signature).
+
+        Robot Framework's ``NamedArgumentResolver`` peels off
+        ``arguments[:len(positional_only)]`` BEFORE running its named-arg
+        detection. Without the marker, a recorded selector like
+        ``xpath=//a[normalize-space()="Bio"]`` matches the
+        ``name=value`` shape; the resolver sees the keyword's
+        ``**kwargs`` and routes ``xpath=…`` into kwargs because
+        ``xpath`` is not a known param name. The positional ``selector``
+        arrives unbound and RF aborts with:
+
+            Keyword 'RoboScopeHeal.Heal Click' expected at least 1
+            non-named argument, got 0.
+
+        Removing ``/`` from any Heal keyword reopens that silent-failure
+        path; pin it parametrically across all 13 keywords so a future
+        refactor that "tidies up" the slash gets caught at test time."""
+        import inspect
+
+        import RoboScopeHeal.library as heal_lib
+
+        method = getattr(heal_lib.RoboScopeHeal, keyword_method)
+        sig = inspect.signature(method)
+        for name in positional_only_params:
+            param = sig.parameters[name]
+            assert param.kind is inspect.Parameter.POSITIONAL_ONLY, (
+                f"{keyword_method}.{name} must be POSITIONAL_ONLY "
+                f"(declared `/` after it), found {param.kind}. Without "
+                f"this Robot Framework's argument resolver swallows "
+                f"locator-strategy prefixes like `xpath=` / `css=` / "
+                f"`text=` into **kwargs and the keyword fails at run-time."
+            )
+
     def test_installed_version_matches_vendor_pyproject(self) -> None:
         """Catches the "vendored source bumped, venv not refreshed"
         scenario: `pyproject.toml` says 0.2.1 but the installed wheel

@@ -222,7 +222,24 @@ export function resolveArgSpecs(
   if (!signatures || !step.keyword) return null
   const raw = signatures.get(step.keyword.toLowerCase())
   if (!raw) return null
-  return raw.map(parseArgSignature)
+  // Drop libdoc separator markers (`/`, `*`, `?`). They are Python-
+  // signature shape hints — not real argument slots — and Robot
+  // Framework's `libdoc` emits them inline with the parameter list.
+  // Without this filter, e.g. `Heal Click` (signature
+  // `selector, /, *args, **kwargs`) would yield argSpecs
+  // `[selector, /, args, kwargs]`, and the detail panel would label
+  // slot 1 as `/`, the `+ Add argument` picker would offer `/` as a
+  // clickable option, and `addArgOptions` would mis-track which
+  // positional slot is filled for multi-arg Heal keywords. None of
+  // that is meaningful to the user — separators are structural.
+  return raw
+    .map(parseArgSignature)
+    .filter(
+      (s) =>
+        s.kind !== 'positional-only-sep' &&
+        s.kind !== 'named-only-sep' &&
+        s.kind !== 'optional-sep',
+    )
 }
 
 /**

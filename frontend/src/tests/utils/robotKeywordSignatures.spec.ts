@@ -109,6 +109,20 @@ describe('parseArgSignature', () => {
     })
   })
 
+  it('parses lone "/" as positional-only separator', () => {
+    // RF libdoc emits `/` between Python positional-only params and
+    // the rest of the signature. Recognise it as a separator so the
+    // downstream resolver can drop it instead of treating it as a
+    // real arg named "/". Without this, the FlowEditor labels the
+    // following slot literally "/:".
+    expect(parseArgSignature('/')).toEqual<ParsedArg>({
+      name: '',
+      type: null,
+      defaultValue: null,
+      kind: 'positional-only-sep',
+    })
+  })
+
   it('parses lone "?" as optional separator', () => {
     expect(parseArgSignature('?')).toEqual<ParsedArg>({
       name: '',
