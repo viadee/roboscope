@@ -62,8 +62,14 @@ async function onNext()     { await runCommand(() => debug.control('next')) }
 async function onStepIn()   { await runCommand(() => debug.control('stepIn')) }
 async function onStepOut()  { await runCommand(() => debug.control('stepOut')) }
 async function onStop() {
+  // Disconnect errors are non-actionable from the user's POV: debug.stop()'s
+  // own finally block already resets local state, so the panel can close
+  // cleanly. Swallowing here prevents the rejected promise from leaking out
+  // of Vue's @click handler as an UnhandledRejection.
   try {
     await debug.stop()
+  } catch {
+    // intentional
   } finally {
     emit('closed')
   }
