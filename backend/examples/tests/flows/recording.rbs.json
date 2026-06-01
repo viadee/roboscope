@@ -1,61 +1,93 @@
 {
   "schema_version": 1,
   "transport": "web_playwright",
-  "session_id": "23",
+  "session_id": "52",
   "name": null,
   "commands": [
     {
-      "index": 0,
-      "keyword": "Go To",
-      "args": {
-        "url": "https://www.heise.de/"
-      },
-      "selector_candidates": [],
-      "active_candidate_index": 0,
-      "element_fingerprint": null
-    },
-    {
-      "index": 1,
-      "keyword": "Go To",
-      "args": {
-        "url": "https://www.heise.de/"
-      },
-      "selector_candidates": [],
-      "active_candidate_index": 0,
-      "element_fingerprint": null
-    },
-    {
+      "id": "c312d100b2c5",
       "index": 2,
       "keyword": "Click",
       "args": {},
       "selector_candidates": [
         {
-          "strategy": "text",
-          "value": "text=Developer",
-          "quality_score": 70,
-          "verified_unique": false
-        },
-        {
-          "strategy": "pw_locator",
-          "value": "getByText(\"Developer\", { exact: true })",
-          "quality_score": 70,
-          "verified_unique": false
-        },
-        {
           "strategy": "xpath",
-          "value": "//a[normalize-space()=\"Developer\"]",
+          "value": "//a[normalize-space()=\"Bio\"]",
           "quality_score": 65,
-          "verified_unique": false
+          "verified_unique": true,
+          "effective_override": null
         },
         {
           "strategy": "xpath",
-          "value": "/li/ul/div/a-scroll-container/nav/div/header/div/a",
-          "quality_score": 25,
-          "verified_unique": false
+          "value": "(//*[@id=\"nav-menu\"]//a)[1]",
+          "quality_score": 40,
+          "verified_unique": true,
+          "effective_override": null
+        },
+        {
+          "strategy": "text",
+          "value": "text=\"Bio\"",
+          "quality_score": 70,
+          "verified_unique": false,
+          "effective_override": null
         }
       ],
       "active_candidate_index": 0,
-      "element_fingerprint": null
+      "element_fingerprint": null,
+      "frame_url": null,
+      "frame_chain": []
+    },
+    {
+      "id": "7196de460051",
+      "index": 4,
+      "keyword": "Click",
+      "args": {},
+      "selector_candidates": [
+        {
+          "strategy": "text",
+          "value": "text=\"Thomas\"",
+          "quality_score": 70,
+          "verified_unique": true,
+          "effective_override": null
+        },
+        {
+          "strategy": "xpath",
+          "value": "//p[normalize-space()=\"Thomas\"]",
+          "quality_score": 65,
+          "verified_unique": true,
+          "effective_override": null
+        },
+        {
+          "strategy": "css",
+          "value": "p.text-white.font-semibold.text-lg:nth-match(1)",
+          "quality_score": 25,
+          "verified_unique": true,
+          "effective_override": null
+        }
+      ],
+      "active_candidate_index": 0,
+      "element_fingerprint": null,
+      "frame_url": null,
+      "frame_chain": []
+    },
+    {
+      "id": "e937a5ab89a3",
+      "index": 6,
+      "keyword": "Click",
+      "args": {},
+      "selector_candidates": [
+        {
+          "strategy": "text",
+          "value": "text=\"Musik\"",
+          "quality_score": 70,
+          "verified_unique": false,
+          "effective_override": null
+        }
+      ],
+      "active_candidate_index": 0,
+      "element_fingerprint": null,
+      "frame_url": null,
+      "frame_chain": []
     }
   ]
 }

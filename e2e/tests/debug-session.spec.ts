@@ -52,15 +52,29 @@ function makeRun(overrides: Partial<Record<string, unknown>>) {
   };
 }
 
-/** Mock all /runs/* sub-routes that the run detail view fetches. */
+/** Mock the runs LIST + per-run sub-routes so ExecutionView can render the
+ *  detail panel for `run`. The view auto-selects via the `?run=<id>` query
+ *  param (handled by `/runs?run=…` — see ExecutionView.vue::onMounted). */
 async function mockRunDetailRoutes(page: Page, run: ReturnType<typeof makeRun>) {
+  // List endpoint — must precede the catch-all so `/runs?…` (no path segment
+  // after `/runs`) is intercepted. ExecutionView mounts a single page and
+  // queries this with page=1 by default.
+  await page.route('**/api/v1/runs?**', async (route) => {
+    if (route.request().method() !== 'GET') { await route.continue(); return; }
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [run], total: 1, page: 1, page_size: 25 }),
+    });
+  });
+
+  // Per-run sub-routes that the detail view fetches.
   await page.route('**/api/v1/runs/**', async (route) => {
     const url = route.request().url();
     const method = route.request().method();
 
     if (method !== 'GET') { await route.continue(); return; }
 
-    // pending-activity, selector-health, heal-report, report — return empty/null.
     if (url.includes('/pending-activity')) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ pending: false, position: null }) });
     }
@@ -70,7 +84,6 @@ async function mockRunDetailRoutes(page: Page, run: ReturnType<typeof makeRun>) 
     if (url.includes('/report')) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ report_id: null }) });
     }
-    // Run detail.
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(run) });
   });
 }
@@ -114,13 +127,13 @@ test.describe('Debug button visibility', () => {
 
   test('debug button is visible when run status is "failed"', async ({ page }) => {
     await mockRunDetailRoutes(page, makeRun({ status: 'failed' }));
-    await page.goto('/runs/91201');
+    await page.goto('/runs?run=91201');
     await expect(page.getByTestId('debug-btn')).toBeVisible({ timeout: 8_000 });
   });
 
   test('debug button is NOT visible when run status is "passed"', async ({ page }) => {
     await mockRunDetailRoutes(page, makeRun({ status: 'passed' }));
-    await page.goto('/runs/91201');
+    await page.goto('/runs?run=91201');
     // Wait for the view to render (expect something else visible first).
     await expect(page.locator('.run-detail, [class*="run"]').first()).toBeVisible({ timeout: 8_000 });
     await expect(page.getByTestId('debug-btn')).toHaveCount(0);
@@ -128,7 +141,7 @@ test.describe('Debug button visibility', () => {
 
   test('debug button is NOT visible when run status is "running"', async ({ page }) => {
     await mockRunDetailRoutes(page, makeRun({ status: 'running' }));
-    await page.goto('/runs/91201');
+    await page.goto('/runs?run=91201');
     await expect(page.locator('.run-detail, [class*="run"]').first()).toBeVisible({ timeout: 8_000 });
     await expect(page.getByTestId('debug-btn')).toHaveCount(0);
   });
@@ -160,7 +173,7 @@ test.describe('Debug prereq dialog — cancel path', () => {
       });
     });
 
-    await page.goto('/runs/91201');
+    await page.goto('/runs?run=91201');
     await expect(page.getByTestId('debug-btn')).toBeVisible({ timeout: 8_000 });
     await page.getByTestId('debug-btn').click();
 
@@ -234,7 +247,7 @@ test.describe('Debug prereq dialog — install + retry path', () => {
       });
     });
 
-    await page.goto('/runs/91201');
+    await page.goto('/runs?run=91201');
     await expect(page.getByTestId('debug-btn')).toBeVisible({ timeout: 8_000 });
     await page.getByTestId('debug-btn').click();
 
@@ -275,7 +288,7 @@ test.describe('Debug session — 409 duplicate guard', () => {
       });
     });
 
-    await page.goto('/runs/91201');
+    await page.goto('/runs?run=91201');
     await expect(page.getByTestId('debug-btn')).toBeVisible({ timeout: 8_000 });
     await page.getByTestId('debug-btn').click();
     await page.waitForTimeout(800);

@@ -27,6 +27,12 @@ function onCancel(): void {
 </script>
 
 <template>
+  <!-- data-testid="debug-prereq-dialog" is on a sentinel span that is
+       Teleported alongside the modal so E2E tests can assert presence /
+       absence of the dialog without relying on BaseModal internals. -->
+  <Teleport v-if="props.open" to="body">
+    <span data-testid="debug-prereq-dialog" style="display:none" aria-hidden="true" />
+  </Teleport>
   <BaseModal :model-value="props.open" :title="t('debug.prereq.title')" size="md">
     <p class="prereq-body">
       {{ t('debug.prereq.body', { package: props.packageName }) }}
@@ -42,6 +48,7 @@ function onCancel(): void {
       <BaseButton
         variant="ghost"
         :disabled="props.installing"
+        data-testid="debug-prereq-cancel-btn"
         @click="onCancel"
       >
         {{ t('debug.prereq.cancel') }}
@@ -50,6 +57,7 @@ function onCancel(): void {
         variant="primary"
         :loading="props.installing"
         :disabled="props.installing"
+        data-testid="debug-prereq-install-btn"
         @click="onInstall"
       >
         {{ props.installing
