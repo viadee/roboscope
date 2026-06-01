@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>RoboScope Recorder v2 — stable iframe parent</title>
+    <style>
+      body { font-family: sans-serif; padding: 2rem; max-width: 640px; }
+      #consent-banner {
+        width: 100%; height: 180px; border: 2px solid #aaa;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 data-testid="top-heading">Stable iframe page</h1>
+
+    <!-- Iframe with a stable id + name + meaningful src — so the
+         recorder's iframe-element synthesis produces multiple
+         ranked candidates the picker can show. The inner click
+         does NOT remove the iframe (unlike the Sourcepoint case),
+         so verification of the iframe element succeeds. -->
+    <iframe
+      id="consent-banner"
+      name="consent"
+      data-testid="consent-banner"
+      src="recorder_iframe_inner.html"
+    ></iframe>
+  </body>
+</html>

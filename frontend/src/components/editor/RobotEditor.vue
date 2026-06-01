@@ -15,6 +15,14 @@ import { useReposStore } from '@/stores/repos.store'
 import { extractErrorDetail } from '@/utils/errors'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import type { RecordedFlow } from '@/types/recorder.types'
+// Story HEAL-2 — suite-level Self-Healing toggle.
+import {
+  applyHealToForm,
+  countHealedSteps,
+  countHealableSteps,
+  hasBrowserLibraryImport,
+  hasRoboScopeHealImport,
+} from '@/utils/healToggle'
 
 // CodeMirror imports
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightSpecialChars } from '@codemirror/view'
@@ -69,6 +77,7 @@ interface RobotStep {
   varScope: string       // var: scope (LOCAL|TEST|TASK|SUITE|GLOBAL)
   comment: string        // comment: text
   rbs_id?: string        // RECORDER-IDMAP — see flow/flowConverter.ts
+  _lineNumber?: number   // DEBUG-3 — 1-based source line; set by parseRobotToForm
 }
 
 interface RobotTestCase {
@@ -672,7 +681,15 @@ function parseRobotToForm(content: string): boolean {
           }
 
           // Parse structured step
-          currentItem.steps.push(parseStepLine(bodyTrimmed))
+          // Story DEBUG-3 — annotate with the 1-based source line so
+          // the Flow Editor's "Run up to here" debug button can pass
+          // the right line to the backend's debug-launch endpoint.
+          // The annotation is metadata only; the serializer writes
+          // each step on its own line, so a save-and-reparse keeps
+          // the numbers in sync.
+          const parsed = parseStepLine(bodyTrimmed)
+          parsed._lineNumber = i + 1
+          currentItem.steps.push(parsed)
         }
         continue
       }
@@ -960,6 +977,72 @@ watch(() => form.settings, () => { if (inFormEditingTab.value) emitFormContent()
 watch(() => form.variables, () => { if (inFormEditingTab.value) emitFormContent() }, { deep: true })
 watch(() => form.testCases, () => { if (inFormEditingTab.value) emitFormContent() }, { deep: true })
 watch(() => form.keywords, () => { if (inFormEditingTab.value) emitFormContent() }, { deep: true })
+
+// --- Story HEAL-2: Suite-level Self-Healing toggle ---
+//
+// Visible only when the file contains at least one heal-able Browser
+// keyword (bare or already in Heal* form). State labels:
+//   - 'off'   — zero Heal* keywords; clicking promotes all heal-able
+//               keywords to their Heal variant and adds the library
+//               import.
+//   - 'on'    — at least one Heal* keyword; clicking reverts every
+//               supported Heal* to its bare form and removes the
+//               (bare) library import.
+const healSuiteState = computed<'on' | 'off' | 'hidden'>(() => {
+  const healed = countHealedSteps(form)
+  const healable = countHealableSteps(form)
+  if (healed === 0 && healable === 0) return 'hidden'
+  // Story HEAL-2 refinement — a step named `Click` doesn't
+  // necessarily MEAN a Browser-library Click. Without an explicit
+  // `Library    Browser` (or `RoboScopeHeal`) import in Settings,
+  // the step almost certainly resolves to a user-defined keyword
+  // with the same name; rewriting it to `Heal Click` would break
+  // the test rather than heal it. Suppress the toggle in that case.
+  if (!hasBrowserLibraryImport(form) && !hasRoboScopeHealImport(form)) {
+    return 'hidden'
+  }
+  return healed > 0 ? 'on' : 'off'
+})
+
+const toast = useToast()
+function onHealSuiteToggle(): void {
+  const state = healSuiteState.value
+  if (state === 'hidden') return
+  const mode = state === 'on' ? 'disable' : 'enable'
+  const { form: nextForm, changedKeywords } = applyHealToForm(form, mode)
+  // Apply by mutating the reactive in place. On `visual` / `flow`
+  // the deep watchers below emit `update:content` for us; on the
+  // `code` tab they are deliberately silenced (`inFormEditingTab`
+  // is false) so free typing in CodeMirror isn't echoed back —
+  // which means a toggle fired from the toolbar would silently
+  // diverge from the visible code buffer. Sync both sides
+  // explicitly here so the contract is the same on every tab:
+  // toggle → form rewritten, code editor buffer rewritten, parent
+  // sees an unsaved-content event, the next tab switch parses the
+  // new code (not the stale one).
+  form.settings = nextForm.settings
+  form.testCases = nextForm.testCases
+  form.keywords = nextForm.keywords
+  if (activeTab.value === 'code') {
+    const code = serializeFormToRobot()
+    internalCode.value = code
+    if (codeEditorView.value) {
+      const currentDoc = codeEditorView.value.state.doc.toString()
+      if (currentDoc !== code) {
+        codeEditorView.value.dispatch({
+          changes: { from: 0, to: currentDoc.length, insert: code },
+        })
+      }
+    }
+    emitContent(code)
+  }
+  if (changedKeywords > 0) {
+    const key = mode === 'enable'
+      ? 'robotEditor.heal.toastEnabled'
+      : 'robotEditor.heal.toastDisabled'
+    toast.success(t(key, { count: changedKeywords }))
+  }
+}
 
 // --- Story EDITOR-1: recording sidecar (`<file>.rbs.json`) ---
 const sidecar = ref<RecordedFlow | null>(null)
@@ -2056,6 +2139,23 @@ watch(() => props.content, (newContent) => {
         <span class="badge badge-robot">{{ isResource ? '.resource' : '.robot' }}</span>
         <span v-if="!isResource && testCaseCount > 0" class="badge badge-info">{{ testCaseCount }} {{ t('robotEditor.tests') }}</span>
         <span v-if="keywordCount > 0" class="badge badge-info">{{ keywordCount }} {{ t('robotEditor.keywordsCount') }}</span>
+        <!-- Story HEAL-2: suite-level Self-Healing toggle. Only shown
+             when the file has Browser keywords that can be healed. -->
+        <button
+          v-if="healSuiteState !== 'hidden'"
+          class="heal-toggle-btn"
+          :class="{ 'heal-toggle-btn--on': healSuiteState === 'on' }"
+          data-testid="suite-heal-toggle"
+          :title="healSuiteState === 'on'
+            ? t('robotEditor.heal.toggleOnHint')
+            : t('robotEditor.heal.toggleOffHint')"
+          @click="onHealSuiteToggle"
+        >
+          <span aria-hidden="true">🩹</span>
+          {{ healSuiteState === 'on'
+            ? t('robotEditor.heal.toggleOn')
+            : t('robotEditor.heal.toggleOff') }}
+        </button>
         <button v-if="activeTab === 'visual'" class="icon-btn" @click="expandAllSections" :title="t('robotEditor.expandAll')">&#x229E;</button>
         <button v-if="activeTab === 'visual'" class="icon-btn" @click="collapseAllSections" :title="t('robotEditor.collapseAll')">&#x229F;</button>
       </div>
@@ -3008,6 +3108,33 @@ watch(() => props.content, (newContent) => {
 .tab-toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
 .tab-toolbar .icon-btn { background: none; border: 1px solid var(--color-border); border-radius: 4px; cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; color: var(--color-text-muted); }
 .tab-toolbar .icon-btn:hover { background: var(--color-bg); color: var(--color-primary); border-color: var(--color-primary); }
+/* Story HEAL-2 — suite-level Self-Healing toggle. */
+.heal-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border, #d6dfeb);
+  border-radius: 4px;
+  background: var(--color-bg, #fff);
+  color: var(--color-text-muted, #5A6380);
+  font-size: 12px;
+  cursor: pointer;
+}
+.heal-toggle-btn:hover {
+  border-color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #3B7DD8);
+}
+.heal-toggle-btn--on {
+  background: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #3B7DD8);
+  color: #fff;
+}
+.heal-toggle-btn--on:hover {
+  background: var(--color-primary-dark, #2860b8);
+  border-color: var(--color-primary-dark, #2860b8);
+  color: #fff;
+}
 
 /* Badges */
 .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; }

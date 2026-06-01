@@ -1,19 +1,26 @@
 """RobotDebugSession lifecycle tests.
 
-We DON'T spawn `robotcode` here. Instead, the session's spawn step
-points at a tiny Python helper that prints a fake `Listening on
-127.0.0.1:<port>` line and then runs a minimal in-process DAP
-server that responds to `initialize` / `setBreakpoints` /
-`configurationDone` / `launch` / control / `disconnect`.
+Two layers:
 
-That keeps the test runtime tiny (no real RF startup, no Chromium)
-while still exercising the actual subprocess-spawn → port-parse →
-TCP-connect → handshake pipeline end to end.
+1. **Unit / fake-robotcode** — a tiny Python helper stands in for
+   ``robotcode debug-launch``. It parses ``--tcp HOST:PORT`` from
+   argv, binds exactly that port, then runs a minimal in-process DAP
+   server that replies success to every request. Keeps the test
+   runtime tiny (no real RF startup, no Chromium) while exercising
+   the actual subprocess-spawn → connect-poll → handshake pipeline.
+
+2. **Integration** (``@pytest.mark.integration``) — spawns the real
+   ``robotcode debug-launch`` from the user's default RoboScope venv
+   against a tiny ``.robot`` file. Catches breaking changes in the
+   robotcode CLI surface (the ``-w`` removal that bit us, future
+   option drift, missing ``[debugger]`` extra) BEFORE they hit
+   production. Skipped automatically when the venv isn't there.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from pathlib import Path
 
 import pytest
@@ -22,58 +29,33 @@ from src.debug.robot_debug_session import (
     Breakpoint,
     DebugSessionStartFailed,
     RobotDebugSession,
-    _parse_port,
+    _allocate_free_port,
 )
 
-
 # ---------------------------------------------------------------------------
-# Port-line parser unit tests
-# ---------------------------------------------------------------------------
-
-
-class TestParsePort:
-    def test_typical_listening_line(self) -> None:
-        assert _parse_port("Listening on 127.0.0.1:54321") == 54321
-
-    def test_localhost_alias(self) -> None:
-        assert _parse_port("Bound to localhost:8000 (DAP)") == 8000
-
-    def test_ipv6_loopback(self) -> None:
-        assert _parse_port("Server [::1]:6612 ready") == 6612
-
-    def test_no_port_returns_none(self) -> None:
-        assert _parse_port("No port info here.") is None
-
-    def test_out_of_range_port_returns_none(self) -> None:
-        # 99999 is out of the 1..65535 range; reject so we don't
-        # accidentally extract a substring of a longer number.
-        assert _parse_port("127.0.0.1:99999 weird") is None
-
-    def test_chatter_around_port_doesnt_break(self) -> None:
-        line = "[2026-05-08 12:00:00] INFO  Server up at 127.0.0.1:5555 ready"
-        assert _parse_port(line) == 5555
-
-
-# ---------------------------------------------------------------------------
-# Spawn / handshake — the real pipeline against a fake server
+# Free-port allocator unit test
 # ---------------------------------------------------------------------------
 
 
-# A minimal helper script we'll dump to a temp file and treat as
-# the "robotcode" binary. It picks an ephemeral port, prints the
-# Listening line, then runs an asyncio DAP server that responds to
-# every command we throw at it. Imported here as a string so we
-# can write it to disk inside the fixture.
+class TestAllocateFreePort:
+    def test_returns_a_real_local_port(self) -> None:
+        p = _allocate_free_port()
+        assert 1 <= p <= 65535
+
+
+# ---------------------------------------------------------------------------
+# Spawn / handshake — the real pipeline against a fake DAP server
+# ---------------------------------------------------------------------------
+
+
+# Fake-robotcode helper: parse `--tcp HOST:PORT` from argv, bind that
+# exact port, run a DAP server that successes everything we throw at
+# it. Modern RobotCode rejects port 0 — we mirror that and always use
+# a pre-allocated port.
 _FAKE_ROBOTCODE_SCRIPT = '''#!/usr/bin/env python3
-"""Fake `robotcode` for RobotDebugSession integration tests.
-
-Reads the same argv shape (`debug-launch --tcp 127.0.0.1:0 -w …`),
-binds an ephemeral port, prints the announce line, then accepts a
-single TCP client and replies success to every DAP request.
-"""
+"""Fake `robotcode` for RobotDebugSession integration tests."""
 import asyncio
 import json
-import socket
 import sys
 
 
@@ -104,13 +86,29 @@ async def handle(reader, writer):
         }
         writer.write(encode(resp))
         await writer.drain()
+        # Emit `initialized` right after the initialize response —
+        # mirrors what the real RobotCode launcher does so the
+        # in-process DAP client can drive setBreakpoints next.
+        if req["command"] == "initialize":
+            writer.write(encode({"seq": 0, "type": "event", "event": "initialized", "body": {}}))
+            await writer.drain()
+
+
+def parse_tcp_arg(argv):
+    """Parse `--tcp HOST:PORT` (or `--tcp PORT`) from argv."""
+    for i, a in enumerate(argv):
+        if a == "--tcp" and i + 1 < len(argv):
+            spec = argv[i + 1]
+            if ":" in spec:
+                host, port = spec.rsplit(":", 1)
+                return host or "127.0.0.1", int(port)
+            return "127.0.0.1", int(spec)
+    raise SystemExit("--tcp HOST:PORT required")
 
 
 async def main() -> None:
-    server = await asyncio.start_server(handle, host="127.0.0.1", port=0)
-    port = server.sockets[0].getsockname()[1]
-    sys.stdout.write(f"Listening on 127.0.0.1:{port}\\n")
-    sys.stdout.flush()
+    host, port = parse_tcp_arg(sys.argv[1:])
+    server = await asyncio.start_server(handle, host=host, port=port)
     async with server:
         await server.serve_forever()
 
@@ -120,18 +118,14 @@ asyncio.run(main())
 
 
 def _make_fake_robotcode(tmp_path: Path) -> Path:
-    """Drop the fake script into `tmp_path/bin/robotcode` and
-    return the env_python_path the session expects (one dir above
-    the bin/ folder)."""
+    """Drop the fake script into ``tmp_path/bin/robotcode`` and seed
+    the debugger plugin marker so the prereq check (used by callers)
+    still passes if exercised. Returns ``env_python_path``."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     rcode = bin_dir / "robotcode"
     rcode.write_text(_FAKE_ROBOTCODE_SCRIPT, encoding="utf-8")
     rcode.chmod(0o755)
-    # Make the file actually executable as a Python script — the
-    # session resolves robotcode by `<env_python_path>.parent /
-    # robotcode`. We point env_python_path at `<tmp>/bin/python`
-    # so `parent == bin/` matches `bin/robotcode`.
     env_python = bin_dir / "python"
     env_python.write_text("# placeholder\n", encoding="utf-8")
     return env_python
@@ -160,19 +154,14 @@ class TestSpawnAndHandshake:
             env_python_path=env_python,
             spawn_args=[],
         ) as session:
-            # Send a control command — the fake echoes success.
             await session.continue_()
-            # Subprocess is alive throughout the context.
             assert session._proc is not None  # noqa: SLF001
             assert session._proc.returncode is None  # noqa: SLF001
-        # Context exit cleaned up.
-        # NOTE: _proc is reset to None by _cleanup_silently after wait().
 
     @pytest.mark.asyncio
     async def test_missing_robotcode_binary_raises_friendly(
-        self, tmp_path: Path
+        self, tmp_path: Path,
     ) -> None:
-        # bin/ exists but no robotcode inside.
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
         env_python = bin_dir / "python"
@@ -187,9 +176,8 @@ class TestSpawnAndHandshake:
                 pass
 
     @pytest.mark.asyncio
-    async def test_port_parse_timeout_raises(self, tmp_path: Path) -> None:
-        # A robotcode that never prints a port line — we use a
-        # tiny script that just sleeps.
+    async def test_connect_timeout_raises(self, tmp_path: Path) -> None:
+        # A robotcode that never opens its TCP listener — just sleeps.
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
         rcode = bin_dir / "robotcode"
@@ -205,11 +193,942 @@ class TestSpawnAndHandshake:
         env_python = bin_dir / "python"
         env_python.write_text("", encoding="utf-8")
         robot = _make_robot_file(tmp_path)
-        with pytest.raises(DebugSessionStartFailed, match="did not announce"):
+        with pytest.raises(DebugSessionStartFailed, match="did not start a TCP listener"):
             async with RobotDebugSession(
                 robot_path=robot,
                 breakpoints=[Breakpoint(str(robot), 3)],
                 env_python_path=env_python,
-                port_parse_timeout=0.2,
+                port_parse_timeout=0.5,
             ):
                 pass
+
+    @pytest.mark.asyncio
+    async def test_timeout_error_includes_captured_boot_output(
+        self, tmp_path: Path,
+    ) -> None:
+        """Regression: users hit a bare error and had no idea what
+        robotcode was actually saying. The error must echo the
+        captured stdout tail so they can self-diagnose."""
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        rcode = bin_dir / "robotcode"
+        rcode.write_text(
+            "#!/usr/bin/env python3\n"
+            "import time, sys\n"
+            "sys.stdout.write('Loading Browser library...\\n')\n"
+            "sys.stdout.write('Initializing language server...\\n')\n"
+            "sys.stdout.flush()\n"
+            "time.sleep(60)\n",
+            encoding="utf-8",
+        )
+        rcode.chmod(0o755)
+        env_python = bin_dir / "python"
+        env_python.write_text("", encoding="utf-8")
+        robot = _make_robot_file(tmp_path)
+        with pytest.raises(DebugSessionStartFailed) as exc_info:
+            async with RobotDebugSession(
+                robot_path=robot,
+                breakpoints=[Breakpoint(str(robot), 3)],
+                env_python_path=env_python,
+                port_parse_timeout=2.0,
+            ):
+                pass
+        msg = str(exc_info.value)
+        assert "Loading Browser library" in msg
+        assert "Initializing language server" in msg
+
+    @pytest.mark.asyncio
+    async def test_robotcode_crash_during_boot_surfaces_returncode(
+        self, tmp_path: Path,
+    ) -> None:
+        """If robotcode exits before listening, the error must carry
+        the exit code AND the stderr/stdout tail. Pinned by the
+        actual user-reported failure where ``-w`` was rejected."""
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        rcode = bin_dir / "robotcode"
+        rcode.write_text(
+            "#!/usr/bin/env python3\n"
+            "import sys\n"
+            "sys.stdout.write('Error: No such option: -w\\n')\n"
+            "sys.stdout.flush()\n"
+            "sys.exit(2)\n",
+            encoding="utf-8",
+        )
+        rcode.chmod(0o755)
+        env_python = bin_dir / "python"
+        env_python.write_text("", encoding="utf-8")
+        robot = _make_robot_file(tmp_path)
+        with pytest.raises(DebugSessionStartFailed) as exc_info:
+            async with RobotDebugSession(
+                robot_path=robot,
+                breakpoints=[Breakpoint(str(robot), 3)],
+                env_python_path=env_python,
+                port_parse_timeout=5.0,
+            ):
+                pass
+        msg = str(exc_info.value)
+        assert "exited with code 2" in msg
+        assert "No such option: -w" in msg
+
+    @pytest.mark.asyncio
+    async def test_argv_does_not_include_legacy_dash_w_or_positional(
+        self, tmp_path: Path,
+    ) -> None:
+        """Regression-pin against the actual production failure: the
+        spawn must NOT pass ``-w`` (removed from modern robotcode) or
+        a trailing positional ``<robot_path>`` (modern debug-launch
+        takes only transport options; the script is sent via DAP
+        ``launch`` payload).
+
+        We can't use the full fake-robotcode here because we don't
+        want it to actually open a port — we just want to inspect
+        the argv. The fake exits with code 99 so the spawn fails
+        with the diagnostic message, AFTER recording argv to a
+        file we can read back."""
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        argv_log = tmp_path / "argv.log"
+        rcode = bin_dir / "robotcode"
+        rcode.write_text(
+            "#!/usr/bin/env python3\n"
+            "import sys, json\n"
+            f"open({str(argv_log)!r}, 'w').write(json.dumps(sys.argv))\n"
+            "sys.exit(99)\n",
+            encoding="utf-8",
+        )
+        rcode.chmod(0o755)
+        env_python = bin_dir / "python"
+        env_python.write_text("# placeholder\n", encoding="utf-8")
+        robot = _make_robot_file(tmp_path)
+        with pytest.raises(DebugSessionStartFailed, match="exited with code 99"):
+            async with RobotDebugSession(
+                robot_path=robot,
+                test_name="Sample",
+                breakpoints=[Breakpoint(str(robot), 3)],
+                env_python_path=env_python,
+                port_parse_timeout=5.0,
+            ):
+                pass
+
+        assert argv_log.is_file(), "fake robotcode never wrote its argv"
+        import json
+        argv = json.loads(argv_log.read_text())
+        # argv[0] is the script path; the rest is the CLI we passed.
+        cli_args = argv[1:]
+        assert "-w" not in cli_args, (
+            f"-w must NOT appear in argv (removed from modern robotcode): {cli_args}"
+        )
+        assert "--" not in cli_args, (
+            f"trailing -- must NOT appear in argv (no positional path): {cli_args}"
+        )
+        assert str(robot) not in cli_args, (
+            f"robot path must NOT be a CLI positional, only via DAP launch: {cli_args}"
+        )
+        # Sanity: --tcp 127.0.0.1:<port> WAS passed.
+        assert "--tcp" in cli_args
+        tcp_value = cli_args[cli_args.index("--tcp") + 1]
+        assert tcp_value.startswith("127.0.0.1:")
+        port_str = tcp_value.split(":", 1)[1]
+        assert port_str.isdigit() and 1 <= int(port_str) <= 65535
+
+
+# ---------------------------------------------------------------------------
+# Integration test — real robotcode against a real venv
+# ---------------------------------------------------------------------------
+
+
+_DEFAULT_ROBOSCOPE_VENV = Path.home() / ".roboscope" / "venvs" / "roboscope-default"
+
+
+@pytest.mark.integration
+class TestRealRobotCodeSpawn:
+    """End-to-end smoke against the user's installed robotcode CLI.
+
+    Lives behind ``@pytest.mark.integration`` (skipped from default
+    CI per ``pyproject.toml``) because it requires a venv with
+    ``robotcode[debugger]`` + ``robotframework`` installed and takes
+    several seconds.
+
+    Run manually with::
+
+        pytest -m integration tests/debug/test_robot_debug_session.py::TestRealRobotCodeSpawn
+
+    The test creates a tiny ``.robot`` file, sets a breakpoint, and
+    asserts the full spawn → handshake → setBreakpoints → launch →
+    stopped pipeline completes against the actual CLI. Catches
+    breaking changes in robotcode CLI flags (the ``-w`` removal that
+    motivated this test) BEFORE they hit users.
+    """
+
+    def _venv_python(self) -> Path | None:
+        env_python = _DEFAULT_ROBOSCOPE_VENV / "bin" / "python"
+        if env_python.is_file():
+            return env_python
+        return None
+
+    def _check_or_skip(self) -> Path:
+        """Skip the test cleanly when the default venv isn't usable."""
+        env_python = self._venv_python()
+        if env_python is None:
+            pytest.skip(
+                "RoboScope default venv not found; install via prereq dialog "
+                f"or `uv venv {_DEFAULT_ROBOSCOPE_VENV}` + `uv pip install "
+                "robotcode[debugger] robotframework` first.",
+            )
+        if not (env_python.parent / "robotcode").is_file():
+            pytest.skip("robotcode binary not in default venv")
+        if not list(_DEFAULT_ROBOSCOPE_VENV.glob(
+            "lib/python*/site-packages/robotcode/debugger",
+        )):
+            pytest.skip("robotcode-debugger plugin missing — install [debugger] extra")
+        if not list(_DEFAULT_ROBOSCOPE_VENV.glob(
+            "lib/python*/site-packages/robot",
+        )):
+            pytest.skip("robotframework not in default venv")
+        return env_python
+
+    def _make_demo_robot(self, tmp_path: Path) -> Path:
+        # Line numbers (1-based):
+        # 1: *** Test Cases ***
+        # 2: Demo
+        # 3:     Log    line one
+        # 4:     Log    line two
+        robot = tmp_path / "demo.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "Demo\n"
+            "    Log    line one\n"
+            "    Log    line two\n",
+            encoding="utf-8",
+        )
+        return robot.resolve()  # macOS /var → /private/var
+
+    @pytest.mark.asyncio
+    async def test_real_spawn_handshake_and_test_runs(
+        self, tmp_path: Path,
+    ) -> None:
+        """Confirms the spawn → handshake → setBreakpoints →
+        configurationDone pipeline against the actual robotcode CLI.
+        Asserts that a real test starts running (we see the RF banner
+        on stdout) — i.e. all the protocol-level wiring works.
+
+        This is the test that catches the `-w` removal, missing
+        ``console: internalConsole``, wrong handshake order, and any
+        future option drift in the robotcode debug-launch CLI.
+        """
+        env_python = self._check_or_skip()
+        robot = self._make_demo_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            # The RF banner ("====... \nDemo \n====...") proves the
+            # child subprocess started, RF imports succeeded, and our
+            # configurationDone unstuck it. This is what was broken
+            # by the `-w` flag.
+            saw_banner = False
+
+            async def wait_for_banner() -> None:
+                nonlocal saw_banner
+                while not saw_banner:
+                    evt = await session.events.get()
+                    if evt.get("kind") == "output":
+                        body = evt.get("body") or {}
+                        out = str(body.get("output", ""))
+                        if "Demo" in out and "===" in out:
+                            saw_banner = True
+                            return
+                    if evt.get("kind") == "terminated":
+                        return
+
+            await asyncio.wait_for(wait_for_banner(), timeout=20.0)
+            assert saw_banner, (
+                "Robot Framework never started executing — spawn or "
+                "handshake regression. Boot log: "
+                f"{session._boot_log[-30:]}"  # noqa: SLF001
+            )
+
+    @pytest.mark.asyncio
+    async def test_real_breakpoint_pauses_execution(
+        self, tmp_path: Path,
+    ) -> None:
+        """End-to-end: spawn → handshake → setBreakpoints →
+        configurationDone → RF runs → breakpoint hit → ``stopped``
+        event arrives → continue → terminate. The story DEBUG-5 fix.
+        """
+        env_python = self._check_or_skip()
+        robot = self._make_demo_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            async def wait_for_stopped() -> dict[str, object]:
+                while True:
+                    evt = await session.events.get()
+                    if evt.get("kind") == "stopped":
+                        return evt
+                    if evt.get("kind") == "terminated":
+                        pytest.fail("Terminated before breakpoint stop")
+
+            evt = await asyncio.wait_for(wait_for_stopped(), timeout=20.0)
+            assert evt["kind"] == "stopped"
+            # Reason should be "breakpoint" (RobotCode reports
+            # StoppedReason.BREAKPOINT — see process_start_state).
+            body = evt.get("body") or {}
+            if isinstance(body, dict):
+                assert body.get("reason") in {"breakpoint", "Breakpoint hit"}, body
+            await session.continue_()
+            with contextlib.suppress(asyncio.TimeoutError):
+                while True:
+                    e = await asyncio.wait_for(session.events.get(), timeout=10.0)
+                    if e.get("kind") == "terminated":
+                        break
+
+    @pytest.mark.asyncio
+    async def test_real_pause_request_pauses_execution(
+        self, tmp_path: Path,
+    ) -> None:
+        """The DAP ``pause`` request also produces a ``stopped`` event.
+
+        Uses a longer-running test (``Sleep`` keyword) so the pause
+        request reaches the child while RF is still inside a keyword;
+        otherwise RF runs to completion in <1 s and our pause races
+        the terminated event.
+        """
+        env_python = self._check_or_skip()
+        robot = tmp_path / "sleeper.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "Sleeper\n"
+            "    Sleep    3s\n"
+            "    Log    woke up\n",
+            encoding="utf-8",
+        )
+        robot = robot.resolve()
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Sleeper",
+            breakpoints=[],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            # Let RF reach the Sleep keyword, then pause.
+            await asyncio.sleep(1.0)
+            assert session._client is not None  # noqa: SLF001
+            with contextlib.suppress(Exception):
+                await session._client.request("pause", {"threadId": 1})  # noqa: SLF001
+
+            async def wait_for_stopped() -> dict[str, object]:
+                while True:
+                    evt = await session.events.get()
+                    if evt.get("kind") == "stopped":
+                        return evt
+                    if evt.get("kind") == "terminated":
+                        pytest.fail("Terminated before pause stop")
+
+            evt = await asyncio.wait_for(wait_for_stopped(), timeout=20.0)
+            assert evt["kind"] == "stopped"
+            await session.continue_()
+
+
+# ---------------------------------------------------------------------------
+# DEBUG-6: control-button e2e — every panel button against real robotcode
+# ---------------------------------------------------------------------------
+
+
+async def _wait_for_kind(session: object, kind: str, timeout: float = 20.0) -> dict:
+    """Drain the events queue until an event of ``kind`` arrives.
+
+    Returns the event dict. Fails the test on `terminated` arriving
+    first (unless `kind == "terminated"`).
+    """
+    async def _loop() -> dict:
+        while True:
+            evt = await session.events.get()  # type: ignore[attr-defined]
+            k = evt.get("kind")
+            if k == kind:
+                return evt
+            if k == "terminated" and kind != "terminated":
+                pytest.fail(
+                    f"Got `terminated` while waiting for `{kind}`. "
+                    f"Recent boot log: {session._boot_log[-15:]}",  # type: ignore[attr-defined]  # noqa: SLF001
+                )
+
+    return await asyncio.wait_for(_loop(), timeout=timeout)
+
+
+def _make_multi_keyword_robot(tmp_path: Path) -> Path:
+    """A 5-keyword test where each keyword sits on its own line so step
+    semantics are unambiguous. Lines:
+
+      1: *** Test Cases ***
+      2: Demo
+      3:     Log    one
+      4:     Log    two
+      5:     Log    three
+      6:     Log    four
+      7:     Log    five
+    """
+    robot = tmp_path / "multi.robot"
+    robot.write_text(
+        "*** Test Cases ***\n"
+        "Demo\n"
+        "    Log    one\n"
+        "    Log    two\n"
+        "    Log    three\n"
+        "    Log    four\n"
+        "    Log    five\n",
+        encoding="utf-8",
+    )
+    return robot.resolve()
+
+
+@pytest.mark.integration
+class TestRealControlButtons(TestRealRobotCodeSpawn):
+    """Each test starts a real session, hits a breakpoint, then exercises
+    one DAP control method (``continue_``/``next_``/``step_in``/
+    ``step_out``/``disconnect``) and asserts the expected next event.
+    Mirrors what the four toolbar buttons in ``DebugPanel.vue`` and the
+    REST endpoints in ``debug/router.py`` actually trigger end-to-end.
+    """
+
+    @pytest.mark.asyncio
+    async def test_continue_resumes_until_terminated(
+        self, tmp_path: Path,
+    ) -> None:
+        """``Continue`` button: from a paused state, resume execution
+        until the test ends. Expect a `terminated` event without any
+        further `stopped`."""
+        env_python = self._check_or_skip()
+        robot = _make_multi_keyword_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            stopped = await _wait_for_kind(session, "stopped")
+            body = stopped.get("body") or {}
+            assert isinstance(body, dict) and body.get("reason") in {
+                "breakpoint", "Breakpoint hit",
+            }
+            await session.continue_()
+            # No further stop should fire — only the terminate.
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_next_steps_to_following_line(
+        self, tmp_path: Path,
+    ) -> None:
+        """``Step Over`` button: from a paused state, advance to the
+        next executable line in the same scope. Expect a fresh
+        `stopped` with reason `step` (not `breakpoint`)."""
+        env_python = self._check_or_skip()
+        robot = _make_multi_keyword_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            await _wait_for_kind(session, "stopped")
+            await session.next_()
+            second = await _wait_for_kind(session, "stopped", timeout=10.0)
+            body = second.get("body") or {}
+            assert isinstance(body, dict) and body.get("reason") in {
+                "step", "Next step",
+            }
+            await session.continue_()
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_step_in_advances_into_next_keyword(
+        self, tmp_path: Path,
+    ) -> None:
+        """``Step Into`` button: from a paused state, step into the
+        next keyword. With a built-in like Log there's no inner scope
+        to step into so this behaves like step-over for our test;
+        either way the next event must be a fresh `stopped`."""
+        env_python = self._check_or_skip()
+        robot = _make_multi_keyword_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            await _wait_for_kind(session, "stopped")
+            await session.step_in()
+            second = await _wait_for_kind(session, "stopped", timeout=10.0)
+            body = second.get("body") or {}
+            assert isinstance(body, dict) and body.get("reason") in {
+                "step", "Step in",
+            }
+            await session.continue_()
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_step_out_completes_current_scope(
+        self, tmp_path: Path,
+    ) -> None:
+        """``Step Out`` button: from a paused state, run until the
+        current scope returns. For a flat test of built-ins the
+        current scope is the test itself; stepping out completes the
+        whole test. Either a fresh `stopped` (suite/teardown) or
+        `terminated` is acceptable — both prove the request was
+        honored. The stuck-forever case is the regression we guard."""
+        env_python = self._check_or_skip()
+        robot = _make_multi_keyword_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            await _wait_for_kind(session, "stopped")
+            await session.step_out()
+
+            async def wait_either() -> str:
+                while True:
+                    evt = await session.events.get()
+                    k = evt.get("kind")
+                    if k in {"stopped", "terminated"}:
+                        return str(k)
+
+            kind = await asyncio.wait_for(wait_either(), timeout=15.0)
+            assert kind in {"stopped", "terminated"}
+
+    @pytest.mark.asyncio
+    async def test_disconnect_terminates_running_session(
+        self, tmp_path: Path,
+    ) -> None:
+        """``Stop`` button: from a paused state, ``disconnect``
+        (with terminateDebuggee) tears the run down cleanly. We
+        verify the subprocess actually exits — leaks here are the
+        scariest failure mode in production (zombie chromium etc.)."""
+        env_python = self._check_or_skip()
+        robot = _make_multi_keyword_robot(tmp_path)
+
+        session = RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        )
+        await session.__aenter__()
+        try:
+            await _wait_for_kind(session, "stopped")
+            await session.disconnect()
+            # Give cleanup a beat to actually reap.
+            await asyncio.sleep(0.5)
+        finally:
+            await session.__aexit__(None, None, None)
+
+        # Subprocess pid is gone.
+        assert session._proc is None  # noqa: SLF001
+
+
+# ---------------------------------------------------------------------------
+# DEBUG-7: complex scenarios — what users actually do in a debug session
+# ---------------------------------------------------------------------------
+
+
+def _stopped_line(evt: dict) -> int | None:
+    """Pull the paused source line out of a `stopped` event body."""
+    body = evt.get("body") or {}
+    if not isinstance(body, dict):
+        return None
+    # The DAP `stopped` body itself doesn't carry the source line —
+    # we read it back from the session's cached state. Tests use this
+    # only when the session caches the stop state.
+    return body.get("line")
+
+
+@pytest.mark.integration
+class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
+    """Walk-through scenarios: each test puts the user through a
+    multi-step flow that hit production bugs in the past or that the
+    user has explicitly asked us to pin (sequential stepping, looped
+    breakpoints, custom-keyword descend, mid-keyword pause).
+    """
+
+    def _make_loop_robot(self, tmp_path: Path) -> Path:
+        """A test with a FOR loop iterating 3×, each iteration calling
+        Log on the same line. Breakpoint there fires per iteration.
+
+        Lines:
+          1: *** Test Cases ***
+          2: Looped
+          3:     FOR    ${i}    IN    1    2    3
+          4:         Log    iteration=${i}
+          5:     END
+        """
+        robot = tmp_path / "loop.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "Looped\n"
+            "    FOR    ${i}    IN    1    2    3\n"
+            "        Log    iteration=${i}\n"
+            "    END\n",
+            encoding="utf-8",
+        )
+        return robot.resolve()
+
+    def _make_custom_keyword_robot(self, tmp_path: Path) -> Path:
+        """A test that calls a user-defined Keyword with two body steps.
+        Step-into from the call site descends into the keyword.
+
+        Lines:
+           1: *** Test Cases ***
+           2: Caller
+           3:     My Helper
+           4:     Log    after-helper
+           5: (blank)
+           6: *** Keywords ***
+           7: My Helper
+           8:     Log    inside-1
+           9:     Log    inside-2
+        """
+        robot = tmp_path / "custom_kw.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "Caller\n"
+            "    My Helper\n"
+            "    Log    after-helper\n"
+            "\n"
+            "*** Keywords ***\n"
+            "My Helper\n"
+            "    Log    inside-1\n"
+            "    Log    inside-2\n",
+            encoding="utf-8",
+        )
+        return robot.resolve()
+
+    def _make_long_keyword_robot(self, tmp_path: Path) -> Path:
+        """A test with a long-running ``Sleep`` so we have time to pause
+        mid-execution from outside.
+
+        Lines:
+          1: *** Test Cases ***
+          2: Slow
+          3:     Sleep    5s
+          4:     Log    woke
+        """
+        robot = tmp_path / "slow.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "Slow\n"
+            "    Sleep    5s\n"
+            "    Log    woke\n",
+            encoding="utf-8",
+        )
+        return robot.resolve()
+
+    @pytest.mark.asyncio
+    async def test_sequential_step_through_then_continue(
+        self, tmp_path: Path,
+    ) -> None:
+        """Step through every line of the test individually with
+        ``next``, then ``continue`` to terminate. The user-reported
+        "step-button doesn't feel clean" came from this exact flow."""
+        env_python = self._check_or_skip()
+        # demo.robot has 5 keyword lines (3..7) per
+        # _make_multi_keyword_robot above. Use a 3-line variant for
+        # quick iteration.
+        robot = tmp_path / "stepwalk.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "StepWalk\n"
+            "    Log    a\n"
+            "    Log    b\n"
+            "    Log    c\n",
+            encoding="utf-8",
+        )
+        robot = robot.resolve()
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="StepWalk",
+            breakpoints=[Breakpoint(str(robot), 3)],  # first body line
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            await _wait_for_kind(session, "stopped")
+            # Each `next` should produce a fresh `stopped` with reason=step.
+            for _ in range(2):
+                await session.next_()
+                evt = await _wait_for_kind(session, "stopped", timeout=10.0)
+                body = evt.get("body") or {}
+                assert isinstance(body, dict) and body.get("reason") in {
+                    "step", "Next step",
+                }, f"unexpected reason: {body.get('reason')}"
+            # Continue from the last paused line — should run through.
+            await session.continue_()
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_breakpoint_inside_for_loop_fires_per_iteration(
+        self, tmp_path: Path,
+    ) -> None:
+        """Breakpoint on the body line of a FOR loop fires EACH
+        iteration. Verify by counting stops and continuing from each."""
+        env_python = self._check_or_skip()
+        robot = self._make_loop_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Looped",
+            breakpoints=[Breakpoint(str(robot), 4)],  # `Log iteration=${i}`
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            stops = 0
+            for _ in range(3):
+                await _wait_for_kind(session, "stopped", timeout=15.0)
+                stops += 1
+                await session.continue_()
+            # After the third iteration, the loop ends → terminated.
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+            assert stops == 3, f"expected 3 stops for 3 iterations, got {stops}"
+
+    @pytest.mark.asyncio
+    async def test_step_into_custom_keyword_descends_then_step_out_returns(
+        self, tmp_path: Path,
+    ) -> None:
+        """``Step Into`` on a user-defined keyword call should descend
+        into the keyword body. ``Step Out`` from inside should return
+        to the caller. The pause-line MUST move into the keyword's
+        section after step-in."""
+        env_python = self._check_or_skip()
+        robot = self._make_custom_keyword_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Caller",
+            breakpoints=[Breakpoint(str(robot), 3)],  # `My Helper` call
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            await _wait_for_kind(session, "stopped")
+            # Step into My Helper.
+            await session.step_in()
+            evt = await _wait_for_kind(session, "stopped", timeout=10.0)
+            body = evt.get("body") or {}
+            assert isinstance(body, dict) and body.get("reason") in {
+                "step", "Step in",
+            }
+            # Step out of the keyword — back to caller, line 4.
+            await session.step_out()
+            # Either we hit "after-helper" line as a step-out stop, or
+            # the test continues. Both are acceptable forward progress.
+
+            async def wait_progress() -> str:
+                while True:
+                    e = await session.events.get()
+                    k = str(e.get("kind"))
+                    if k in {"stopped", "terminated"}:
+                        return k
+
+            kind = await asyncio.wait_for(wait_progress(), timeout=15.0)
+            assert kind in {"stopped", "terminated"}
+            if kind == "stopped":
+                await session.continue_()
+                await _wait_for_kind(session, "terminated", timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_pause_during_long_running_keyword_then_continue(
+        self, tmp_path: Path,
+    ) -> None:
+        """Send ``pause`` while the test is mid-Sleep. Expect a
+        ``stopped`` with reason=pause, then ``continue`` finishes the
+        sleep and the test terminates."""
+        env_python = self._check_or_skip()
+        robot = self._make_long_keyword_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Slow",
+            breakpoints=[],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            # Wait for the sleep to actually start, then pause.
+            await asyncio.sleep(1.0)
+            assert session._client is not None  # noqa: SLF001
+            with contextlib.suppress(Exception):
+                await session._client.request("pause", {"threadId": 1})  # noqa: SLF001
+            evt = await _wait_for_kind(session, "stopped", timeout=15.0)
+            body = evt.get("body") or {}
+            assert isinstance(body, dict) and body.get("reason") in {
+                "pause", "Paused",
+            }
+            await session.continue_()
+            # Sleep finishes; test hits Log line then terminates.
+            await _wait_for_kind(session, "terminated", timeout=20.0)
+
+    @pytest.mark.asyncio
+    async def test_multiple_breakpoints_fire_in_source_order(
+        self, tmp_path: Path,
+    ) -> None:
+        """Two breakpoints in the same test fire in the natural
+        execution order (line 3 then line 5)."""
+        env_python = self._check_or_skip()
+        robot = tmp_path / "multibp.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "MultiBP\n"
+            "    Log    one\n"
+            "    Log    two\n"
+            "    Log    three\n"
+            "    Log    four\n",
+            encoding="utf-8",
+        )
+        robot = robot.resolve()
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="MultiBP",
+            breakpoints=[
+                Breakpoint(str(robot), 3),  # Log one
+                Breakpoint(str(robot), 5),  # Log three
+            ],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            # First breakpoint.
+            await _wait_for_kind(session, "stopped", timeout=15.0)
+            await session.continue_()
+            # Second breakpoint.
+            await _wait_for_kind(session, "stopped", timeout=15.0)
+            await session.continue_()
+            # No third stop — terminate.
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_disconnect_while_running_without_breakpoint(
+        self, tmp_path: Path,
+    ) -> None:
+        """Disconnect while RF is running (NOT paused) must terminate
+        cleanly. The Sleep keeps RF busy long enough for our
+        disconnect to land while it's mid-execution."""
+        env_python = self._check_or_skip()
+        robot = self._make_long_keyword_robot(tmp_path)
+
+        session = RobotDebugSession(
+            robot_path=robot,
+            test_name="Slow",
+            breakpoints=[],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        )
+        await session.__aenter__()
+        try:
+            # Let RF reach the Sleep, then yank the rug.
+            await asyncio.sleep(1.0)
+            await session.disconnect()
+            # Give cleanup a beat.
+            await asyncio.sleep(0.5)
+        finally:
+            await session.__aexit__(None, None, None)
+
+        assert session._proc is None  # noqa: SLF001
+
+    @pytest.mark.asyncio
+    async def test_paused_at_state_advances_each_next(
+        self, tmp_path: Path,
+    ) -> None:
+        """The cached `paused_at` line must advance with each ``next``.
+        Mirrors what the run-detail panel reads to render the current
+        position. Pinned because the user-reported "doesn't feel
+        clean" was at-least-partly the panel showing a stale line.
+        """
+        env_python = self._check_or_skip()
+        robot = tmp_path / "advance.robot"
+        robot.write_text(
+            "*** Test Cases ***\n"
+            "Advance\n"
+            "    Log    a\n"
+            "    Log    b\n"
+            "    Log    c\n",
+            encoding="utf-8",
+        )
+        robot = robot.resolve()
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Advance",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            await _wait_for_kind(session, "stopped")
+            # Stack frame's line at first stop = 3.
+            assert session._client is not None  # noqa: SLF001
+            stack = await session._client.request(  # noqa: SLF001
+                "stackTrace", {"threadId": 1, "startFrame": 0, "levels": 1},
+            )
+            frames = stack.get("stackFrames", [])
+            assert frames, "no stack frames at first stop"
+            first_line = frames[0].get("line")
+            assert first_line == 3, f"expected first stop at line 3, got {first_line}"
+
+            # Step over → next stack frame line should advance.
+            await session.next_()
+            await _wait_for_kind(session, "stopped", timeout=10.0)
+            stack = await session._client.request(  # noqa: SLF001
+                "stackTrace", {"threadId": 1, "startFrame": 0, "levels": 1},
+            )
+            frames = stack.get("stackFrames", [])
+            second_line = frames[0].get("line") if frames else None
+            assert second_line is not None and second_line != first_line, (
+                f"line didn't advance: first={first_line} second={second_line}"
+            )
+
+            await session.continue_()
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+
+    @pytest.mark.asyncio
+    async def test_continue_after_terminated_does_not_crash(
+        self, tmp_path: Path,
+    ) -> None:
+        """Defensive: if the user clicks Continue after the session
+        has already terminated, the call must NOT crash the session
+        manager — at worst it's a no-op or a benign error."""
+        env_python = self._check_or_skip()
+        robot = self._make_demo_robot(tmp_path)
+
+        async with RobotDebugSession(
+            robot_path=robot,
+            test_name="Demo",
+            breakpoints=[Breakpoint(str(robot), 3)],
+            env_python_path=env_python,
+            port_parse_timeout=15.0,
+        ) as session:
+            await _wait_for_kind(session, "stopped")
+            await session.continue_()
+            await _wait_for_kind(session, "terminated", timeout=15.0)
+            # Now try another control — should not raise.
+            with contextlib.suppress(Exception):
+                await session.continue_()  # benign
+            with contextlib.suppress(Exception):
+                await session.next_()  # benign
+

@@ -2,6 +2,113 @@
 
 ## [Unreleased]
 
+### Self-healing library distribution model
+
+- **`robotframework-roboscopeheal` now visible + installable from
+  the Package Management UI.** The library is added to the
+  `/api/v1/environments/packages/popular` list with a new
+  `shipped_with_roboscope: true` flag. The Environments view renders
+  a blue "ships with RoboScope" / "mit RoboScope ausgeliefert" badge
+  on entries that carry the flag (translated in EN/DE/FR/ES).
+- **Install resolution: vendor for default, PyPI for explicit
+  pins.** The install path (`environments/tasks.py::install_package`)
+  now consults a `_SHIPPED_VENDOR_PACKAGES` registry. When the UI
+  asks to install a shipped package WITHOUT specifying a version,
+  the install resolves to the on-disk vendored source tree
+  (`backend/vendor/<dir>/`) and the wheel is built from there. An
+  EXPLICIT version request bypasses the vendor and goes to PyPI —
+  that's the "I want to upgrade past what RoboScope ships" path.
+  Today this means a no-version click installs heal 0.2.1 from the
+  bundled tree; tomorrow (once PyPI carries the package) a pinned
+  `0.4.0` request fetches PyPI as expected. No code change needed
+  at flip-time other than potentially removing entries from the
+  registry when a vendored library is replaced by a hard PyPI
+  dependency. Backend test pin in
+  `test_tasks.py::test_shipped_no_version_installs_from_vendor_path`
+  + `test_shipped_with_version_goes_to_pypi`. Registry contract
+  pinned in `test_vendored_heal_auto_install.py` (case-insensitive
+  lookup, missing-vendor-dir warns + falls back to None).
+
+### Recorder lifecycle visibility (RECORDER-VIS epic)
+
+- **RECORDER-VIS-1 — lifecycle SSE events + Restart browser.** The
+  Live recording view now shows what the recorder is actually
+  doing instead of an ambiguous "Connecting…" badge. The backend
+  SSE `/commands` stream carries a new `event: lifecycle` channel
+  alongside the existing `event: command` channel; `v2_recorder_
+  task` emits four phases as it boots and runs:
+  - `browser_starting` — right before `pw.chromium.launch(...)`.
+  - `browser_ready` — after the initial `page.goto` (or
+    `new_page` when there is no target URL) — the user can click
+    and see events.
+  - `browser_restarting` — emitted by the new
+    `POST /recordings/sessions/{id}/restart-browser` endpoint
+    just before it tears the current task down.
+  - `browser_crashed` — emitted in `_on_disconnect` when the
+    browser dies without a prior user stop, and from the outer
+    `except` wrapper with the exception message when the
+    Playwright loop raises (e.g. missing `$DISPLAY` on a Linux
+    server).
+  `RecordingLiveView.vue` consumes the channel, renders a phase
+  pill + live `mm:ss` uptime counter once ready, and offers an
+  always-visible "Restart browser" button enabled in
+  `browser_ready` / `browser_crashed` and disabled during the
+  transient `browser_starting` / `browser_restarting` phases.
+  Captured commands are preserved across a restart — the in-
+  process FIFO is keyed by session id, not task id, so the new
+  task slots into the same queue + DB row.
+- Internal: `v2_command_queue` generalised to a heterogeneous
+  `RecordedCommand | LifecycleEvent` stream via the new
+  `iterate_events()` iterator. `iterate_commands()` is kept as a
+  filter-only wrapper for backward compatibility. The recorder
+  task wrapper moved its terminal-status update
+  (`_mark_status(COMPLETED)`) out of the inner `_recorder_loop`
+  and into the wrapper so it can distinguish stop-for-restart
+  (skip mark, keep queue) from clean stop (mark, finalise).
+- 14 new backend tests in `test_v2_recorder_vis.py` cover the
+  queue's heterogeneous yield order, `signal_restart_v2`
+  behaviour, the restart endpoint's 404 / 403 / 409 / 501 paths
+  plus two happy-path branches (with and without a live task),
+  and end-to-end SSE multiplexing of `event: lifecycle` +
+  `event: command` over the streaming response. 17 frontend
+  tests in `RecordingLiveView.lifecycle.spec.ts` pin the
+  state-machine transitions across every lifecycle entry point,
+  the command-first fallback, and the `mm:ss` uptime formatter.
+- i18n complete in EN/DE/FR/ES.
+
+### Self-Healing opt-in ergonomics (HEAL epic)
+
+- **HEAL-1 — per-step toggle in the Flow Editor.** When the
+  currently selected keyword step is one of the 13 RoboScopeHeal-
+  supported Browser keywords (Click, Fill Text, Hover, Press Keys,
+  Wait For Elements State, Upload File, Check Checkbox, Uncheck
+  Checkbox, Select Options By, Get Text, Get Element Count,
+  Drag And Drop, Type Text), the detail panel renders a
+  *Self-Healing* checkbox. Toggling rewrites that single step's
+  keyword name (`Click` ↔ `Heal Click`) via the form path — never
+  via raw-text regex — and adds or removes the bare
+  `Library    RoboScopeHeal` row in Settings based on whether any
+  Heal* keyword is left in the file. A user-configured library
+  row (`Library    RoboScopeHeal    budget=…`) is always
+  preserved.
+- **HEAL-2 — suite-level toggle in the editor toolbar.** A
+  `Self-Healing: On / Off` button next to the `.robot` badge,
+  visible only when the file contains heal-able keywords. One
+  click promotes every supported Browser keyword to its Heal
+  variant (and adds the library import); one more click reverts.
+  Operates through the same parsed-form path as HEAL-1 — every
+  rewrite is a one-line source diff the user reviews and saves
+  explicitly. The existing `no-heal` Robot tag is still the
+  per-test runtime opt-out layered on top of this source choice.
+- Both toggles share the new `frontend/src/utils/healToggle.ts`
+  utility (`HEAL_VARIANTS` map + `applyHealToForm` rewrite
+  function), pinned by 42 unit tests covering the 13-keyword map,
+  library-row idempotence, the `Run Keyword    Click ...`
+  edge case (keyword-as-argument is never rewritten), Heal-
+  prefixed user keywords outside the supported set (e.g.,
+  `Heal Login`) being left alone, and immutability of input
+  forms. i18n complete in EN/DE/FR/ES.
+
 ## [0.9.0] — 2026-05-06
 
 Headline: a substantial round of UX polish + stabilization driven

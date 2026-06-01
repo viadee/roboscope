@@ -61,7 +61,7 @@ class MatchInfo(NamedTuple):
 
 LocatorFactory = Callable[
     [SelectorCandidate],
-    Awaitable[Union[int, MatchInfo]],
+    Awaitable[Union[int, MatchInfo, None]],
 ]
 
 
@@ -127,21 +127,42 @@ async def verify_candidates(
 
     Sort order: actionable-rank first (0 = gold, 1 = visible-only,
     2 = hidden, 3 = unverified-multi), then quality_score descending.
+
+    Three outcomes per candidate:
+      - `locator_factory` returns `MatchInfo` with `total >= 1` → the
+        candidate is classified (gold / visible-only / hidden / multi-
+        match) and joins the ranked output.
+      - returns `MatchInfo(total=0, …)` → the selector resolves to
+        nothing on the live page; drop.
+      - returns `None` OR raises → the candidate could NOT be verified
+        (frame detached after a navigation-triggering click, page
+        already closed, transient browser-side error). Synthesis
+        produced this candidate for a reason and the user pointed at
+        SOMETHING when the click was captured — preserving it as
+        unverified at the bottom of the list is far less destructive
+        than silently dropping every selector whenever the user
+        clicks a link or dismisses a cookie banner that removes its
+        own iframe.
     """
     # Collect (candidate, MatchInfo) tuples first so we can rank
     # against the full picture instead of making one-shot decisions.
     resolved: list[tuple[SelectorCandidate, MatchInfo]] = []
+    # Candidates the factory couldn't decide on — preserved at the
+    # tail of the output, unverified.
+    unverifiable: list[SelectorCandidate] = []
     for cand in candidates:
         try:
             raw = await locator_factory(cand)
         except Exception:
-            # A broken selector (invalid xpath, CSS parse error, ...)
-            # cannot be verified — drop rather than leave it as
-            # verified=False (that would mislead the picker).
+            unverifiable.append(cand)
+            continue
+        if raw is None:
+            unverifiable.append(cand)
             continue
         info = _coerce_match_info(raw)
         if info.total == 0:
-            # Selector no longer points to anything — drop.
+            # Selector ran but resolved to nothing on the live DOM —
+            # truly stale, drop.
             continue
         resolved.append((cand, info))
 
@@ -206,4 +227,12 @@ async def verify_candidates(
         -t[0].quality_score,
         not t[0].verified_unique,
     ))
-    return [c for c, _ in classified]
+    # Unverifiable candidates (locator_factory raised or returned
+    # None) land at the tail with their synthesis-time
+    # `verified_unique=False` intact — sorted within the tail by
+    # quality_score so the best-static-heuristic candidate ends up at
+    # the top of the tail. The user sees them in the picker without
+    # the green check, but synthesis still gets the benefit of the
+    # doubt when verification couldn't happen.
+    unverifiable.sort(key=lambda c: -c.quality_score)
+    return [c for c, _ in classified] + unverifiable

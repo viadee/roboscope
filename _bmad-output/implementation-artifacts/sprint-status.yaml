@@ -38,7 +38,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-15
-last_updated: 2026-04-23T-explorer-recorder-v2-entrypoint
+last_updated: 2026-05-08T-post-090-backlog-sweep
 project: roboscope
 project_key: NOKEY
 tracking_system: file-system
@@ -190,3 +190,29 @@ development_status:
   epic-recorder-v2-desktop-macos: backlog
   recorder-DM-1-ax-feasibility-spike: done
   recorder-DM-2-macos-session-adapter: backlog
+
+  # ───────────────────────────────────────────────────────────────────
+  # Post-0.9.0 backlog (active 2026-05-08)
+  # ───────────────────────────────────────────────────────────────────
+
+  # Epic: Interactive Robot Framework Debugger
+  # Planning: planning-artifacts/interactive-debugger-epics.md
+  # Built on RobotCode DAP server. DEBUG-1 shipped on release-0.9.0
+  # as the shared backend primitive; DEBUG-2 + DEBUG-3 are the two
+  # user-facing entry points.
+  epic-interactive-debugger: in-progress
+  debug-1-dap-driver-foundation: done           # merged 2026-05-08 in v0.9.0
+  debug-2-rerun-failed-test-action: done        # merged 2026-05-08 post-0.9.0
+  debug-3-run-up-to-selection-action: done      # merged 2026-05-08 post-0.9.0
+  debug-4-robotcode-prereq-install-dialog: done # merged 2026-05-08 post-0.9.0
+  debug-5-breakpoint-resolution: done # robot/sync auto-ack; integration test green
+
+  # Epic: 0.9.1 Standalone-distribution UX polish
+  # GH issue #39 + launch-1-windows-terminal-ux.md
+  # Tactical polish from real-world feedback after the 0.9.0 cut.
+  epic-launch-polish-091: in-progress
+  launch-1-windows-terminal-ux: ready-for-dev
+
+  # Epic: Easter eggs (whimsy, opt-in fun)
+  epic-easter-eggs: in-progress
+  EE-1-konami-code-robot-parade: ready-for-dev

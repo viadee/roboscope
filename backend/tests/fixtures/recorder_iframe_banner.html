@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>RoboScope Recorder v2 — iframe banner fixture</title>
+    <style>
+      body { font-family: -apple-system, Segoe UI, sans-serif; padding: 2rem; max-width: 640px; }
+      #banner-frame {
+        width: 100%; height: 220px; border: 1px solid #ccc; margin-top: 1rem;
+      }
+      #banner-frame.gone { display: none; }
+      #content {
+        margin-top: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 data-testid="top-heading">Top page</h1>
+
+    <!-- Iframe simulates a cookie-consent banner: a separate document
+         with its own button. Clicking the button inside the iframe
+         removes the iframe from the parent DOM — exactly the heise.de
+         Sourcepoint flow that breaks the verifier when it races.
+         Loaded via `src=` (not `srcdoc=`) because srcdoc iframes
+         don't expose a stable `frame_url` the way real cross-document
+         iframes do — the recorder's RECORDER-FRAMES tagging relies
+         on the frame having its own document URL. -->
+    <iframe
+      id="banner-frame"
+      data-testid="banner-frame"
+      src="recorder_iframe_inner.html"
+    ></iframe>
+
+    <div id="content">
+      <p data-testid="content-text">Main page content.</p>
+    </div>
+
+    <script>
+      // When the iframe button posts the agree message, REMOVE the
+      // iframe from the parent DOM. By the time the recorder's verify
+      // step runs, the iframe Frame is detached — exactly the bug
+      // class the new exception-preserves-as-unverified contract is
+      // supposed to handle.
+      window.addEventListener('message', function (ev) {
+        if (ev.data === 'banner-agree') {
+          const f = document.getElementById('banner-frame');
+          if (f) f.remove();
+        }
+      });
+    </script>
+  </body>
+</html>

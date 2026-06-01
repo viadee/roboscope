@@ -62,7 +62,11 @@ export interface ParsedArg {
     | 'optional'          // name=default OR name: type = default
     | 'varargs'           // *args / *args: type
     | 'kwargs'            // **kwargs / **kwargs: type
-    | 'named-only-sep'    // lone "*" — positional-only / named-only separator
+    | 'positional-only-sep' // lone "/" — emitted by RF libdoc between
+                            // positional-only params and the rest.
+                            // Carries no value slot of its own.
+    | 'named-only-sep'    // lone "*" — named-only separator (rare without
+                          // a *varargs replacement)
     | 'optional-sep'      // lone "?" — optional separator (rare)
 }
 
@@ -94,6 +98,7 @@ export function parseArgSignature(raw: string): ParsedArg {
     defaultValue: null,
     kind,
   })
+  if (trimmed === '/') return empty('positional-only-sep')
   if (trimmed === '*') return empty('named-only-sep')
   if (trimmed === '?') return empty('optional-sep')
 

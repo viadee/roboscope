@@ -78,6 +78,68 @@ describe('resolveArgSpecs', () => {
   it('returns null for steps without a keyword', () => {
     expect(resolveArgSpecs(mkStep({ keyword: '' }), signatures)).toBeNull()
   })
+
+  it('filters out the libdoc "/" separator for positional-only params', () => {
+    // RF libdoc emits the `/` marker as its own descriptor between
+    // positional-only params and the rest. Without filtering it
+    // would surface in the FlowEditor detail panel as a bogus slot
+    // labelled `/:`, and `addArgOptions` would treat positional-only
+    // separators as filled slots. The Heal* keywords (added in
+    // v0.2.2) are the first real-world consumer of this shape.
+    const healSigs: SignatureMap = new Map([
+      ['heal click', ['selector: str', '/', '*args: Any', '**kwargs: Any']],
+      ['heal fill text', [
+        'selector: str',
+        '/',
+        'text: str',
+        '*args: Any',
+        '**kwargs: Any',
+      ]],
+      ['heal drag and drop', [
+        'source_selector: str',
+        'target_selector: str',
+        '/',
+        '*args: Any',
+        '**kwargs: Any',
+      ]],
+    ])
+    expect(
+      resolveArgSpecs(mkStep({ keyword: 'Heal Click' }), healSigs)!
+        .map((a) => `${a.name}:${a.kind}`),
+    ).toEqual(['selector:positional', 'args:varargs', 'kwargs:kwargs'])
+
+    expect(
+      resolveArgSpecs(mkStep({ keyword: 'Heal Fill Text' }), healSigs)!
+        .map((a) => `${a.name}:${a.kind}`),
+    ).toEqual([
+      'selector:positional',
+      'text:positional',
+      'args:varargs',
+      'kwargs:kwargs',
+    ])
+
+    // Two-selector variant — both selectors are positional-only and
+    // the `/` follows them. Filtering still collapses the gap so the
+    // detail panel labels stay aligned (slot 0 = source, slot 1 = target).
+    expect(
+      resolveArgSpecs(mkStep({ keyword: 'Heal Drag And Drop' }), healSigs)!
+        .map((a) => a.name),
+    ).toEqual(['source_selector', 'target_selector', 'args', 'kwargs'])
+  })
+
+  it('filters out the lone "*" named-only separator too', () => {
+    // Pre-existing libdoc shape for `def fn(self, x, *, y)` — `*`
+    // separates positional-or-keyword from keyword-only. Same
+    // structural-marker reasoning as `/`; pin so a future "tidy up"
+    // doesn't reintroduce a bogus slot.
+    const sigs: SignatureMap = new Map([
+      ['namedonly demo', ['x: str', '*', 'y: int = 1']],
+    ])
+    expect(
+      resolveArgSpecs(mkStep({ keyword: 'NamedOnly Demo' }), sigs)!
+        .map((a) => a.name),
+    ).toEqual(['x', 'y'])
+  })
 })
 
 describe('robotFormToFlow attaches argSpecs to keyword nodes', () => {

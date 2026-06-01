@@ -7,6 +7,7 @@ from src.audit.router import router as audit_router
 from src.auth.idp_router import router as idp_router
 from src.auth.router import router as auth_router
 from src.auth.sso_router import router as sso_router
+from src.debug.router import router as debug_router
 from src.environments.router import router as environments_router
 from src.execution.router import router as execution_router
 from src.explorer.router import router as explorer_router
@@ -37,6 +38,7 @@ api_router.include_router(ai_router, prefix="/ai", tags=["AI Generation"])
 api_router.include_router(webhooks_router, prefix="/webhooks", tags=["Webhooks & Tokens"])
 api_router.include_router(recording_router, tags=["Recording"])
 api_router.include_router(audit_router, prefix="/audit", tags=["Audit Log"])
+api_router.include_router(debug_router, prefix="/debug", tags=["Debug"])
 api_router.include_router(teams_router, prefix="/teams", tags=["Teams"])
 api_router.include_router(
     team_group_mappings_router, prefix="/group-mappings", tags=["Teams"]

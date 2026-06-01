@@ -30,6 +30,22 @@ export interface SelectorCandidate {
   /** 0–100 — higher = more stable. See architecture doc AR-7 scoring rubric. */
   quality_score: number
   verified_unique: boolean
+  /**
+   * User-supplied verbatim emit form. When set + non-empty, the
+   * .robot emitter AND the FlowEditor's selector composer skip
+   * `frame_chain` wrapping, `renderSelector`'s `xpath=` / `text=`
+   * prefixing, and the defensive `>> nth=0` suffix — the override
+   * string lands in `step.args[0]` exactly as typed.
+   *
+   * Set via the SelectorPicker's ✏ edit form (the "Effektiv" field
+   * below value/strategy). Cleared by re-editing back to the
+   * auto-composed value or by leaving the field empty.
+   *
+   * Strategy + value still drive the quality dot + picker label
+   * so users can see what the recorder originally synthesised,
+   * even if their emission has been overridden.
+   */
+  effective_override?: string | null
 }
 
 export interface RecordedCommand {
@@ -69,6 +85,24 @@ export interface RecordedCommand {
    * when set.
    */
   frame_url?: string | null
+  /**
+   * Story RECORDER-FRAMES-2 — full iframe ancestry chain with proper
+   * selector candidates per rung. Captured at record-time from the
+   * top frame's proactive iframe inventory. Order: index 0 is the
+   * outermost iframe in the page, last entry is the iframe whose
+   * document the event originated from. The emitter composes them
+   * with `>>>` separators. Empty list on top-frame events or for
+   * sidecars recorded before RECORDER-FRAMES-2 shipped (the
+   * emitter falls back to the URL-only legacy strategy in that case).
+   */
+  frame_chain?: FrameDescriptor[]
+}
+
+export interface FrameDescriptor {
+  url: string
+  /** Sorted by (verified_unique DESC, quality_score DESC) at capture
+   * time — index 0 is the recommended pick. */
+  selector_candidates: SelectorCandidate[]
 }
 
 export interface RecordedFlow {

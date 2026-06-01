@@ -723,6 +723,115 @@ def v2_start_browser(
     return V2StartBrowserResponse(session_id=session_id, task_id=task_id)
 
 
+@router.post(
+    "/recordings/sessions/{session_id}/restart-browser",
+    response_model=V2StartBrowserResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def v2_restart_browser(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Story RECORDER-VIS-1 — restart the Chromium process for this
+    session WITHOUT dropping captured commands or terminating the
+    session row.
+
+    Mechanism: signal a stop intent on the running task with the
+    `_restart_pending` flag set, then wait briefly for the wrapper to
+    vacate `_stop_signals`, then dispatch a fresh task with the same
+    session id. The shared queue + DB row stay live across the
+    boundary; the SSE consumer sees one `browser_restarting` lifecycle
+    event followed (after ~Chromium-boot seconds) by `browser_starting`
+    → `browser_ready` from the new task.
+
+    Returns 409 when the previous task didn't clean up in time. The
+    user can retry; the second call sees `_stop_signals` empty and
+    proceeds as a fresh start.
+    """
+    import os
+    import time as _time
+
+    session = db.get(RecordingSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.triggered_by != current_user.id and current_user.role != Role.ADMIN:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the session owner or an admin can restart the browser",
+        )
+    if session.status != RecordingStatus.RECORDING:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot restart browser in '{session.status}' status",
+        )
+
+    # Hard kill-switch (same one the launcher checks). 501 lets the
+    # UI hide the button consistently in deployments without Chromium.
+    if os.environ.get("ROBOSCOPE_RECORDER_DISABLED", "").lower() in ("1", "true"):
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Recorder is disabled in this deployment",
+        )
+
+    from src.recording.v2_command_queue import LifecycleEvent, enqueue_lifecycle
+    from src.recording.v2_recorder_task import (
+        signal_restart_v2,
+        is_v2_session_active,
+        run_v2_recorder_session,
+    )
+
+    if not is_v2_session_active(session_id):
+        # No live task. The session is in RECORDING state but the
+        # background task vanished (process restart, crashed silently
+        # without _mark_status). Treat as a fresh start so the user
+        # isn't stuck. Same dispatch as /start-browser below.
+        target_url = (session.target_url or "").strip() or None
+        try:
+            result = dispatch_task(run_v2_recorder_session, session_id, target_url)
+            return V2StartBrowserResponse(session_id=session_id, task_id=result.id)
+        except TaskDispatchError as exc:
+            logger.error("v2 restart dispatch failed for %d: %s", session_id, exc)
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    # Surface the restart intent on the SSE channel BEFORE we tear
+    # down the old task, so the live view's pill flips immediately.
+    enqueue_lifecycle(
+        session_id, LifecycleEvent(phase="browser_restarting"),
+    )
+    if not signal_restart_v2(session_id):
+        # Race: the task vacated between is_v2_session_active() and
+        # signal_restart_v2(). Same fresh-start fallback as above.
+        target_url = (session.target_url or "").strip() or None
+        try:
+            result = dispatch_task(run_v2_recorder_session, session_id, target_url)
+            return V2StartBrowserResponse(session_id=session_id, task_id=result.id)
+        except TaskDispatchError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    # Poll briefly for the old wrapper to release the slot. Bounded so
+    # a hung browser.close() can't make this hang forever — 5 s is a
+    # generous ceiling against real Chromium shutdown latencies.
+    deadline = _time.time() + 5.0
+    while is_v2_session_active(session_id) and _time.time() < deadline:
+        _time.sleep(0.05)
+    if is_v2_session_active(session_id):
+        raise HTTPException(
+            status_code=409,
+            detail="Previous recorder task did not release its slot within 5s. "
+                   "Try again, or abort the session and create a new one.",
+        )
+
+    target_url = (session.target_url or "").strip() or None
+    try:
+        result = dispatch_task(run_v2_recorder_session, session_id, target_url)
+    except TaskDispatchError as exc:
+        logger.error("v2 restart dispatch failed for %d: %s", session_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return V2StartBrowserResponse(session_id=session_id, task_id=result.id)
+
+
 @router.delete(
     "/recordings/sessions/{session_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -874,7 +983,8 @@ def v2_command_stream(
     """
     from fastapi.responses import StreamingResponse
     from src.auth.service import decode_token, get_user_by_id
-    from src.recording.v2_command_queue import iterate_commands
+    from src.recording.v2_command_queue import LifecycleEvent, iterate_events
+    from src.recording.selector_schema import RecordedCommand as _RecCmd
 
     # Resolve current user: Authorization header wins, ?token= falls back.
     # Duplicates a little logic from get_current_user because EventSource
@@ -912,9 +1022,20 @@ def v2_command_stream(
         )
 
     def event_gen():
-        for cmd in iterate_commands(session_id, poll_timeout_s=0.5):
-            payload = _json.dumps(cmd.model_dump(mode="json"), default=str)
-            yield f"event: command\ndata: {payload}\n\n"
+        # Story RECORDER-VIS-1 — the queue now carries two payload
+        # types. Multiplex onto the SSE channel so the consumer can
+        # discriminate via the SSE `event:` field.
+        for item in iterate_events(session_id, poll_timeout_s=0.5):
+            if isinstance(item, _RecCmd):
+                payload = _json.dumps(item.model_dump(mode="json"), default=str)
+                yield f"event: command\ndata: {payload}\n\n"
+            elif isinstance(item, LifecycleEvent):
+                payload = _json.dumps({
+                    "phase": item.phase,
+                    "ts": item.ts,
+                    "message": item.message,
+                })
+                yield f"event: lifecycle\ndata: {payload}\n\n"
         # End of stream — SSE clients close on connection end; emit a
         # final explicit `event: end` so the browser-side EventSource
         # handler can distinguish "done" from "network blip".

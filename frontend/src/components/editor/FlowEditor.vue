@@ -15,6 +15,14 @@ import KeywordPalette from './flow/KeywordPalette.vue'
 import KeywordAutocompleteInput from './flow/KeywordAutocompleteInput.vue'
 import KeywordDocModal from './flow/KeywordDocModal.vue'
 import SelectorPicker from '@/components/recorder/SelectorPicker.vue'
+// Story DEBUG-3 — Flow Editor "Run up to here" debug action.
+import DebugPanel from '@/components/debug/DebugPanel.vue'
+import DebugPrereqDialog from '@/components/debug/DebugPrereqDialog.vue'
+import BaseModal from '@/components/ui/BaseModal.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
+import { useAuthStore } from '@/stores/auth.store'
+import { useDebugStore } from '@/stores/debug.store'
+import { extractErrorDetail } from '@/utils/errors'
 import { type RecordedFlow, type SelectorCandidate, type SelectorStrategy } from '@/types/recorder.types'
 import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
 import {
@@ -27,12 +35,14 @@ import {
 } from '@/utils/robotKeywordSignatures'
 import {
   applySelectorSwap,
+  composeEffectiveSelector,
   estimateNodeHeight,
   isCustomSelectorValue,
   isStepType,
   robotFormToFlow,
   robotKeywordsToFlow,
   updateStepFromNode,
+  computeStepLine,
   NODE_START_Y,
   NODE_X,
   type RobotForm,
@@ -41,6 +51,17 @@ import {
   type RobotKeywordDef,
   type FlowNodeData,
 } from './flow/flowConverter'
+// Story HEAL-1 — per-step Self-Healing opt-in.
+import {
+  getHealVariant,
+  getBaseKeyword,
+  isHealedKeyword,
+  ensureRoboScopeHealLibrary,
+  removeRoboScopeHealLibraryIfUnused,
+  countHealedSteps,
+  hasBrowserLibraryImport,
+  hasRoboScopeHealImport,
+} from '@/utils/healToggle'
 
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
@@ -59,6 +80,12 @@ const props = defineProps<{
    *  works as before. Persistence is the parent's responsibility:
    *  FlowEditor only emits `update:sidecar` after a swap. */
   sidecar?: RecordedFlow | null
+  /** Story DEBUG-3 — true when the parent (RobotEditor → ExplorerView)
+   *  has unsaved buffer changes. The "Run up to here" debug button
+   *  surfaces a save-prompt modal when this is true rather than
+   *  debugging an unsaved buffer (whose line numbers may not match
+   *  what's on disk). Optional / defaults to false (clean buffer). */
+  dirty?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -774,7 +801,7 @@ function onSelectorPickerSwap(newIndex: number) {
  * new value through to `step.args[0]` so the .robot saves consistent
  * with what the user just typed.
  */
-function onSelectorPickerEdit(payload: { index: number; value: string; strategy: SelectorStrategy }) {
+function onSelectorPickerEdit(payload: { index: number; value: string; strategy: SelectorStrategy; effective?: string }) {
   if (!selectedNodeData.value) return
   const cmd = selectedNodeData.value.recording
   if (!cmd) return
@@ -784,11 +811,23 @@ function onSelectorPickerEdit(payload: { index: number; value: string; strategy:
   cand.strategy = payload.strategy
   cand.quality_score = 50
   cand.verified_unique = false
+  // Verbatim emit-form override — see SelectorPicker emit payload.
+  // Empty string clears any existing override (back to auto-compose);
+  // non-empty replaces the override; `undefined` (legacy callers
+  // before this field shipped) leaves the field untouched.
+  if (payload.effective !== undefined) {
+    cand.effective_override = payload.effective === '' ? null : payload.effective
+  }
   if (payload.index === cmd.active_candidate_index) {
+    // Compose via `composeEffectiveSelector` → `effectiveSelectorForCandidate`
+    // → returns override verbatim when set, otherwise composes with
+    // iframe-chain + defensive nth. Same single source of truth as
+    // the swap path and the Python emitter.
+    const composite = composeEffectiveSelector(cmd, cand)
     if (selectedNodeData.value.step.args.length === 0) {
-      selectedNodeData.value.step.args.push(payload.value)
+      selectedNodeData.value.step.args.push(composite)
     } else {
-      selectedNodeData.value.step.args[0] = payload.value
+      selectedNodeData.value.step.args[0] = composite
     }
     updateStepFromNode(props.form, selectedNodeData.value)
   }
@@ -805,7 +844,7 @@ function onSelectorPickerEdit(payload: { index: number; value: string; strategy:
  * to" affordance — adding a new one almost always means "I want to
  * use this now").
  */
-function onSelectorPickerAdd(payload: { value: string; strategy: SelectorStrategy }) {
+function onSelectorPickerAdd(payload: { value: string; strategy: SelectorStrategy; effective?: string }) {
   if (!selectedNodeData.value) return
   const cmd = selectedNodeData.value.recording
   if (!cmd) return
@@ -814,14 +853,24 @@ function onSelectorPickerAdd(payload: { value: string; strategy: SelectorStrateg
     value: payload.value,
     quality_score: 50,
     verified_unique: false,
+    effective_override:
+      payload.effective !== undefined && payload.effective !== ''
+        ? payload.effective
+        : null,
   }
   cmd.selector_candidates.push(newCand)
   const newIndex = cmd.selector_candidates.length - 1
   cmd.active_candidate_index = newIndex
+  // Same composition as swap / edit. `composeEffectiveSelector`
+  // returns the override verbatim when set, otherwise auto-composes
+  // (iframe-chain + defensive nth), so a user adding a custom value
+  // inside an iframe gets the wrap by default OR overrides it
+  // explicitly via the Effektiv field — both paths land here.
+  const composite = composeEffectiveSelector(cmd, newCand)
   if (selectedNodeData.value.step.args.length === 0) {
-    selectedNodeData.value.step.args.push(payload.value)
+    selectedNodeData.value.step.args.push(composite)
   } else {
-    selectedNodeData.value.step.args[0] = payload.value
+    selectedNodeData.value.step.args[0] = composite
   }
   updateStepFromNode(props.form, selectedNodeData.value)
   rebuildAndReselect()
@@ -873,6 +922,56 @@ function argLabelAt(index: number): string {
 function onKeywordValueChange(v: string) {
   if (!selectedNodeData.value) return
   selectedNodeData.value.step.keyword = v
+}
+
+// Story HEAL-1 — per-step Self-Healing toggle.
+//
+// Mode is `'hidden'` for keywords that don't have a Heal variant (most),
+// `'on'` when the step already uses `Heal *`, `'off'` when it uses the
+// bare form. Only `keyword` and `assignment` step types ever surface
+// the checkbox.
+const selectedStepHealMode = computed<'on' | 'off' | 'hidden'>(() => {
+  const data = selectedNodeData.value
+  if (!data) return 'hidden'
+  if (data.stepType !== 'keyword' && data.stepType !== 'assignment') return 'hidden'
+  const kw = (data.step.keyword ?? '').trim()
+  const isOn = isHealedKeyword(kw)
+  const isOff = getHealVariant(kw) !== null
+  if (!isOn && !isOff) return 'hidden'
+  // Story HEAL-1 refinement — same gate as HEAL-2: a step named
+  // `Click` could be a user-defined keyword, not the Browser
+  // library's. Without an explicit `Library    Browser` /
+  // `RoboScopeHeal` import in Settings, suppress the toggle so we
+  // never offer to rewrite a custom keyword.
+  if (!hasBrowserLibraryImport(props.form) && !hasRoboScopeHealImport(props.form)) {
+    return 'hidden'
+  }
+  return isOn ? 'on' : 'off'
+})
+
+function onStepHealToggle(checked: boolean): void {
+  const data = selectedNodeData.value
+  if (!data) return
+  const currentKw = data.step.keyword.trim()
+  const nextKw = checked
+    ? getHealVariant(currentKw)
+    : getBaseKeyword(currentKw)
+  if (nextKw === null) return
+  data.step.keyword = nextKw
+  // Persist the rewrite via the normal step-edit path BEFORE we read
+  // `countHealedSteps` so the form reflects this step's new state.
+  onStepFieldChange()
+  // Library import: keep settings in sync with whether ANY heal'd
+  // keyword still exists across the file. The helper functions are
+  // idempotent and return the same array reference on no-op, so we
+  // only patch when they actually want to change something.
+  const stillUsed = countHealedSteps(props.form) > 0
+  const next = checked
+    ? ensureRoboScopeHealLibrary(props.form.settings)
+    : removeRoboScopeHealLibraryIfUnused(props.form.settings, stillUsed)
+  if (next !== props.form.settings) {
+    props.form.settings.splice(0, props.form.settings.length, ...next)
+  }
 }
 
 // Story EDITOR-7 — keyword doc modal toggle.
@@ -1038,11 +1137,22 @@ const addArgOptions = computed<AddArgOption[]>(() => {
   const data = selectedNodeData.value
   if (!data?.argSpecs) return []
   const args = data.step.args
+  const specNames = new Set(data.argSpecs.map((s) => s.name))
   const usedNames = new Set<string>()
   for (let i = 0; i < args.length; i++) {
     const v = args[i]
+    // Only treat a leading `name=` as a Robot Framework named-arg form
+    // when `name` actually appears in the keyword's signature.
+    // Browser-library selectors carry locator-strategy prefixes
+    // (`xpath=`, `css=`, `text=`, `id=`, `role=`, `nth=`, …) that look
+    // identical to named args at the regex level but are part of the
+    // selector value, not a kwarg name. Without this guard, the picker
+    // sees args[0]=`xpath=//a[…]` and assumes `xpath` is the named arg
+    // sitting in slot 0 — `selector` stays "unused" and the picker
+    // offers to add `selector=` as a phantom second arg, which then
+    // fails at run-time with "expected at least 1 non-named argument".
     const m = /^([A-Za-z_][\w]*)\s*=/.exec(v)
-    if (m) {
+    if (m && specNames.has(m[1])) {
       usedNames.add(m[1])
     } else {
       const positional = data.argSpecs[i]
@@ -1559,6 +1669,158 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   onNodeReorderDragStart(event, node)
 }
 
+// ---------------------------------------------------------------------------
+// Story DEBUG-3 — "Run up to here" Flow Editor debug action.
+// ---------------------------------------------------------------------------
+
+const auth = useAuthStore()
+const debug = useDebugStore()
+
+/** True only when every gate from AC1 is open: stepType is one we can
+ *  break on (keyword/assignment/control/return), the user has RUNNER+,
+ *  and the selected node lives in a Test Case (not a Keyword
+ *  definition — RF debug-launch needs `--test`, not a bare keyword). */
+const canDebugSelectedStep = computed<boolean>(() => {
+  const data = selectedNodeData.value
+  if (!data) return false
+  if (data.section !== 'testcase') return false
+  if (!auth.hasMinRole('runner')) return false
+  // Map Flow step types to AC1's allow list. `control` covers the
+  // for/if/while/try/etc. flavours via getNodeType(); we also want
+  // assignment + return to keep parity with the spec.
+  const allowed: Array<RobotStep['type']> = [
+    'keyword', 'assignment', 'return',
+    'if', 'else_if', 'else', 'for', 'while', 'try', 'except', 'finally',
+  ]
+  if (!allowed.includes(data.step.type)) return false
+  // No file context = can't address the breakpoint. The Explorer view
+  // always passes filePath; the only path where it's missing is the
+  // Recorder's flow-preview surface where debug doesn't apply.
+  if (!props.filePath) return false
+  if (props.repoId === undefined) return false
+  return true
+})
+
+const debugUnsavedHintVisible = ref(false)
+const debugConfirmRestart = ref<{
+  fromLine: number
+  toLine: number
+  payload: { file: string; testName: string; line: number; repoId: number }
+} | null>(null)
+const debugError = ref<string | null>(null)
+
+function _stepDebugPayload(): {
+  file: string
+  testName: string
+  line: number
+  repoId: number
+} | null {
+  const data = selectedNodeData.value
+  if (!data || data.section !== 'testcase') return null
+  if (!props.filePath || props.repoId === undefined) return null
+  const tc: RobotTestCase | undefined = props.form.testCases[data.sectionIndex]
+  if (!tc) return null
+  // Recompute the source line LIVE — `step._lineNumber` was set once at
+  // parse time and goes stale the moment the user inserts/removes a
+  // step elsewhere in the file. The live computation mirrors the
+  // serializer, so it tracks any structural edit.
+  const isResource = props.filePath?.toLowerCase().endsWith('.resource') ?? false
+  const line = computeStepLine(props.form, isResource, data.sectionIndex, data.stepIndex)
+  if (line === null || line < 1) return null
+  return {
+    file: props.filePath,
+    testName: tc.name,
+    line,
+    repoId: props.repoId,
+  }
+}
+
+async function onDebugStepClick(): Promise<void> {
+  debugError.value = null
+  // AC1 fourth bullet: dirty buffer surfaces a save-prompt instead of
+  // debugging an out-of-sync file. We surface a small inline modal
+  // and stop — the user saves manually, then re-clicks.
+  if (props.dirty) {
+    debugUnsavedHintVisible.value = true
+    return
+  }
+  const payload = _stepDebugPayload()
+  if (!payload) {
+    debugError.value = t('flowEditor.debug.unresolvedLine')
+    return
+  }
+  // AC6: same-line resume vs different-line restart.
+  const cls = debug.classifyStepClick(payload.file, payload.line)
+  if (cls === 'same') {
+    // Silent resume — show the panel; the store's existing session
+    // metadata is preserved.
+    debugOverlayOpen.value = true
+    return
+  }
+  if (cls === 'different') {
+    debugConfirmRestart.value = {
+      fromLine: debug.breakpointLine ?? 0,
+      toLine: payload.line,
+      payload,
+    }
+    return
+  }
+  await _dispatchDebugStart(payload)
+}
+
+async function _dispatchDebugStart(payload: {
+  file: string
+  testName: string
+  line: number
+  repoId: number
+}): Promise<void> {
+  try {
+    const resp = await debug.startFromStep({
+      file: payload.file,
+      test_name: payload.testName,
+      line: payload.line,
+      repo_id: payload.repoId,
+    })
+    if (resp !== null) {
+      debugOverlayOpen.value = true
+    }
+    // resp === null → DEBUG-4 prereq missing; dialog will surface and
+    // `onDebugPrereqInstall` opens the overlay after install + retry.
+  } catch (e: unknown) {
+    debugError.value = extractErrorDetail(e, t('flowEditor.debug.startFailed'))
+  }
+}
+
+async function onDebugPrereqInstall(): Promise<void> {
+  const ok = await debug.installPrereqAndRetry()
+  if (ok && debug.isActive) {
+    debugOverlayOpen.value = true
+  }
+}
+
+function onDebugPrereqCancel(): void {
+  debug.cancelPrereq()
+}
+
+async function onDebugConfirmRestart(): Promise<void> {
+  const cfg = debugConfirmRestart.value
+  if (!cfg) return
+  debugConfirmRestart.value = null
+  // Stop the existing session before starting a new one. Mirrors
+  // Chrome DevTools' "Run to here" semantics.
+  try {
+    await debug.stop()
+  } catch {
+    // Best-effort — even if disconnect fails, start the new session.
+  }
+  await _dispatchDebugStart(cfg.payload)
+}
+
+const debugOverlayOpen = ref(false)
+function onDebugOverlayClose(): void {
+  debugOverlayOpen.value = false
+}
+
 // Provide drag handle start to child nodes via provide/inject would be complex,
 // so we expose it as a data attribute approach
 </script>
@@ -1983,6 +2245,25 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
           </div>
         </div>
 
+        <!-- Story DEBUG-3: "Run up to here" debug action.
+             Standalone row (not inside the icon-action strip) so the
+             button can carry a localized label, since debug-launch is
+             a distinct affordance from move/delete/doc. -->
+        <div v-if="canDebugSelectedStep" class="flow-debug-action-row">
+          <button
+            class="flow-debug-step-btn"
+            :title="t('flowEditor.debug.btnTitle')"
+            data-testid="flow-debug-step-btn"
+            @click="onDebugStepClick"
+          >
+            <span aria-hidden="true">&#9654;</span>
+            {{ t('flowEditor.debug.btnLabel') }}
+          </button>
+          <p v-if="debugError" class="flow-debug-action-error" role="alert">
+            {{ debugError }}
+          </p>
+        </div>
+
         <!-- Keyword name (Story EDITOR-4: autocompleted from useKeywordSignatures) -->
         <div v-if="['keyword', 'assignment'].includes(selectedNodeData.stepType)" class="flow-detail-row">
           <label>{{ t('flowEditor.keyword') }}</label>
@@ -1991,6 +2272,30 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
             @update:value="onKeywordValueChange"
             @select="onStepFieldChange"
           />
+        </div>
+
+        <!-- Story HEAL-1: Self-Healing per-step toggle. Only rendered
+             when the keyword is one of the 13 supported names (bare or
+             already heal'd). -->
+        <div
+          v-if="selectedStepHealMode !== 'hidden'"
+          class="flow-detail-row flow-detail-row--heal"
+        >
+          <label :for="'heal-toggle-' + selectedNode?.id">
+            {{ t('flowEditor.heal.toggleLabel') }}
+          </label>
+          <div class="flow-heal-toggle">
+            <input
+              :id="'heal-toggle-' + selectedNode?.id"
+              type="checkbox"
+              :checked="selectedStepHealMode === 'on'"
+              data-testid="flow-step-heal-toggle"
+              @change="onStepHealToggle(($event.target as HTMLInputElement).checked)"
+            />
+            <span class="flow-heal-toggle__hint">
+              {{ t('flowEditor.heal.toggleHint') }}
+            </span>
+          </div>
         </div>
 
         <!-- Arguments -->
@@ -2281,6 +2586,80 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
       v-model="docModalOpen"
       :keyword="docModalKeyword"
       :repo-id="props.repoId"
+    />
+
+    <!-- Story DEBUG-3: dirty-buffer warning. Inline modal — when the
+         user clicks debug on an unsaved buffer, surface this so they
+         save first and re-click. Doesn't auto-save (debug needs the
+         disk file's line numbers; saving is a deliberate user action). -->
+    <BaseModal
+      v-model="debugUnsavedHintVisible"
+      :title="t('flowEditor.debug.unsavedHintTitle')"
+      size="sm"
+      data-testid="flow-debug-unsaved-modal"
+    >
+      <p>{{ t('flowEditor.debug.unsavedHint') }}</p>
+      <template #footer>
+        <BaseButton variant="ghost" @click="debugUnsavedHintVisible = false">
+          {{ t('common.close') }}
+        </BaseButton>
+      </template>
+    </BaseModal>
+
+    <!-- Story DEBUG-3 AC6: confirm modal when the user clicks a
+         different step while a session is paused at another line. -->
+    <BaseModal
+      :model-value="debugConfirmRestart !== null"
+      :title="t('flowEditor.debug.confirmReplaceTitle')"
+      size="sm"
+      data-testid="flow-debug-confirm-modal"
+      @update:model-value="(v) => { if (!v) debugConfirmRestart = null }"
+    >
+      <p v-if="debugConfirmRestart">
+        {{ t('flowEditor.debug.confirmReplace', {
+          lineFrom: debugConfirmRestart.fromLine,
+          lineTo: debugConfirmRestart.toLine,
+        }) }}
+      </p>
+      <template #footer>
+        <BaseButton variant="ghost" @click="debugConfirmRestart = null">
+          {{ t('common.cancel') }}
+        </BaseButton>
+        <BaseButton
+          variant="primary"
+          data-testid="flow-debug-confirm-restart-btn"
+          @click="onDebugConfirmRestart"
+        >
+          {{ t('flowEditor.debug.confirmReplaceConfirm') }}
+        </BaseButton>
+      </template>
+    </BaseModal>
+
+    <!-- Story DEBUG-3 AC5: DebugPanel rendered as modal overlay over
+         the canvas (via fixed-position teleport). `Stop` returns the
+         user to the editor with the canvas state intact. -->
+    <Teleport to="body">
+      <div
+        v-if="debugOverlayOpen"
+        class="flow-debug-overlay"
+        data-testid="flow-debug-overlay"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div class="flow-debug-overlay__inner">
+          <DebugPanel @closed="onDebugOverlayClose" />
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Story DEBUG-4: RobotCode prereq install dialog. -->
+    <DebugPrereqDialog
+      :open="debug.prereqMissing !== null"
+      :package-name="debug.prereqMissing?.packageName ?? 'robotcode'"
+      :installing="debug.installing"
+      :install-error="debug.installError"
+      @install="onDebugPrereqInstall"
+      @cancel="onDebugPrereqCancel"
     />
   </div>
 </template>
@@ -3081,5 +3460,75 @@ function onNodeDragHandleStart(event: DragEvent, nodeId: string) {
   background: var(--color-primary, #3B7DD8);
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+/* Story DEBUG-3 — Run-up-to-here action row + overlay. */
+.flow-debug-action-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0 4px 0;
+  border-top: 1px solid var(--color-border, #d6dfeb);
+  margin-top: 6px;
+}
+.flow-debug-step-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--color-primary, #3B7DD8);
+  color: var(--color-on-dark, #ffffff);
+  border: 1px solid var(--color-primary, #3B7DD8);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  width: fit-content;
+}
+.flow-debug-step-btn:hover { filter: brightness(1.05); }
+.flow-debug-step-btn:focus-visible {
+  outline: 2px solid var(--color-primary, #3B7DD8);
+  outline-offset: 2px;
+}
+.flow-debug-action-error {
+  font-size: 12px;
+  color: var(--color-error, #991b1b);
+  margin: 0;
+}
+
+.flow-debug-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  z-index: 1100;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 24px;
+}
+.flow-debug-overlay__inner {
+  width: min(1100px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  background: var(--color-bg, #ffffff);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  padding: 12px;
+}
+
+/* Story HEAL-1 — Self-Healing per-step toggle row. */
+.flow-detail-row--heal .flow-heal-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.flow-detail-row--heal .flow-heal-toggle input[type='checkbox'] {
+  margin: 2px 0 0 0;
+  cursor: pointer;
+}
+.flow-heal-toggle__hint {
+  font-size: 11px;
+  color: var(--color-text-muted, #5A6380);
+  line-height: 1.4;
 }
 </style>

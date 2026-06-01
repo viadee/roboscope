@@ -40,14 +40,62 @@ SCHEMA_VERSION = 1
 
 
 class SelectorCandidate(BaseModel):
-    """One of several locator strings that points to the same element."""
+    """One of several locator strings that points to the same element.
+
+    `effective_override` is the user-supplied verbatim form for this
+    candidate's on-disk emission. When set, the FlowEditor + emitter
+    write it as-is to `step.args[0]`, bypassing the auto-composition
+    that combines `frame_chain` prefix, `renderSelector`'s
+    `xpath=` / `text=` prefix logic, and the defensive `>> nth=0`
+    disambiguation. None / empty means "use the auto-composed value"
+    (the default behaviour for every recorder-emitted candidate).
+
+    User journey: ✏ Edit on a candidate in the SelectorPicker exposes
+    the effective composite as an editable third field. The user can
+    drop the `>> nth=0`, swap the iframe-chain rung's selector for a
+    different shape, or paste any chained-locator the synthesizer
+    didn't pick — and that string round-trips through the sidecar.
+    Strategy / value stay tied to the QUALITY classification (so the
+    coloured dot still reflects the locator's stability), but they're
+    decoupled from the emit string when override is set.
+    """
 
     strategy: SelectorStrategy
     value: str
     quality_score: int = Field(ge=0, le=100)
     verified_unique: bool = False
+    effective_override: str | None = None
 
     model_config = {"frozen": True}
+
+
+class FrameDescriptor(BaseModel):
+    """Story RECORDER-FRAMES-2 — one rung of the iframe ancestry chain.
+
+    Before this, the recorder remembered only the **URL** of the iframe a
+    captured event came from and the emitter rebuilt the cross-frame
+    locator at serialise time via a single hardcoded strategy
+    (`iframe[src*="<host>"]`). That broke whenever the host alone wasn't
+    unique on the page (multiple CMP iframes from the same vendor) and
+    gave the user no way to pick a different iframe selector in the
+    picker.
+
+    `frame_chain` on `RecordedCommand` is the rung-by-rung descriptor
+    list — index 0 is the outermost iframe (child of the top page),
+    the last entry is the iframe whose document the event originated
+    from. Each rung carries its own URL plus a list of candidate
+    selectors for the `<iframe>` element itself, computed against the
+    PARENT frame's DOM, sorted (verified_unique DESC, quality_score
+    DESC) so `selector_candidates[0]` is the recommended pick.
+
+    Backward compat: older sidecars (pre-RECORDER-FRAMES-2) and any
+    top-frame event leave the field as an empty list. The emitter
+    falls back to the URL-based `iframe[src*="<host>"]` logic when
+    `frame_chain` is empty AND `frame_url` is set.
+    """
+
+    url: str
+    selector_candidates: list[SelectorCandidate] = Field(default_factory=list)
 
 
 def _new_command_id() -> str:
@@ -106,6 +154,13 @@ class RecordedCommand(BaseModel):
     # for capturing cross-origin consent banners (Sourcepoint / OneTrust /
     # TCF) which are virtually always inside an iframe.
     frame_url: str | None = None
+    # Story RECORDER-FRAMES-2 — full iframe ancestry chain with proper
+    # selector candidates per rung. Replaces the URL-only legacy. Empty
+    # list on top-frame events; the emitter falls back to the
+    # `iframe[src*="<host>"]` URL-derivation when this is empty AND
+    # `frame_url` is set, so legacy sidecars keep working without a
+    # re-record. See `FrameDescriptor` for the per-rung shape.
+    frame_chain: list[FrameDescriptor] = Field(default_factory=list)
 
     def model_post_init(self, _context) -> None:  # type: ignore[override]
         if self.selector_candidates:

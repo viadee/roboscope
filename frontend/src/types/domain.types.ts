@@ -223,9 +223,36 @@ export interface TestResult {
   end_time: string | null
 }
 
+/**
+ * Backend-side `execution.diagnostics.detect_report_diagnostic`
+ * payload. Non-null when the run's error matches a known pattern
+ * with a one-click fix the UI should surface as a banner above the
+ * failed tests (e.g. "Browser binaries missing → rfbrowser init").
+ *
+ * Discriminated by `code` — every code in this union must have a
+ * matching renderer in the banner component AND a localized
+ * title/description string in each locale.
+ */
+export interface RunDiagnosticAction {
+  /** Endpoint to POST when the user clicks the action button. */
+  endpoint: string
+  /** HTTP method — always POST today but kept explicit for clarity. */
+  method: 'POST'
+  /** Domain env_id passed to the action endpoint. */
+  env_id: number
+  /** Action discriminator — used by the banner to label the button. */
+  type: 'rfbrowser_init'
+}
+
+export interface RunDiagnostic {
+  code: 'playwright_browser_missing'
+  action: RunDiagnosticAction
+}
+
 export interface ReportDetail {
   report: Report
   test_results: TestResult[]
+  diagnostic?: RunDiagnostic | null
 }
 
 export interface TestHistoryPoint {

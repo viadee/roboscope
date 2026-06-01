@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>RoboScope Recorder v2 — iframe inner</title>
+    <style>
+      body { font-family: sans-serif; padding: 1rem; background: #fff7e6; margin: 0; }
+      button { padding: .5rem 1rem; font-size: 1rem; cursor: pointer; }
+      p { margin: .25rem 0; }
+    </style>
+  </head>
+  <body>
+    <p>This is the simulated consent banner (loaded as a real
+       cross-document iframe so the recorder's per-frame capture
+       script attaches properly).</p>
+    <!-- Multiple `Zustimmen` strings reproduce the heise.de
+         Sourcepoint failure mode: a bare `text=Zustimmen` selector
+         matches all three (button + two paragraphs). The verifier
+         is supposed to either disambiguate (`>> nth=0`) or keep
+         the candidate as unverified. -->
+    <button data-testid="agree-btn"
+            onclick="parent.postMessage('banner-agree', '*')">
+      Zustimmen
+    </button>
+    <p>Zustimmen</p>
+    <p>Zustimmen</p>
+  </body>
+</html>

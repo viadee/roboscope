@@ -27,12 +27,12 @@ from typing import Any
 from robot.api.deco import keyword, library
 from robot.libraries.BuiltIn import BuiltIn
 
-from src.recording.heal.candidate_finder import (
+from RoboScopeHeal.candidate_finder import (
     HealCandidate,
     find_heal_candidates,
     pick_best_candidate,
 )
-from src.recording.heal.heal_report import append_heal_audit
+from RoboScopeHeal.heal_report import append_heal_audit
 
 
 # Keywords that change browser state — clicks, form submissions, key
@@ -122,29 +122,41 @@ class RoboScopeHeal:
 
     # -- Public keywords -----------------------------------------------------
 
+    # Note on the `/` after every selector parameter: Robot Framework's
+    # `NamedArgumentResolver` treats any `name=value` token as a kwarg as
+    # soon as the keyword exposes `**kwargs`. Without `/`, a Browser
+    # locator like `xpath=//a[…]` is matched against `**kwargs` (because
+    # `xpath` isn't a known param name) and the positional `selector`
+    # arrives empty — RF then raises "expected at least 1 non-named
+    # argument, got 0". Marking the selector positional-only forces RF
+    # to peel it off as `arguments[:1]` BEFORE named-arg resolution
+    # runs, so `xpath=…` / `css=…` / `text=…` / `id=…` reach the heal
+    # path verbatim. Same reasoning for the two-selector
+    # `Heal Drag And Drop`.
+
     @keyword("Heal Click")
-    def heal_click(self, selector: str, *args: Any, **kwargs: Any) -> Any:
+    def heal_click(self, selector: str, /, *args: Any, **kwargs: Any) -> Any:
         return self._dispatch("Click", selector, args, kwargs)
 
     @keyword("Heal Fill Text")
-    def heal_fill_text(self, selector: str, text: str, *args: Any, **kwargs: Any) -> Any:
+    def heal_fill_text(self, selector: str, /, text: str, *args: Any, **kwargs: Any) -> Any:
         return self._dispatch("Fill Text", selector, (text, *args), kwargs)
 
     @keyword("Heal Type Text")
-    def heal_type_text(self, selector: str, text: str, *args: Any, **kwargs: Any) -> Any:
+    def heal_type_text(self, selector: str, /, text: str, *args: Any, **kwargs: Any) -> Any:
         return self._dispatch("Type Text", selector, (text, *args), kwargs)
 
     @keyword("Heal Hover")
-    def heal_hover(self, selector: str, *args: Any, **kwargs: Any) -> Any:
+    def heal_hover(self, selector: str, /, *args: Any, **kwargs: Any) -> Any:
         return self._dispatch("Hover", selector, args, kwargs)
 
     @keyword("Heal Press Keys")
-    def heal_press_keys(self, selector: str, *keys: Any, **kwargs: Any) -> Any:
+    def heal_press_keys(self, selector: str, /, *keys: Any, **kwargs: Any) -> Any:
         return self._dispatch("Press Keys", selector, keys, kwargs)
 
     @keyword("Heal Wait For Elements State")
     def heal_wait_for_elements_state(
-        self, selector: str, *args: Any, **kwargs: Any
+        self, selector: str, /, *args: Any, **kwargs: Any
     ) -> Any:
         return self._dispatch("Wait For Elements State", selector, args, kwargs)
 
@@ -152,33 +164,33 @@ class RoboScopeHeal:
 
     @keyword("Heal Upload File")
     def heal_upload_file(
-        self, selector: str, path: str, *args: Any, **kwargs: Any
+        self, selector: str, /, path: str, *args: Any, **kwargs: Any
     ) -> Any:
         return self._dispatch("Upload File", selector, (path, *args), kwargs)
 
     @keyword("Heal Check Checkbox")
-    def heal_check_checkbox(self, selector: str, *args: Any, **kwargs: Any) -> Any:
+    def heal_check_checkbox(self, selector: str, /, *args: Any, **kwargs: Any) -> Any:
         return self._dispatch("Check Checkbox", selector, args, kwargs)
 
     @keyword("Heal Uncheck Checkbox")
-    def heal_uncheck_checkbox(self, selector: str, *args: Any, **kwargs: Any) -> Any:
+    def heal_uncheck_checkbox(self, selector: str, /, *args: Any, **kwargs: Any) -> Any:
         return self._dispatch("Uncheck Checkbox", selector, args, kwargs)
 
     @keyword("Heal Select Options By")
     def heal_select_options_by(
-        self, selector: str, attribute: str, *values: Any, **kwargs: Any
+        self, selector: str, /, attribute: str, *values: Any, **kwargs: Any
     ) -> Any:
         return self._dispatch(
             "Select Options By", selector, (attribute, *values), kwargs,
         )
 
     @keyword("Heal Get Text")
-    def heal_get_text(self, selector: str, *args: Any, **kwargs: Any) -> Any:
+    def heal_get_text(self, selector: str, /, *args: Any, **kwargs: Any) -> Any:
         return self._dispatch("Get Text", selector, args, kwargs)
 
     @keyword("Heal Get Element Count")
     def heal_get_element_count(
-        self, selector: str, *args: Any, **kwargs: Any
+        self, selector: str, /, *args: Any, **kwargs: Any
     ) -> Any:
         return self._dispatch("Get Element Count", selector, args, kwargs)
 
@@ -187,6 +199,7 @@ class RoboScopeHeal:
         self,
         source_selector: str,
         target_selector: str,
+        /,
         *args: Any,
         **kwargs: Any,
     ) -> Any:
@@ -353,7 +366,7 @@ class RoboScopeHeal:
         if not isinstance(live, list):
             return None
 
-        from src.recording.heal.fingerprint import find_best_by_fingerprint
+        from RoboScopeHeal.fingerprint import find_best_by_fingerprint
 
         pairs: list[tuple[str, dict[str, Any]]] = []
         for item in live:
@@ -643,7 +656,7 @@ class RoboScopeHeal:
         unwraps every step. Anything without an ``iframe[`` prefix
         is returned verbatim.
         """
-        from src.recording.heal.candidate_finder import _split_iframe_wrap
+        from RoboScopeHeal.candidate_finder import _split_iframe_wrap
         _prefix, inner = _split_iframe_wrap(selector)
         return inner
 

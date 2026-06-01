@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -39,6 +40,12 @@ class TestResultResponse(BaseModel):
 class ReportDetailResponse(BaseModel):
     report: ReportResponse
     test_results: list[TestResultResponse]
+    # Optional actionable diagnostic computed at response time by
+    # `execution.diagnostics.detect_report_diagnostic`. When non-null,
+    # the frontend renders a banner above the failed tests with a
+    # one-click action button (e.g. "Run rfbrowser init"). None means
+    # the UI falls back to showing the raw test error messages.
+    diagnostic: dict[str, Any] | None = None
 
 
 class TestHistoryPoint(BaseModel):

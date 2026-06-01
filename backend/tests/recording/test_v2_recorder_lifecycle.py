@@ -309,11 +309,16 @@ class TestHappyPathDoesNotMarkFailed:
 
         v2_recorder_task.run_v2_recorder_session(rec.id)
 
-        # `_mark_status` may be called for COMPLETED at the end of
-        # `_recorder_loop`, but the WRAPPER's catch-and-mark-FAILED
-        # path must not fire. Since we replaced `_recorder_loop`,
-        # NO _mark_status calls should happen at all from this test
-        # — proving the wrapper itself isn't issuing one.
-        assert mark_calls == []
+        # Story RECORDER-VIS-1 moved the terminal-status update out of
+        # `_recorder_loop` and into the wrapper so the same code path
+        # can distinguish stop-for-restart (skip mark) from clean stop
+        # (mark COMPLETED). A happy-path exit therefore legitimately
+        # fires exactly ONE `_mark_status(COMPLETED)` call from the
+        # wrapper. The intent of this test — verify the
+        # exception-path FAILED branch never fires on a clean exit —
+        # is preserved by asserting NO FAILED entries among the
+        # observed calls.
+        assert mark_calls == [(rec.id, RecordingStatus.COMPLETED, None)]
+        assert all(call[1] != RecordingStatus.FAILED for call in mark_calls)
         # Stop signal popped on the happy path too.
         assert v2_recorder_task.is_v2_session_active(rec.id) is False

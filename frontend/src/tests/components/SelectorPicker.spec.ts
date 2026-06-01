@@ -272,10 +272,15 @@ describe('SelectorPicker', () => {
 
       const events = w.emitted('update:candidate')
       expect(events).toBeTruthy()
+      // `effective: ''` means "no override, use auto-compose" — the
+      // user didn't touch the Effektiv field so the picker emits an
+      // explicit clear (consistent with the override-write semantics
+      // documented on the emit type).
       expect(events![0]).toEqual([{
         index: 0,
         value: '[data-test-id="my-button"]',
         strategy: 'testid',
+        effective: '',
       }])
     })
 
@@ -308,6 +313,7 @@ describe('SelectorPicker', () => {
       expect(events![0]).toEqual([{
         value: '//button[@aria-label="Save"]',
         strategy: 'xpath',
+        effective: '',
       }])
     })
 
@@ -339,6 +345,51 @@ describe('SelectorPicker', () => {
       await w.find('[data-testid="selector-picker-add-save"]').trigger('click')
       const events = w.emitted('add:candidate')
       expect(events![0][0]).toMatchObject({ strategy: 'css' })
+    })
+
+    /**
+     * Effektiv-Override field: when the user types a verbatim form
+     * that differs from what auto-compose would produce for the
+     * current value+strategy, the picker emits it as `effective:
+     * "<typed string>"`. The parent FlowEditor stores this on the
+     * candidate as `effective_override`, and the emitter writes it
+     * verbatim to .robot. Re-resetting (button) drops the override.
+     */
+    it('edit → save WITH a typed effective emits update:candidate with the override', async () => {
+      const w = mk(baseCmd)
+      await w.find('.selector-picker__toggle').trigger('click')
+      const items = w.findAll('.selector-picker__item')
+      await items[0].find('.selector-picker__edit').trigger('click')
+      // Don't touch value/strategy — only the Effektiv field.
+      const eff = items[0].find<HTMLInputElement>(
+        '[data-testid="selector-picker-effective-edit"]',
+      )
+      expect(eff.exists()).toBe(true)
+      await eff.setValue('iframe#manual >>> something else')
+      await items[0].find('.selector-picker__edit-action--save').trigger('click')
+      const events = w.emitted('update:candidate')
+      expect(events).toBeTruthy()
+      expect(events![0][0]).toMatchObject({
+        effective: 'iframe#manual >>> something else',
+      })
+    })
+
+    it('add custom WITH a typed effective emits the override on add:candidate', async () => {
+      const w = mk(baseCmd)
+      await w.find('.selector-picker__toggle').trigger('click')
+      await w.find('[data-testid="selector-picker-add"]').trigger('click')
+      await w.find<HTMLInputElement>('.selector-picker__edit-input').setValue('button.x')
+      const effInput = w.find<HTMLInputElement>(
+        '[data-testid="selector-picker-effective-add"]',
+      )
+      expect(effInput.exists()).toBe(true)
+      await effInput.setValue('iframe.banner >>> button.x')
+      await w.find('[data-testid="selector-picker-add-save"]').trigger('click')
+      const events = w.emitted('add:candidate')
+      expect(events).toBeTruthy()
+      expect(events![0][0]).toMatchObject({
+        effective: 'iframe.banner >>> button.x',
+      })
     })
   })
 })

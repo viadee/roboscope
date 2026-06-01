@@ -23,6 +23,34 @@ import { computed, ref, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RecordedCommand, SelectorCandidate, SelectorStrategy } from '@/types/recorder.types'
 import { qualityBand } from '@/utils/selectorQuality'
+import { effectiveSelectorForCandidate } from '@/utils/effectiveSelector'
+
+/**
+ * Build the auto-composed effective form for a value+strategy pair
+ * as if the user had a candidate with those edits but NO override.
+ * Reuses `effectiveSelectorForCandidate` so the auto-compute logic
+ * stays in one place. Used by the Edit + Add forms to (a) pre-fill
+ * the Effektiv field and (b) decide whether the user's typed
+ * effective is a "real override" or just the auto value.
+ *
+ * Edit/Add demote the candidate to `quality_score=50` +
+ * `verified_unique=false`, so the tentative candidate uses the same
+ * flags. This matters because `renderSelector` only appends the
+ * defensive `>> nth=0` for risky-strategy + non-verified.
+ */
+function autoComposedEffective(
+  cmd: RecordedCommand,
+  value: string,
+  strategy: SelectorStrategy,
+): string {
+  const tentative: SelectorCandidate = {
+    strategy,
+    value,
+    quality_score: 50,
+    verified_unique: false,
+  }
+  return effectiveSelectorForCandidate(cmd, tentative)
+}
 
 const props = defineProps<{
   command: RecordedCommand
@@ -32,10 +60,17 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:activeIndex': [index: number]
-  /** User edited an existing candidate's value / strategy. */
-  'update:candidate': [{ index: number; value: string; strategy: SelectorStrategy }]
-  /** User added a brand-new candidate. */
-  'add:candidate': [{ value: string; strategy: SelectorStrategy }]
+  /** User edited an existing candidate's value / strategy and
+   *  optionally its verbatim emit-form override.
+   *  - `effective: undefined` → no override change; recompose from
+   *    value+strategy as before.
+   *  - `effective: ""`       → clear an existing override.
+   *  - `effective: "<str>"` → set/replace the override verbatim. */
+  'update:candidate': [{ index: number; value: string; strategy: SelectorStrategy; effective?: string }]
+  /** User added a brand-new candidate, optionally with a verbatim
+   *  emit-form override (same `effective` semantics as above; an
+   *  empty / undefined value means "auto-compose, no override"). */
+  'add:candidate': [{ value: string; strategy: SelectorStrategy; effective?: string }]
 }>()
 
 const { t } = useI18n()
@@ -97,6 +132,18 @@ function pick(index: number) {
   menuOpen.value = false
 }
 
+/** Helper bound for the template — what gets emitted as the
+ *  selector argument in the .robot line if THIS candidate were
+ *  active. Mirrors the Python emitter's composition exactly via
+ *  `effectiveSelectorForCandidate`, so the picker shows the
+ *  cross-frame wrapper + defensive `>> nth=0` disambiguation
+ *  alongside the raw candidate value. Closes the "the live view
+ *  shows just `text=Zustimmen` but the saved .robot is something
+ *  else" UX gap the user pointed at on the heise.de recording. */
+function effectiveFor(c: SelectorCandidate): string {
+  return effectiveSelectorForCandidate(props.command, c)
+}
+
 function strategyLabelKey(strategy: SelectorStrategy): string {
   return `recorder.selector.strategy.${strategy}`
 }
@@ -130,12 +177,21 @@ onBeforeUnmount(unbindOutsideClick)
 const editingIndex = ref<number | null>(null)
 const editValue = ref('')
 const editStrategy = ref<SelectorStrategy>('css')
+/** Verbatim emit-form for the candidate being edited. Bound to the
+ *  third "Effektiv" input. Auto-syncs with value/strategy until
+ *  `editEffectiveTouched` flips — once the user types here, the
+ *  field decouples and becomes the override on commit. */
+const editEffective = ref('')
+const editEffectiveTouched = ref(false)
 const editInputRef = ref<HTMLInputElement | null>(null)
 
 /** When true, the "+ add custom" inline form is open. */
 const addOpen = ref(false)
 const addValue = ref('')
 const addStrategy = ref<SelectorStrategy>('css')
+/** Same as `editEffective` but for the Add form. */
+const addEffective = ref('')
+const addEffectiveTouched = ref(false)
 const addInputRef = ref<HTMLInputElement | null>(null)
 
 function closeAllInlineEditors() {
@@ -151,6 +207,15 @@ function startEdit(originalIndex: number) {
   editingIndex.value = originalIndex
   editValue.value = c.value
   editStrategy.value = c.strategy
+  // Pre-fill Effektiv with the existing override (verbatim) OR the
+  // auto-composed form. The user sees what's about to be written
+  // to the .robot before they type — and any deviation from the
+  // auto value is what triggers override-set on commit.
+  editEffective.value =
+    c.effective_override != null && c.effective_override.trim() !== ''
+      ? c.effective_override
+      : effectiveSelectorForCandidate(props.command, c)
+  editEffectiveTouched.value = false
   nextTick(() => {
     // Guard the call entirely — in vitest + JSDOM the template ref
     // can resolve to a wrapper object whose `focus` is undefined,
@@ -169,10 +234,19 @@ function commitEdit() {
     editingIndex.value = null
     return
   }
+  // Decide override-vs-auto by comparing the typed Effektiv against
+  // the auto-composed form FOR THE EDITED value+strategy. If they
+  // match → no override (clearing any prior one with `""`). If
+  // they differ → store override verbatim. Empty Effektiv input
+  // also clears any prior override.
+  const effInput = editEffective.value.trim()
+  const auto = autoComposedEffective(props.command, trimmed, editStrategy.value)
+  const effective: string = effInput === '' || effInput === auto ? '' : effInput
   emit('update:candidate', {
     index: editingIndex.value,
     value: trimmed,
     strategy: editStrategy.value,
+    effective,
   })
   editingIndex.value = null
 }
@@ -186,6 +260,8 @@ function startAdd() {
   addOpen.value = true
   addValue.value = ''
   addStrategy.value = 'css'
+  addEffective.value = ''
+  addEffectiveTouched.value = false
   nextTick(() => {
     // See the comment on `startEdit` — guard the focus call so a
     // JSDOM ref-resolution quirk doesn't surface as an unhandled
@@ -200,9 +276,13 @@ function commitAdd() {
     addOpen.value = false
     return
   }
+  const effInput = addEffective.value.trim()
+  const auto = autoComposedEffective(props.command, trimmed, addStrategy.value)
+  const effective: string = effInput === '' || effInput === auto ? '' : effInput
   emit('add:candidate', {
     value: trimmed,
     strategy: addStrategy.value,
+    effective,
   })
   addOpen.value = false
 }
@@ -238,6 +318,62 @@ watch(addValue, (v) => {
   // discoverable.
   addStrategy.value = detectStrategy(v)
 })
+
+// Keep the Effektiv field in lockstep with value/strategy edits
+// UNTIL the user touches Effektiv directly. After that, the field
+// becomes the verbatim override and stops auto-syncing — that's
+// the whole point of the override (escape from auto-compose).
+watch([editValue, editStrategy], ([v, s]) => {
+  if (editingIndex.value === null) return
+  if (editEffectiveTouched.value) return
+  editEffective.value = autoComposedEffective(props.command, v, s)
+})
+watch([addValue, addStrategy], ([v, s]) => {
+  if (!addOpen.value) return
+  if (addEffectiveTouched.value) return
+  addEffective.value = autoComposedEffective(props.command, v, s)
+})
+
+function onEditEffectiveInput() {
+  editEffectiveTouched.value = true
+}
+function onAddEffectiveInput() {
+  addEffectiveTouched.value = true
+}
+/** Reset Effektiv to the auto-composed form — drops any override
+ *  the user typed and re-enables live sync with value/strategy. */
+function resetEditEffective() {
+  editEffective.value = autoComposedEffective(
+    props.command, editValue.value.trim(), editStrategy.value,
+  )
+  editEffectiveTouched.value = false
+}
+function resetAddEffective() {
+  addEffective.value = autoComposedEffective(
+    props.command, addValue.value.trim(), addStrategy.value,
+  )
+  addEffectiveTouched.value = false
+}
+
+/** True iff the user has typed an Effektiv that differs from
+ *  what auto-compose would produce for the current value+strategy.
+ *  Used by the template to show an "Override aktiv" indicator. */
+const editEffectiveIsOverride = computed(() => {
+  if (editingIndex.value === null) return false
+  const trimmed = editValue.value.trim()
+  if (!trimmed) return false
+  const auto = autoComposedEffective(props.command, trimmed, editStrategy.value)
+  const eff = editEffective.value.trim()
+  return eff !== '' && eff !== auto
+})
+const addEffectiveIsOverride = computed(() => {
+  if (!addOpen.value) return false
+  const trimmed = addValue.value.trim()
+  if (!trimmed) return false
+  const auto = autoComposedEffective(props.command, trimmed, addStrategy.value)
+  const eff = addEffective.value.trim()
+  return eff !== '' && eff !== auto
+})
 </script>
 
 <template>
@@ -247,7 +383,13 @@ watch(addValue, (v) => {
       :title="t(strategyLabelKey(active.strategy)) + ` · ${active.quality_score}/100`"
       aria-hidden="true"
     />
-    <code class="selector-picker__value">{{ active.value }}</code>
+    <!-- Effective selector — what the emitter will write into the
+         .robot file (iframe wrapper + inner + defensive `>> nth=0`).
+         Falls back to the raw value for top-frame, fully-verified
+         candidates where the inner IS the full string. The picker's
+         user-facing contract is "what will I actually save?", not
+         "what does Pydantic call this field?", so show the composite. -->
+    <code class="selector-picker__value" :title="active.value">{{ effectiveFor(active) }}</code>
     <button
       v-if="hasMenu"
       type="button"
@@ -279,7 +421,11 @@ watch(addValue, (v) => {
             aria-hidden="true"
           />
           <span class="selector-picker__strategy">{{ t(strategyLabelKey(c.strategy)) }}</span>
-          <code class="selector-picker__value">{{ c.value }}</code>
+          <!-- Show the effective composite per-row so the user can
+               see what each alternative ACTUALLY emits before picking
+               it. Raw value stays on title= for hover when the user
+               wants to compare with the original candidate. -->
+          <code class="selector-picker__value" :title="c.value">{{ effectiveFor(c) }}</code>
           <span class="selector-picker__score">{{ c.quality_score }}</span>
           <span v-if="c.verified_unique" class="selector-picker__unique" aria-hidden="true" :title="t('recorder.selector.verifiedUniqueTitle')">✓</span>
           <button
@@ -326,6 +472,40 @@ watch(addValue, (v) => {
             :title="t('common.cancel')"
             @click.stop="cancelEdit"
           >×</button>
+          <!-- Effektiv (verbatim emit-form) row — sits below the
+               strategy/value row, spans the full grid width.
+               Editing it decouples the field from value/strategy
+               and stores the typed string as `effective_override`
+               on the candidate. Resetting brings live sync back. -->
+          <div class="selector-picker__effective-row">
+            <label class="selector-picker__effective-label">
+              {{ t('recorder.selector.effectiveLabel') }}
+            </label>
+            <input
+              v-model="editEffective"
+              class="selector-picker__effective-input"
+              :class="{ 'is-override': editEffectiveIsOverride }"
+              :placeholder="t('recorder.selector.effectivePlaceholder')"
+              :title="t('recorder.selector.effectiveTitle')"
+              data-testid="selector-picker-effective-edit"
+              @input="onEditEffectiveInput"
+              @keydown.enter.prevent="commitEdit"
+              @keydown.escape.prevent="cancelEdit"
+            />
+            <button
+              v-if="editEffectiveIsOverride"
+              type="button"
+              class="selector-picker__effective-reset"
+              :title="t('recorder.selector.effectiveResetTitle')"
+              data-testid="selector-picker-effective-reset-edit"
+              @click.stop="resetEditEffective"
+            >↺</button>
+            <span
+              v-if="editEffectiveIsOverride"
+              class="selector-picker__effective-badge"
+              :title="t('recorder.selector.effectiveOverrideTitle')"
+            >{{ t('recorder.selector.effectiveOverrideBadge') }}</span>
+          </div>
         </template>
       </li>
 
@@ -371,6 +551,36 @@ watch(addValue, (v) => {
             :title="t('common.cancel')"
             @click.stop="cancelAdd"
           >×</button>
+          <!-- Effektiv row for the Add form — same UX as Edit. -->
+          <div class="selector-picker__effective-row">
+            <label class="selector-picker__effective-label">
+              {{ t('recorder.selector.effectiveLabel') }}
+            </label>
+            <input
+              v-model="addEffective"
+              class="selector-picker__effective-input"
+              :class="{ 'is-override': addEffectiveIsOverride }"
+              :placeholder="t('recorder.selector.effectivePlaceholder')"
+              :title="t('recorder.selector.effectiveTitle')"
+              data-testid="selector-picker-effective-add"
+              @input="onAddEffectiveInput"
+              @keydown.enter.prevent="commitAdd"
+              @keydown.escape.prevent="cancelAdd"
+            />
+            <button
+              v-if="addEffectiveIsOverride"
+              type="button"
+              class="selector-picker__effective-reset"
+              :title="t('recorder.selector.effectiveResetTitle')"
+              data-testid="selector-picker-effective-reset-add"
+              @click.stop="resetAddEffective"
+            >↺</button>
+            <span
+              v-if="addEffectiveIsOverride"
+              class="selector-picker__effective-badge"
+              :title="t('recorder.selector.effectiveOverrideTitle')"
+            >{{ t('recorder.selector.effectiveOverrideBadge') }}</span>
+          </div>
         </template>
       </li>
     </ul>
@@ -557,5 +767,69 @@ watch(addValue, (v) => {
 
 .selector-picker--compact .selector-picker__value {
   font-size: 0.8rem;
+}
+
+/* Effektiv override row — second visual line of the edit/add form,
+   spans the entire grid width. */
+.selector-picker__effective-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 4px;
+}
+
+.selector-picker__effective-label {
+  font-family: var(--font-sans, sans-serif);
+  color: var(--color-text-secondary, #555);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  width: 70px;
+}
+
+.selector-picker__effective-input {
+  flex: 1;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.82rem;
+  padding: 3px 6px;
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 3px;
+  outline: none;
+  min-width: 0;
+}
+.selector-picker__effective-input:focus {
+  border-color: var(--color-primary, #3B7DD8);
+}
+.selector-picker__effective-input.is-override {
+  border-color: var(--color-accent, #D4883E);
+  background: rgba(212, 136, 62, 0.06);
+}
+
+.selector-picker__effective-reset {
+  background: transparent;
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 3px;
+  padding: 0 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary, #555);
+  line-height: 1.6;
+  flex-shrink: 0;
+}
+.selector-picker__effective-reset:hover {
+  border-color: var(--color-accent, #D4883E);
+  background: rgba(212, 136, 62, 0.08);
+}
+
+.selector-picker__effective-badge {
+  font-family: var(--font-sans, sans-serif);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-accent, #D4883E);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
 }
 </style>

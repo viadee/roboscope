@@ -77,21 +77,104 @@ def _escape_rf_token(s: str) -> str:
     return s
 
 
+# Strategies that MAY resolve to multiple matches if not unique by ID
+# or testid. When the recorder couldn't verify uniqueness (iframe race,
+# detached frame at verify time), we wrap the value with `>> nth=0` to
+# force a first-match resolution and avoid strict-mode-violation
+# crashes at replay. Cosmetic noise, but safer-by-default for the
+# real-world Sourcepoint / OneTrust / TCF-banner case where the iframe
+# disappears between click and verify.
+#
+# The wrap is suppressed when the selector already carries `nth=` /
+# `:nth-match(` (already disambiguated) or `>>` (chained pierce) so we
+# don't double-wrap or interfere with hand-edited chains.
+_RISKY_UNVERIFIED_STRATEGIES = {"text", "css", "role", "aria"}
+
+
+def _is_already_disambiguated(value: str) -> bool:
+    return (
+        ">> nth=" in value
+        or ":nth-match(" in value
+        or ":nth-of-type(" in value
+        or ">>>" in value
+        or ">>" in value
+    )
+
+
 def _render_selector(cand: SelectorCandidate) -> str:
     """Return the on-disk representation of a selector for a Robot line.
 
     Browser library selectors are plain strings (it accepts css, xpath,
     text, role, and id= prefixes). We emit `strategy=value` only where
     Browser requires an explicit prefix; otherwise use the raw value.
+
+    Defensive disambiguation: when the candidate is `verified_unique=
+    False` AND uses a strategy known to be multi-match-prone (text,
+    role, aria, generic css without an id), we append `>> nth=0` so
+    Browser library's strict-mode picks the first match deterministically
+    instead of raising "locator resolved to N elements". The case this
+    catches is the heise.de Sourcepoint banner: `text="Zustimmen"`
+    matches 3 elements (button + two paragraphs), the iframe detached
+    before the verifier could disambiguate, and the candidate landed
+    unverified at slot 0. Without this wrap the recording is unrunnable.
     """
     value = cand.value
     if cand.strategy == "xpath":
-        return f"xpath={value}"
-    if cand.strategy == "text":
-        return value if value.startswith("text=") else f"text={value}"
-    # testid / css / aria / pw_locator / desktop strategies keep their value
-    # verbatim — Browser library + test-author both read them clearly.
-    return value
+        out = f"xpath={value}"
+    elif cand.strategy == "text":
+        out = value if value.startswith("text=") else f"text={value}"
+    else:
+        # testid / css / aria / pw_locator / desktop strategies keep
+        # their value verbatim — Browser library + test-author both
+        # read them clearly.
+        out = value
+
+    if (
+        not cand.verified_unique
+        and cand.strategy in _RISKY_UNVERIFIED_STRATEGIES
+        and not _is_already_disambiguated(out)
+        # css-with-id is unique enough that wrapping is overkill —
+        # `#login-form` rarely matches multiple elements in practice.
+        and not (cand.strategy == "css" and "#" in value)
+    ):
+        out = f"{out} >> nth=0"
+    return out
+
+
+def _iframe_chain_locator(cmd: RecordedCommand) -> str | None:
+    """Story RECORDER-FRAMES-2 — compose the iframe-wrapper portion of
+    a cross-frame Browser-library locator from `cmd.frame_chain`.
+
+    Each rung in `frame_chain` contributes `selector_candidates[0]`
+    (the highest-ranked one, since the list is pre-sorted by
+    `verified_unique DESC, quality_score DESC`). Rungs without
+    candidates fall back to the legacy `iframe[src*="<host>"]`
+    derived from the rung's URL — the same shape the URL-only path
+    in `_iframe_locator_from_url` emits, kept here so a partially-
+    captured chain (some rungs verified, some not) still produces a
+    valid composite locator instead of dropping the entire wrapper.
+
+    Returns the composed prefix `<outer> >>> <inner-iframe>` (no
+    trailing separator — the caller adds `>>> <element>` after).
+    Returns None when the chain is empty so the caller knows to fall
+    back to the legacy URL-only strategy.
+    """
+    if not cmd.frame_chain:
+        return None
+    pieces: list[str] = []
+    for rung in cmd.frame_chain:
+        if rung.selector_candidates:
+            pieces.append(rung.selector_candidates[0].value)
+        else:
+            # Rung without verified candidates — synthesise the
+            # legacy URL-based fallback so the chain doesn't break.
+            fallback = _iframe_locator_from_url(rung.url) if rung.url else None
+            if fallback is None:
+                # No URL either (unlikely but possible) — bail out;
+                # we can't safely compose a partial chain.
+                return None
+            pieces.append(fallback)
+    return " >>> ".join(pieces)
 
 
 def _iframe_locator_from_url(frame_url: str) -> str | None:
@@ -167,20 +250,43 @@ def _emit_command(cmd: RecordedCommand) -> str:
             )
             return comment_line
         else:
-            inner = _render_selector(active)
-            # Story RECORDER-FRAMES — events captured inside an iframe
-            # carry their originating URL on the command; wrap the
-            # inner selector with `iframe[src*="<host>"] >>> ` so the
-            # replay locates the right document.
-            if cmd.frame_url:
-                iframe_loc = _iframe_locator_from_url(cmd.frame_url)
-                if iframe_loc is not None:
-                    inner = f"{iframe_loc} >>> {inner}"
-            # RF-token escape — a CSS-ID selector `#login-form` would
-            # be parsed as a comment by Robot Framework. The escape
-            # `\#login-form` is consumed by RF's lexer before the
-            # value reaches Browser library.
-            parts.append(_escape_rf_token(inner))
+            # User-supplied verbatim override — the SelectorPicker's
+            # ✏ edit lets users set this when the auto-composed form
+            # is wrong (synthesised iframe rung that doesn't match,
+            # unwanted `>> nth=0` for a candidate they know is
+            # unique, hand-tuned cross-frame chain). When set, skip
+            # the chain + render + nth composition entirely and emit
+            # the override as-is. The RF-token escape still runs so a
+            # bare-`#`-prefixed override is parsed correctly by RF's
+            # lexer.
+            if active.effective_override is not None and active.effective_override.strip():
+                parts.append(_escape_rf_token(active.effective_override))
+            else:
+                inner = _render_selector(active)
+                # Story RECORDER-FRAMES — events captured inside an iframe
+                # carry their originating URL on the command; wrap the
+                # inner selector with `iframe[…] >>> ` so the replay
+                # locates the right document.
+                #
+                # Story RECORDER-FRAMES-2 — when `frame_chain` is present,
+                # pick each rung's best selector candidate (verified-
+                # unique > quality_score) so the user gets the ID-based
+                # iframe locator when available, falls back through
+                # name/src-exact/src-host/class as appropriate. Old
+                # sidecars without `frame_chain` keep using the legacy
+                # URL-derived `iframe[src*="<host>"]` strategy.
+                chain_prefix = _iframe_chain_locator(cmd)
+                if chain_prefix:
+                    inner = f"{chain_prefix} >>> {inner}"
+                elif cmd.frame_url:
+                    legacy = _iframe_locator_from_url(cmd.frame_url)
+                    if legacy is not None:
+                        inner = f"{legacy} >>> {inner}"
+                # RF-token escape — a CSS-ID selector `#login-form` would
+                # be parsed as a comment by Robot Framework. The escape
+                # `\#login-form` is consumed by RF's lexer before the
+                # value reaches Browser library.
+                parts.append(_escape_rf_token(inner))
 
     # Ordered args by convention: `url` first for navigation, `text` for
     # type/assert, `state` for wait, generic `value` last.
@@ -280,7 +386,15 @@ def _emit_desktop_command(cmd: RecordedCommand) -> str:
                 f"captured (cmd.id={cmd.id or '<none>'})"
             )
         else:
-            parts.append(_render_desktop_selector(active))
+            # Same override contract as web: a user-supplied verbatim
+            # form bypasses the strategy-prefix logic and lands in
+            # the emit as-is. Desktop has no iframe-chain wrapping
+            # to skip — the prefix mapping (`name:`, `id:`, `class:`,
+            # `xpath:`) is what would otherwise be applied.
+            if active.effective_override is not None and active.effective_override.strip():
+                parts.append(active.effective_override)
+            else:
+                parts.append(_render_desktop_selector(active))
 
     ordered = ("text", "value", "key")
     for key in ordered:

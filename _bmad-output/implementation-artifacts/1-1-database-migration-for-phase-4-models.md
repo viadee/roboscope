@@ -1,6 +1,6 @@
 # Story 1.1: Database migration for Phase-4 models
 
-Status: in-progress
+Status: done
 
 Epic: 1 — Enterprise Identity Foundation
 Story Key: `1-1-database-migration-for-phase-4-models`

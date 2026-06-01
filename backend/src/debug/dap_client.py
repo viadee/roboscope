@@ -25,7 +25,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from src.debug.dap_protocol import (
     DapMessage,
@@ -123,7 +124,7 @@ class DapClient:
         try:
             await write_message(self._writer, msg)
             return await asyncio.wait_for(fut, timeout=self._request_timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._pending.pop(seq, None)
             raise
         except Exception:

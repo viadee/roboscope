@@ -32,20 +32,289 @@ from src.recording.context_menu_script import CONTEXT_MENU_SCRIPT
 from src.recording.models import RecordingSession, RecordingStatus
 from src.recording.overlay_script import OVERLAY_SCRIPT
 from src.recording.v2_command_queue import (
+    LifecycleEvent,
     enqueue_command,
+    enqueue_lifecycle,
     finalize_session,
     tear_down_session,
 )
-from src.recording.selector_schema import RecordedCommand, SelectorCandidate
+from src.recording.selector_schema import (
+    FrameDescriptor,
+    RecordedCommand,
+    SelectorCandidate,
+)
 from src.recording.selector_verification import MatchInfo, verify_candidates
 from src.recording.v2_payload_translator import translate_payload
 
 logger = logging.getLogger("roboscope.recording.v2_recorder")
 
 
+async def _capture_frame_chain(
+    frame_or_page: Any,
+    iframe_inventory: dict[str, dict[str, Any]] | None = None,
+) -> list[FrameDescriptor]:
+    """Story RECORDER-FRAMES-2 — walk the parent-frame ancestry and
+    build a `FrameDescriptor` per rung, with selector candidates for
+    each `<iframe>` element synthesised against its PARENT document.
+
+    Why: the legacy emitter rebuilt the iframe locator at serialise
+    time from `frame_url` alone, hardcoded to
+    `iframe[src*="<host>"]`. That broke when the host wasn't unique
+    on the page (multiple CMP iframes from the same vendor) and gave
+    the picker no alternative iframe selector to switch to. This
+    helper produces 4-6 ranked candidates per iframe (id, testid,
+    name, src exact, src host, first stable class) using Playwright's
+    `frame_element()` API — works cross-origin because it's a
+    CDP-level call, not a browser-DOM-level one.
+
+    Returns an empty list when:
+      - `frame_or_page` is a Page (top-frame event, no iframe wrapper
+        needed),
+      - any `frame_element()` raises (iframe detached mid-flight, race
+        with the user's click handler — we still preserve the URL on
+        the cmd, so the emitter can fall back to the legacy strategy).
+
+    Order: index 0 is the outermost iframe in the page, last entry is
+    the iframe whose document the event originated from. The emitter
+    composes them with `>>>` separators in the same order.
+    """
+    if frame_or_page is None:
+        return []
+    # A Playwright Page has a `main_frame`; a Frame has `parent_frame`.
+    # Top-page events arrive with `page` here → no chain.
+    if not hasattr(frame_or_page, "parent_frame"):
+        return []
+
+    # Walk inner → outer, collecting one descriptor per non-root frame.
+    descriptors: list[FrameDescriptor] = []
+    cur: Any = frame_or_page
+    try:
+        while cur is not None and getattr(cur, "parent_frame", None) is not None:
+            parent = cur.parent_frame
+            url = cur.url if hasattr(cur, "url") else ""
+            # RECORDER-FRAMES-2 — try the top-frame iframe inventory
+            # FIRST. The inventory was built by the capture script's
+            # `iframe_register` events at page-load + DOM-mutation time,
+            # so it contains synthesised + uniqueness-counted candidates
+            # for every iframe seen ever, INCLUDING ones that have
+            # since detached. This bypasses the race that makes
+            # `frame_element()` fail on self-removing CMP banners.
+            candidates = _candidates_from_inventory(iframe_inventory, url)
+            if not candidates:
+                # No inventory hit (cross-origin iframe whose contentUrl
+                # JS couldn't read, or scan didn't catch the iframe in
+                # time). Fall back to the live `frame_element()` call —
+                # works when the iframe is still attached.
+                try:
+                    el = await asyncio.wait_for(cur.frame_element(), timeout=1.0)
+                    candidates = await _synthesise_iframe_candidates(el, parent, url)
+                except Exception:
+                    # iframe element gone — record the url-only
+                    # descriptor; emitter will fall back to
+                    # `iframe[src*="<host>"]`.
+                    candidates = []
+            descriptors.append(
+                FrameDescriptor(url=url, selector_candidates=candidates),
+            )
+            cur = parent
+    except Exception:
+        # Unexpected — return what we managed to collect so far.
+        return list(reversed(descriptors))
+
+    # Walked inner → outer; flip to outer → inner so emitter chains
+    # `outer >>> inner >>> final`.
+    return list(reversed(descriptors))
+
+
+def _candidates_from_inventory(
+    inventory: dict[str, dict[str, Any]] | None,
+    frame_url: str,
+) -> list[SelectorCandidate]:
+    """Look up a frame URL in the proactive iframe inventory and
+    return its pre-built SelectorCandidate list, sorted by
+    (verified_unique DESC, quality_score DESC).
+
+    The inventory was assembled JS-side by the top-frame capture
+    script — each candidate already carries a `count` field (how
+    many parent-frame elements that selector resolves to), which
+    we map to `verified_unique = count == 1`. Synthesis happens
+    BEFORE any user click, so candidates survive a subsequent
+    iframe detach.
+
+    Returns an empty list when:
+      - inventory is None or empty,
+      - no entry matches `frame_url` by any of its index keys
+        (iframe_src, iframe_contentUrl).
+    """
+    if not inventory:
+        return []
+    entry = inventory.get(frame_url)
+    if entry is None:
+        # Loose match: many iframes do `src="about:blank"` and then
+        # navigate, so the frame_url won't match either iframe_src
+        # or contentUrl literally. Try a substring match on src.
+        for key, candidate_entry in inventory.items():
+            iframe_src = candidate_entry.get("iframe_src", "") or ""
+            if iframe_src and (iframe_src in frame_url or frame_url in iframe_src):
+                entry = candidate_entry
+                break
+    if entry is None:
+        return []
+    raw = entry.get("candidates", []) or []
+    out: list[SelectorCandidate] = []
+    for c in raw:
+        # Drop selectors that didn't match anything in the parent —
+        # synthesis produced them but they no longer apply.
+        if not c or c.get("count", 0) == 0:
+            continue
+        out.append(SelectorCandidate(
+            strategy=c.get("strategy", "css"),
+            value=c.get("value", ""),
+            quality_score=int(c.get("quality_score", 0)),
+            verified_unique=(c.get("count", 0) == 1),
+        ))
+    out.sort(key=lambda c: (not c.verified_unique, -c.quality_score))
+    return out
+
+
+async def _synthesise_iframe_candidates(
+    element_handle: Any, parent_frame: Any, frame_url: str,
+) -> list[SelectorCandidate]:
+    """Build a ranked list of selectors that point at one specific
+    `<iframe>` element from within its parent document.
+
+    Strategies tried, in descending quality:
+      - `iframe#<id>`               (qs 90)
+      - `iframe[data-testid="…"]`   (qs 95)
+      - `iframe[name="…"]`          (qs 85)
+      - `iframe[src="<full>"]`      (qs 75)
+      - `iframe[src*="<host>"]`     (qs 65) — legacy fallback
+      - `iframe.<first-class>`      (qs 40) — last resort
+
+    Each candidate's `verified_unique` is set by a count() against
+    `parent_frame` so the picker can show the green check immediately
+    without a second pass through the standard verifier. Candidates
+    that resolve to 0 are dropped; candidates that resolve to 1 are
+    `verified_unique=True`; multi-match candidates are kept with the
+    flag False so the user is at least aware.
+    """
+    try:
+        info = await asyncio.wait_for(
+            element_handle.evaluate(
+                """(el) => {
+                    const cls = (el.className || "").split(/\\s+/).filter(Boolean);
+                    return {
+                        id: el.id || "",
+                        testid: el.getAttribute("data-testid") || "",
+                        name: el.getAttribute("name") || "",
+                        src: el.getAttribute("src") || "",
+                        classes: cls,
+                    };
+                }""",
+            ),
+            timeout=1.0,
+        )
+    except Exception:
+        return []
+    if not isinstance(info, dict):
+        return []
+
+    from urllib.parse import urlparse
+
+    raw: list[tuple[str, str, int]] = []  # (strategy, value, quality)
+
+    if info.get("id"):
+        raw.append(("css", f'iframe#{info["id"]}', 90))
+    if info.get("testid"):
+        raw.append(("testid", f'iframe[data-testid="{info["testid"]}"]', 95))
+    if info.get("name"):
+        raw.append(("css", f'iframe[name="{info["name"]}"]', 85))
+    src = info.get("src") or ""
+    if src:
+        raw.append(("css", f'iframe[src="{src}"]', 75))
+        try:
+            host = urlparse(src).netloc or urlparse(frame_url).netloc
+        except Exception:
+            host = ""
+        if host:
+            raw.append(("css", f'iframe[src*="{host}"]', 65))
+    elif frame_url:
+        try:
+            host = urlparse(frame_url).netloc
+        except Exception:
+            host = ""
+        if host:
+            raw.append(("css", f'iframe[src*="{host}"]', 65))
+    classes = info.get("classes") or []
+    if classes:
+        raw.append(("css", f'iframe.{classes[0]}', 40))
+
+    # Verify each candidate by counting matches in the parent frame.
+    # The iframe element lives in the parent, NOT in the iframe doc, so
+    # the count call goes against `parent_frame`, not `element_handle`.
+    out: list[SelectorCandidate] = []
+    for strategy, value, qs in raw:
+        try:
+            loc = parent_frame.locator(value)
+            count = await asyncio.wait_for(loc.count(), timeout=1.0)
+        except Exception:
+            # Couldn't verify — preserve as-is, unverified.
+            out.append(
+                SelectorCandidate(
+                    strategy=strategy, value=value,
+                    quality_score=qs, verified_unique=False,
+                ),
+            )
+            continue
+        if count == 0:
+            # Synthesis produced a selector that doesn't match — drop
+            # rather than ship a guaranteed-wrong locator.
+            continue
+        out.append(
+            SelectorCandidate(
+                strategy=strategy, value=value,
+                quality_score=qs, verified_unique=(count == 1),
+            ),
+        )
+    # Sort by (verified_unique DESC, quality_score DESC) — same
+    # contract as inner-element candidates.
+    out.sort(key=lambda c: (not c.verified_unique, -c.quality_score))
+    return out
+
+
+def _resolve_frame_target(source: Any) -> Any:
+    """Pick the locator target out of Playwright's `expose_binding`
+    source argument.
+
+    Playwright's runtime passes
+    `source = dict(context=ctx, page=page, frame=frame)` — a plain
+    `dict`. We previously used `getattr(source, "frame", None)`,
+    which on a dict always returns `None` (dicts hold keys, not
+    attributes). That silently nulled the verifier on every captured
+    event in production. See the wire-up comment in `on_capture`.
+
+    Returns:
+      - For the canonical Playwright path: the originating Frame
+        (iframe-aware) or, as fallback, the top Page.
+      - For synthetic events (`source=None`, e.g. the recorder's
+        own `_on_new_page` Switch Page emission): `None`. The
+        downstream helper short-circuits on `None`.
+      - For test stubs that expose `.frame` / `.page` attributes:
+        the attribute, so existing unit tests don't have to be
+        rewritten.
+    """
+    if source is None:
+        return None
+    if isinstance(source, dict):
+        return source.get("frame") or source.get("page")
+    return getattr(source, "frame", None) or getattr(source, "page", None)
+
+
 async def _verify_command_candidates(
     cmd: RecordedCommand,
     frame_or_page: Any,
+    *,
+    iframe_inventory: dict[str, dict[str, Any]] | None = None,
 ) -> RecordedCommand:
     """Run `verify_candidates` against the originating frame, return
     an enriched copy with `verified_unique` flags populated.
@@ -65,7 +334,7 @@ async def _verify_command_candidates(
     if not cmd.selector_candidates or frame_or_page is None:
         return cmd
 
-    async def _resolve(c: SelectorCandidate) -> MatchInfo:
+    async def _resolve(c: SelectorCandidate) -> MatchInfo | None:
         """Return total / visible / actionable counts for one
         candidate via a single JS round-trip per candidate.
 
@@ -82,10 +351,29 @@ async def _verify_command_candidates(
         non-zero box. Not perfect (no IntersectionObserver-level
         clipping check) but good enough for the recorder's intent
         of "would the user actually click this".
+
+        Return semantics:
+          - `MatchInfo(t, v, a)` — verification ran cleanly. `t > 0`
+            and the candidate gets classified + ranked; `t == 0`
+            means the selector resolves to nothing live and the
+            caller drops it.
+          - `None` — verification COULDN'T RUN (frame detached after
+            a navigation-triggering click, page closed mid-flight,
+            transient browser-side error). The caller preserves the
+            candidate at the tail of the list as unverified rather
+            than dropping it, because the failure has nothing to do
+            with whether the selector is good.
         """
         try:
             loc = frame_or_page.locator(c.value)
-            result = await loc.evaluate_all(
+            # Bound the JS round-trip. Without a timeout, a click on
+            # a page that's mid-navigation (or an iframe that just
+            # detached) can leave `evaluate_all` hanging until the
+            # default Playwright timeout — which is too long for an
+            # interactive recorder where the user might click 10
+            # things in 1 second. 1s is generous for a same-context
+            # JS call but fails fast on detached frames.
+            result = await asyncio.wait_for(loc.evaluate_all(
                 """(els) => {
                     let visible = 0, actionable = 0;
                     for (const el of els) {
@@ -108,21 +396,37 @@ async def _verify_command_candidates(
                     }
                     return { total: els.length, visible, actionable };
                 }""",
-            )
+            ), timeout=1.0)
             if not isinstance(result, dict):
-                return MatchInfo(0, 0, 0)
+                # Defensive — Playwright returned something we
+                # don't recognise. Treat as "couldn't verify"
+                # rather than silently dropping the candidate.
+                return None
             return MatchInfo(
                 total=int(result.get("total", 0)),
                 visible=int(result.get("visible", 0)),
                 actionable=int(result.get("actionable", 0)),
             )
         except Exception:
-            # Invalid selector syntax / detached frame / mid-mutation
-            # element — treat as 0-match so the candidate is dropped
-            # rather than leaking through unverified.
-            return MatchInfo(0, 0, 0)
+            # Navigation / detached frame / closed page / invalid
+            # selector — couldn't decide either way. Preserve the
+            # candidate as unverified so a click on a link or a
+            # cookie-banner-dismiss-which-removes-the-iframe doesn't
+            # nuke every candidate the synthesis layer just produced.
+            # The picker shows them without a green check and the
+            # user can still pick the obvious one.
+            return None
 
     verified = await verify_candidates(cmd.selector_candidates, _resolve)
+    # Story RECORDER-FRAMES-2 — capture the iframe ancestry alongside
+    # the inner-element verification. Done in the same async pass so
+    # the iframe still exists in the parent DOM (best chance — the
+    # banner-removes-itself flow only takes effect after the user's
+    # original click handler runs to completion). Empty list for
+    # top-frame events.
+    frame_chain = await _capture_frame_chain(
+        frame_or_page, iframe_inventory=iframe_inventory,
+    )
     # After re-sorting, index 0 is the best (verified > non-verified, then
     # quality_score desc). The original active index is meaningless now —
     # it referred to a position in the unsorted/un-pruned list. Resetting
@@ -146,11 +450,20 @@ async def _verify_command_candidates(
         active_candidate_index=0,
         element_fingerprint=cmd.element_fingerprint,
         frame_url=cmd.frame_url,
+        frame_chain=frame_chain,
     )
 
 # Per-session stop signal. The DELETE endpoint sets this; the recorder
 # loop awaits it via `_wait_for_stop_event`.
 _stop_signals: dict[int, threading.Event] = {}
+
+# Story RECORDER-VIS-1 — session ids whose current stop is a *restart*
+# request (the HTTP endpoint will dispatch a fresh task right after the
+# current one tears down). The wrapper checks this in its post-loop
+# branch and skips the COMPLETED/finalize_session bookkeeping so the
+# queue stays alive for the new task and the SSE consumer never sees
+# the end sentinel.
+_restart_pending: set[int] = set()
 
 
 async def _wait_for_stop_event(stop_event: threading.Event) -> None:
@@ -180,6 +493,19 @@ def signal_stop_v2(session_id: int) -> bool:
         evt.set()
         return True
     return False
+
+
+def signal_restart_v2(session_id: int) -> bool:
+    """Signal a restart: mark the session for a graceful tear-down WITHOUT
+    finalisation (the queue + DB row stay live), then set the stop event.
+
+    Returns False if no task is active for this session id — callers
+    should then 409 or treat it as already-torn-down.
+    """
+    if session_id not in _stop_signals:
+        return False
+    _restart_pending.add(session_id)
+    return signal_stop_v2(session_id)
 
 
 def is_v2_session_active(session_id: int) -> bool:
@@ -212,6 +538,7 @@ def run_v2_recorder_session(
     stop_event = threading.Event()
     _stop_signals[session_id] = stop_event
 
+    crashed = False
     try:
         asyncio.run(
             _recorder_loop(
@@ -219,14 +546,40 @@ def run_v2_recorder_session(
                 headless=headless, test_actions=test_actions,
             )
         )
-    except Exception:
+    except Exception as exc:
+        crashed = True
         logger.exception("v2 recorder session %d crashed", session_id)
+        # RECORDER-VIS-1 — surface the crash on the SSE stream so the
+        # live view can render an error banner + Restart button before
+        # the queue is torn down.
+        enqueue_lifecycle(
+            session_id,
+            LifecycleEvent(phase="browser_crashed", message=str(exc) or None),
+        )
         _mark_status(session_id, RecordingStatus.FAILED, message="recorder crashed")
     finally:
         _stop_signals.pop(session_id, None)
-        # Ensure the SSE subscriber wakes up and the queue is cleaned.
-        finalize_session(session_id)
-        tear_down_session(session_id)
+        # RECORDER-VIS-1 — if this stop was a restart request AND the
+        # task exited cleanly, keep the queue + DB row alive so the
+        # new task can resume seamlessly. Otherwise finalise normally
+        # (existing W.2 contract). Always clear the restart flag so a
+        # late call doesn't leak the entry.
+        was_restart = session_id in _restart_pending
+        _restart_pending.discard(session_id)
+        if was_restart and not crashed:
+            # Do NOT mark COMPLETED, do NOT push end-sentinel, do NOT
+            # tear down the queue — the restart endpoint dispatches a
+            # fresh task that will reuse all three.
+            pass
+        else:
+            if not crashed:
+                # Loop exited cleanly via user stop.
+                _mark_status(session_id, RecordingStatus.COMPLETED)
+            # The crash branch above already pushed `browser_crashed`
+            # onto the queue; the end sentinel below then closes the
+            # SSE stream cleanly.
+            finalize_session(session_id)
+            tear_down_session(session_id)
 
 
 async def _recorder_loop(
@@ -242,10 +595,46 @@ async def _recorder_loop(
 
     command_index = 0
     index_lock = threading.Lock()
+    # RECORDER-FRAMES-2 — per-session iframe inventory built from the
+    # top-frame capture script's `iframe_register` payloads. Keyed by
+    # multiple candidate match keys: the iframe's `src` attribute, its
+    # `contentWindow.location.href` (same-origin only — captures URLs
+    # that the iframe navigated to internally), and its plain id. Any
+    # of these may be what shows up as `frame_url` on an iframe-
+    # internal event, so we register the entry under all three.
+    iframe_inventory: dict[str, dict[str, Any]] = {}
+
+    def _register_iframe(payload: dict[str, Any]) -> None:
+        entry = {
+            "iframe_src": payload.get("iframe_src", "") or "",
+            "iframe_id": payload.get("iframe_id", "") or "",
+            "iframe_name": payload.get("iframe_name", "") or "",
+            "iframe_testid": payload.get("iframe_testid", "") or "",
+            "iframe_classes": payload.get("iframe_classes", []) or [],
+            "candidates": payload.get("candidates", []) or [],
+        }
+        # Index under every key Playwright might surface later as
+        # `frame_url`. Cross-origin contentWindow access throws on
+        # JS side so `iframe_contentUrl` is "" in that case — only
+        # `iframe_src` is reliable for cross-origin frames.
+        for key in (
+            payload.get("iframe_src", ""),
+            payload.get("iframe_contentUrl", ""),
+        ):
+            if key:
+                iframe_inventory[key] = entry
 
     async def on_capture(source: Any, payload: dict[str, Any]) -> None:
         nonlocal command_index
         try:
+            # RECORDER-FRAMES-2 — iframe-register events are inventory
+            # updates, not user-interaction commands. Handle separately
+            # so they never get an index, never reach the queue, and
+            # never get a RecordedCommand.
+            if isinstance(payload, dict) and payload.get("kind") == "iframe_register":
+                _register_iframe(payload)
+                return
+
             with index_lock:
                 idx = command_index
                 command_index += 1
@@ -259,13 +648,37 @@ async def _recorder_loop(
             # The helper sorts by `(verified_unique desc, quality_score
             # desc)`, so the picker's first option is the best verified
             # candidate (or the best unverified one if none is unique).
-            frame = getattr(source, "frame", None) or getattr(source, "page", None)
-            cmd = await _verify_command_candidates(cmd, frame)
+            #
+            # BUG-FIX (RECORDER-VERIFY-FRAME): Playwright's
+            # `expose_binding` callback passes `source` as a
+            # `dict(context=..., page=..., frame=...)` — NOT as an
+            # object with `.frame`/`.page` attributes. The previous
+            # `getattr(source, "frame", None)` therefore ALWAYS
+            # returned None on production captures (dicts have keys,
+            # not attributes), `_verify_command_candidates` then
+            # short-circuited on `frame_or_page is None`, and every
+            # recorded command landed with `verified_unique=False`
+            # on every candidate — so the picker defaulted to
+            # whatever ranked first by static heuristic, even when
+            # it was non-unique against the live DOM. Use dict
+            # access for the canonical case, keep getattr as a
+            # fallback so legacy unit tests that pass fake objects
+            # with `.frame` still work.
+            frame = _resolve_frame_target(source)
+            cmd = await _verify_command_candidates(
+                cmd, frame, iframe_inventory=iframe_inventory,
+            )
             enqueue_command(session_id, cmd)
         except Exception:
             # Must NEVER raise — the binding handler runs on the Playwright
             # event loop and an exception would kill the whole session.
             logger.exception("v2 recorder capture handler failed")
+
+    # RECORDER-VIS-1 — tell the live view we're spawning so the pill
+    # leaves "connecting" before Chromium boot completes. Emitted from
+    # the same thread as the wrapper so there is no race with the
+    # consumer-side iterator already attached to this session id.
+    enqueue_lifecycle(session_id, LifecycleEvent(phase="browser_starting"))
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=headless)
@@ -313,9 +726,27 @@ async def _recorder_loop(
             except Exception:
                 logger.warning("v2 recorder: initial goto(%s) failed", target_url, exc_info=True)
 
+        # RECORDER-VIS-1 — at this point Chromium is up, the capture
+        # scripts are injected, the binding is registered, and the
+        # initial page is rendered. The user can click and see events
+        # arrive. Flip the live-view pill to "browser ready".
+        enqueue_lifecycle(session_id, LifecycleEvent(phase="browser_ready"))
+
         # Listener on browser disconnect → flip the stop event. Same
-        # safety as Story R-1.
+        # safety as Story R-1. If the disconnect is unexpected (user
+        # closed the window, OS killed the process, …) the stop_event
+        # wasn't set yet — RECORDER-VIS-1 turns that into an explicit
+        # `browser_crashed` lifecycle event so the live view can offer
+        # a Restart button.
         def _on_disconnect() -> None:
+            if not stop_event.is_set():
+                enqueue_lifecycle(
+                    session_id,
+                    LifecycleEvent(
+                        phase="browser_crashed",
+                        message="browser disconnected unexpectedly",
+                    ),
+                )
             stop_event.set()
 
         browser.on("disconnected", _on_disconnect)
@@ -354,7 +785,9 @@ async def _recorder_loop(
         except Exception:
             pass
 
-    _mark_status(session_id, RecordingStatus.COMPLETED)
+    # NOTE: terminal status update (COMPLETED) moved to the wrapper
+    # `run_v2_recorder_session` so it can distinguish stop-for-restart
+    # from real stop. See the RECORDER-VIS-1 changes above.
 
 
 def _mark_status(session_id: int, status: str, message: str | None = None) -> None:

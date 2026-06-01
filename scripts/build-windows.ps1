@@ -209,6 +209,13 @@ DEBUG=false
 
 # Logging
 LOG_LEVEL=INFO
+# LOG_FORMAT — ``text`` (default for standalone start) for human-readable
+# console logs, or ``json`` for log shippers / Docker / CI.
+LOG_FORMAT=text
+
+# Auto-open the app in your default browser after startup. Default OFF
+# (commented) so headless installs don't surprise you. Set to 1 to enable.
+# OPEN_BROWSER=1
 
 # Directories (defaults shown — adjust if needed)
 # WORKSPACE_DIR=~/.roboscope/workspace
@@ -240,13 +247,19 @@ echo     Start with: start-windows.bat
 @echo off
 cd /d "%~dp0"
 
-:: Load port from .env if present
+:: Load port + log format from .env if present
 set PORT=8145
 if exist .env (
     for /f "usebackq tokens=1,2 delims==" %%a in (".env") do (
         if "%%a"=="PORT" set PORT=%%b
+        if "%%a"=="LOG_FORMAT" set LOG_FORMAT=%%b
+        if "%%a"=="OPEN_BROWSER" set OPEN_BROWSER=%%b
     )
 )
+
+:: Default to readable text logs for humans on Windows cmd / PowerShell.
+:: Override via .env (LOG_FORMAT=json) for log-shipper integrations.
+if not defined LOG_FORMAT set LOG_FORMAT=text
 
 :: Check if port is already in use
 netstat -ano | findstr ":%PORT% " | findstr "LISTENING" >nul 2>&1

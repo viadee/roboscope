@@ -180,6 +180,26 @@ for pkg in "tomli>=2.0.0" "exceptiongroup>=1.0.0" "typing_extensions>=4.0.0" "gr
   python3 -m pip download "$pkg" -d "$DIST/wheels" --no-deps 2>/dev/null || true
 done
 
+# Story HEAL-VENDORED — build the vendored `robotframework-
+# roboscopeheal` wheel from `backend/vendor/...` and drop it
+# alongside the pip-downloaded wheels. Until v0.2 is on PyPI this
+# is the only way the offline install path can satisfy the dep.
+# `python -m build` produces a pure-Python wheel; `install.sh`'s
+# `pip install --no-index --find-links wheels/` picks it up by
+# version match, no special-case install logic needed.
+RFHEAL_VENDOR="$ROOT/backend/vendor/robotframework-roboscopeheal"
+if [ -d "$RFHEAL_VENDOR" ]; then
+  echo "    Building robotframework-roboscopeheal wheel from vendor..."
+  # `python -m build` requires the `build` package — install it
+  # transiently if missing rather than expecting it to be there.
+  python3 -m pip install --quiet --upgrade build 2>/dev/null || true
+  (cd "$RFHEAL_VENDOR" \
+   && python3 -m build --wheel --outdir "$DIST/wheels" 2>&1 \
+   | grep -iE "built|error|warn" || true)
+else
+  echo "    WARN: $RFHEAL_VENDOR missing — heal library won't be in this bundle." >&2
+fi
+
 # Save requirements for install scripts
 cp "$REQ_FILE" "$DIST/requirements.txt"
 rm -f "$DEPS_FILE"
@@ -203,6 +223,13 @@ DEBUG=false
 
 # Logging
 LOG_LEVEL=INFO
+# LOG_FORMAT — `text` (default for standalone start) for human-readable
+# console logs, or `json` for log shippers / Docker / CI.
+LOG_FORMAT=text
+
+# Auto-open the app in your default browser after startup. Default OFF
+# (commented) so headless installs don't surprise you. Set to 1 to enable.
+# OPEN_BROWSER=1
 
 # Directories (defaults shown — adjust if needed)
 # WORKSPACE_DIR=~/.roboscope/workspace
@@ -253,6 +280,10 @@ cd "$(dirname "$0")"
 if [ -f ".env" ]; then
   set -a; source .env; set +a
 fi
+
+# Default to readable text logs for the human running this binary.
+# .env can override (LOG_FORMAT=json) to keep log shippers happy.
+export LOG_FORMAT="${LOG_FORMAT:-text}"
 
 PORT="${PORT:-8145}"
 

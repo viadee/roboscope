@@ -96,20 +96,42 @@ function formatShortDate(d: string | Date): string {
   return `${dt.getDate()}.${dt.getMonth() + 1}.`
 }
 
-const chartXLabels = computed(() => {
+// Pass/Fail Trend table is rendered newest-first. The backend
+// returns ascending-by-date (correct for the bar-chart left-to-
+// right chronological reading), so we reverse a shallow copy here
+// for the table render. Don't sort in place — the same `stats.trends`
+// reference is reused by the chart-x-label logic.
+const trendsDesc = computed(() => [...stats.trends].slice().reverse())
+
+/**
+ * Pick ~5 evenly spaced labels (first, last, and midpoints) and
+ * record WHICH bar index each label belongs to. The template then
+ * renders one x-axis slot per bar (same flex layout + max-width as
+ * `.chart-bar`) and only the matching slots carry text — so each
+ * visible label sits geometrically under its bar regardless of how
+ * many bars fit in the container width. The previous approach used
+ * `justify-content: space-between` which spread labels across the
+ * FULL parent width while bars stopped at `max-width: 20px`, so the
+ * last label drifted right of the last bar by however much
+ * whitespace the bars left unfilled.
+ */
+const chartXLabels = computed<{ idx: number; text: string }[]>(() => {
   const pts = stats.successRate
   if (pts.length === 0) return []
-  if (pts.length === 1) return [{ text: formatShortDate(pts[0].date) }]
-  if (pts.length === 2) return pts.map(p => ({ text: formatShortDate(p.date) }))
-  // Pick ~5 evenly spaced labels (first, last, and midpoints)
+  if (pts.length === 1) return [{ idx: 0, text: formatShortDate(pts[0].date) }]
+  if (pts.length === 2) return pts.map((p, i) => ({ idx: i, text: formatShortDate(p.date) }))
   const count = Math.min(5, pts.length)
-  const labels: { text: string }[] = []
+  const labels: { idx: number; text: string }[] = []
   for (let i = 0; i < count; i++) {
     const idx = Math.round(i * (pts.length - 1) / (count - 1))
-    labels.push({ text: formatShortDate(pts[idx].date) })
+    labels.push({ idx, text: formatShortDate(pts[idx].date) })
   }
   return labels
 })
+
+function labelForBar(barIdx: number): string {
+  return chartXLabels.value.find(l => l.idx === barIdx)?.text ?? ''
+}
 
 const stalenessText = computed(() => {
   if (!stats.lastRunFinished || !stats.lastAggregated) return ''
@@ -351,11 +373,17 @@ function formatDate(d: string | null) {
                     :title="`${point.date}: ${formatPercent(point.success_rate)} (${t('stats.runsTooltip', { total: point.total_runs })})`"
                   ></div>
                 </div>
-                <!-- X-axis: only first, last, and a few midpoints -->
+                <!-- X-axis: one slot per bar (same flex layout +
+                     max-width as `.chart-bar`) so visible labels sit
+                     directly under their bars. Empty slots preserve
+                     the alignment when only a subset of bars carry
+                     text. -->
                 <div class="chart-x-axis">
-                  <span v-for="label in chartXLabels" :key="label.text" class="chart-x-label">
-                    {{ label.text }}
-                  </span>
+                  <span
+                    v-for="(_, i) in stats.successRate"
+                    :key="i"
+                    class="chart-x-slot"
+                  >{{ labelForBar(i) }}</span>
                 </div>
               </div>
             </div>
@@ -380,7 +408,7 @@ function formatDate(d: string | null) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="point in stats.trends" :key="point.date">
+              <tr v-for="point in trendsDesc" :key="point.date">
                 <td>{{ point.date }}</td>
                 <td class="text-success">{{ point.passed }}</td>
                 <td :class="point.failed > 0 ? 'text-danger' : ''">{{ point.failed }}</td>
@@ -1178,12 +1206,30 @@ function formatDate(d: string | null) {
 .bar-danger:hover { opacity: 1; }
 
 .chart-x-axis {
+  /* Same flex layout as `.mini-chart` so the slots align with bars
+     1:1. `align-items: flex-start` keeps labels glued to the top of
+     the row (right under the bar bases). */
   display: flex;
-  justify-content: space-between;
+  align-items: flex-start;
+  gap: 3px;
   margin-top: 6px;
-  padding: 0 2px;
 }
 
+.chart-x-slot {
+  flex: 1;
+  min-width: 4px;
+  max-width: 20px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  /* Long-date strings (`12.5.`) easily exceed 20px — let the slot
+     keep its grid position but render the text overflowing without
+     pushing siblings out of alignment. */
+  overflow: visible;
+  white-space: nowrap;
+}
+
+/* Backward compat for any direct consumers of the old class. */
 .chart-x-label {
   font-size: 11px;
   color: var(--color-text-muted);

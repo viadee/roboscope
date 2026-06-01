@@ -28,6 +28,118 @@ logger = logging.getLogger("roboscope.environments.tasks")
 _active_package_tasks: dict[tuple[int, str], bool] = {}
 
 
+def _vendored_heal_path() -> Path:
+    """Absolute path to the vendored `robotframework-roboscopeheal`
+    source tree shipped with this RoboScope checkout. Used to seed
+    every freshly-created project venv with the heal library so the
+    user's `.robot` tests can use `Library RoboScopeHeal` + the
+    `Heal *` keywords on day one — without waiting for the PyPI
+    publication of the standalone package.
+
+    Resolves to `backend/vendor/robotframework-roboscopeheal/`
+    relative to THIS file: `backend/src/environments/tasks.py` →
+    `backend/vendor/...`.
+    """
+    return (
+        Path(__file__).resolve().parent.parent.parent
+        / "vendor" / "robotframework-roboscopeheal"
+    )
+
+
+# Registry of packages that ship vendored inside RoboScope.
+#
+# When a user asks the UI to install one of these by NAME (no
+# explicit version), the install path resolves to the on-disk
+# vendor tree under `backend/vendor/<dir>/` instead of going to
+# PyPI. An explicit version request still goes to PyPI — that's
+# the "I want to upgrade past what RoboScope ships" override path.
+#
+# Add entries here when vendoring a new library. The directory
+# name MUST be the on-disk folder under `backend/vendor/` and
+# needs a `pyproject.toml` at its root so `uv pip install <path>`
+# can build a wheel from source.
+_SHIPPED_VENDOR_PACKAGES: dict[str, str] = {
+    "robotframework-roboscopeheal": "robotframework-roboscopeheal",
+}
+
+
+def _shipped_vendor_path(package_name: str) -> Path | None:
+    """Return the vendored source path for a shipped package, or
+    None when the package isn't shipped with RoboScope OR the
+    vendor directory is missing on disk (defensive — a stripped
+    release tree shouldn't break PyPI installs of OTHER packages).
+
+    Normalised to lowercase to match `pip`'s case-insensitive
+    distribution-name handling.
+    """
+    vendor_dir = _SHIPPED_VENDOR_PACKAGES.get(package_name.lower())
+    if vendor_dir is None:
+        return None
+    path = (
+        Path(__file__).resolve().parent.parent.parent
+        / "vendor" / vendor_dir
+    )
+    if not path.is_dir():
+        logger.warning(
+            "_shipped_vendor_path: %s registered but vendor dir "
+            "missing at %s — falling back to PyPI",
+            package_name, path,
+        )
+        return None
+    return path
+
+
+def _install_vendored_heal_into_venv(venv_path: str, env_id: int) -> None:
+    """Seed `robotframework-roboscopeheal` into a freshly-created
+    project venv. Non-fatal — heal is opt-in test ergonomics, not a
+    runtime requirement for RF itself, so a failure here logs a
+    warning instead of failing the whole `create_venv` flow.
+
+    Why install at venv-create time (not at every refresh): users
+    who explicitly remove the heal package from their venv via the
+    package-management UI shouldn't have it silently re-added on
+    every backend restart. Doing this only on the create path makes
+    the install user-overridable.
+
+    Why install from the vendored path instead of `pip install
+    robotframework-roboscopeheal`: until v0.2 lands on PyPI, the
+    name doesn't resolve. Pointing pip at the local source tree is
+    the only way to actually get the wheel built and dropped into
+    the project venv.
+    """
+    vendor_path = _vendored_heal_path()
+    if not vendor_path.is_dir():
+        # Source-tree-broken edge case (build artefact stripped, dev
+        # accidentally deleted the directory) — log and move on.
+        # `backend/tests/test_vendored_rfheal_present.py` is the
+        # regression watchdog for this; if we reached production
+        # without that directory, something more serious is off.
+        logger.warning(
+            "vendored heal lib missing at %s — skipping auto-install "
+            "into env %d", vendor_path, env_id,
+        )
+        return
+    try:
+        result = subprocess.run(
+            pip_install_cmd(venv_path, str(vendor_path)),
+            capture_output=True, text=True,
+        )
+    except Exception:
+        logger.warning(
+            "vendored heal install raised in env %d; venv usable, "
+            "user can install manually later", env_id, exc_info=True,
+        )
+        return
+    if result.returncode != 0:
+        logger.warning(
+            "vendored heal install failed in env %d (rc=%d): %s",
+            env_id, result.returncode,
+            (result.stderr or result.stdout or "")[:400],
+        )
+        return
+    logger.info("seeded robotframework-roboscopeheal into env %d", env_id)
+
+
 def is_package_task_active(env_id: int, package_name: str) -> bool:
     """Check whether an install/upgrade task is currently running for this package."""
     return _active_package_tasks.get((env_id, package_name), False)
@@ -231,6 +343,26 @@ def create_venv(env_id: int) -> dict:
                 logger.error("robotframework install failed for env %d: %s", env_id, error_msg)
                 return {"status": "error", "message": error_msg}
 
+            # Story HEAL-VENDORED phase-2 — also seed the heal library
+            # so the user's test cases can use `Library RoboScopeHeal` +
+            # `Heal Click` immediately on a fresh project venv, without
+            # an extra UI roundtrip. Installs from the vendored source
+            # tree (`backend/vendor/robotframework-roboscopeheal/`) for
+            # the same reason backend/pyproject.toml's
+            # `[tool.uv.sources]` does: PyPI publication isn't done yet
+            # and the vendored copy travels with every RoboScope clone /
+            # release ZIP.
+            #
+            # Non-fatal: a failure here logs a warning but doesn't fail
+            # the whole venv creation — the heal library is an
+            # opt-in test ergonomics layer, not a runtime requirement
+            # for RF itself. Users who explicitly removed it from
+            # their venv have the option to keep it gone (we don't
+            # re-add on subsequent installs; this branch runs only at
+            # `create_venv` time, see `_install_vendored_heal_into_venv`
+            # docstring).
+            _install_vendored_heal_into_venv(str(venv_path), env_id)
+
             logger.info("Created venv at %s", venv_path)
             return {"status": "success", "message": f"Created venv at {venv_path}"}
         except Exception as exc:
@@ -285,7 +417,27 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
             _broadcast_package_status(env_id, package_name, "installing")
 
         try:
-            pkg_spec = f"{package_name}=={version}" if version else package_name
+            # Shipped-with-RoboScope packages: when the UI asks for an
+            # install with NO explicit version, resolve to the vendored
+            # source tree on disk instead of going to PyPI. The package
+            # may not be on PyPI yet (RoboScopeHeal isn't, today) OR
+            # PyPI may have a version that diverges from what this
+            # RoboScope release was tested against — the vendored copy
+            # is the deterministic ship-with-RoboScope answer.
+            # An explicit version request bypasses the vendor and goes
+            # to PyPI as usual: that's the "I want to upgrade past what
+            # RoboScope ships" path, and it should only succeed once
+            # PyPI actually carries the package.
+            shipped_path = _shipped_vendor_path(package_name) if version is None else None
+            if shipped_path is not None:
+                pkg_spec = str(shipped_path)
+                logger.info(
+                    "install_package: resolving %s (no version) to "
+                    "vendored source at %s (env %d)",
+                    package_name, shipped_path, env_id,
+                )
+            else:
+                pkg_spec = f"{package_name}=={version}" if version else package_name
 
             subprocess.run(
                 pip_install_cmd(

@@ -1,0 +1,18 @@
+RoboScopeHeal
+==============
+
+Copyright 2026 viadee Unternehmensberatung AG.
+
+Licensed under the Apache License, Version 2.0 (the "License").
+See the LICENSE file in this directory for the full license text.
+
+----------------------------------------------------------------------
+
+This package was extracted from the RoboScope project
+(https://github.com/viadee/roboscope) so it can be installed
+standalone via PyPI by Robot Framework users who want self-healing
+selectors without taking on the rest of the RoboScope stack.
+
+The source originated as the `backend/src/recording/heal/` module of
+RoboScope (story SH-2, expanded by SH-3 / SH-4 / SH-5). All commits
+prior to this package's first tag live in the RoboScope repository.

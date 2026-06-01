@@ -63,11 +63,12 @@ describe('specForSlot (Story EDITOR-9)', () => {
 
 /** Mirror of FlowEditor.vue's `addArgOptions` filter logic. */
 function addArgOptions(args: string[], specs: ParsedArg[]) {
+  const specNames = new Set(specs.map((s) => s.name))
   const usedNames = new Set<string>()
   for (let i = 0; i < args.length; i++) {
     const v = args[i]
     const m = /^([A-Za-z_][\w]*)\s*=/.exec(v)
-    if (m) {
+    if (m && specNames.has(m[1])) {
       usedNames.add(m[1])
     } else {
       const positional = specs[i]
@@ -119,5 +120,43 @@ describe('addArgOptions (Story EDITOR-9)', () => {
     const specs = ['selector', '*keys', '**opts'].map(parseArgSignature)
     const opts = addArgOptions(['#in'], specs)
     expect(opts).toEqual([])
+  })
+
+  it('does not misread a Browser-library locator prefix as a named arg', () => {
+    // Regression: Heal Click signature is `selector, *args, **kwargs`.
+    // A recorded selector like `xpath=//a[…]` matches the
+    // `name=value` regex even though `xpath` is not a kwarg name —
+    // it's the Browser-library locator strategy prefix that's part
+    // of the selector VALUE. Old code added `xpath` to `usedNames`,
+    // so `selector` looked unfilled and the picker offered to add
+    // a phantom `selector=` slot. That slot then crashed RF at
+    // run-time with `expected at least 1 non-named argument, got 0`.
+    const healClickSpecs = ['selector', '*args', '**kwargs'].map(parseArgSignature)
+    const opts = addArgOptions(['xpath=//a[normalize-space()="Bio"]'], healClickSpecs)
+    // `selector` is occupied positionally, `*args` / `**kwargs` are
+    // never offered, so the picker is empty.
+    expect(opts).toEqual([])
+  })
+
+  it.each([
+    ['css=button.submit'],
+    ['text="Submit"'],
+    ['id=login-btn'],
+    ['role=button'],
+    ['nth=0'],
+    ['data-test=row'],  // hyphen in the prefix — would not even
+                        // match the regex, but pinned for completeness.
+  ])('treats `%s` in args[0] as the positional selector value', (raw) => {
+    const healClickSpecs = ['selector', '*args', '**kwargs'].map(parseArgSignature)
+    expect(addArgOptions([raw], healClickSpecs)).toEqual([])
+  })
+
+  it('still flags a real named arg in args[0] as used', () => {
+    // Sanity check: the regex-with-spec guard must not break the
+    // ordinary named-arg path. If args[0] = `modules=os`, that IS a
+    // legitimate named arg matching the `Evaluate` signature, so the
+    // picker should mark `modules` as used.
+    const opts = addArgOptions(['1+1', 'modules=os'], evaluateSpecs)
+    expect(opts.map((o) => o.name)).toEqual(['namespace'])
   })
 })

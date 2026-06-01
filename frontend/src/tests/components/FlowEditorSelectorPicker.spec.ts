@@ -233,10 +233,16 @@ describe('applySelectorSwap', () => {
     }
   }
 
-  it('updates args[0] and active_candidate_index for a valid index', () => {
+  // The fixture's candidates are `text=Welcome` (text, unverified) and
+  // `div.intro` (css w/o `#`, unverified). Both fall under
+  // `_RISKY_UNVERIFIED_STRATEGIES`, so the effective composite that
+  // `applySelectorSwap` now writes carries the defensive `>> nth=0`
+  // suffix — same as `renderSelector` / the Python emitter.
+
+  it('writes the effective composite (inner + defensive nth=0) into args[0]', () => {
     const { step, cmd } = clone()
     expect(applySelectorSwap(step, cmd, 1)).toBe(true)
-    expect(step.args[0]).toBe('div.intro')
+    expect(step.args[0]).toBe('div.intro >> nth=0')
     expect(cmd.active_candidate_index).toBe(1)
   })
 
@@ -247,11 +253,79 @@ describe('applySelectorSwap', () => {
     expect(cmd.active_candidate_index).toBe(0)
   })
 
-  it('appends to args when args is empty', () => {
+  it('appends the composite to args when args is empty', () => {
     const step = mkStep({ keyword: 'Click', args: [] })
     const cmd = JSON.parse(JSON.stringify(sidecar.commands[0]))
     expect(applySelectorSwap(step, cmd, 0)).toBe(true)
-    expect(step.args).toEqual(['text=Welcome'])
+    expect(step.args).toEqual(['text=Welcome >> nth=0'])
+  })
+
+  it('writes the candidate\'s effective_override verbatim, skipping composition', () => {
+    // When a candidate carries a user-supplied override (set via
+    // the SelectorPicker's ✏ Effektiv field), the swap path must
+    // write it as-is — no iframe wrap, no `>> nth=0` re-decoration.
+    const step = mkStep({ keyword: 'Click', args: ['anything'] })
+    const cmd: RecordedCommand = {
+      index: 0,
+      keyword: 'Click',
+      args: {},
+      selector_candidates: [
+        { strategy: 'text', value: 'text=Welcome', quality_score: 50, verified_unique: false },
+        {
+          strategy: 'css',
+          value: 'button.tweaked',
+          quality_score: 50,
+          verified_unique: false,
+          // User dropped the auto-composed `iframe[…] >>> button.tweaked >> nth=0`
+          // in favour of a hand-written cross-frame chain.
+          effective_override: 'iframe#manual >>> button.tweaked',
+        },
+      ],
+      active_candidate_index: 0,
+      frame_chain: [
+        { url: 'https://cmp.example/', selector_candidates: [
+          { strategy: 'css', value: 'iframe#auto', quality_score: 90, verified_unique: true },
+        ] },
+      ],
+    } as RecordedCommand
+    expect(applySelectorSwap(step, cmd, 1)).toBe(true)
+    expect(step.args[0]).toBe('iframe#manual >>> button.tweaked')
+    expect(cmd.active_candidate_index).toBe(1)
+  })
+
+  /**
+   * Regression — heise.de Sourcepoint banner: the user picks a
+   * different candidate in the right detail panel, the iframe-chain
+   * prefix MUST survive the swap. Before the fix, only
+   * `candidate.value` was copied, dropping the wrap and producing a
+   * top-frame click on replay. The picker had advertised the wrapped
+   * composite all along; now the written value matches the menu row.
+   */
+  it('preserves the iframe-chain prefix on swap inside a cross-frame command', () => {
+    const step = mkStep({
+      keyword: 'Click',
+      args: ['iframe[src*="cmp.heise.de"] >>> text=Zustimmen >> nth=0'],
+    })
+    const cmd: RecordedCommand = {
+      index: 0,
+      keyword: 'Click',
+      args: {},
+      selector_candidates: [
+        { strategy: 'text', value: 'text=Zustimmen', quality_score: 70, verified_unique: false },
+        { strategy: 'css', value: 'button#consent-ok', quality_score: 88, verified_unique: false },
+      ],
+      active_candidate_index: 0,
+      frame_chain: [
+        { url: 'https://cmp.heise.de/banner', selector_candidates: [
+          { strategy: 'css', value: 'iframe[src*="cmp.heise.de"]', quality_score: 90, verified_unique: true },
+        ] },
+      ],
+    } as RecordedCommand
+    expect(applySelectorSwap(step, cmd, 1)).toBe(true)
+    // CSS with a `#` skips the defensive `>> nth=0` (id is unique
+    // enough), so the composite is the chain prefix + bare inner.
+    expect(step.args[0]).toBe('iframe[src*="cmp.heise.de"] >>> button#consent-ok')
+    expect(cmd.active_candidate_index).toBe(1)
   })
 })
 
@@ -302,5 +376,88 @@ describe('isCustomSelectorValue', () => {
       args: ['iframe[src*="example.com"] >>> #manual-id'],
     })
     expect(isCustomSelectorValue(step, sidecar.commands[0])).toBe(true)
+  })
+
+  /**
+   * Regression — real heise.de recording uses an id-based iframe
+   * candidate (`iframe#sp_message_iframe_1454968`), not the
+   * attribute-CSS shape `iframe[src*="…"]`. Before the
+   * lastIndexOf(' >>> ') strip, the shape-specific regex only
+   * caught attribute-CSS prefixes, leaving `iframe#…` un-stripped.
+   * The comparison then failed, the picker badged every swap as
+   * "eigener Wert, nicht aus der Aufzeichnung" and the overwrite
+   * confirm dialog fired on every legitimate row click.
+   */
+  /**
+   * Regression — real heise.de Sourcepoint banner sidecar uses an
+   * id-based iframe candidate (`iframe#sp_message_iframe_1454968`).
+   * Custom-detection now goes through `effectiveSelectorForCandidate`
+   * so any iframe-rung strategy is supported uniformly.
+   */
+  it('returns false when args[0] is the effective composite (text, id-based iframe wrap)', () => {
+    const cmd: RecordedCommand = {
+      ...sidecar.commands[0],
+      selector_candidates: [
+        { strategy: 'text', value: 'text=Welcome', quality_score: 50, verified_unique: false },
+      ],
+      frame_chain: [
+        { url: 'https://cmp.example/banner', selector_candidates: [
+          { strategy: 'css', value: 'iframe#sp_message_iframe_1454968', quality_score: 90, verified_unique: true },
+        ] },
+      ],
+    } as RecordedCommand
+    const step = mkStep({
+      args: ['iframe#sp_message_iframe_1454968 >>> text=Welcome >> nth=0'],
+    })
+    expect(isCustomSelectorValue(step, cmd)).toBe(false)
+  })
+
+  /**
+   * Regression — after swapping to an xpath candidate, `renderSelector`
+   * prepends `xpath=` to the inner value. The previous strip-based
+   * comparison only handled iframe + nth, leaving `xpath=` in the
+   * stripped current but not in the candidate's raw value → wrong
+   * "eigener Wert" classification. Now the composite match handles
+   * `xpath=` / `text=` prefix asymmetry uniformly.
+   */
+  it('returns false after a swap to an xpath candidate inside an iframe', () => {
+    const cmd: RecordedCommand = {
+      ...sidecar.commands[0],
+      selector_candidates: [
+        { strategy: 'text', value: 'text="Zustimmen"', quality_score: 70, verified_unique: false },
+        { strategy: 'xpath', value: '//button[normalize-space()="Zustimmen"]', quality_score: 65, verified_unique: false },
+      ],
+      active_candidate_index: 1,
+      frame_chain: [
+        { url: 'https://cmp.example/banner', selector_candidates: [
+          { strategy: 'css', value: 'iframe#sp_message_iframe_1454968', quality_score: 90, verified_unique: true },
+        ] },
+      ],
+    } as RecordedCommand
+    const step = mkStep({
+      args: ['iframe#sp_message_iframe_1454968 >>> xpath=//button[normalize-space()="Zustimmen"]'],
+    })
+    expect(isCustomSelectorValue(step, cmd)).toBe(false)
+  })
+
+  it('handles multi-level iframe chains uniformly', () => {
+    const cmd: RecordedCommand = {
+      ...sidecar.commands[0],
+      selector_candidates: [
+        { strategy: 'css', value: 'div.intro', quality_score: 50, verified_unique: true },
+      ],
+      frame_chain: [
+        { url: 'https://outer.test', selector_candidates: [
+          { strategy: 'css', value: 'iframe[src*="outer.test"]', quality_score: 90, verified_unique: true },
+        ] },
+        { url: 'https://inner.test', selector_candidates: [
+          { strategy: 'css', value: 'iframe#inner', quality_score: 90, verified_unique: true },
+        ] },
+      ],
+    } as RecordedCommand
+    const step = mkStep({
+      args: ['iframe[src*="outer.test"] >>> iframe#inner >>> div.intro'],
+    })
+    expect(isCustomSelectorValue(step, cmd)).toBe(false)
   })
 })

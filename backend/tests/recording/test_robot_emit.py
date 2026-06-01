@@ -6,6 +6,7 @@ import pytest
 
 from src.recording.robot_emit import _emit_command, emit_robot
 from src.recording.selector_schema import (
+    FrameDescriptor,
     RecordedCommand,
     RecordedFlow,
     SelectorCandidate,
@@ -519,3 +520,350 @@ class TestEmitMissingSelectorObservability:
         _emit_command(cmd)
         warnings = [r for r in caplog.records if r.levelname == "WARNING"]
         assert warnings == []
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Story RECORDER-FRAMES-2 — `frame_chain` overrides the legacy URL-only
+# `iframe[src*="<host>"]` strategy, falls back gracefully on partial
+# chains, and stacks across nested iframes.
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestFrameChainEmit:
+    def test_chain_with_id_candidate_replaces_legacy_host_match(self) -> None:
+        """When `frame_chain[0]` carries a verified-unique `iframe#id`
+        candidate, the emitter prefers it over the URL-derived
+        `iframe[src*="<host>"]` legacy locator."""
+        from src.recording.selector_schema import FrameDescriptor
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="button.accept",
+                    quality_score=80, verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+            frame_url="https://cmp.example.com/consent",
+            frame_chain=[
+                FrameDescriptor(
+                    url="https://cmp.example.com/consent",
+                    selector_candidates=[
+                        SelectorCandidate(
+                            strategy="css", value="iframe#cmp-banner",
+                            quality_score=90, verified_unique=True,
+                        ),
+                        SelectorCandidate(
+                            strategy="css",
+                            value='iframe[src*="cmp.example.com"]',
+                            quality_score=65, verified_unique=True,
+                        ),
+                    ],
+                ),
+            ],
+        )
+        line = _emit_command(cmd)
+        assert "iframe#cmp-banner >>> button.accept" in line
+        # The legacy URL-host pattern is NOT used when a better
+        # iframe candidate exists.
+        assert 'iframe[src*="cmp.example.com"]' not in line
+
+    def test_chain_empty_falls_back_to_legacy_url_host(self) -> None:
+        """No frame_chain → legacy `iframe[src*="<host>"]` path
+        unchanged. Confirms backward compat for pre-FRAMES-2 sidecars."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="button.accept",
+                    quality_score=80, verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+            frame_url="https://cmp.example.com/consent",
+        )
+        line = _emit_command(cmd)
+        assert 'iframe[src*="cmp.example.com"] >>> button.accept' in line
+
+    def test_chain_rung_without_candidates_falls_back_to_rung_url(self) -> None:
+        """`FrameDescriptor` with empty `selector_candidates` (iframe
+        detached mid-capture) falls back to its OWN url-derived
+        `iframe[src*="<host>"]` for that rung. Rest of the chain is
+        unaffected."""
+        from src.recording.selector_schema import FrameDescriptor
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="button.accept",
+                    quality_score=80, verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+            frame_url="https://cmp.example.com/consent",
+            frame_chain=[
+                FrameDescriptor(
+                    url="https://cmp.example.com/consent",
+                    selector_candidates=[],  # detached, couldn't synth
+                ),
+            ],
+        )
+        line = _emit_command(cmd)
+        assert 'iframe[src*="cmp.example.com"] >>> button.accept' in line
+
+    def test_chain_nested_iframes_compose_outer_to_inner(self) -> None:
+        """Two-rung chain (outer iframe wraps inner iframe) composes
+        as `outer >>> inner >>> element` — the index 0 rung is the
+        outermost."""
+        from src.recording.selector_schema import FrameDescriptor
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="button.accept",
+                    quality_score=80, verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+            frame_url="https://inner.example.com/",
+            frame_chain=[
+                FrameDescriptor(
+                    url="https://outer.example.com/",
+                    selector_candidates=[
+                        SelectorCandidate(
+                            strategy="css", value="iframe#outer-host",
+                            quality_score=90, verified_unique=True,
+                        ),
+                    ],
+                ),
+                FrameDescriptor(
+                    url="https://inner.example.com/",
+                    selector_candidates=[
+                        SelectorCandidate(
+                            strategy="css", value="iframe[name=consent]",
+                            quality_score=85, verified_unique=True,
+                        ),
+                    ],
+                ),
+            ],
+        )
+        line = _emit_command(cmd)
+        assert "iframe#outer-host >>> iframe[name=consent] >>> button.accept" in line
+
+
+# ──────────────────────────────────────────────────────────────────────
+# RECORDER-FRAMES-2 defensive disambiguation — when the verifier
+# couldn't run (iframe detached at verify time, Sourcepoint-banner
+# race) the active selector lands `verified_unique=False`. For risky
+# strategies (text, generic css, role, aria) we wrap with `>> nth=0`
+# at emit time so Browser library's strict mode doesn't crash with
+# "locator resolved to N elements" at replay.
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestDefensiveDisambiguation:
+    def test_unverified_text_gets_nth0_wrap(self) -> None:
+        """The heise.de Sourcepoint case: `text="Zustimmen"` matches
+        3 elements (button + 2 paragraphs), verifier couldn't run
+        because the iframe detached, candidate landed at slot 0
+        with `verified_unique=False`. Without this wrap, replay
+        crashes."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="text", value='text="Zustimmen"',
+                    quality_score=70, verified_unique=False,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        assert 'text="Zustimmen" >> nth=0' in line
+
+    def test_verified_text_does_not_get_wrapped(self) -> None:
+        """When verification ran cleanly and the candidate is
+        `verified_unique=True`, emit it bare. Disambiguation is
+        only a safety net for the unverified case."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="text", value='text="OnlyOne"',
+                    quality_score=70, verified_unique=True,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        assert 'text="OnlyOne"' in line
+        assert ">> nth=0" not in line
+
+    def test_unverified_css_with_id_skips_wrap(self) -> None:
+        """A CSS selector with `#` is unique enough in practice that
+        wrapping would be noisy. Skip the defensive wrap."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="#login-form",
+                    quality_score=85, verified_unique=False,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        # `\#` is the comment-escape — unrelated to our wrap.
+        assert ">> nth=0" not in line
+
+    def test_unverified_xpath_does_not_get_wrap(self) -> None:
+        """Xpath strategies aren't in the risky-strategy set — xpath
+        is usually written explicit enough by the synthesis layer
+        not to need defensive disambiguation."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="xpath",
+                    value="//button[normalize-space()='Click me']",
+                    quality_score=60, verified_unique=False,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        assert ">> nth=0" not in line
+
+    def test_already_disambiguated_selector_is_not_double_wrapped(self) -> None:
+        """If the verifier already produced `text=X >> nth=0` (via
+        `_with_nth_match`), don't bolt a second `>> nth=0` on top."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="text", value='text="Zustimmen" >> nth=0',
+                    quality_score=55, verified_unique=False,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        # Exactly one `nth=0` in the output line.
+        assert line.count("nth=0") == 1
+
+    def test_unverified_generic_css_class_gets_wrap(self) -> None:
+        """A pure-class CSS selector is the textbook multi-match
+        risk — wrap defensively."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="button.primary",
+                    quality_score=50, verified_unique=False,
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        line = _emit_command(cmd)
+        assert "button.primary >> nth=0" in line
+
+
+class TestEffectiveOverride:
+    """User-supplied verbatim emit-form (set via the FlowEditor
+    SelectorPicker's ✏ Effektiv field) MUST short-circuit the
+    iframe-chain wrap + renderSelector prefix + defensive nth
+    composition. The override string lands in the .robot line
+    exactly as typed (modulo the RF-token escape on leading `#`)."""
+
+    def test_override_skips_iframe_wrap_and_nth(self) -> None:
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="text", value='text="Zustimmen"',
+                    quality_score=70, verified_unique=False,
+                    # User wants to drop the auto-composed
+                    # `iframe#auto-synth >>> text="Zustimmen" >> nth=0`
+                    # in favour of a hand-tuned chain.
+                    effective_override='iframe.consent >>> text="Zustimmen"',
+                ),
+            ],
+            active_candidate_index=0,
+            frame_chain=[
+                FrameDescriptor(url="https://cmp.example/", selector_candidates=[
+                    SelectorCandidate(
+                        strategy="css", value="iframe#auto-synth",
+                        quality_score=90, verified_unique=True,
+                    ),
+                ]),
+            ],
+        )
+        line = _emit_command(cmd)
+        assert 'iframe.consent >>> text="Zustimmen"' in line
+        # The auto-composed prefix is gone — user override fully replaces.
+        assert "iframe#auto-synth" not in line
+        assert ">> nth=0" not in line
+
+    def test_empty_override_falls_back_to_auto_compose(self) -> None:
+        """`effective_override=None` AND empty / whitespace-only
+        strings are treated as 'no override' — the emitter walks the
+        normal compose path (iframe-chain + render + defensive nth)."""
+        for empty in (None, "", "   "):
+            cmd = RecordedCommand(
+                index=0,
+                keyword="Click",
+                selector_candidates=[
+                    SelectorCandidate(
+                        strategy="text", value="text=Welcome",
+                        quality_score=50, verified_unique=False,
+                        effective_override=empty,
+                    ),
+                ],
+                active_candidate_index=0,
+            )
+            line = _emit_command(cmd)
+            assert "text=Welcome >> nth=0" in line, (
+                f"empty override {empty!r} should not block auto-compose"
+            )
+
+    def test_override_round_trips_through_json(self) -> None:
+        """Sidecars persist as JSON — the field MUST round-trip
+        unchanged so a save → reload preserves the user's override."""
+        cmd = RecordedCommand(
+            index=0,
+            keyword="Click",
+            selector_candidates=[
+                SelectorCandidate(
+                    strategy="css", value="button.x",
+                    quality_score=50, verified_unique=False,
+                    effective_override="iframe#x >>> button.x",
+                ),
+            ],
+            active_candidate_index=0,
+        )
+        payload = cmd.model_dump_json()
+        round_tripped = RecordedCommand.model_validate_json(payload)
+        assert round_tripped.selector_candidates[0].effective_override == \
+            "iframe#x >>> button.x"
+
+    def test_legacy_sidecar_without_field_loads_with_none(self) -> None:
+        """JSON from a sidecar saved before this field shipped must
+        still validate — the field defaults to None and the emitter
+        falls back to auto-compose."""
+        legacy_json = (
+            '{"strategy": "css", "value": "button.x", '
+            '"quality_score": 70, "verified_unique": true}'
+        )
+        cand = SelectorCandidate.model_validate_json(legacy_json)
+        assert cand.effective_override is None

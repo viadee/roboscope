@@ -4,6 +4,7 @@ import { useExecutionStore } from '@/stores/execution.store'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useRecorderStore } from '@/stores/recorder.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useDebugStore } from '@/stores/debug.store'
 
 export function useWebSocket() {
   const connected = ref(false)
@@ -16,6 +17,7 @@ export function useWebSocket() {
   const envStore = useEnvironmentsStore()
   const recorder = useRecorderStore()
   const ui = useUiStore()
+  const debug = useDebugStore()
 
   function connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -125,6 +127,12 @@ export function useWebSocket() {
 
       case 'notification':
         ui.addToast(data.title, data.message, data.level || 'info')
+        break
+
+      case 'debug_event':
+        // DEBUG-2: forward to the debug store; topic-routing happens
+        // inside `handleWsEvent` (it's a no-op for non-matching session ids).
+        debug.handleWsEvent({ topic: data.topic, kind: data.kind, body: data.body || {} })
         break
     }
   }

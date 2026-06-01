@@ -49,6 +49,22 @@ export async function startV2Browser(
   return response.data
 }
 
+/**
+ * Story RECORDER-VIS-1 — restart the Chromium process for an active
+ * session without losing captured commands. Backend kills the current
+ * browser, spawns a fresh one, and emits `browser_restarting` →
+ * `browser_starting` → `browser_ready` lifecycle events on the SSE
+ * stream. The session row stays in RECORDING; the queue is preserved.
+ */
+export async function restartV2Browser(
+  sessionId: number,
+): Promise<StartBrowserResponse> {
+  const response = await apiClient.post<StartBrowserResponse>(
+    `/recordings/sessions/${sessionId}/restart-browser`,
+  )
+  return response.data
+}
+
 export interface SaveResponse {
   saved_path: string
   bytes_written: number

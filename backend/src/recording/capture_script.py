@@ -294,6 +294,91 @@ CAPTURE_SCRIPT: str = r"""
     return rv;
   };
   window.addEventListener("popstate", () => maybeEmitNav("popstate"));
+
+  // RECORDER-FRAMES-2 — proactive iframe inventory (top-frame only).
+  // The capture script in the iframe document can't see the iframe
+  // element it lives inside. The top-frame script can. We enumerate
+  // iframes once the DOM is ready, synthesise candidate selectors
+  // per iframe, count matches synchronously, and post the result so
+  // the backend has the iframe's id/name/testid before any user
+  // click possibly detaches it.
+  if (isTopFrame) {
+    // Dedupe registrations across re-scans — see retry loop below
+    // for why a single iframe might be enumerated multiple times.
+    var seenIframeKeys = new Set();
+    function countSel(sel) {
+      try { return document.querySelectorAll(sel).length; }
+      catch (e) { return 0; }
+    }
+    function _registerIframesOnce() {
+      var iframes = document.querySelectorAll("iframe");
+      for (var i = 0; i < iframes.length; i++) {
+        var iframe = iframes[i];
+        var src = iframe.getAttribute("src") || "";
+        var id = iframe.id || "";
+        var name = iframe.name || "";
+        var testid = iframe.getAttribute("data-testid") || "";
+        var key = src + "|" + id + "|" + name + "|" + testid;
+        if (seenIframeKeys.has(key)) continue;
+        seenIframeKeys.add(key);
+        var classes = [];
+        try { classes = Array.prototype.slice.call(iframe.classList); }
+        catch (e) { classes = []; }
+        var cands = [];
+        if (testid) {
+          var v1 = 'iframe[data-testid="' + testid + '"]';
+          cands.push({ strategy: "testid", value: v1, quality_score: 95, count: countSel(v1) });
+        }
+        if (id) {
+          var v2 = "iframe#" + id;
+          cands.push({ strategy: "css", value: v2, quality_score: 90, count: countSel(v2) });
+        }
+        if (name) {
+          var v3 = 'iframe[name="' + name + '"]';
+          cands.push({ strategy: "css", value: v3, quality_score: 85, count: countSel(v3) });
+        }
+        if (src) {
+          var v4 = 'iframe[src="' + src + '"]';
+          cands.push({ strategy: "css", value: v4, quality_score: 75, count: countSel(v4) });
+        }
+        send({
+          kind: "iframe_register",
+          iframe_src: src,
+          iframe_id: id,
+          iframe_name: name,
+          iframe_testid: testid,
+          iframe_classes: classes,
+          candidates: cands,
+        });
+      }
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", _registerIframesOnce);
+    } else {
+      _registerIframesOnce();
+    }
+    // Retry-scan for late-loaded iframes — Sourcepoint / OneTrust /
+    // most CMP banners inject their iframe AFTER DOMContentLoaded via
+    // their async-loaded consent SDK. A single scan at ready-time
+    // misses them. Polling at exponential intervals catches the
+    // common SDK boot window (50 ms .. 5 s) without the binding-queue
+    // flood the MutationObserver variant caused — each scan is one
+    // synchronous querySelectorAll, dedupe via `seenIframeKeys`
+    // inside _registerIframesOnce so re-scans are no-ops for already-
+    // registered iframes.
+    [100, 300, 700, 1500, 3000, 5000].forEach(function (ms) {
+      setTimeout(_registerIframesOnce, ms);
+    });
+    // Also re-scan on `load` events bubbling up from iframe elements —
+    // this fires the moment an iframe's content finishes loading
+    // (faster than the timer falling on it). `true` for capture phase
+    // catches `load` events from child iframes.
+    window.addEventListener("load", _registerIframesOnce);
+    document.addEventListener("load", function (ev) {
+      var t = ev && ev.target;
+      if (t && t.tagName === "IFRAME") _registerIframesOnce();
+    }, true);
+  }
 })();
 """
 
