@@ -30,12 +30,21 @@ async function getAuthToken(page: Page): Promise<string> {
   return (await res.json()).access_token as string;
 }
 
+/** Build an SSE body for a lifecycle-event sequence.
+ *
+ * NOTE: `event: end` is intentionally NOT appended. Including `end` flips
+ * the live-view phase to 'done' immediately, before the test assertion
+ * gets a chance to poll for the intermediate browser_ready/browser_crashed
+ * text — and the body closes anyway when the response ends, which now
+ * leaves the pill in whichever healthy phase the last lifecycle event
+ * established (per handleError's no-downgrade rule). Section 3's
+ * extension-transport test sends its own `event: end\ndata: {}` body
+ * directly because it specifically tests the no-lifecycle code path. */
 function buildSseBody(events: Array<{ phase: string; message?: string | null }>): string {
   const parts: string[] = events.map(ev => {
     const data = JSON.stringify({ phase: ev.phase, ts: Date.now() / 1000, message: ev.message ?? null });
     return `event: lifecycle\ndata: ${data}\n`;
   });
-  parts.push('event: end\ndata: {}\n');
   return parts.join('\n') + '\n';
 }
 
@@ -148,7 +157,7 @@ test.describe('Recorder phase pill — browser_crashed', () => {
     await page.goto(`/recordings/live/${FAKE_SID}`);
 
     await expect(page.getByTestId('recorder-phase-pill'))
-      .toContainText(/Browser crashed|Absturz/i, { timeout: 8_000 });
+      .toContainText(/Browser crashed|abgestürzt/i, { timeout: 8_000 });
     await expect(page.getByTestId('recorder-crash-banner')).toBeVisible({ timeout: 5_000 });
     await expect(page.getByTestId('recorder-crash-banner')).toContainText('DISPLAY not found');
     await expect(page.getByTestId('recorder-restart-browser')).toBeEnabled();

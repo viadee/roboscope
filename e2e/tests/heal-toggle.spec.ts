@@ -64,10 +64,17 @@ async function pollRunToCompletion(
 }
 
 // ── Section 1 — HEAL-VENDORED: venv creation auto-seeds RoboScopeHeal ────────
-// Skipped in CI (real venv creation takes ~30–90s).
-// Run locally: npx playwright test heal-toggle.spec.ts --grep "vendored.*auto-seeds"
+// Real venv creation + uv-driven pip install on CI runners regularly takes
+// longer than the 120s poll window allows — the original comment here said
+// "skipped in CI" but the skip was never wired. Honour that intent now:
+// the test stays available locally for engineers verifying the heal seed
+// path end-to-end, but it is opted out of `CI=true` runs to keep the gate
+// honest. Run locally with:
+//   CI= npx playwright test tests/heal-toggle.spec.ts --grep "auto-seeds"
 
 test.describe.serial('HEAL-VENDORED — auto-seed in fresh venv (no PyPI)', () => {
+  test.skip(!!process.env.CI, 'Venv-creation auto-seed exceeds the 120s budget on CI runners — verified locally instead.');
+
   let token: string;
   let envId: number;
 
@@ -265,11 +272,21 @@ test.describe.serial('HEAL-1 — FlowEditor per-step heal checkbox', () => {
     await expect(page.locator('.vue-flow__node').first()).toBeVisible({ timeout: 8_000 });
   }
 
+  // The KeywordNode renders `<span class="flow-node-label">{{ keyword }}</span>`
+  // next to arg chips, so the flattened text of `.vue-flow__node` is
+  // "Log done" / "Click id=button" — not just "Log" / "Click". Match against
+  // the inner label span (`:text-is(...)` requires exact text) and pick the
+  // enclosing node via `has`.
+  function nodeForKeyword(page: Page, keyword: string) {
+    return page.locator('.vue-flow__node', {
+      has: page.locator(`.flow-node-label:text-is("${keyword}")`),
+    }).first();
+  }
+
   test('heal checkbox is hidden on a Log step (non-heal-able keyword)', async ({ page }) => {
     await openHeal1File(page);
 
-    // Click the Log node.
-    const logNode = page.locator('.vue-flow__node', { hasText: /^Log$/ }).first();
+    const logNode = nodeForKeyword(page, 'Log');
     await expect(logNode).toBeVisible({ timeout: 6_000 });
     await logNode.click();
     await page.waitForTimeout(400);
@@ -281,7 +298,7 @@ test.describe.serial('HEAL-1 — FlowEditor per-step heal checkbox', () => {
   test('heal checkbox is visible on a Click step (heal-able keyword + Browser import)', async ({ page }) => {
     await openHeal1File(page);
 
-    const clickNode = page.locator('.vue-flow__node', { hasText: /^Click$/ }).first();
+    const clickNode = nodeForKeyword(page, 'Click');
     await expect(clickNode).toBeVisible({ timeout: 6_000 });
     await clickNode.click();
     await page.waitForTimeout(400);
@@ -294,7 +311,7 @@ test.describe.serial('HEAL-1 — FlowEditor per-step heal checkbox', () => {
   test('checking the heal toggle renames Click to Heal Click in the code tab', async ({ page }) => {
     await openHeal1File(page);
 
-    const clickNode = page.locator('.vue-flow__node', { hasText: /^Click$/ }).first();
+    const clickNode = nodeForKeyword(page, 'Click');
     await clickNode.click();
     await page.waitForTimeout(400);
 

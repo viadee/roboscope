@@ -140,7 +140,17 @@ function handleEnd() {
 }
 
 function handleError() {
-  if (phase.value !== 'done') {
+  // Don't downgrade from healthy terminal-ish phases. EventSource fires
+  // 'error' both on transient drops (about to auto-reconnect) and on the
+  // backend closing the stream cleanly without an `event: end`. In either
+  // case, if we'd already reached browser_ready or browser_crashed, the
+  // visible state should stay there — flipping to "Fehler" would create
+  // a UI flicker for a stream that's either reconnecting or simply done.
+  if (
+    phase.value !== 'done'
+    && phase.value !== 'browser_ready'
+    && phase.value !== 'browser_crashed'
+  ) {
     _transitionTo('error')
     errorMsg.value = t('recorder.live.streamError')
   }
