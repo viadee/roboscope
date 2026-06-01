@@ -150,12 +150,25 @@ DEPS_FILE=$(mktemp)
 _read_deps > "$DEPS_FILE"
 REQ_FILE="$DEPS_FILE"
 
+# Story HEAL-VENDORED — `robotframework-roboscopeheal` is in pyproject.toml's
+# runtime deps so `uv sync` resolves it via [tool.uv.sources], but the package
+# is NOT published on PyPI yet. Passing the unfiltered deps file to
+# `pip download` makes pip's resolver bail on the missing index entry —
+# dropping every other wheel along with it (symptom that broke main on
+# 2026-06-01: "No matching distribution found for fastapi>=0.115.0" — pip
+# never even tried, because resolution aborted upstream). Strip the line
+# for the download pass; the build produces the vendored wheel from source
+# a few steps below (RFHEAL_VENDOR block) so the offline install still
+# resolves it via --find-links.
+PIPDL_REQ_FILE=$(mktemp)
+grep -v '^robotframework-roboscopeheal' "$REQ_FILE" > "$PIPDL_REQ_FILE"
+
 # Download platform-specific binary wheels
 for pyver in 3.10 3.11 3.12 3.13 3.14; do
   abi="cp${pyver//./}"
   echo "    Downloading wheels for $WHEEL_PLATFORM (Python $pyver)..."
   python3 -m pip download \
-    -r "$REQ_FILE" \
+    -r "$PIPDL_REQ_FILE" \
     -d "$DIST/wheels" \
     --platform "$WHEEL_PLATFORM" \
     --python-version "$pyver" \
@@ -168,7 +181,7 @@ done
 # Also download for host platform (catches pure-python deps missed by cross-platform pass)
 echo "    Downloading wheels for host platform..."
 python3 -m pip download \
-  -r "$REQ_FILE" \
+  -r "$PIPDL_REQ_FILE" \
   -d "$DIST/wheels" \
   2>/dev/null || true
 
@@ -202,7 +215,7 @@ fi
 
 # Save requirements for install scripts
 cp "$REQ_FILE" "$DIST/requirements.txt"
-rm -f "$DEPS_FILE"
+rm -f "$DEPS_FILE" "$PIPDL_REQ_FILE"
 echo "    Wheels: $(ls "$DIST/wheels" | wc -l | tr -d ' ') packages"
 
 # ── 5. Create .env template ──────────────────────────────────

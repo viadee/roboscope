@@ -151,6 +151,18 @@ try {
 $reqFile = Join-Path $env:TEMP "roboscope-reqs-$([guid]::NewGuid().ToString('N').Substring(0,8)).txt"
 (Get-Content $depsFile) -replace 'uvicorn\[standard\]', 'uvicorn' | Set-Content -Path $reqFile -Encoding UTF8
 
+# Story HEAL-VENDORED — `robotframework-roboscopeheal` is in pyproject.toml's
+# runtime deps so `uv sync` resolves it via [tool.uv.sources], but the
+# package is NOT on PyPI yet. Passing the unfiltered deps file to
+# `pip download` makes the resolver bail on the missing index entry,
+# dropping every other wheel along with it (the breakage that hit main on
+# 2026-06-01: "No matching distribution found for fastapi>=0.115.0").
+# Strip the line for the download pass; the build produces the vendored
+# wheel from source below so the offline install still resolves it via
+# --find-links.
+$pipDlReqFile = Join-Path $env:TEMP "roboscope-reqs-pipdl-$([guid]::NewGuid().ToString('N').Substring(0,8)).txt"
+(Get-Content $reqFile) | Where-Object { $_ -notmatch '^robotframework-roboscopeheal' } | Set-Content -Path $pipDlReqFile -Encoding UTF8
+
 # pip writes warnings/progress to stderr; temporarily allow non-terminating errors
 $oldEAP = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
@@ -160,7 +172,7 @@ foreach ($pyver in @("3.10", "3.11", "3.12", "3.13", "3.14")) {
     $abi = "cp$($pyver -replace '\.','')"
     Write-Host "    Downloading wheels for $WHEEL_PLATFORM (Python $pyver)..."
     python -m pip download `
-        -r $reqFile `
+        -r $pipDlReqFile `
         -d $wheelsDir `
         --platform $WHEEL_PLATFORM `
         --python-version $pyver `
@@ -174,7 +186,7 @@ foreach ($pyver in @("3.10", "3.11", "3.12", "3.13", "3.14")) {
 # Running natively on Windows, pip correctly resolves sys_platform=='win32'
 # markers, pulling in tzdata, colorama, and other Windows-conditional deps.
 Write-Host "    Downloading wheels for host platform (native Windows resolution)..."
-python -m pip download -r $reqFile -d $wheelsDir 2>&1 | ForEach-Object { "$_" } | Out-Null
+python -m pip download -r $pipDlReqFile -d $wheelsDir 2>&1 | ForEach-Object { "$_" } | Out-Null
 
 # Ensure conditional transitive deps are included
 Write-Host "    Downloading conditional dependencies..."
@@ -182,11 +194,29 @@ foreach ($pkg in @("tomli>=2.0.0", "exceptiongroup>=1.0.0", "typing_extensions>=
     python -m pip download $pkg -d $wheelsDir --no-deps 2>&1 | ForEach-Object { "$_" } | Out-Null
 }
 
+# Story HEAL-VENDORED — build the vendored robotframework-roboscopeheal
+# wheel from source and drop it next to the pip-downloaded wheels so the
+# offline `pip install --no-index --find-links=wheels` step resolves it.
+# Mirrors the bash script's RFHEAL_VENDOR block.
+$rfhealVendor = Join-Path $ROOT "backend\vendor\robotframework-roboscopeheal"
+if (Test-Path $rfhealVendor) {
+    Write-Host "    Building robotframework-roboscopeheal wheel from vendor..."
+    python -m pip install --quiet --upgrade build 2>&1 | Out-Null
+    Push-Location $rfhealVendor
+    try {
+        python -m build --wheel --outdir $wheelsDir 2>&1 | Select-String -Pattern "built|error|warn" -CaseSensitive:$false | ForEach-Object { $_.Line }
+    } finally {
+        Pop-Location
+    }
+} else {
+    Write-Warning "$rfhealVendor missing -- heal library won't be in this Windows bundle."
+}
+
 $ErrorActionPreference = $oldEAP
 
 # Save requirements for install scripts
 Copy-Item -Force $reqFile (Join-Path $DIST "requirements.txt")
-Remove-Item -Force $depsFile, $reqFile -ErrorAction SilentlyContinue
+Remove-Item -Force $depsFile, $reqFile, $pipDlReqFile -ErrorAction SilentlyContinue
 
 $wheelCount = (Get-ChildItem -Path $wheelsDir -Filter "*.whl").Count
 Write-Host "    Wheels: $wheelCount packages"
