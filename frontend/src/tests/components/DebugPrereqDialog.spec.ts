@@ -42,9 +42,16 @@ function mountDialog(props: {
       plugins: [createTestI18n()],
       stubs: {
         BaseModal: {
+          // Distinct wrappers per slot so the test can assert the buttons land
+          // in #footer (the contract the parent template depends on) rather
+          // than the default slot — catches a regression where someone moves
+          // the BaseButtons out of `<template #footer>` into the body.
           props: ['modelValue', 'title', 'size'],
           template:
-            '<div v-if="modelValue" data-modal-root><slot /><slot name="footer" /></div>',
+            '<div v-if="modelValue" data-modal-root>'
+            + '<div data-modal-body><slot /></div>'
+            + '<div data-modal-footer><slot name="footer" /></div>'
+            + '</div>',
         },
         BaseButton: {
           props: ['variant', 'disabled', 'loading'],
@@ -94,6 +101,10 @@ describe('DebugPrereqDialog', () => {
     const wrapper = mountDialog({ open: true })
     const cancelBtn = wrapper.find('[data-testid="debug-prereq-cancel-btn"]')
     expect(cancelBtn.exists()).toBe(true)
+    // Pins the slot contract: the buttons must live in the modal's footer
+    // slot, not in the body. A future template refactor that drops
+    // <template #footer> will surface here.
+    expect(cancelBtn.element.closest('[data-modal-footer]')).not.toBeNull()
     await cancelBtn.trigger('click')
     expect(wrapper.emitted('cancel')).toBeTruthy()
     expect(wrapper.emitted('cancel')!.length).toBe(1)
@@ -103,6 +114,7 @@ describe('DebugPrereqDialog', () => {
     const wrapper = mountDialog({ open: true })
     const installBtn = wrapper.find('[data-testid="debug-prereq-install-btn"]')
     expect(installBtn.exists()).toBe(true)
+    expect(installBtn.element.closest('[data-modal-footer]')).not.toBeNull()
     await installBtn.trigger('click')
     expect(wrapper.emitted('install')).toBeTruthy()
     expect(wrapper.emitted('install')!.length).toBe(1)

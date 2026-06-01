@@ -56,11 +56,15 @@ function makeRun(overrides: Partial<Record<string, unknown>>) {
  *  detail panel for `run`. The view auto-selects via the `?run=<id>` query
  *  param (handled by `/runs?run=…` — see ExecutionView.vue::onMounted). */
 async function mockRunDetailRoutes(page: Page, run: ReturnType<typeof makeRun>) {
-  // List endpoint — must precede the catch-all so `/runs?…` (no path segment
-  // after `/runs`) is intercepted. ExecutionView mounts a single page and
-  // queries this with page=1 by default.
-  await page.route('**/api/v1/runs?**', async (route) => {
-    if (route.request().method() !== 'GET') { await route.continue(); return; }
+  // List endpoint. Regex (not a glob) so the `?` in `/runs?...` is matched
+  // literally — Playwright's glob would treat `?` as a one-char wildcard,
+  // accidentally working for `/runs?page=1` but not for any future bare
+  // `/runs` call. Registered FIRST; Playwright handler order is LIFO, so
+  // the catch-all below runs ahead of this one for `/runs/<id>/...` paths
+  // (which this list regex deliberately does NOT match — only the LIFO
+  // ordering matters at the detail-route boundary).
+  await page.route(/\/api\/v1\/runs(\?[^/]*)?$/, async (route) => {
+    if (route.request().method() !== 'GET') { await route.fallback(); return; }
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
