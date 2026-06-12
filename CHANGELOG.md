@@ -15,7 +15,9 @@
   backend (`environments/tasks.py::_run_rfbrowser_init`) lays them down by
   copy into the venv's `playwright-core/.local-browsers` and SKIPS the
   network `rfbrowser init` — variant-safe (only browser binaries are
-  copied, the gRPC server binary is never touched). New
+  copied, the gRPC server binary is never touched). The pack ships
+  **chromium only** (headed + headless shell) to keep the ZIP reasonable;
+  Firefox/WebKit still need a network `rfbrowser init`. New
   `BROWSER_PACK_DIR` setting overrides the auto-detected location.
   *macOS packs need a native macOS runner (the macOS legs cross-build on
   ubuntu, and browsers can't be cross-built) — tracked as follow-up.*

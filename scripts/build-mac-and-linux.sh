@@ -242,8 +242,10 @@ if [ "$PLATFORM" = "linux" ]; then
           robotframework-browser-batteries >/dev/null 2>&1; then
     # `-batteries` ships the Node wrapper in the wheel; rfbrowser init then
     # only fetches the browser binaries (the variant users install, so its
-    # build numbers match what they run against).
-    PATH="$TMP_VENV/bin:$PATH" "$TMP_VENV/bin/rfbrowser" init 2>&1 \
+    # build numbers match what they run against). chromium ONLY — the
+    # arg-less `init` also pulls Firefox + WebKit (~1.2 GB pack); chromium
+    # (headed + headless shell) covers the vast majority of Browser tests.
+    PATH="$TMP_VENV/bin:$PATH" "$TMP_VENV/bin/rfbrowser" init chromium 2>&1 \
       | grep -iE "error|browser|download" || true
     LOCAL_BROWSERS=$("$TMP_VENV/bin/python" - <<'PYEOF'
 import pathlib, sys

@@ -73,8 +73,10 @@ def test_pack_laydown_launches_real_browser(tmp_path: Path) -> None:
         pytest.skip(f"batteries install failed (offline build host?): {inst.stderr[-300:]}")
 
     # 2. Harvest browsers via a real rfbrowser init (the "build host" step).
+    #    chromium only — matches what the build scripts ship (Firefox/WebKit
+    #    would balloon the pack), and the smoke test below launches chromium.
     rfbrowser = venv / "bin" / "rfbrowser"
-    init = _run([str(rfbrowser), "init"], timeout=600)
+    init = _run([str(rfbrowser), "init", "chromium"], timeout=600)
     target = browser_local_browsers_dir(str(venv))
     if init.returncode != 0 or target is None or not bundled_browsers_present(str(venv)):
         pytest.skip(

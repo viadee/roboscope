@@ -250,7 +250,10 @@ try {
     & $uvExe pip install --python $tmpPy robotframework-browser-batteries 2>&1 |
         Select-String -Pattern "error" -CaseSensitive:$false | ForEach-Object { $_.Line }
     $env:PATH = "$tmpVenv\Scripts;$env:PATH"
-    & (Join-Path $tmpVenv "Scripts\rfbrowser.exe") init 2>&1 |
+    # chromium ONLY — `rfbrowser init` with no args also pulls Firefox +
+    # WebKit, which balloons the pack to ~1.2 GB. Chromium (headed +
+    # headless shell) covers the overwhelming majority of Browser tests.
+    & (Join-Path $tmpVenv "Scripts\rfbrowser.exe") init chromium 2>&1 |
         Select-String -Pattern "error|browser|download" -CaseSensitive:$false |
         ForEach-Object { $_.Line }
     $localBrowsers = Join-Path $tmpVenv "Lib\site-packages\Browser\wrapper\node_modules\playwright-core\.local-browsers"
