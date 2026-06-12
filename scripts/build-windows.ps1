@@ -268,7 +268,7 @@ try {
         Copy-Item -Recurse -Force $localBrowsers (Join-Path $packDir ".local-browsers")
         "robotframework-browser-batteries / rfbrowser init chromium (windows native)" |
             Set-Content -Path (Join-Path $packDir "PROVENANCE.txt") -Encoding ASCII
-        "Unzip this folder INTO your roboscope-offline-windows directory so it sits`r`nnext to start-windows.bat. RoboScope auto-detects browser-pack/ and shares`r`nit across all environments — no per-env download needed." |
+        "Unzip this folder INTO your roboscope-offline-windows directory so it sits`r`nnext to start-windows.bat. RoboScope auto-detects browser-pack/ and shares`r`nit across all environments - no per-env download needed." |
             Set-Content -Path (Join-Path $packDir "README.txt") -Encoding ASCII
         $packZip = Join-Path $ROOT "dist\roboscope_browser_pack_windows.zip"
         if (Test-Path $packZip) { Remove-Item -Force $packZip }
