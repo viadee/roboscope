@@ -221,27 +221,33 @@ Remove-Item -Force $depsFile, $reqFile, $pipDlReqFile -ErrorAction SilentlyConti
 $wheelCount = (Get-ChildItem -Path $wheelsDir -Filter "*.whl").Count
 Write-Host "    Wheels: $wheelCount packages"
 
-# ── 4b. Bundle Playwright browser-pack for offline Browser tests ──
+# ── 4b. Bundle Playwright browser-pack as a SEPARATE optional ZIP ──
 #
 # The Robot Framework Browser library can ONLY get its Chromium binary by
 # downloading it (via `rfbrowser init` → npm + the Playwright CDN). On an
 # air-gapped / proxy-restricted target that download fails, and tests using
 # the Browser library die with "browserType.launch: Executable doesn't
 # exist". Harvest the browser binaries HERE (the build host has internet)
-# and ship them in `browser-pack/`; the backend lays them down by copy at
-# environment-create time (see environments/tasks.py::_run_rfbrowser_init).
+# into a SEPARATE `roboscope_browser_pack_windows.zip` so the main offline
+# ZIP stays lean (~200 MB) — only users who run Browser tests download the
+# extra ~300 MB pack and unzip it next to the app, producing a
+# `browser-pack/` dir the backend auto-detects (resolve_browser_pack_dir).
+# At env-create time the backend LINKS each env's .local-browsers to the
+# single shared pack (no per-env duplication).
 #
 # Must run on the NATIVE Windows runner so the harvested chrome-headless-
-# shell is a win64 executable — the browsers are platform-specific and
-# cannot be cross-built (the macOS/Linux legs cross-compile wheels on an
+# shell / chrome are win64 executables — the browsers are platform-specific
+# and cannot be cross-built (the macOS/Linux legs cross-compile wheels on an
 # ubuntu host, which is why the pack is Windows + native-Linux only today).
-Write-Host "==> Building offline Playwright browser-pack (native Windows)..."
-$packDir = Join-Path $DIST "browser-pack"
+Write-Host "==> Building offline Playwright browser-pack ZIP (native Windows)..."
+$packStaging = Join-Path $ROOT "dist\browser-pack-windows"
+$packDir = Join-Path $packStaging "browser-pack"
 $uvExe = Join-Path $DIST "uv-bin\uv-windows.exe"
 $tmpVenv = Join-Path $env:TEMP "roboscope-browserpack-$([guid]::NewGuid().ToString('N').Substring(0,8))"
 $oldEAP2 = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 try {
+    if (Test-Path $packStaging) { Remove-Item -Recurse -Force $packStaging }
     & $uvExe venv $tmpVenv 2>&1 | Out-Null
     $tmpPy = Join-Path $tmpVenv "Scripts\python.exe"
     # `-batteries` ships the Node wrapper in the wheel; rfbrowser init then
@@ -260,10 +266,15 @@ try {
     if (Test-Path $localBrowsers) {
         New-Item -ItemType Directory -Force -Path $packDir | Out-Null
         Copy-Item -Recurse -Force $localBrowsers (Join-Path $packDir ".local-browsers")
-        "robotframework-browser-batteries / rfbrowser init (windows native)" |
+        "robotframework-browser-batteries / rfbrowser init chromium (windows native)" |
             Set-Content -Path (Join-Path $packDir "PROVENANCE.txt") -Encoding ASCII
-        $packMB = [math]::Round(((Get-ChildItem -Recurse $packDir | Measure-Object -Property Length -Sum).Sum / 1MB), 0)
-        Write-Host "    Browser-pack: $packMB MB at $packDir"
+        "Unzip this folder INTO your roboscope-offline-windows directory so it sits`r`nnext to start-windows.bat. RoboScope auto-detects browser-pack/ and shares`r`nit across all environments — no per-env download needed." |
+            Set-Content -Path (Join-Path $packDir "README.txt") -Encoding ASCII
+        $packZip = Join-Path $ROOT "dist\roboscope_browser_pack_windows.zip"
+        if (Test-Path $packZip) { Remove-Item -Force $packZip }
+        Compress-Archive -Path $packDir -DestinationPath $packZip -Force
+        $zipMB = [math]::Round(((Get-Item $packZip).Length / 1MB), 0)
+        Write-Host "    Browser-pack ZIP: $zipMB MB at $packZip"
     } else {
         Write-Warning "rfbrowser init produced no .local-browsers -- browser-pack skipped (offline Browser tests will need a manual rfbrowser init on the target)."
     }
@@ -271,6 +282,7 @@ try {
     Write-Warning "Browser-pack build failed: $_ -- continuing without it."
 } finally {
     if (Test-Path $tmpVenv) { Remove-Item -Recurse -Force $tmpVenv -ErrorAction SilentlyContinue }
+    if (Test-Path $packStaging) { Remove-Item -Recurse -Force $packStaging -ErrorAction SilentlyContinue }
     $ErrorActionPreference = $oldEAP2
 }
 

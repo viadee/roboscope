@@ -92,6 +92,16 @@ jobs:
           path: dist/roboscope_offline_${{ matrix.platform }}.zip
           retention-days: 7
 
+      # Optional Playwright browser-pack — only the native-Linux leg
+      # produces one (browsers can't be cross-built for macOS here).
+      - name: Upload browser-pack artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: roboscope-browser-pack-${{ matrix.platform }}
+          path: dist/roboscope_browser_pack_${{ matrix.platform }}.zip
+          retention-days: 7
+          if-no-files-found: ignore
+
   build-offline-windows:
     name: Build Offline (Windows)
     runs-on: windows-latest
@@ -126,6 +136,14 @@ jobs:
           name: roboscope-offline-windows
           path: dist/roboscope_offline_windows.zip
           retention-days: 7
+
+      - name: Upload browser-pack artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: roboscope-browser-pack-windows
+          path: dist/roboscope_browser_pack_windows.zip
+          retention-days: 7
+          if-no-files-found: ignore
 
   build-online:
     name: Build (Online)

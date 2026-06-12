@@ -218,14 +218,18 @@ cp "$REQ_FILE" "$DIST/requirements.txt"
 rm -f "$DEPS_FILE" "$PIPDL_REQ_FILE"
 echo "    Wheels: $(ls "$DIST/wheels" | wc -l | tr -d ' ') packages"
 
-# ── 4b. Bundle Playwright browser-pack for offline Browser tests ──
+# ── 4b. Bundle Playwright browser-pack as a SEPARATE optional ZIP ──
 #
 # The Robot Framework Browser library can ONLY obtain its Chromium binary
 # by downloading it (`rfbrowser init` → npm + the Playwright CDN). On an
 # air-gapped / proxy-restricted target that fails and Browser tests die
 # with "browserType.launch: Executable doesn't exist". Harvest the binaries
-# HERE (the build host has internet) into `browser-pack/`; the backend lays
-# them down by copy at env-create time (tasks.py::_run_rfbrowser_init).
+# HERE (the build host has internet) into a SEPARATE
+# `roboscope_browser_pack_linux.zip` so the main offline ZIP stays lean —
+# only users running Browser tests download the extra pack and unzip it
+# next to the app, producing a `browser-pack/` dir the backend auto-detects.
+# At env-create time the backend LINKS each env's .local-browsers to the
+# single shared pack (no per-env duplication).
 #
 # ONLY for the native-Linux leg: Playwright browser binaries are platform-
 # specific native executables and CANNOT be cross-built. The macOS legs
@@ -233,8 +237,10 @@ echo "    Wheels: $(ls "$DIST/wheels" | wc -l | tr -d ' ') packages"
 # init` there would yield Linux browsers — wrong for a macOS target.
 # Native macOS packs need a macOS runner (follow-up).
 if [ "$PLATFORM" = "linux" ]; then
-  echo "==> Building offline Playwright browser-pack (native Linux)..."
-  PACK_DIR="$DIST/browser-pack"
+  echo "==> Building offline Playwright browser-pack ZIP (native Linux)..."
+  PACK_STAGING="$ROOT/dist/browser-pack-linux"
+  PACK_DIR="$PACK_STAGING/browser-pack"
+  rm -rf "$PACK_STAGING"
   TMP_VENV=$(mktemp -d)/bp-venv
   UV_BIN_ABS="$DIST/uv-bin/$UV_BIN_NAME"
   if "$UV_BIN_ABS" venv "$TMP_VENV" >/dev/null 2>&1 \
@@ -257,16 +263,24 @@ PYEOF
     if [ -n "$LOCAL_BROWSERS" ] && [ -d "$LOCAL_BROWSERS" ]; then
       mkdir -p "$PACK_DIR"
       cp -R "$LOCAL_BROWSERS" "$PACK_DIR/.local-browsers"
-      echo "robotframework-browser-batteries / rfbrowser init (linux native)" \
+      echo "robotframework-browser-batteries / rfbrowser init chromium (linux native)" \
         > "$PACK_DIR/PROVENANCE.txt"
-      echo "    Browser-pack: $(du -sh "$PACK_DIR" | cut -f1) at $PACK_DIR"
+      printf '%s\n' \
+        "Unzip this folder INTO your roboscope-offline-linux directory so it sits" \
+        "next to start-mac-and-linux.sh. RoboScope auto-detects browser-pack/ and" \
+        "shares it across all environments — no per-env download needed." \
+        > "$PACK_DIR/README.txt"
+      PACK_ZIP="$ROOT/dist/roboscope_browser_pack_linux.zip"
+      rm -f "$PACK_ZIP"
+      ( cd "$PACK_STAGING" && zip -r -q "$PACK_ZIP" browser-pack )
+      echo "    Browser-pack ZIP: $(du -sh "$PACK_ZIP" | cut -f1) at $PACK_ZIP"
     else
       echo "    WARN: rfbrowser init produced no .local-browsers — browser-pack skipped." >&2
     fi
   else
     echo "    WARN: browser-pack venv/install failed — continuing without it." >&2
   fi
-  rm -rf "$(dirname "$TMP_VENV")"
+  rm -rf "$(dirname "$TMP_VENV")" "$PACK_STAGING"
 else
   echo "==> Skipping browser-pack for $PLATFORM (browsers can't be cross-built; native macOS runner needed)."
 fi

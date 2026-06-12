@@ -247,45 +247,80 @@ def bundled_browsers_present(venv_path: str) -> bool:
     )
 
 
-def lay_down_bundled_browsers(venv_path: str, pack_dir: str) -> bool:
-    """Copy pre-downloaded Playwright browser binaries from a bundled
-    browser-pack into this venv's `playwright-core/.local-browsers`,
-    so the Browser library can launch Chromium WITHOUT a network
-    `rfbrowser init` (the offline-distribution path).
+def _remove_path(p: Path) -> None:
+    """Delete a file, directory, or (possibly broken) symlink at `p`."""
+    if p.is_symlink() or p.is_file():
+        p.unlink(missing_ok=True)
+    elif p.is_dir():
+        shutil.rmtree(p, ignore_errors=True)
 
-    `pack_dir` is the bundled `browser-pack/` directory, which contains a
-    `.local-browsers/` subtree harvested at build time from a real
-    `rfbrowser init`. Variant-safe: only browser binaries are copied — the
-    gRPC server binary (which differs between standard and `-batteries`)
-    is never touched.
 
-    Returns True when browsers were laid down (or were already present),
-    False when there's nothing to copy or the target wrapper is missing.
+def _link_browser_dir(source: Path, target: Path) -> bool:
+    """Make `target` a directory link to `source` so every env SHARES one
+    on-disk browser copy instead of duplicating ~700 MB per venv.
+
+    Uses a junction on Windows (no admin needed, unlike symlinks) and a
+    directory symlink elsewhere. Returns False when the OS / filesystem
+    refuses the link, so the caller can fall back to a plain copy.
     """
-    import shutil
+    import os
 
+    try:
+        if sys.platform == "win32":
+            import subprocess
+
+            result = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(target), str(source)],
+                capture_output=True, text=True,
+            )
+            return result.returncode == 0 and target.is_dir()
+        os.symlink(source, target, target_is_directory=True)
+        return target.is_dir()
+    except OSError:
+        return False
+
+
+def lay_down_bundled_browsers(venv_path: str, pack_dir: str) -> bool:
+    """Point this venv's `playwright-core/.local-browsers` at the bundled
+    browser-pack so the Browser library can launch Chromium WITHOUT a
+    network `rfbrowser init` (the offline-distribution path).
+
+    `pack_dir` is the `browser-pack/` directory whose `.local-browsers/`
+    subtree was harvested at build time from a real `rfbrowser init`. To
+    avoid duplicating ~700 MB into every environment, the venv's
+    `.local-browsers` is created as a LINK (junction on Windows, symlink
+    elsewhere) to the single shared pack; a plain copy is the fallback when
+    the filesystem won't allow a link. Variant-safe either way: only the
+    browser binaries are shared — the gRPC server binary (which differs
+    between the standard and `-batteries` variants, and lives elsewhere
+    under node_modules) is never touched.
+
+    Returns True when browsers ended up in place (already present, linked,
+    or copied), False when there's nothing to lay down or the target
+    wrapper (`playwright-core`) is missing.
+    """
     pack = Path(pack_dir)
-    source = pack / ".local-browsers"
+    source = (pack / ".local-browsers").resolve()
     if not source.is_dir():
         return False
 
     target = browser_local_browsers_dir(venv_path)
     if target is None:
         # playwright-core not laid down (standard variant, no node_modules):
-        # nothing to copy into — caller falls back to network rfbrowser init.
+        # nothing to link into — caller falls back to network rfbrowser init.
         return False
 
-    target.mkdir(parents=True, exist_ok=True)
-    copied_any = False
-    for child in source.iterdir():
-        dest = target / child.name
-        if dest.exists():
-            continue
-        if child.is_dir():
-            shutil.copytree(child, dest, symlinks=True)
-            copied_any = True
-        else:
-            shutil.copy2(child, dest)
-            copied_any = True
+    if bundled_browsers_present(venv_path):
+        return True  # already linked/copied (idempotent re-run)
 
-    return copied_any or bundled_browsers_present(venv_path)
+    # Clear a stale or broken target (empty dir, dangling symlink) first.
+    if target.is_symlink() or target.exists():
+        _remove_path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    if not _link_browser_dir(source, target):
+        # Filesystem won't link (e.g. cross-device, restricted Windows) —
+        # fall back to a full copy so offline Browser tests still work.
+        shutil.copytree(source, target, symlinks=True)
+
+    return bundled_browsers_present(venv_path)

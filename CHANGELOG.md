@@ -4,21 +4,26 @@
 
 ### Offline distribution: Browser library + heal library now work without a network
 
-- **Bundled Playwright browser-pack for offline Browser tests.** Robot
+- **Optional Playwright browser-pack for offline Browser tests.** Robot
   Framework's `Browser` library can only obtain its Chromium binary by
   downloading it (`rfbrowser init` → npm + the Playwright CDN). On an
   air-gapped or proxy-restricted target that download fails and Browser
   tests die with `browserType.launch: Executable doesn't exist`. The
   Windows and native-Linux build scripts now harvest the browser binaries
-  at build time (where the host has internet) into a `browser-pack/`
-  directory shipped in the release ZIP. At environment-create time the
-  backend (`environments/tasks.py::_run_rfbrowser_init`) lays them down by
-  copy into the venv's `playwright-core/.local-browsers` and SKIPS the
-  network `rfbrowser init` — variant-safe (only browser binaries are
-  copied, the gRPC server binary is never touched). The pack ships
-  **chromium only** (headed + headless shell) to keep the ZIP reasonable;
-  Firefox/WebKit still need a network `rfbrowser init`. New
-  `BROWSER_PACK_DIR` setting overrides the auto-detected location.
+  at build time (where the host has internet) into a **separate optional
+  `roboscope_browser_pack_<platform>.zip`** — the main offline ZIP stays
+  lean (~200 MB) and only users who run Browser tests download the extra
+  pack and unzip it next to the app (producing a `browser-pack/` dir the
+  backend auto-detects via `resolve_browser_pack_dir`). At
+  environment-create time the backend (`tasks.py::_run_rfbrowser_init`)
+  LINKS the venv's `playwright-core/.local-browsers` to the single shared
+  pack (junction on Windows, symlink elsewhere; copy as fallback) — one
+  on-disk copy shared across all environments, NOT duplicated per venv —
+  and SKIPS the network `rfbrowser init`. Variant-safe: only browser
+  binaries are shared, the gRPC server binary is never touched. The pack
+  ships **chromium only** (headed + headless shell); Firefox/WebKit still
+  need a network `rfbrowser init`. New `BROWSER_PACK_DIR` setting overrides
+  the auto-detected location.
   *macOS packs need a native macOS runner (the macOS legs cross-build on
   ubuntu, and browsers can't be cross-built) — tracked as follow-up.*
 - **`robotframework-browser-batteries` now gets browsers provisioned too.**

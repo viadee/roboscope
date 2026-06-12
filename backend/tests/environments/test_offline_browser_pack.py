@@ -86,7 +86,7 @@ def test_bundled_browsers_present_detects_build_dir(tmp_path: Path) -> None:
     assert bundled_browsers_present(str(venv)) is True
 
 
-def test_lay_down_copies_browsers_into_playwright_core(tmp_path: Path) -> None:
+def test_lay_down_links_browsers_into_playwright_core(tmp_path: Path) -> None:
     venv = _make_venv_with_browser(tmp_path, with_playwright_core=True)
     pack = _make_pack(tmp_path)
 
@@ -94,9 +94,46 @@ def test_lay_down_copies_browsers_into_playwright_core(tmp_path: Path) -> None:
 
     target = browser_local_browsers_dir(str(venv))
     assert target is not None
+    # On a normal filesystem the target is a LINK to the shared pack (no
+    # per-venv duplication); the browser binary is reachable through it.
+    assert target.is_symlink()
+    assert target.resolve() == (pack / ".local-browsers").resolve()
     laid = target / "chromium_headless_shell-1223" / "chrome-headless-shell"
     assert laid.is_file()
-    assert (target / ".links").is_file()  # dotfile sibling copied too
+    assert (target / ".links").is_file()  # dotfile sibling reachable too
+    assert bundled_browsers_present(str(venv)) is True
+
+
+def test_lay_down_shares_one_pack_across_two_venvs(tmp_path: Path) -> None:
+    """Two environments must point at the SAME shared pack — the whole
+    reason for linking instead of copying."""
+    pack = _make_pack(tmp_path)
+    venv_a = _make_venv_with_browser(tmp_path / "a", with_playwright_core=True)
+    venv_b = _make_venv_with_browser(tmp_path / "b", with_playwright_core=True)
+
+    assert lay_down_bundled_browsers(str(venv_a), str(pack)) is True
+    assert lay_down_bundled_browsers(str(venv_b), str(pack)) is True
+
+    shared = (pack / ".local-browsers").resolve()
+    assert browser_local_browsers_dir(str(venv_a)).resolve() == shared
+    assert browser_local_browsers_dir(str(venv_b)).resolve() == shared
+
+
+def test_lay_down_copy_fallback_when_link_unsupported(tmp_path: Path) -> None:
+    """When the filesystem refuses a link, fall back to a real copy so
+    offline Browser tests still work (e.g. restricted Windows)."""
+    venv = _make_venv_with_browser(tmp_path, with_playwright_core=True)
+    pack = _make_pack(tmp_path)
+
+    with patch(
+        "src.environments.venv_utils._link_browser_dir", return_value=False
+    ):
+        assert lay_down_bundled_browsers(str(venv), str(pack)) is True
+
+    target = browser_local_browsers_dir(str(venv))
+    assert target is not None
+    assert not target.is_symlink()  # real copied dir, not a link
+    assert (target / "chromium_headless_shell-1223" / "chrome-headless-shell").is_file()
     assert bundled_browsers_present(str(venv)) is True
 
 
