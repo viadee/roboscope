@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base, TimestampMixin
@@ -36,6 +36,7 @@ class EnvironmentPackage(Base):
     """Installed package in an environment."""
 
     __tablename__ = "environment_packages"
+    __table_args__ = (UniqueConstraint("environment_id", "package_name", name="uq_env_pkg"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     environment_id: Mapped[int] = mapped_column(ForeignKey("environments.id", ondelete="CASCADE"), index=True)
