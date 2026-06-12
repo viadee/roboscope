@@ -1,6 +1,7 @@
 """Tests for environment management API endpoints."""
 
 import pytest
+from sqlalchemy import select, text
 from unittest.mock import patch, MagicMock
 
 from src.environments.models import Environment, EnvironmentPackage, EnvironmentVariable
@@ -745,6 +746,102 @@ class TestPackageInstallStatus:
             headers=auth_header(admin_user),
         )
         assert response.status_code == 404
+
+    @patch("src.environments.router.dispatch_task")
+    def test_install_package_twice_reuses_existing_record(self, mock_dispatch, client, db_session, admin_user):
+        """Installing the same package a second time must not create a duplicate row.
+
+        Previously a second POST would create a new EnvironmentPackage row; then
+        retry / upgrade queries using scalar_one_or_none() would raise
+        MultipleResultsFound → 500 Internal Server Error (GitHub #42).
+        """
+        mock_dispatch.return_value = MagicMock(id="fake-task-id")
+
+        env = Environment(
+            name="dedup-env",
+            python_version="3.12",
+            created_by=admin_user.id,
+        )
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+
+        # First install — creates the row
+        resp1 = client.post(
+            f"{URL}/{env.id}/packages",
+            json={"package_name": "requests", "version": "2.31.0"},
+            headers=auth_header(admin_user),
+        )
+        assert resp1.status_code == 201
+        pkg_id_first = resp1.json()["id"]
+
+        # Simulate a failed install so the user would try again
+        db_session.execute(
+            text("UPDATE environment_packages SET install_status='failed' WHERE id=:id"),
+            {"id": pkg_id_first},
+        )
+        db_session.commit()
+
+        # Second install of the same package — must reuse the existing row
+        resp2 = client.post(
+            f"{URL}/{env.id}/packages",
+            json={"package_name": "requests", "version": "2.32.0"},
+            headers=auth_header(admin_user),
+        )
+        assert resp2.status_code == 201
+        pkg_id_second = resp2.json()["id"]
+
+        # Same DB row, not a new one
+        assert pkg_id_first == pkg_id_second
+
+        # Status reset to pending, version updated
+        assert resp2.json()["install_status"] == "pending"
+        assert resp2.json()["version"] == "2.32.0"
+
+        # Exactly one row in DB for this package
+        rows = db_session.execute(
+            select(EnvironmentPackage).where(
+                EnvironmentPackage.environment_id == env.id,
+                EnvironmentPackage.package_name == "requests",
+            )
+        ).scalars().all()
+        assert len(rows) == 1
+
+    @patch("src.environments.router.dispatch_task")
+    def test_retry_after_failed_install_does_not_500(self, mock_dispatch, client, db_session, admin_user):
+        """Retry on a failed package (the scenario from GitHub #42) must succeed.
+
+        The root cause was scalar_one_or_none() raising MultipleResultsFound when
+        duplicate rows existed.  With the upsert fix + unique constraint this can no
+        longer happen, but the endpoint should work correctly in all cases.
+        """
+        mock_dispatch.return_value = MagicMock(id="fake-task-id")
+
+        env = Environment(
+            name="retry-ok-env",
+            python_version="3.12",
+            created_by=admin_user.id,
+        )
+        db_session.add(env)
+        db_session.flush()
+        db_session.refresh(env)
+
+        pkg = EnvironmentPackage(
+            environment_id=env.id,
+            package_name="robotframework",
+            install_status="failed",
+            install_error="some error",
+        )
+        db_session.add(pkg)
+        db_session.flush()
+
+        response = client.post(
+            f"{URL}/{env.id}/packages/robotframework/retry",
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 200
+        assert response.json()["install_status"] == "pending"
+        assert response.json()["install_error"] is None
 
 
 class TestRfLibraries:

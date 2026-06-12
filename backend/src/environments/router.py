@@ -476,6 +476,10 @@ def install_package(
 
     pkg = add_package(db, env_id, data)
 
+    # Commit before dispatching so the background thread's separate session
+    # can see the new record (per CLAUDE.md critical pattern).
+    db.commit()
+
     # Trigger async installation
     try:
         from src.environments.tasks import install_package
@@ -504,20 +508,18 @@ def upgrade_package(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
 
     # Find existing package record
-    result = db.execute(
+    pkg = db.execute(
         select(EnvironmentPackage).where(
             EnvironmentPackage.environment_id == env_id,
             EnvironmentPackage.package_name == package_name,
         )
-    )
-    pkg = result.scalar_one_or_none()
+    ).scalars().first()
     if pkg is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Package not found")
 
     # Clear version constraint and trigger upgrade
     pkg.version = None
-    db.flush()
-    db.refresh(pkg)
+    db.commit()
 
     try:
         from src.environments.tasks import upgrade_package
@@ -550,7 +552,7 @@ def retry_package_install(
             EnvironmentPackage.environment_id == env_id,
             EnvironmentPackage.package_name == package_name,
         )
-    ).scalar_one_or_none()
+    ).scalars().first()
     if pkg is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Package not found")
 
