@@ -225,7 +225,14 @@ source .venv/bin/activate
 if [ "$MODE" = "offline" ]; then
   pip install --no-index --find-links=wheels -r requirements.txt -q 2>&1 | tail -3
 else
-  pip install -r requirements.txt -q 2>&1 | tail -3
+  # Online mode still needs `--find-links wheels` because the vendored
+  # robotframework-roboscopeheal wheel ships in wheels/ alongside
+  # requirements.txt (the package isn't on PyPI yet — see build script).
+  if [ -d wheels ]; then
+    pip install --find-links wheels -r requirements.txt -q 2>&1 | tail -3
+  else
+    pip install -r requirements.txt -q 2>&1 | tail -3
+  fi
 fi
 pass "pip install completed"
 
