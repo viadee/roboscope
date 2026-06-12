@@ -221,6 +221,56 @@ Remove-Item -Force $depsFile, $reqFile, $pipDlReqFile -ErrorAction SilentlyConti
 $wheelCount = (Get-ChildItem -Path $wheelsDir -Filter "*.whl").Count
 Write-Host "    Wheels: $wheelCount packages"
 
+# ── 4b. Bundle Playwright browser-pack for offline Browser tests ──
+#
+# The Robot Framework Browser library can ONLY get its Chromium binary by
+# downloading it (via `rfbrowser init` → npm + the Playwright CDN). On an
+# air-gapped / proxy-restricted target that download fails, and tests using
+# the Browser library die with "browserType.launch: Executable doesn't
+# exist". Harvest the browser binaries HERE (the build host has internet)
+# and ship them in `browser-pack/`; the backend lays them down by copy at
+# environment-create time (see environments/tasks.py::_run_rfbrowser_init).
+#
+# Must run on the NATIVE Windows runner so the harvested chrome-headless-
+# shell is a win64 executable — the browsers are platform-specific and
+# cannot be cross-built (the macOS/Linux legs cross-compile wheels on an
+# ubuntu host, which is why the pack is Windows + native-Linux only today).
+Write-Host "==> Building offline Playwright browser-pack (native Windows)..."
+$packDir = Join-Path $DIST "browser-pack"
+$uvExe = Join-Path $DIST "uv-bin\uv-windows.exe"
+$tmpVenv = Join-Path $env:TEMP "roboscope-browserpack-$([guid]::NewGuid().ToString('N').Substring(0,8))"
+$oldEAP2 = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+try {
+    & $uvExe venv $tmpVenv 2>&1 | Out-Null
+    $tmpPy = Join-Path $tmpVenv "Scripts\python.exe"
+    # `-batteries` ships the Node wrapper in the wheel; rfbrowser init then
+    # only needs to fetch the browser binaries. That's the variant users
+    # install, so its browser build numbers match what they'll run against.
+    & $uvExe pip install --python $tmpPy robotframework-browser-batteries 2>&1 |
+        Select-String -Pattern "error" -CaseSensitive:$false | ForEach-Object { $_.Line }
+    $env:PATH = "$tmpVenv\Scripts;$env:PATH"
+    & (Join-Path $tmpVenv "Scripts\rfbrowser.exe") init 2>&1 |
+        Select-String -Pattern "error|browser|download" -CaseSensitive:$false |
+        ForEach-Object { $_.Line }
+    $localBrowsers = Join-Path $tmpVenv "Lib\site-packages\Browser\wrapper\node_modules\playwright-core\.local-browsers"
+    if (Test-Path $localBrowsers) {
+        New-Item -ItemType Directory -Force -Path $packDir | Out-Null
+        Copy-Item -Recurse -Force $localBrowsers (Join-Path $packDir ".local-browsers")
+        "robotframework-browser-batteries / rfbrowser init (windows native)" |
+            Set-Content -Path (Join-Path $packDir "PROVENANCE.txt") -Encoding ASCII
+        $packMB = [math]::Round(((Get-ChildItem -Recurse $packDir | Measure-Object -Property Length -Sum).Sum / 1MB), 0)
+        Write-Host "    Browser-pack: $packMB MB at $packDir"
+    } else {
+        Write-Warning "rfbrowser init produced no .local-browsers -- browser-pack skipped (offline Browser tests will need a manual rfbrowser init on the target)."
+    }
+} catch {
+    Write-Warning "Browser-pack build failed: $_ -- continuing without it."
+} finally {
+    if (Test-Path $tmpVenv) { Remove-Item -Recurse -Force $tmpVenv -ErrorAction SilentlyContinue }
+    $ErrorActionPreference = $oldEAP2
+}
+
 # ── 5. Create .env template ──────────────────────────────────
 @"
 # RoboScope Configuration

@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+### Offline distribution: Browser library + heal library now work without a network
+
+- **Bundled Playwright browser-pack for offline Browser tests.** Robot
+  Framework's `Browser` library can only obtain its Chromium binary by
+  downloading it (`rfbrowser init` → npm + the Playwright CDN). On an
+  air-gapped or proxy-restricted target that download fails and Browser
+  tests die with `browserType.launch: Executable doesn't exist`. The
+  Windows and native-Linux build scripts now harvest the browser binaries
+  at build time (where the host has internet) into a `browser-pack/`
+  directory shipped in the release ZIP. At environment-create time the
+  backend (`environments/tasks.py::_run_rfbrowser_init`) lays them down by
+  copy into the venv's `playwright-core/.local-browsers` and SKIPS the
+  network `rfbrowser init` — variant-safe (only browser binaries are
+  copied, the gRPC server binary is never touched). New
+  `BROWSER_PACK_DIR` setting overrides the auto-detected location.
+  *macOS packs need a native macOS runner (the macOS legs cross-build on
+  ubuntu, and browsers can't be cross-built) — tracked as follow-up.*
+- **`robotframework-browser-batteries` now gets browsers provisioned too.**
+  The install/upgrade paths previously skipped browser provisioning for the
+  `-batteries` variant on the stale "batteries is self-contained"
+  assumption (already corrected for the Docker path). `-batteries` ships
+  the Node wrapper but NOT the browser binaries, so it was left with no
+  browsers at all — now it is provisioned like the standard variant.
+- **`robotframework-roboscopeheal` is installable into user environments
+  from a deployed distribution.** The heal library isn't on PyPI yet, and
+  while the build ships its wheel in `wheels/`, the auto-seed and the UI
+  install only ever looked for the vendored SOURCE tree (which is NOT
+  copied into the dist) — so on every release ZIP they silently fell
+  through to a PyPI 404. Resolution now prefers the vendored source (dev
+  checkout) and falls back to the bundled wheel (deployed dist), installing
+  it with `--find-links wheels/` so heal's deps resolve from the bundle.
+  Fixes both the offline and online variants.
+
 ### Self-healing library distribution model
 
 - **`robotframework-roboscopeheal` now visible + installable from

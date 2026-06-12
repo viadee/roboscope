@@ -218,6 +218,57 @@ cp "$REQ_FILE" "$DIST/requirements.txt"
 rm -f "$DEPS_FILE" "$PIPDL_REQ_FILE"
 echo "    Wheels: $(ls "$DIST/wheels" | wc -l | tr -d ' ') packages"
 
+# ── 4b. Bundle Playwright browser-pack for offline Browser tests ──
+#
+# The Robot Framework Browser library can ONLY obtain its Chromium binary
+# by downloading it (`rfbrowser init` → npm + the Playwright CDN). On an
+# air-gapped / proxy-restricted target that fails and Browser tests die
+# with "browserType.launch: Executable doesn't exist". Harvest the binaries
+# HERE (the build host has internet) into `browser-pack/`; the backend lays
+# them down by copy at env-create time (tasks.py::_run_rfbrowser_init).
+#
+# ONLY for the native-Linux leg: Playwright browser binaries are platform-
+# specific native executables and CANNOT be cross-built. The macOS legs
+# cross-download wheels on an ubuntu host (--platform), so a `rfbrowser
+# init` there would yield Linux browsers — wrong for a macOS target.
+# Native macOS packs need a macOS runner (follow-up).
+if [ "$PLATFORM" = "linux" ]; then
+  echo "==> Building offline Playwright browser-pack (native Linux)..."
+  PACK_DIR="$DIST/browser-pack"
+  TMP_VENV=$(mktemp -d)/bp-venv
+  UV_BIN_ABS="$DIST/uv-bin/$UV_BIN_NAME"
+  if "$UV_BIN_ABS" venv "$TMP_VENV" >/dev/null 2>&1 \
+     && "$UV_BIN_ABS" pip install --python "$TMP_VENV/bin/python" \
+          robotframework-browser-batteries >/dev/null 2>&1; then
+    # `-batteries` ships the Node wrapper in the wheel; rfbrowser init then
+    # only fetches the browser binaries (the variant users install, so its
+    # build numbers match what they run against).
+    PATH="$TMP_VENV/bin:$PATH" "$TMP_VENV/bin/rfbrowser" init 2>&1 \
+      | grep -iE "error|browser|download" || true
+    LOCAL_BROWSERS=$("$TMP_VENV/bin/python" - <<'PYEOF'
+import pathlib, sys
+sp = next(pathlib.Path(sys.prefix).glob("lib/python*/site-packages"), None)
+lb = sp / "Browser" / "wrapper" / "node_modules" / "playwright-core" / ".local-browsers" if sp else None
+print(lb if lb and lb.is_dir() else "")
+PYEOF
+)
+    if [ -n "$LOCAL_BROWSERS" ] && [ -d "$LOCAL_BROWSERS" ]; then
+      mkdir -p "$PACK_DIR"
+      cp -R "$LOCAL_BROWSERS" "$PACK_DIR/.local-browsers"
+      echo "robotframework-browser-batteries / rfbrowser init (linux native)" \
+        > "$PACK_DIR/PROVENANCE.txt"
+      echo "    Browser-pack: $(du -sh "$PACK_DIR" | cut -f1) at $PACK_DIR"
+    else
+      echo "    WARN: rfbrowser init produced no .local-browsers — browser-pack skipped." >&2
+    fi
+  else
+    echo "    WARN: browser-pack venv/install failed — continuing without it." >&2
+  fi
+  rm -rf "$(dirname "$TMP_VENV")"
+else
+  echo "==> Skipping browser-pack for $PLATFORM (browsers can't be cross-built; native macOS runner needed)."
+fi
+
 # ── 5. Create .env template ──────────────────────────────────
 cat > "$DIST/.env.example" << 'ENVEOF'
 # RoboScope Configuration

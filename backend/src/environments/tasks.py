@@ -3,18 +3,20 @@
 import asyncio
 import logging
 import subprocess
+from datetime import UTC
 from pathlib import Path
 
 from sqlalchemy import select
 
 import src.auth.models  # noqa: F401
-
 from src.database import get_sync_session
 from src.environments.models import Environment, EnvironmentPackage
 from src.environments.venv_utils import (
+    bundled_browsers_present,
     check_rfbrowser_initialized,
     create_venv_cmd,
     get_venv_bin_dir,
+    lay_down_bundled_browsers,
     pip_install_cmd,
     pip_show_cmd,
     pip_uninstall_cmd,
@@ -89,6 +91,87 @@ def _shipped_vendor_path(package_name: str) -> Path | None:
     return path
 
 
+def _dist_root() -> Path:
+    """Root of this RoboScope tree. In a dev checkout that's `backend/`;
+    in a deployed offline/online distribution it's the unpacked dist dir
+    (where `src/`, `wheels/`, and `browser-pack/` sit side by side).
+
+    `tasks.py` lives at `<root>/src/environments/tasks.py` in BOTH layouts,
+    so `parent.parent.parent` lands on `<root>` either way.
+    """
+    return Path(__file__).resolve().parent.parent.parent
+
+
+def _dist_wheels_dir() -> Path | None:
+    """The bundled `wheels/` dir of a deployed distribution, or None in a
+    dev checkout (where wheels are only ever produced into `dist/`)."""
+    wheels = _dist_root() / "wheels"
+    return wheels if wheels.is_dir() else None
+
+
+def _bundled_wheel_for(package_name: str) -> Path | None:
+    """Find a pre-built wheel for a shipped package in the dist `wheels/`
+    dir. Wheel filenames normalise `-` to `_`, so `robotframework-
+    roboscopeheal` → `robotframework_roboscopeheal-*.whl`. Returns the
+    lexicographically-last match (highest version) or None.
+    """
+    wheels_dir = _dist_wheels_dir()
+    if wheels_dir is None:
+        return None
+    normalised = package_name.lower().replace("-", "_")
+    matches = sorted(wheels_dir.glob(f"{normalised}-*.whl"))
+    return matches[-1] if matches else None
+
+
+def _shipped_install_target(package_name: str) -> str | None:
+    """Resolve a shipped-with-RoboScope package to a local install target,
+    preferring the vendored SOURCE tree (dev checkout) and falling back to
+    a pre-built WHEEL bundled in the distribution's `wheels/` dir.
+
+    Returns the install spec (a directory path or a `.whl` file path) or
+    None when neither exists — in which case the caller goes to PyPI.
+
+    This is what makes `robotframework-roboscopeheal` (not on PyPI) actually
+    installable into user environments from a deployed distribution: the
+    build ships the wheel in `wheels/`, but the source tree is NOT copied,
+    so the older vendor-source-only resolution silently fell through to a
+    PyPI 404. Both offline and online distributions carry the wheel.
+    """
+    source = _shipped_vendor_path(package_name)
+    if source is not None:
+        return str(source)
+    wheel = _bundled_wheel_for(package_name)
+    if wheel is not None:
+        return str(wheel)
+    return None
+
+
+def resolve_browser_pack_dir() -> Path | None:
+    """Locate the bundled Playwright browser-pack, or None when absent.
+
+    Resolution order:
+      1. `settings.BROWSER_PACK_DIR` (env `BROWSER_PACK_DIR`) if set.
+      2. `<dist root>/browser-pack` (where the build scripts place it,
+         auto-detected relative to this file — no env var needed in a
+         normally-laid-out distribution).
+
+    Returns the directory only when it actually contains a `.local-browsers`
+    subtree (the harvested browser binaries); otherwise None so callers fall
+    back to the network `rfbrowser init`.
+    """
+    from src.config import settings
+
+    candidates: list[Path] = []
+    if settings.BROWSER_PACK_DIR:
+        candidates.append(Path(settings.BROWSER_PACK_DIR))
+    candidates.append(_dist_root() / "browser-pack")
+
+    for cand in candidates:
+        if (cand / ".local-browsers").is_dir():
+            return cand
+    return None
+
+
 def _install_vendored_heal_into_venv(venv_path: str, env_id: int) -> None:
     """Seed `robotframework-roboscopeheal` into a freshly-created
     project venv. Non-fatal — heal is opt-in test ergonomics, not a
@@ -107,21 +190,33 @@ def _install_vendored_heal_into_venv(venv_path: str, env_id: int) -> None:
     the only way to actually get the wheel built and dropped into
     the project venv.
     """
-    vendor_path = _vendored_heal_path()
-    if not vendor_path.is_dir():
-        # Source-tree-broken edge case (build artefact stripped, dev
-        # accidentally deleted the directory) — log and move on.
-        # `backend/tests/test_vendored_rfheal_present.py` is the
-        # regression watchdog for this; if we reached production
-        # without that directory, something more serious is off.
+    # Prefer the vendored source tree (dev checkout); fall back to the
+    # pre-built wheel bundled in a deployed distribution's `wheels/` dir.
+    # Without the wheel fallback the auto-seed silently no-ops on every
+    # deployed install (the build ships the wheel but NOT the source tree),
+    # so `Library RoboScopeHeal` / `Heal Click` never works out of the box.
+    install_target = _shipped_install_target("robotframework-roboscopeheal")
+    if install_target is None:
+        # Neither source nor bundled wheel present — `backend/tests/
+        # test_vendored_rfheal_present.py` is the regression watchdog for
+        # the source tree; reaching here in production means the wheel
+        # wasn't bundled either, which is a build-script bug.
         logger.warning(
-            "vendored heal lib missing at %s — skipping auto-install "
-            "into env %d", vendor_path, env_id,
+            "no vendored heal source or bundled wheel found — skipping "
+            "auto-install into env %d", env_id,
         )
         return
+    # `--find-links wheels/` so heal's own deps (robotframework, defusedxml)
+    # resolve from the bundled wheels offline, while online installs still
+    # fall through to PyPI for anything not bundled.
+    wheels_dir = _dist_wheels_dir()
     try:
         result = subprocess.run(
-            pip_install_cmd(venv_path, str(vendor_path)),
+            pip_install_cmd(
+                venv_path,
+                install_target,
+                find_links=str(wheels_dir) if wheels_dir else None,
+            ),
             capture_output=True, text=True,
         )
     except Exception:
@@ -147,8 +242,8 @@ def is_package_task_active(env_id: int, package_name: str) -> bool:
 
 def _broadcast_package_status(env_id: int, package_name: str, status: str, **extra) -> None:
     """Broadcast a package status change from a sync background thread."""
-    from src.websocket.manager import ws_manager
     from src.main import _event_loop
+    from src.websocket.manager import ws_manager
 
     coro = ws_manager.broadcast_package_status(env_id, package_name, status, **extra)
 
@@ -160,12 +255,12 @@ def _broadcast_package_status(env_id: int, package_name: str, status: str, **ext
 
 def _mark_packages_changed(session, env_id: int) -> None:
     """Update packages_changed_at timestamp on the environment."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     env = session.execute(
         select(Environment).where(Environment.id == env_id)
     ).scalar_one_or_none()
     if env:
-        env.packages_changed_at = datetime.now(timezone.utc)
+        env.packages_changed_at = datetime.now(UTC)
 
 
 BROWSER_PACKAGE_NAMES = {"robotframework-browser", "robotframework_browser"}
@@ -222,6 +317,33 @@ def _run_rfbrowser_init(
 
     logger.info("Running rfbrowser init for env %d ...", env_id)
     _broadcast_package_status(env_id, package_name, "initializing")
+
+    # Offline path: if a bundled browser-pack is shipped with this
+    # distribution and the venv's Browser wrapper is ready (`-batteries`
+    # ships node_modules in the wheel), lay the pre-downloaded browser
+    # binaries down by copy and skip the network-only `rfbrowser init`.
+    # This is the only way Browser-library tests can work on an air-gapped
+    # machine — `rfbrowser init` downloads from the npm + Playwright CDNs.
+    pack_dir = resolve_browser_pack_dir()
+    if pack_dir is not None and not bundled_browsers_present(venv_path):
+        try:
+            if lay_down_bundled_browsers(venv_path, str(pack_dir)):
+                logger.info(
+                    "laid down bundled Playwright browsers from %s into "
+                    "env %d (skipped network rfbrowser init)", pack_dir, env_id,
+                )
+                _broadcast_package_status(env_id, package_name, "initialized")
+                return
+            logger.info(
+                "browser-pack present at %s but venv wrapper not ready for "
+                "copy in env %d — falling through to rfbrowser init",
+                pack_dir, env_id,
+            )
+        except Exception:
+            logger.warning(
+                "bundled browser lay-down raised in env %d; falling back to "
+                "network rfbrowser init", env_id, exc_info=True,
+            )
 
     try:
         env_vars = os.environ.copy()
@@ -428,13 +550,21 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
             # to PyPI as usual: that's the "I want to upgrade past what
             # RoboScope ships" path, and it should only succeed once
             # PyPI actually carries the package.
-            shipped_path = _shipped_vendor_path(package_name) if version is None else None
-            if shipped_path is not None:
-                pkg_spec = str(shipped_path)
+            shipped_target = (
+                _shipped_install_target(package_name) if version is None else None
+            )
+            shipped_find_links: str | None = None
+            if shipped_target is not None:
+                pkg_spec = shipped_target
+                # Resolve transitive deps from the bundled wheels too, so a
+                # deployed (offline) install of a shipped-from-wheel package
+                # doesn't fail reaching for PyPI.
+                wheels_dir = _dist_wheels_dir()
+                shipped_find_links = str(wheels_dir) if wheels_dir else None
                 logger.info(
                     "install_package: resolving %s (no version) to "
-                    "vendored source at %s (env %d)",
-                    package_name, shipped_path, env_id,
+                    "shipped target %s (env %d)",
+                    package_name, shipped_target, env_id,
                 )
             else:
                 pkg_spec = f"{package_name}=={version}" if version else package_name
@@ -445,6 +575,7 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
                     pkg_spec,
                     index_url=env.index_url,
                     extra_index_url=env.extra_index_url,
+                    find_links=shipped_find_links,
                 ),
                 check=True,
                 capture_output=True,
@@ -478,8 +609,13 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
             _mark_packages_changed(session, env_id)
             session.commit()
 
-            # Auto-init rfbrowser after robotframework-browser install (NOT for batteries)
-            if _is_browser_package(package_name) and not _is_batteries_package(package_name):
+            # Provision browsers after installing ANY Browser-library variant.
+            # `-batteries` ships node_modules in the wheel but NOT the browser
+            # binaries (same as the Dockerfile generator established in
+            # service.py), so it needs provisioning just like the standard
+            # variant — the earlier "batteries is self-contained" skip was
+            # wrong and left batteries users with no browsers at all.
+            if _is_any_browser_variant(package_name):
                 _run_rfbrowser_init(env.venv_path, env_id, package_name, pkg, session)
                 # Warn if Docker image needs rebuild
                 if env.docker_image:
@@ -591,8 +727,8 @@ def _upgrade_package_inner(env_id: int, package_name: str) -> dict:
             _mark_packages_changed(session, env_id)
             session.commit()
 
-            # Auto-init rfbrowser after robotframework-browser upgrade
-            if _is_browser_package(package_name):
+            # Re-provision browsers after upgrading ANY Browser-library variant.
+            if _is_any_browser_variant(package_name):
                 _run_rfbrowser_init(env.venv_path, env_id, package_name, pkg, session)
                 # Warn if Docker image needs rebuild
                 if env.docker_image:
@@ -679,8 +815,8 @@ def _check_docker_disk_space(
 
 def _broadcast_docker_build_log(env_id: int, line: str, done: bool = False) -> None:
     """Broadcast a Docker build log line from a sync background thread."""
-    from src.websocket.manager import ws_manager
     from src.main import _event_loop
+    from src.websocket.manager import ws_manager
 
     coro = ws_manager.broadcast_docker_build_log(env_id, line, done=done)
 
@@ -795,9 +931,9 @@ def build_docker_image(env_id: int) -> dict:
             _broadcast_docker_build_log(env_id, "", done=True)
 
             # Update environment's docker_image in DB
-            from datetime import datetime, timezone
+            from datetime import datetime
             env.docker_image = tag
-            env.docker_image_built_at = datetime.now(timezone.utc)
+            env.docker_image_built_at = datetime.now(UTC)
             env.docker_build_status = "success"
             env.docker_build_error = None
             env.docker_build_log = "\n".join(log_lines)
@@ -865,7 +1001,7 @@ def rfbrowser_init_task(env_id: int) -> dict:
             )
         ).scalars().all()
         browser_pkg = next(
-            (p for p in installed_packages if _is_browser_package(p.package_name)),
+            (p for p in installed_packages if _is_any_browser_variant(p.package_name)),
             None,
         )
 

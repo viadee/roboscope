@@ -64,6 +64,14 @@ class Settings(BaseSettings):
     DEFAULT_TIMEOUT_SECONDS: int = 3600
     MAX_PARALLEL_RUNS: int = 4
 
+    # Offline browser-pack: directory holding pre-downloaded Playwright
+    # browser binaries (a `browser-pack/` with a `.local-browsers/` subtree)
+    # shipped in the offline distribution. When set (or auto-detected next to
+    # the app), creating a Browser-library environment lays these browsers
+    # down by copy instead of running the network-only `rfbrowser init`.
+    # Empty = auto-detect (see environments.tasks.resolve_browser_pack_dir).
+    BROWSER_PACK_DIR: str = ""
+
     # Docker
     DOCKER_AVAILABLE: bool = False
     DOCKER_DEFAULT_IMAGE: str = "python:3.12-slim"

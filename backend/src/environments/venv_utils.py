@@ -1,7 +1,6 @@
 """Cross-platform venv path utilities + uv command builders."""
 
 import logging
-import os
 import re
 import shutil
 import sys
@@ -120,6 +119,7 @@ def pip_install_cmd(
     *packages: str,
     index_url: str | None = None,
     extra_index_url: str | None = None,
+    find_links: str | None = None,
 ) -> list[str]:
     """Build uv pip install command targeting a venv.
 
@@ -128,6 +128,11 @@ def pip_install_cmd(
         packages: Package specifiers to install.
         index_url: Custom primary PyPI index URL (replaces default).
         extra_index_url: Additional index URL to search (e.g. private registry).
+        find_links: Additional local directory to resolve wheels from. Used
+            for shipped-with-RoboScope packages that aren't on PyPI (the
+            vendored heal library) in offline / online distributions — uv
+            searches this dir AND the index, so deps still resolve from the
+            bundled wheels offline while online installs fall through to PyPI.
     """
     uv = get_uv_path()
     cmd = [uv, "pip", "install", "--python", get_python_path(venv_path)]
@@ -135,6 +140,8 @@ def pip_install_cmd(
         cmd += ["--index-url", index_url]
     if extra_index_url:
         cmd += ["--extra-index-url", extra_index_url]
+    if find_links:
+        cmd += ["--find-links", find_links]
     cmd += list(packages)
     return cmd
 
@@ -182,3 +189,103 @@ def check_rfbrowser_initialized(venv_path: str) -> bool:
     # Unix — python version in path varies, use glob
     matches = list(venv.glob("lib/python*/site-packages/Browser/wrapper/node_modules"))
     return len(matches) > 0
+
+
+def browser_wrapper_node_modules(venv_path: str) -> Path | None:
+    """Return the Browser wrapper's `node_modules` dir if present, else None.
+
+    The Robot Framework Browser library (and its `-batteries` variant)
+    keeps its Node-side gRPC wrapper + `playwright-core` under
+    `…/site-packages/Browser/wrapper/node_modules`. `-batteries` ships
+    this tree inside the wheel; the standard variant lays it down via
+    `rfbrowser init` (npm). Either way the browser binaries live below
+    `playwright-core/.local-browsers/`.
+    """
+    venv = Path(venv_path)
+    if sys.platform == "win32":
+        candidate = (
+            venv / "Lib" / "site-packages" / "Browser" / "wrapper" / "node_modules"
+        )
+        return candidate if candidate.is_dir() else None
+    matches = list(
+        venv.glob("lib/python*/site-packages/Browser/wrapper/node_modules")
+    )
+    return matches[0] if matches else None
+
+
+def browser_local_browsers_dir(venv_path: str) -> Path | None:
+    """Return the `playwright-core/.local-browsers` target dir for this
+    venv's Browser library, or None when `playwright-core` isn't present
+    (i.e. node_modules wasn't laid down yet — standard variant without a
+    completed `rfbrowser init`). The `.local-browsers` dir itself need not
+    exist yet; the caller creates it when copying bundled browsers in.
+    """
+    node_modules = browser_wrapper_node_modules(venv_path)
+    if node_modules is None:
+        return None
+    playwright_core = node_modules / "playwright-core"
+    if not playwright_core.is_dir():
+        return None
+    return playwright_core / ".local-browsers"
+
+
+def bundled_browsers_present(venv_path: str) -> bool:
+    """True when the Browser library's `.local-browsers` dir holds at least
+    one actual browser build (a `chromium*`/`chrome*`/`ffmpeg*` subdir).
+
+    Stricter than `check_rfbrowser_initialized` (which only checks that
+    `node_modules` exists): the `-batteries` wheel creates `node_modules`
+    but NOT the browser binaries, so node_modules-presence alone does not
+    mean Chromium can launch.
+    """
+    target = browser_local_browsers_dir(venv_path)
+    if target is None or not target.is_dir():
+        return False
+    return any(
+        child.is_dir() and child.name[0] != "."
+        for child in target.iterdir()
+    )
+
+
+def lay_down_bundled_browsers(venv_path: str, pack_dir: str) -> bool:
+    """Copy pre-downloaded Playwright browser binaries from a bundled
+    browser-pack into this venv's `playwright-core/.local-browsers`,
+    so the Browser library can launch Chromium WITHOUT a network
+    `rfbrowser init` (the offline-distribution path).
+
+    `pack_dir` is the bundled `browser-pack/` directory, which contains a
+    `.local-browsers/` subtree harvested at build time from a real
+    `rfbrowser init`. Variant-safe: only browser binaries are copied — the
+    gRPC server binary (which differs between standard and `-batteries`)
+    is never touched.
+
+    Returns True when browsers were laid down (or were already present),
+    False when there's nothing to copy or the target wrapper is missing.
+    """
+    import shutil
+
+    pack = Path(pack_dir)
+    source = pack / ".local-browsers"
+    if not source.is_dir():
+        return False
+
+    target = browser_local_browsers_dir(venv_path)
+    if target is None:
+        # playwright-core not laid down (standard variant, no node_modules):
+        # nothing to copy into — caller falls back to network rfbrowser init.
+        return False
+
+    target.mkdir(parents=True, exist_ok=True)
+    copied_any = False
+    for child in source.iterdir():
+        dest = target / child.name
+        if dest.exists():
+            continue
+        if child.is_dir():
+            shutil.copytree(child, dest, symlinks=True)
+            copied_any = True
+        else:
+            shutil.copy2(child, dest)
+            copied_any = True
+
+    return copied_any or bundled_browsers_present(venv_path)
