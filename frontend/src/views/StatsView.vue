@@ -298,7 +298,7 @@ function formatDate(d: string | null) {
     <div v-if="isStale && !stats.aggregating" class="stale-banner mb-4">
       <span>{{ t('stats.staleMessage') }}</span>
       <span class="stale-detail">{{ stalenessText }}</span>
-      <BaseButton variant="ghost" size="sm" @click="stats.aggregateKpis()">{{ t('stats.refresh') }}</BaseButton>
+      <BaseButton variant="ghost" size="sm" @click="stats.aggregateKpis()">{{ t('stats.refreshNow') }}</BaseButton>
     </div>
 
     <!-- Tab Navigation -->

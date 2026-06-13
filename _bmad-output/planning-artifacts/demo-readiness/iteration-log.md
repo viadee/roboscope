@@ -37,4 +37,12 @@
 - **Tests:** M3 incremental-decode test added; robustness suite 8 passed; docker+ws+robustness 61 passed. M2 partly mitigated by C1; L2/L3 deferred (low impact).
 - **Next:** run the full Playwright E2E pipeline for this branch (DoD gate) — boots backend+frontend, exercises features A-K through the real UI — then per-area demo scenarios.
 
+## Pass 6 — 2026-06-14 — QA + Dev: E2E pipeline triage & green-up
+- **Role:** BMAD QA (run + triage) + Dev (root-cause fixes).
+- **Ran:** full local Playwright E2E (servers + suite) → 296 passed / 2 failed / 6 skipped.
+- **Triaged:** both failures verified NOT regressions from Passes 3-5 (POST /runs returned 201 x8, no 500s/tracebacks). One consistent (stats), one flaky (execution-run).
+- **Fixed at source:** (1) stats — duplicate accessible name "Aktualisieren" on two buttons → distinct `stats.refreshNow` label in EN/DE/FR/ES (a11y + UX); (2) execution-run — flaky assertion moved from the transient toast to the persistent `.run-overlay-success`.
+- **Verified:** frontend vitest 734 passed + prod build clean; targeted E2E rerun 18 passed.
+- **Next:** final full E2E run for green confirmation; then per-area demo scenarios (A→K).
+
 <!-- Append a new "## Pass N" block per iteration. -->

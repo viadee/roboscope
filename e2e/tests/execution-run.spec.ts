@@ -236,8 +236,12 @@ test.describe('Execution Run — UI Tests', () => {
       if (!dismissed) break;
     }
 
-    // Overlay should appear
-    await expect(page.getByText('Testlauf gestartet')).toBeVisible({ timeout: 10_000 });
+    // Wait for the PERSISTENT success overlay rather than the transient
+    // "Testlauf gestartet" toast — the toast auto-dismisses, which made this
+    // assertion flaky on a cold run (dialog handling + POST latency could
+    // push the toast out of view before it was polled). The overlay is the
+    // real, durable success signal the test is about ("see overlay").
+    await expect(page.locator('.run-overlay-success')).toBeVisible({ timeout: 15_000 });
     // File name appears in the run overlay text
     await expect(page.locator('.run-overlay-success')).toContainText('basic_math.robot');
 

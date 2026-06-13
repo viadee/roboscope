@@ -657,6 +657,7 @@ export default {
   stats: {
     title: 'Estadísticas',
     refresh: 'Actualizar',
+    refreshNow: 'Actualizar ahora',
     staleMessage: 'Los datos pueden estar desactualizados — nuevos runs detectados desde la última agregación.',
     staleJustNow: 'Último run: justo ahora',
     staleMinutes: 'Último run: hace {count} min',
