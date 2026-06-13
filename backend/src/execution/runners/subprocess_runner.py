@@ -103,17 +103,22 @@ class SubprocessRunner(AbstractRunner):
         last_activity = time.time()
         lock = threading.Lock()
 
-        # Resource limits: cap memory at 2 GB on Linux/macOS
+        # L1: cap heap (RLIMIT_DATA), NOT virtual address space (RLIMIT_AS).
+        # RLIMIT_AS counts mmap'd memory — Chromium/Node reserve >2 GB of
+        # *virtual* address space (not resident), so a 2 GB RLIMIT_AS made the
+        # headline Browser-library tests fail to even launch with an opaque
+        # allocation error. RLIMIT_DATA bounds the brk-based data segment and
+        # leaves the browser's mmap reservations alone.
         preexec = None
         if platform.system() != "Windows":
             import resource
 
             def _set_limits() -> None:
-                two_gb = 2 * 1024 * 1024 * 1024
+                four_gb = 4 * 1024 * 1024 * 1024
                 try:
-                    resource.setrlimit(resource.RLIMIT_AS, (two_gb, two_gb))
+                    resource.setrlimit(resource.RLIMIT_DATA, (four_gb, four_gb))
                 except (ValueError, OSError):
-                    pass  # best-effort; some systems don't support RLIMIT_AS
+                    pass  # best-effort; some systems don't support RLIMIT_DATA
 
             preexec = _set_limits
 

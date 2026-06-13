@@ -227,3 +227,50 @@ def test_reconcile_interrupted_runs_marks_only_orphans(
     # terminal rows untouched
     assert passed.status == RunStatus.PASSED
     assert failed.status == RunStatus.FAILED
+
+
+# ----- M3: docker log incremental multibyte decode -----
+
+
+def test_docker_stdout_incremental_decode_no_multibyte_corruption(tmp_path) -> None:
+    """Multibyte UTF-8 (DE/FR/ES test names) split across log chunks must
+    decode cleanly — per-chunk decode produced replacement chars + partial
+    lines."""
+    runner = DockerRunner(image="example:latest")
+    line = "Prüfung éxämple ✓"
+    raw = (line + "\n").encode("utf-8")
+    # 3-byte chunks deliberately split the 2-byte ü/é/ä and 3-byte ✓.
+    chunks = [raw[i : i + 3] for i in range(0, len(raw), 3)]
+    captured: list[str] = []
+
+    class _C:
+        def logs(self, **k):
+            return iter(chunks)
+
+        def wait(self, **k):
+            return {"StatusCode": 0}
+
+        def stop(self, **k):
+            pass
+
+        def remove(self, **k):
+            pass
+
+    class _Client:
+        class containers:  # noqa: N801 (mirror docker-py client.containers API)
+            @staticmethod
+            def run(**k):
+                return _C()
+
+    with patch.object(runner, "_get_client", return_value=_Client()):
+        result = runner.execute(
+            repo_path=str(tmp_path),
+            target_path="suite.robot",
+            output_dir=str(tmp_path / "out"),
+            on_output=captured.append,
+            timeout=30,
+        )
+
+    assert result.exit_code == 0
+    assert captured == [line]  # exact line, no partial/garbled emits
+    assert "�" not in result.stdout  # no replacement chars

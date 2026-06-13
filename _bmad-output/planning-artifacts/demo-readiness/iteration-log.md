@@ -31,4 +31,10 @@
 - **Tests:** `test_execution_robustness.py::test_reconcile_interrupted_runs_marks_only_orphans` (orphans→ERROR, terminal rows untouched). Robustness suite: 7 passed.
 - **Remaining (Pass 5):** M1 (unlocked WS count props), M3 (docker multibyte decode), L1 (RLIMIT_AS), L2/L3; then begin Area-A (Auth) QA + demo scenarios + run the Playwright E2E suite for this branch.
 
+## Pass 5 — 2026-06-14 — Dev: remaining QA findings (M1/M3/L1)
+- **Role:** BMAD Dev.
+- **Fixed:** M1 (lock the WS `connection_count`/`run_connection_count` props — no more "changed size during iteration"); M3 (docker logs decoded with an incremental UTF-8 decoder + newline buffer — no multibyte corruption / partial lines on DE/FR/ES output); L1 (`RLIMIT_DATA` 4 GB instead of `RLIMIT_AS` 2 GB so Chromium/Node can reserve virtual address space).
+- **Tests:** M3 incremental-decode test added; robustness suite 8 passed; docker+ws+robustness 61 passed. M2 partly mitigated by C1; L2/L3 deferred (low impact).
+- **Next:** run the full Playwright E2E pipeline for this branch (DoD gate) — boots backend+frontend, exercises features A-K through the real UI — then per-area demo scenarios.
+
 <!-- Append a new "## Pass N" block per iteration. -->

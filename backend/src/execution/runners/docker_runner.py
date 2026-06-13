@@ -142,15 +142,30 @@ class DockerRunner(AbstractRunner):
                 cpu_quota=200000,  # 2 CPUs
             )
 
-            # Stream logs
+            # Stream logs. M3: decode INCREMENTALLY and split on real line
+            # boundaries — decoding each raw chunk independently corrupts
+            # multibyte UTF-8 (accented DE/FR/ES test names) when a character
+            # straddles a chunk boundary, and emits partial lines to on_output.
+            import codecs
+
+            decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+            line_buf = ""
             for log_chunk in self._container.logs(stream=True, follow=True):
                 if self._cancelled:
                     break
-                line = log_chunk.decode("utf-8", errors="replace")
-                stdout_lines.append(line)
-                if on_output:
-                    for sub_line in line.splitlines():
-                        on_output(sub_line)
+                text = decoder.decode(log_chunk)
+                if not text:
+                    continue
+                stdout_lines.append(text)
+                line_buf += text
+                while "\n" in line_buf:
+                    complete, line_buf = line_buf.split("\n", 1)
+                    if on_output:
+                        on_output(complete)
+            # Flush any trailing partial line + decoder state at stream end.
+            line_buf += decoder.decode(b"", final=True)
+            if line_buf and on_output:
+                on_output(line_buf)
 
             # Wait for completion
             result = self._container.wait(timeout=timeout)
