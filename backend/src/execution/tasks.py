@@ -30,6 +30,44 @@ logger = logging.getLogger("roboscope.execution.tasks")
 _active_runners: dict[int, "AbstractRunner"] = {}  # type: ignore[name-defined]
 _active_runners_lock = threading.Lock()
 
+
+def reconcile_interrupted_runs() -> int:
+    """Mark runs left in a non-terminal state (PENDING/RUNNING) as ERROR on
+    startup (H4 — orphan-run reaper).
+
+    The `_active_runners` registry is in-memory only, so after a backend
+    restart (crash, redeploy, OOM-killed worker) it is empty: any run still
+    persisted as PENDING/RUNNING is an orphan whose worker thread died with
+    the previous process. Nothing will ever move it to a terminal state, so
+    the UI shows a permanently-spinning run and `cancel_active_run` can't
+    help. Reconcile them to ERROR at startup. Returns the count reconciled.
+    """
+    with get_sync_session() as session:
+        rows = (
+            session.execute(
+                select(ExecutionRun).where(
+                    ExecutionRun.status.in_(
+                        [RunStatus.PENDING, RunStatus.RUNNING]
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for run in rows:
+            run.status = RunStatus.ERROR
+            run.error_message = (
+                "Run interrupted by a backend restart (no live worker was "
+                "tracking it). Re-run to try again."
+            )
+            run.finished_at = datetime.now(timezone.utc)
+        if rows:
+            session.commit()
+            logger.info(
+                "startup: reconciled %d interrupted run(s) to ERROR", len(rows)
+            )
+        return len(rows)
+
 _PLAYWRIGHT_HINTS = [
     "could not connect to the playwright process",
     "playwright process",

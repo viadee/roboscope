@@ -16,11 +16,26 @@ Each test would fail against the pre-fix code.
 from __future__ import annotations
 
 import sys
+from contextlib import contextmanager
 from unittest.mock import patch
 
+from src.execution.models import ExecutionRun, RunnerType, RunStatus
 from src.execution.runners.base import RunResult
 from src.execution.runners.docker_runner import DockerRunner
 from src.execution.runners.subprocess_runner import SubprocessRunner
+from src.repos.models import Repository
+
+
+@contextmanager
+def _reuse_session(db):
+    """Re-route tasks.get_sync_session() to the test's transactional session."""
+
+    @contextmanager
+    def reuse():
+        yield db
+
+    with patch("src.execution.tasks.get_sync_session", reuse):
+        yield
 
 
 def test_runresult_terminal_flags_default_false() -> None:
@@ -156,3 +171,59 @@ def test_docker_timeout_flags_result_and_stops_container(tmp_path) -> None:
     assert result.success is False
     assert "Timeout" in result.error_message
     assert fake_container.stopped is True  # container was stopped, not leaked
+
+
+# ----- H4: orphan-run reaper on startup -----
+
+
+def test_reconcile_interrupted_runs_marks_only_orphans(
+    db_session, admin_user, tmp_path
+) -> None:
+    """PENDING/RUNNING rows (orphaned by a restart) become ERROR; already
+    terminal rows are left untouched."""
+    from src.execution.tasks import reconcile_interrupted_runs
+
+    local = tmp_path / "repo"
+    local.mkdir()
+    repo = Repository(
+        name="reaper-repo",
+        repo_type="local",
+        local_path=str(local),
+        default_branch="main",
+        created_by=admin_user.id,
+    )
+    db_session.add(repo)
+    db_session.flush()
+
+    def _mk(status):
+        run = ExecutionRun(
+            repository_id=repo.id,
+            target_path="suite.robot",
+            branch="main",
+            status=status,
+            runner_type=RunnerType.SUBPROCESS,
+            triggered_by=admin_user.id,
+        )
+        db_session.add(run)
+        db_session.flush()
+        db_session.refresh(run)
+        return run
+
+    pending = _mk(RunStatus.PENDING)
+    running = _mk(RunStatus.RUNNING)
+    passed = _mk(RunStatus.PASSED)
+    failed = _mk(RunStatus.FAILED)
+
+    with _reuse_session(db_session):
+        count = reconcile_interrupted_runs()
+
+    assert count == 2
+    for run in (pending, running, passed, failed):
+        db_session.refresh(run)
+    assert pending.status == RunStatus.ERROR
+    assert running.status == RunStatus.ERROR
+    assert "restart" in (running.error_message or "")
+    assert running.finished_at is not None
+    # terminal rows untouched
+    assert passed.status == RunStatus.PASSED
+    assert failed.status == RunStatus.FAILED

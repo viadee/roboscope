@@ -11,7 +11,7 @@ all findings code-backed. Fix status tracked below.
 | H1 | HIGH | Inactivity-timeout mis-classified FAILED (status sniffed from "timeout" substring; message says "hung"). | ✅ fixed (`RunResult.timed_out` flag; tasks maps on flag) |
 | H2 | HIGH | Docker `wait(timeout=)` = HTTP read timeout, doesn't stop container → leak + misclassification. | ✅ fixed (type-based timeout detect → stop container + flag) |
 | H3 | HIGH | `commit-before-dispatch` violated on `TaskDispatchError` (flush-only) → run can strand in PENDING. | ✅ fixed (explicit `db.commit()` both paths) |
-| H4 | HIGH | No orphan-run reaper → runs stuck RUNNING forever after backend restart. | ⏳ Pass 4 (startup reconcile) |
+| H4 | HIGH | No orphan-run reaper → runs stuck RUNNING forever after backend restart. | ✅ fixed (Pass 4: `reconcile_interrupted_runs()` in lifespan startup) |
 | M1 | MED | `connection_count`/`run_connection_count` iterate unlocked → `RuntimeError` under concurrent mutation. | ⏳ Pass 4 |
 | M2 | MED | Cancel-during-execute correctness depends on commit-vs-refresh timing. | ⚠️ partly mitigated by C1 (`result.cancelled`); revisit Pass 4 |
 | M3 | MED | Docker stdout decoded per-chunk → garbled multibyte (DE/FR/ES output). | ⏳ Pass 4 (incremental decoder) |

@@ -25,4 +25,10 @@
 - **Deferred to Pass 4:** H4 (orphan reaper), M1 (unlocked WS count props), M3 (docker multibyte decode), L1 (RLIMIT_AS), L2/L3.
 - **Next:** confirm execution-suite regression green, commit, then Pass 4 (remaining HIGH/MED) + begin Area-A (Auth) QA and demo scenarios.
 
+## Pass 4 — 2026-06-14 — Dev: orphan-run reaper (H4)
+- **Role:** BMAD Dev.
+- **Fixed:** H4 — `execution/tasks.py::reconcile_interrupted_runs()` marks any PENDING/RUNNING run as ERROR on startup (the in-memory runner registry is empty after a restart, so such rows are orphans that would otherwise spin forever). Wired into `main.py` lifespan right after `create_tables()`.
+- **Tests:** `test_execution_robustness.py::test_reconcile_interrupted_runs_marks_only_orphans` (orphans→ERROR, terminal rows untouched). Robustness suite: 7 passed.
+- **Remaining (Pass 5):** M1 (unlocked WS count props), M3 (docker multibyte decode), L1 (RLIMIT_AS), L2/L3; then begin Area-A (Auth) QA + demo scenarios + run the Playwright E2E suite for this branch.
+
 <!-- Append a new "## Pass N" block per iteration. -->
