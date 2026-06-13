@@ -346,11 +346,18 @@ def execute_test_run(run_id: int) -> dict:
 
             # Re-read run status — it may have been set to CANCELLED while we were executing
             session.refresh(run)
-            if run.status == RunStatus.CANCELLED:
-                logger.info("Run %d was cancelled during execution", run_id)
+            # Honor BOTH the DB flag and the runner's own cancelled result:
+            # the runner short-circuits when a cancel landed during
+            # prepare()/sync, and that signal must win even if the cancelling
+            # request's commit hasn't propagated to this session yet (C1).
+            if run.status == RunStatus.CANCELLED or result.cancelled:
+                logger.info("Run %d was cancelled (db=%s, result=%s)",
+                            run_id, run.status, result.cancelled)
+                run.status = RunStatus.CANCELLED
                 run.finished_at = datetime.now(timezone.utc)
                 run.duration_seconds = result.duration_seconds
                 session.commit()
+                _broadcast_run_status(run_id, RunStatus.CANCELLED, run)
                 return {"status": "cancelled", "run_id": run.id}
 
             # Update run with results
@@ -359,7 +366,10 @@ def execute_test_run(run_id: int) -> dict:
 
             if result.success:
                 run.status = RunStatus.PASSED
-            elif result.error_message and "timeout" in result.error_message.lower():
+            elif result.timed_out:
+                # H1: classify from the explicit flag, not by sniffing the
+                # message for "timeout" — the inactivity-timeout message says
+                # "hung", which the old substring check mis-filed as FAILED.
                 run.status = RunStatus.TIMEOUT
                 run.error_message = result.error_message
             else:

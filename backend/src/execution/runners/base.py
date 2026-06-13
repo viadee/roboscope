@@ -18,6 +18,11 @@ class RunResult:
     stdout: str = ""
     stderr: str = ""
     error_message: str = ""
+    # Explicit terminal-reason flags so callers don't have to sniff
+    # `error_message` substrings (which mis-classified the inactivity
+    # timeout as FAILED — its message says "hung", not "timeout").
+    timed_out: bool = False
+    cancelled: bool = False
     total_tests: int = 0
     passed_tests: int = 0
     failed_tests: int = 0

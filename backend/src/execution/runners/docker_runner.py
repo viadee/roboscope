@@ -84,8 +84,20 @@ class DockerRunner(AbstractRunner):
         reachable from inside the test container. Mounting the listener
         file + propagating it is tracked as follow-up FLAKY-3.
         """
-        self._cancelled = False
         start_time = time.time()
+
+        # C1: honor a cancel that arrived during prepare()/sync (runner is
+        # registered before prepare runs). Do NOT reset `_cancelled` here —
+        # resetting it erased the cancel and ran the container anyway.
+        if self._cancelled:
+            return RunResult(
+                success=False,
+                exit_code=-1,
+                output_dir=output_dir,
+                cancelled=True,
+                error_message="Run cancelled before execution started",
+                duration_seconds=time.time() - start_time,
+            )
         client = self._get_client()
 
         if listeners:
@@ -112,6 +124,7 @@ class DockerRunner(AbstractRunner):
         if variables:
             env_vars.update({f"ROBOT_{k}": str(v) for k, v in variables.items()})
 
+        stdout_lines: list[str] = []
         try:
             # Create and start container
             self._container = client.containers.run(
@@ -130,7 +143,6 @@ class DockerRunner(AbstractRunner):
             )
 
             # Stream logs
-            stdout_lines: list[str] = []
             for log_chunk in self._container.logs(stream=True, follow=True):
                 if self._cancelled:
                     break
@@ -163,13 +175,34 @@ class DockerRunner(AbstractRunner):
 
         except Exception as e:
             duration = time.time() - start_time
+            # H1/H2: docker's wait(timeout=) / log-stream read timeout raises a
+            # Timeout-named exception but does NOT stop the container. Detect it
+            # by exception type (not message), best-effort stop the container so
+            # we don't leak compute, and flag the result as a timeout.
+            timed_out = self._is_timeout_error(e)
+            if timed_out:
+                try:
+                    self.cancel()
+                except Exception:
+                    logger.warning("failed to stop timed-out container", exc_info=True)
             return RunResult(
                 success=False,
                 exit_code=-1,
                 output_dir=output_dir,
-                error_message=str(e),
+                timed_out=timed_out,
+                stdout="".join(stdout_lines),
+                error_message=(
+                    f"Timeout after {timeout} seconds" if timed_out else str(e)
+                ),
                 duration_seconds=duration,
             )
+
+    @staticmethod
+    def _is_timeout_error(exc: Exception) -> bool:
+        """True for docker/requests read/connect timeouts. Type-name based
+        (not message-sniffing) — docker-py surfaces `requests` Timeout
+        subclasses whose class names end in 'Timeout'."""
+        return type(exc).__name__ in {"ReadTimeout", "Timeout", "ConnectTimeout"}
 
     def cancel(self) -> None:
         """Stop the running container."""

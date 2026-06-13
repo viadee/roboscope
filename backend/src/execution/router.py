@@ -83,13 +83,16 @@ def start_run(
 
         result = dispatch_task(execute_test_run, run.id)
         run.task_id = result.id
-        db.flush()
+        db.commit()
         db.refresh(run)
     except TaskDispatchError as e:
         logger.error("Failed to dispatch run %d: %s", run.id, e)
+        # H3: commit the terminal ERROR state explicitly. The run was already
+        # committed as PENDING above; a flush-only here left it stranded in
+        # PENDING (no PENDING-reaper exists) if request teardown didn't commit.
         run.status = RunStatus.ERROR
         run.error_message = f"Task dispatch failed: {e}"
-        db.flush()
+        db.commit()
         db.refresh(run)
 
     return run

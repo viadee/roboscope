@@ -24,7 +24,7 @@ class TestInactivityTimeout:
         # stdout.readline returns "" immediately (simulates a process that closes stdout
         # but the process itself hasn't exited yet)
         mock_proc.stdout.readline.return_value = ""
-        mock_proc.stderr.readlines.return_value = []
+        mock_proc.stderr.readline.return_value = ""
         mock_proc.poll.return_value = None  # Process still running
         mock_proc.returncode = -15
         mock_proc.wait.return_value = None
@@ -89,7 +89,7 @@ class TestInactivityTimeout:
             return ""
 
         mock_proc2.stdout.readline.side_effect = blocking_readline
-        mock_proc2.stderr.readlines.return_value = []
+        mock_proc2.stderr.readline.return_value = ""
         mock_proc2.poll.return_value = None
         mock_proc2.returncode = -15
         mock_proc2.wait.return_value = None
@@ -146,7 +146,7 @@ class TestInactivityTimeout:
             return f"line {call_count[0]}\n"
 
         mock_proc.stdout.readline.side_effect = producing_readline
-        mock_proc.stderr.readlines.return_value = []
+        mock_proc.stderr.readline.return_value = ""
         mock_proc.poll.return_value = None
         mock_proc.returncode = -15
         mock_proc.wait.return_value = None
@@ -187,7 +187,10 @@ class TestInactivityTimeout:
         line_iter = iter(lines + [""])
 
         mock_proc.stdout.readline.side_effect = lambda: next(line_iter)
-        mock_proc.stderr.readlines.return_value = ["warn: something\n"]
+        # stderr is now drained line-by-line concurrently (C2), not via
+        # readlines() after wait — feed it the same way as stdout.
+        stderr_iter = iter(["warn: something\n", ""])
+        mock_proc.stderr.readline.side_effect = lambda: next(stderr_iter)
         mock_proc.poll.return_value = 0
         mock_proc.returncode = 0
         mock_proc.wait.return_value = None
@@ -225,7 +228,7 @@ class TestInactivityTimeout:
             return ""
 
         mock_proc.stdout.readline.side_effect = readline_with_cancel
-        mock_proc.stderr.readlines.return_value = []
+        mock_proc.stderr.readline.return_value = ""
         mock_proc.poll.return_value = 0
         mock_proc.returncode = 0
         mock_proc.wait.return_value = None
