@@ -383,15 +383,30 @@ test.describe('Demo Video Recording', () => {
     bg(page, 'scene-title', t.executionTitle, 5000); await wait(page, 2000);
 
     async function startRun(target: string) {
-      const runBtn = page.getByRole('button', { name: t.btnNewRun });
-      if (await runBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await runBtn.click(); await wait(page, 1000);
+      // Best-effort for the capture tour: the run-creation modal UI may have
+      // drifted from this script, but the tour must never abort mid-recording
+      // over one click (the run-start flow itself is covered by the real e2e
+      // suite). Every interaction is guarded + swallows so the video completes.
+      try {
+        const runBtn = page.getByRole('button', { name: t.btnNewRun });
+        if (!(await runBtn.isVisible({ timeout: 3000 }).catch(() => false))) return;
+        await runBtn.click({ timeout: 5000 }).catch(() => {}); await wait(page, 1000);
         const sel = page.locator('.modal select, select').first();
-        if (await sel.isVisible({ timeout: 2000 }).catch(() => false)) { await sel.selectOption({ index: 1 }); await wait(page, 500); }
+        if (await sel.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await sel.selectOption({ index: 1 }).catch(() => {}); await wait(page, 500);
+        }
         const inp = page.locator('.modal input[placeholder*="tests"], input[placeholder*="tests"]').first();
-        if (await inp.isVisible({ timeout: 2000 }).catch(() => false)) { await inp.clear(); await inp.fill(target); await wait(page, 500); }
+        if (await inp.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await inp.clear().catch(() => {}); await inp.fill(target).catch(() => {}); await wait(page, 500);
+        }
         const btn = page.getByRole('button', { name: t.btnStart });
-        if (await btn.isVisible({ timeout: 2000 }).catch(() => false)) { await btn.click(); await wait(page, 1500); }
+        if (await btn.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await btn.click({ timeout: 5000 }).catch(() => {}); await wait(page, 1500);
+        }
+        // Close any leftover modal so the tour continues cleanly.
+        await page.keyboard.press('Escape').catch(() => {});
+      } catch {
+        // never abort the recording over a run-start hiccup
       }
     }
 
