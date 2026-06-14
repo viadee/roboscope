@@ -165,7 +165,10 @@ function templateSettingAhead(lines: string[], fromIdx: number): boolean {
     if (!tr) continue
     if (SECTION_HEADER_RE.test(tr)) return false
     if (!/^\s/.test(ln)) return false // next item header at column 0
-    if (/^\s*\[Template\]/i.test(ln)) return true
+    // Require a non-empty template keyword: an empty `[Template]` is
+    // meaningless and must NOT pull body rows into data-row mode (else they'd
+    // serialize as bare rows and demote to keyword steps on reload).
+    if (/^\s*\[Template\]\s+\S/i.test(ln)) return true
   }
   return false
 }
@@ -254,7 +257,10 @@ export function parseStepLine(raw: string): RobotStep {
   if (first === 'EXCEPT') {
     step.type = 'except'
     const asIdx = cells.indexOf('AS')
-    if (asIdx > 1) {
+    // `asIdx >= 1` so a bare catch-all `EXCEPT    AS    ${e}` (AS right after
+    // EXCEPT, empty pattern) keeps its capture var instead of folding `AS ${e}`
+    // into the pattern.
+    if (asIdx >= 1) {
       step.exceptPattern = cells.slice(1, asIdx).join('    ')
       step.exceptVar = cells[asIdx + 1] || ''
     } else {

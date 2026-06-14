@@ -4,11 +4,12 @@ Story: Flow Editor — Verification & Hardening (libdoc-per-environment).
 """
 
 import json
+from datetime import UTC
 from unittest.mock import MagicMock, patch
 
-from src.environments.models import Environment, EnvironmentKeywordCache
 from src.environments import keyword_introspection as ki
 from src.environments import service
+from src.environments.models import Environment, EnvironmentKeywordCache
 from tests.conftest import auth_header
 
 URL = "/api/v1/environments"
@@ -107,6 +108,7 @@ class TestKeywordsEndpoint:
         assert resp.status_code == 404
 
     def test_fresh_cache_returns_ready(self, client, db_session, admin_user):
+        from datetime import datetime
         env = Environment(name="fresh-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id)
         db_session.add(env)
         db_session.flush()
@@ -114,11 +116,12 @@ class TestKeywordsEndpoint:
         cache = EnvironmentKeywordCache(
             environment_id=env.id, source_hash="HASH", status="ready",
             keywords_json=json.dumps(kws),
+            # built recently; env.packages_changed_at is None (never changed) → fresh.
+            updated_at=datetime.now(UTC),
         )
         db_session.add(cache)
         db_session.flush()
-        with patch("src.environments.keyword_introspection.compute_packages_hash", return_value="HASH"):
-            resp = client.get(f"{URL}/{env.id}/keywords", headers=auth_header(admin_user))
+        resp = client.get(f"{URL}/{env.id}/keywords", headers=auth_header(admin_user))
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "ready"
@@ -126,20 +129,43 @@ class TestKeywordsEndpoint:
         assert body["keywords"][0]["library"] == "Browser"
 
     def test_stale_cache_dispatches_rebuild_and_returns_building(self, client, db_session, admin_user):
-        env = Environment(name="stale-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id)
+        from datetime import datetime, timedelta
+        now = datetime.now(UTC)
+        env = Environment(
+            name="stale-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id,
+            # packages changed AFTER the cache was built → stale.
+            packages_changed_at=now,
+        )
         db_session.add(env)
         db_session.flush()
         cache = EnvironmentKeywordCache(
             environment_id=env.id, source_hash="OLD", status="ready", keywords_json="[]",
+            updated_at=now - timedelta(hours=1),
         )
         db_session.add(cache)
         db_session.flush()
-        with patch("src.environments.keyword_introspection.compute_packages_hash", return_value="NEW"), \
-             patch("src.environments.router.dispatch_task") as disp:
+        with patch("src.environments.router.dispatch_task") as disp:
             resp = client.get(f"{URL}/{env.id}/keywords", headers=auth_header(admin_user))
         assert resp.status_code == 200
         assert resp.json()["status"] == "building"
         assert disp.called
+
+    def test_building_in_flight_does_not_redispatch(self, client, db_session, admin_user):
+        from datetime import datetime
+        env = Environment(name="building-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id)
+        db_session.add(env)
+        db_session.flush()
+        cache = EnvironmentKeywordCache(
+            environment_id=env.id, status="building", keywords_json="[]",
+            updated_at=datetime.now(UTC),  # just dispatched
+        )
+        db_session.add(cache)
+        db_session.flush()
+        with patch("src.environments.router.dispatch_task") as disp:
+            resp = client.get(f"{URL}/{env.id}/keywords", headers=auth_header(admin_user))
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "building"
+        assert not disp.called  # an in-flight build must not spawn a second task
 
     def test_missing_cache_dispatches_and_builds(self, client, db_session, admin_user):
         env = Environment(name="nocache-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id)

@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot generator="Robot 7.4.2 (Python 3.12.12 on darwin)" generated="2026-05-12T22:32:23.566912" rpa="false" schemaversion="5">
+<suite id="s1" name="Recording" source="/Users/rat/git/mateo2/roboscope/backend/examples/tests/flows/recording.robot">
+<test id="s1-t1" name="Recording 50" line="8">
+<kw name="New Browser" owner="Browser">
+<msg time="2026-05-12T22:32:24.536697" level="INFO">{"browser": "chromium", "headless": false, "chromiumSandbox": false, "devtools": false, "handleSIGHUP": true, "handleSIGINT": true, "handleSIGTERM": true, "slowMo": 0.0, "timeout": 30000.0, "tracesDir": "/Users/rat/git/mateo2/roboscope/backend/results/browser/traces/temp/2056ccec-5e7f-45d3-8900-c51869355640"}</msg>
+<msg time="2026-05-12T22:32:24.538068" level="INFO">Starting GRPC process /Users/rat/.roboscope/venvs/roboscope-default/lib/python3.12/site-packages/BrowserBatteries/bin/grpc_server using at 127.0.0.1:62006</msg>
+<msg time="2026-05-12T22:32:26.834956" level="INFO">Successfully created browser with options: {"browser":"chromium","headless":false,"chromiumSandbox":false,"devtools":false,"handleSIGHUP":true,"handleSIGINT":true,"handleSIGTERM":true,"slowMo":0,"timeout":30000,"tracesDir":"/Users/rat/git/mateo2/roboscope/backend/results/browser/traces/temp/2056ccec-5e7f-45d3-8900-c51869355640"}</msg>
+<arg>chromium</arg>
+<arg>headless=${HEADLESS}</arg>
+<tag>BrowserControl</tag>
+<tag>Setter</tag>
+<doc>Create a new playwright Browser with specified options.</doc>
+<status status="PASS" start="2026-05-12T22:32:24.536003" elapsed="2.300130"/>
+</kw>
+<kw name="New Context" owner="Browser">
+<msg time="2026-05-12T22:32:26.837786" level="INFO">{
+  "acceptDownloads": true,
+  "bypassCSP": false,
+  "forcedColors": "none",
+  "ignoreHTTPSErrors": false,
+  "javaScriptEnabled": true,
+  "offline": false,
+  "reducedMotion": "no-preference",
+  "serviceWorkers": "allow",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  }
+}</msg>
+<msg time="2026-05-12T22:32:26.880167" level="INFO">Successfully created context. </msg>
+<msg time="2026-05-12T22:32:26.880312" level="INFO">{'acceptDownloads': True, 'bypassCSP': False, 'forcedColors': 'none', 'ignoreHTTPSErrors': False, 'javaScriptEnabled': True, 'offline': False, 'reducedMotion': 'no-preference', 'serviceWorkers': 'allow', 'viewport': {'width': 1280, 'height': 720}}</msg>
+<tag>BrowserControl</tag>
+<tag>Setter</tag>
+<doc>Create a new BrowserContext with specified options.</doc>
+<status status="PASS" start="2026-05-12T22:32:26.836640" elapsed="0.043755"/>
+</kw>
+<kw name="New Page" owner="Browser">
+<msg time="2026-05-12T22:32:31.164877" level="INFO">Successfully initialized new page object and opened url: https://www.heise.de/</msg>
+<arg>https://www.heise.de/</arg>
+<arg>wait_until=domcontentloaded</arg>
+<tag>BrowserControl</tag>
+<tag>Setter</tag>
+<doc>Open a new Page.</doc>
+<status status="PASS" start="2026-05-12T22:32:26.880556" elapsed="4.284675"/>
+</kw>
+<kw name="Click" owner="Browser">
+<msg time="2026-05-12T22:32:58.265564" level="INFO">Clicks the element 'iframe#sp_message_iframe_1454968 &gt;&gt;&gt; text="Zustimmen" &gt;&gt; nth=0'.</msg>
+<msg time="2026-05-12T22:33:08.447737" level="INFO" html="true">&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td colspan="3"&gt;&lt;a href="browser/screenshot/fail-screenshot-1.png" target="_blank"&gt;&lt;img src="browser/screenshot/fail-screenshot-1.png" width="800px"/&gt;&lt;/a&gt;</msg>
+<msg time="2026-05-12T22:33:08.447926" level="INFO">See also file:///Users/rat/git/mateo2/roboscope/backend/results/playwright-log.txt for additional details.</msg>
+<msg time="2026-05-12T22:33:08.448251" level="FAIL">TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('iframe#sp_message_iframe_1454968').contentFrame().locator('text="Zustimmen"').first()
+    - locator resolved to &lt;button title="Zustimmen" aria-label="Zustimmen" class="message-component message-button no-children focusable cmp-button cmp-offer-accept-btn cmp-consent-btn sp_choice_type_11"&gt;Zustimmen&lt;/button&gt;
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is not visible
+    - retrying click action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and stable
+      - element is not visible
+    - retrying click action
+      - waiting 100ms
+    19 × waiting for element to be visible, enabled and stable
+       - element is not visible
+     - retrying click action
+       - waiting 500ms
+</msg>
+<arg>iframe#sp_message_iframe_1454968 &gt;&gt;&gt; text="Zustimmen" &gt;&gt; nth=0</arg>
+<tag>PageContent</tag>
+<tag>Setter</tag>
+<doc>Simulates mouse click on the element found by ``selector``.</doc>
+<status status="FAIL" start="2026-05-12T22:32:31.165454" elapsed="37.448873">TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('iframe#sp_message_iframe_1454968').contentFrame().locator('text="Zustimmen"').first()
+    - locator resolved to &lt;button title="Zustimmen" aria-label="Zustimmen" class="message-component message-button no-children focusable cmp-button cmp-offer-accept-btn cmp-consent-btn sp_choice_type_11"&gt;Zustimmen&lt;/button&gt;
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is not visible
+    - retrying click action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and stable
+      - element is not visible
+    - retrying click action
+      - waiting 100ms
+    19 × waiting for element to be visible, enabled and stable
+       - element is not visible
+     - retrying click action
+       - waiting 500ms
+</status>
+</kw>
+<kw name="Go To" owner="Browser">
+<arg>https://www.heise.de/</arg>
+<tag>BrowserControl</tag>
+<tag>Setter</tag>
+<doc>Navigates to the given ``url``.</doc>
+<status status="NOT RUN" start="2026-05-12T22:34:42.216513" elapsed="0.000684"/>
+</kw>
+<kw name="Click" owner="Browser">
+<arg>xpath=//a-img/figure/a/article/section/div/div/div/div/body/html/img</arg>
+<tag>PageContent</tag>
+<tag>Setter</tag>
+<doc>Simulates mouse click on the element found by ``selector``.</doc>
+<status status="NOT RUN" start="2026-05-12T22:34:42.217362" elapsed="0.000073"/>
+</kw>
+<kw name="Click" owner="Browser">
+<arg>\#meldung p.a-article-header__lead</arg>
+<tag>PageContent</tag>
+<tag>Setter</tag>
+<doc>Simulates mouse click on the element found by ``selector``.</doc>
+<status status="NOT RUN" start="2026-05-12T22:34:42.217506" elapsed="0.000109"/>
+</kw>
+<msg time="2026-05-12T22:34:42.239950" level="INFO">Switching context to context=2533d106-44f3-47ef-9fb7-21472955f2c1 in CURRENT</msg>
+<msg time="2026-05-12T22:34:42.243134" level="INFO">Successfully changed active context: context=2533d106-44f3-47ef-9fb7-21472955f2c1</msg>
+<msg time="2026-05-12T22:34:42.250097" level="INFO">Successfully closed Context</msg>
+<status status="FAIL" start="2026-05-12T22:32:24.533501" elapsed="137.684497">TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('iframe#sp_message_iframe_1454968').contentFrame().locator('text="Zustimmen"').first()
+    - locator resolved to &lt;button title="Zustimmen" aria-label="Zustimmen" class="message-component message-button no-children focusable cmp-button cmp-offer-accept-btn cmp-consent-btn sp_choice_type_11"&gt;Zustimmen&lt;/button&gt;
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is not visible
+    - retrying click action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and stable
+      - element is not visible
+    - retrying click action
+      - waiting 100ms
+    19 × waiting for element to be visible, enabled and stable
+       - element is not visible
+     - retrying click action
+       - waiting 500ms
+</status>
+</test>
+<status status="FAIL" start="2026-05-12T22:32:23.580568" elapsed="138.670374"/>
+</suite>
+<statistics>
+<total>
+<stat pass="0" fail="1" skip="0">All Tests</stat>
+</total>
+<tag>
+</tag>
+<suite>
+<stat name="Recording" id="s1" pass="0" fail="1" skip="0">Recording</stat>
+</suite>
+</statistics>
+<errors>
+</errors>
+</robot>

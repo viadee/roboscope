@@ -704,15 +704,23 @@ def get_keyword_cache(db: Session, env_id: int) -> EnvironmentKeywordCache | Non
 def keyword_cache_is_fresh(
     db: Session, env: Environment, cache: EnvironmentKeywordCache | None
 ) -> bool:
-    """A cache is fresh when it is ready and its source_hash matches the
-    environment's current installed-package digest."""
-    if cache is None or cache.status != "ready":
-        return False
-    from src.environments.keyword_introspection import compute_packages_hash
+    """A cache is fresh when it is ready and no package change has happened since
+    it was built.
 
-    return bool(cache.source_hash) and cache.source_hash == compute_packages_hash(
-        env.venv_path
-    )
+    Uses the environment's `packages_changed_at` timestamp (already bumped
+    whenever a package is installed/removed/upgraded) rather than shelling out
+    to `uv pip list` on every read — that subprocess defeated the cache on the
+    hot palette-load path. The libdoc digest is still recomputed off the hot
+    path inside `rebuild_keyword_cache`."""
+    if cache is None or cache.status != "ready" or cache.updated_at is None:
+        return False
+    changed = env.packages_changed_at
+    if changed is None:
+        return True  # packages never changed since the cache was built
+    # Normalize tzinfo (SQLite returns naive; in-session values may be aware).
+    built = cache.updated_at.replace(tzinfo=None)
+    changed = changed.replace(tzinfo=None)
+    return built >= changed
 
 
 def rebuild_keyword_cache(db: Session, env_id: int) -> EnvironmentKeywordCache | None:

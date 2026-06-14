@@ -42,6 +42,20 @@ describe('ECH — template data cells survive special content', () => {
   })
 })
 
+describe('ECH — tab-indented / tab-separated input (documented normalization)', () => {
+  it('parses tab separators and round-trips to the canonical 4-space form without data loss', () => {
+    const src = '*** Test Cases ***\nT\n\tLog\thello\n\t${x}=\tGet Value\n'
+    const form = parseRobotText(src)
+    const steps = form.testCases[0].steps
+    expect(steps[0]).toMatchObject({ type: 'keyword', keyword: 'Log', args: ['hello'] })
+    expect(steps[1]).toMatchObject({ type: 'assignment', keyword: 'Get Value', returnVars: ['${x}'] })
+    const out = serializeRobotForm(form)
+    expect(out).toContain('Log    hello')
+    expect(out).toContain('${x}=    Get Value')
+    expect(out).not.toContain('\t') // tabs normalized to spaces (documented)
+  })
+})
+
 describe('ECH — [Template] declared AFTER data rows', () => {
   it('still routes the rows to templateRows, not keyword steps', () => {
     const src = '*** Test Cases ***\nT\n    1    2    3\n    [Template]    Add Should Be\n    5    7    12\n'

@@ -296,6 +296,16 @@ function normaliseVarName(raw: string): string {
   return `\${${n}}`
 }
 
+// Code-review hardening (AC-B3 / FE-TPL AC5) — the toolbar panels and the
+// template-table cells mutate `props.form` directly, which fires the deep form
+// watcher. That watcher resets `activeItemIndex` to 0 and clears `selectedNode`
+// UNLESS `suppressFitView` is set. Flag it before any such mutation so editing
+// a variable / suite setting / template cell never yanks the canvas back to the
+// first test case or tears down the selection.
+function keepActiveItemOnRebuild(): void {
+  suppressFitView = true
+}
+
 function addVariable(): void {
   const name = normaliseVarName(newVarName.value)
   if (!name) return
@@ -303,6 +313,7 @@ function addVariable(): void {
     (v) => v.name.toLowerCase() === name.toLowerCase(),
   )
   if (!exists) {
+    keepActiveItemOnRebuild()
     props.form.variables.push({ name, value: newVarValue.value.trim() })
   }
   newVarName.value = ''
@@ -312,16 +323,18 @@ function addVariable(): void {
 function updateVariableName(idx: number, raw: string): void {
   if (idx < 0 || idx >= props.form.variables.length) return
   const name = normaliseVarName(raw)
-  if (name) props.form.variables[idx].name = name
+  if (name) { keepActiveItemOnRebuild(); props.form.variables[idx].name = name }
 }
 
 function updateVariableValue(idx: number, value: string): void {
   if (idx < 0 || idx >= props.form.variables.length) return
+  keepActiveItemOnRebuild()
   props.form.variables[idx].value = value
 }
 
 function removeVariable(idx: number): void {
   if (idx < 0 || idx >= props.form.variables.length) return
+  keepActiveItemOnRebuild()
   props.form.variables.splice(idx, 1)
 }
 
@@ -338,6 +351,7 @@ function templateRowsFor(sectionIndex: number): string[][] {
 function updateTemplateCell(sectionIndex: number, row: number, col: number, value: string): void {
   const rows = templateRowsFor(sectionIndex)
   if (row < 0 || row >= rows.length) return
+  keepActiveItemOnRebuild()
   while (rows[row].length <= col) rows[row].push('')
   rows[row][col] = value
 }
@@ -410,16 +424,19 @@ const availableSuiteSettingKeys = computed<string[]>(() => {
 
 function addSuiteSetting(key: string): void {
   if (props.form.settings.some((s) => s.key.toLowerCase() === key.toLowerCase())) return
+  keepActiveItemOnRebuild()
   props.form.settings.push({ key, value: '', args: [] })
 }
 
 function updateSuiteSettingValue(idx: number, value: string): void {
   if (idx < 0 || idx >= props.form.settings.length) return
+  keepActiveItemOnRebuild()
   props.form.settings[idx].value = value
 }
 
 function removeSuiteSetting(idx: number): void {
   if (idx < 0 || idx >= props.form.settings.length) return
+  keepActiveItemOnRebuild()
   props.form.settings.splice(idx, 1)
 }
 

@@ -199,3 +199,22 @@ BDD Given/When/Then as a distinct step type; `%{}` env-var editing UI;
 retiring the static fallback map once libdoc-per-env is the universal source.
 Unknown/not-yet-modelled constructs pass through round-trip unmangled per the
 "RF owns the format" invariant.
+
+---
+
+## Review Findings (code review 2026-06-14)
+
+3-layer adversarial review (Blind Hunter · Edge Case Hunter · Acceptance Auditor)
+of the epic branch. Patch findings fixed at source; defers logged.
+
+- [x] [Review][Patch] HIGH — inline Variables/suite-settings/template-cell edits reset the active test case + selection (AC-B3, FE-TPL AC5): added `keepActiveItemOnRebuild()` (sets `suppressFitView`) to all direct form mutations [FlowEditor.vue]. Regression e2e with 2 test cases.
+- [x] [Review][Patch] MED — `keyword_cache_is_fresh` shelled out to `uv pip list` on every GET /keywords: now compares `packages_changed_at` vs cache `updated_at` (no subprocess on the hot path) [service.py].
+- [x] [Review][Patch] MED — redundant introspection dispatch on every poll while `building`: 120s in-flight guard, stamps `updated_at` on dispatch [router.py].
+- [x] [Review][Patch] MED — empty `[Template]` value pulled body rows into data-row mode → demoted to steps on reload: lookahead now requires a non-empty template keyword [robotTextIO.ts].
+- [x] [Review][Patch] LOW — `EXCEPT    AS    ${e}` catch-all dropped the capture var: `asIdx >= 1` [robotTextIO.ts].
+- [x] [Review][Patch] LOW — introspection task `count` returned JSON string length, not keyword count [tasks.py].
+- [x] [Review][Patch] LOW — added tab-indent/separator round-trip test pinning the documented tab→space normalization [FlowEditorRoundTripEdgeCases.spec.ts].
+- [x] [Review][Defer] FQN `Library.Keyword` disambiguation on true cross-library ambiguity (AC-C4 second clause) — project>library>BuiltIn precedence is implemented; FQN tiebreak deferred (rare; project keywords already win).
+- [x] [Review][Defer] Multi-line `[Tags]`/`[Setup]` `...` continuation is dropped (pre-existing in the extracted parser) — follow-up.
+- [x] [Review][Defer] Template data cell whose value equals a control marker (IF/FOR/END/…) is routed to a step (RF-ambiguous) — kept the RF-aligned default; documented.
+- Dismissed (4): bare `#` arg = comment (correct RF) · BDD prefix fallback (by-design AC2) · deepMerge in-place (safe as used) · VAR subscript LHS (not valid RF assignment).

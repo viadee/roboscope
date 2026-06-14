@@ -26,6 +26,9 @@ Suite Setup    Log    booting
 *** Test Cases ***
 Demo Test
     Log    \${BASE_URL}
+
+Second Test
+    Log    second
 `;
 
 async function getAuthToken(page: Page): Promise<string> {
@@ -123,6 +126,25 @@ test.describe('Flow Editor — inline Variables + suite settings', () => {
     const addChip = panel.getByTestId('flow-suite-setting-add').filter({ hasText: 'Suite Teardown' });
     await addChip.click();
     await expect(panel.getByText('Suite Teardown', { exact: true })).toBeVisible();
+  });
+
+  test('adding a variable does NOT reset the active test case (AC-B3)', async ({ page }) => {
+    await openFlowEditor(page, repoId);
+
+    // Switch to the SECOND test case.
+    await page.locator('.flow-item-tab', { hasText: 'Second Test' }).click();
+    await expect(page.locator('.flow-item-tab.active', { hasText: 'Second Test' })).toBeVisible();
+    await expect(page.locator('.vue-flow__node[data-id="tc1-start"]')).toBeVisible({ timeout: 8_000 });
+
+    // Add a variable via the toolbar panel.
+    await page.getByTestId('flow-variables-toggle').click();
+    await page.getByTestId('flow-variable-new-name').fill('NEW_VAR');
+    await page.getByTestId('flow-variable-new-value').fill('1');
+    await page.getByTestId('flow-variable-add').click();
+
+    // The active test case must still be the second one (not reset to the first).
+    await expect(page.locator('.flow-item-tab.active', { hasText: 'Second Test' })).toBeVisible();
+    await expect(page.locator('.vue-flow__node[data-id="tc1-start"]')).toBeVisible();
   });
 
   test('removing a variable updates the list', async ({ page }) => {
