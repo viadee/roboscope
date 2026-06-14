@@ -262,6 +262,117 @@ function removeLibrary(idx: number): void {
   emit('libraries-changed')
 }
 
+// --- Variables management (*** Variables ***) ---
+//
+// `form.variables` carries `{ name: '${X}', value: '…' }` entries (a `name`
+// of '#' is a comment line and is hidden here). The Flow Editor lets the user
+// add / edit / remove suite variables inline — the biggest previously-missing
+// piece (you could loop over `${items}` but never define it without leaving
+// the Flow tab). Mutations write straight to `form.variables`; RobotEditor's
+// form watcher re-emits the `.robot` text. Edits commit on blur/Enter (not a
+// continuous v-model into the form) to match the libraries-panel discipline.
+
+const variablesPanelOpen = ref(false)
+const newVarName = ref('')
+const newVarValue = ref('')
+
+interface VariableEntry { idx: number; name: string; value: string }
+
+const variableEntries = computed<VariableEntry[]>(() => {
+  const out: VariableEntry[] = []
+  props.form.variables.forEach((v, idx) => {
+    if (v.name !== '#') out.push({ idx, name: v.name, value: v.value })
+  })
+  return out
+})
+
+/** Normalise a raw variable name to a RF sigil form. Bare `NAME` becomes
+ *  `${NAME}`; an explicit `${}`/`@{}`/`&{}` is kept as-is. */
+function normaliseVarName(raw: string): string {
+  const n = raw.trim()
+  if (!n) return n
+  if (/^[$@&]\{.*\}$/.test(n)) return n
+  return `\${${n}}`
+}
+
+function addVariable(): void {
+  const name = normaliseVarName(newVarName.value)
+  if (!name) return
+  const exists = props.form.variables.some(
+    (v) => v.name.toLowerCase() === name.toLowerCase(),
+  )
+  if (!exists) {
+    props.form.variables.push({ name, value: newVarValue.value.trim() })
+  }
+  newVarName.value = ''
+  newVarValue.value = ''
+}
+
+function updateVariableName(idx: number, raw: string): void {
+  if (idx < 0 || idx >= props.form.variables.length) return
+  const name = normaliseVarName(raw)
+  if (name) props.form.variables[idx].name = name
+}
+
+function updateVariableValue(idx: number, value: string): void {
+  if (idx < 0 || idx >= props.form.variables.length) return
+  props.form.variables[idx].value = value
+}
+
+function removeVariable(idx: number): void {
+  if (idx < 0 || idx >= props.form.variables.length) return
+  props.form.variables.splice(idx, 1)
+}
+
+// --- Suite-level settings (Suite Setup/Teardown, Force/Default Tags, Doc) ---
+//
+// These live in `form.settings` as `{ key, value, args }` rows. Library /
+// Resource imports get their own panel above; this one covers the remaining
+// suite-wide settings so the whole `*** Settings ***` section is editable in
+// the Flow tab and the "settings = side panels" model is finally complete.
+
+const suiteSettingsPanelOpen = ref(false)
+
+const SUITE_SETTING_KEYS = [
+  'Documentation', 'Metadata', 'Suite Setup', 'Suite Teardown',
+  'Test Setup', 'Test Teardown', 'Force Tags', 'Default Tags', 'Test Timeout',
+] as const
+
+interface SuiteSettingEntry { idx: number; key: string; value: string }
+
+const suiteSettingEntries = computed<SuiteSettingEntry[]>(() => {
+  const out: SuiteSettingEntry[] = []
+  props.form.settings.forEach((s, idx) => {
+    const k = s.key.toLowerCase()
+    if (k === 'library' || k === 'resource' || k === 'variables' || k === '#') return
+    out.push({ idx, key: s.key, value: s.value })
+  })
+  return out
+})
+
+/** Suite-setting keys not yet present — offered as quick-add chips. */
+const availableSuiteSettingKeys = computed<string[]>(() => {
+  const present = new Set(
+    props.form.settings.map((s) => s.key.toLowerCase()),
+  )
+  return SUITE_SETTING_KEYS.filter((k) => !present.has(k.toLowerCase()))
+})
+
+function addSuiteSetting(key: string): void {
+  if (props.form.settings.some((s) => s.key.toLowerCase() === key.toLowerCase())) return
+  props.form.settings.push({ key, value: '', args: [] })
+}
+
+function updateSuiteSettingValue(idx: number, value: string): void {
+  if (idx < 0 || idx >= props.form.settings.length) return
+  props.form.settings[idx].value = value
+}
+
+function removeSuiteSetting(idx: number): void {
+  if (idx < 0 || idx >= props.form.settings.length) return
+  props.form.settings.splice(idx, 1)
+}
+
 /**
  * Emit `add-test-case` and, after the parent has pushed onto
  * `form.testCases`, switch to the test-cases section and select the
@@ -1900,6 +2011,26 @@ function onDebugOverlayClose(): void {
         📚 {{ t('flowEditor.libraries') }} ({{ libraryEntries.length }})
         <span aria-hidden="true">{{ librariesPanelOpen ? '▴' : '▾' }}</span>
       </button>
+      <button
+        type="button"
+        :class="['flow-libs-toggle', { active: variablesPanelOpen }]"
+        :title="t('flowEditor.variablesTitle')"
+        data-testid="flow-variables-toggle"
+        @click="variablesPanelOpen = !variablesPanelOpen"
+      >
+        📦 {{ t('flowEditor.variables') }} ({{ variableEntries.length }})
+        <span aria-hidden="true">{{ variablesPanelOpen ? '▴' : '▾' }}</span>
+      </button>
+      <button
+        type="button"
+        :class="['flow-libs-toggle', { active: suiteSettingsPanelOpen }]"
+        :title="t('flowEditor.suiteSettingsTitle')"
+        data-testid="flow-suite-settings-toggle"
+        @click="suiteSettingsPanelOpen = !suiteSettingsPanelOpen"
+      >
+        ⚙️ {{ t('flowEditor.suiteSettings') }} ({{ suiteSettingEntries.length }})
+        <span aria-hidden="true">{{ suiteSettingsPanelOpen ? '▴' : '▾' }}</span>
+      </button>
     </div>
 
     <!-- Library management panel (toggled by the section-bar
@@ -1957,6 +2088,117 @@ function onDebugOverlayClose(): void {
           class="flow-libraries__suggestion"
           @click="addLibrary(suggestion)"
         >{{ suggestion }}</button>
+      </div>
+    </div>
+
+    <!-- *** Variables *** panel — define / edit / remove suite variables
+         inline. Edits commit on blur/Enter (change event), never a
+         continuous v-model into the form. -->
+    <div v-if="variablesPanelOpen" class="flow-libraries" data-testid="flow-variables-panel">
+      <div class="flow-vars__rows">
+        <span v-if="variableEntries.length === 0" class="flow-libraries__empty">
+          {{ t('flowEditor.variablesNone') }}
+        </span>
+        <div
+          v-for="entry in variableEntries"
+          :key="entry.idx"
+          class="flow-vars__row"
+        >
+          <input
+            class="flow-vars__name"
+            :value="entry.name"
+            spellcheck="false"
+            autocomplete="off"
+            data-testid="flow-variable-name"
+            @change="updateVariableName(entry.idx, ($event.target as HTMLInputElement).value)"
+          />
+          <input
+            class="flow-vars__value"
+            :value="entry.value"
+            spellcheck="false"
+            autocomplete="off"
+            data-testid="flow-variable-value"
+            @change="updateVariableValue(entry.idx, ($event.target as HTMLInputElement).value)"
+          />
+          <button
+            type="button"
+            class="flow-libraries__chip-remove"
+            :title="t('flowEditor.variableRemoveTitle', { name: entry.name })"
+            data-testid="flow-variable-remove"
+            @click="removeVariable(entry.idx)"
+          >×</button>
+        </div>
+      </div>
+      <div class="flow-libraries__input-row">
+        <input
+          v-model="newVarName"
+          type="text"
+          class="flow-vars__name"
+          :placeholder="t('flowEditor.variableNamePlaceholder')"
+          autocomplete="off"
+          spellcheck="false"
+          data-testid="flow-variable-new-name"
+          @keydown.enter.prevent="addVariable"
+        />
+        <input
+          v-model="newVarValue"
+          type="text"
+          class="flow-vars__value"
+          :placeholder="t('flowEditor.variableValuePlaceholder')"
+          autocomplete="off"
+          spellcheck="false"
+          data-testid="flow-variable-new-value"
+          @keydown.enter.prevent="addVariable"
+        />
+        <button
+          type="button"
+          class="flow-libraries__add"
+          :disabled="!newVarName.trim()"
+          data-testid="flow-variable-add"
+          @click="addVariable"
+        >+ {{ t('flowEditor.variableAdd') }}</button>
+      </div>
+    </div>
+
+    <!-- Suite-settings panel — Suite Setup/Teardown, Force/Default Tags,
+         Documentation, Metadata, … the rest of *** Settings ***. -->
+    <div v-if="suiteSettingsPanelOpen" class="flow-libraries" data-testid="flow-suite-settings-panel">
+      <div class="flow-vars__rows">
+        <span v-if="suiteSettingEntries.length === 0" class="flow-libraries__empty">
+          {{ t('flowEditor.suiteSettingsNone') }}
+        </span>
+        <div
+          v-for="entry in suiteSettingEntries"
+          :key="entry.idx"
+          class="flow-vars__row"
+        >
+          <span class="flow-vars__name flow-vars__name--readonly">{{ entry.key }}</span>
+          <input
+            class="flow-vars__value"
+            :value="entry.value"
+            spellcheck="false"
+            autocomplete="off"
+            data-testid="flow-suite-setting-value"
+            @change="updateSuiteSettingValue(entry.idx, ($event.target as HTMLInputElement).value)"
+          />
+          <button
+            type="button"
+            class="flow-libraries__chip-remove"
+            :title="t('flowEditor.suiteSettingRemoveTitle', { name: entry.key })"
+            data-testid="flow-suite-setting-remove"
+            @click="removeSuiteSetting(entry.idx)"
+          >×</button>
+        </div>
+      </div>
+      <div v-if="availableSuiteSettingKeys.length" class="flow-libraries__suggestions">
+        <button
+          v-for="key in availableSuiteSettingKeys"
+          :key="key"
+          type="button"
+          class="flow-libraries__suggestion"
+          data-testid="flow-suite-setting-add"
+          @click="addSuiteSetting(key)"
+        >+ {{ key }}</button>
       </div>
     </div>
 
@@ -2827,6 +3069,35 @@ function onDebugOverlayClose(): void {
 .flow-libraries__suggestion:hover {
   border-color: var(--color-primary, #3B7DD8);
   color: var(--color-primary, #3B7DD8);
+}
+/* Variables + suite-settings rows (reuse the .flow-libraries container). */
+.flow-vars__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.flow-vars__row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.flow-vars__name,
+.flow-vars__value {
+  padding: 4px 8px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+}
+.flow-vars__name { width: 200px; flex: 0 0 auto; }
+.flow-vars__value { flex: 1 1 auto; min-width: 0; }
+.flow-vars__name--readonly {
+  display: inline-flex;
+  align-items: center;
+  background: var(--color-bg-subtle, #f1f5f9);
+  color: var(--color-text-secondary, #555);
+  white-space: nowrap;
 }
 .flow-section-tab {
   padding: 7px 18px;
