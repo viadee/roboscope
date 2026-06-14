@@ -878,6 +878,19 @@ def rfbrowser_init_task(env_id: int) -> dict:
             return {"status": "error", "message": str(exc)}
 
 
+def introspect_keywords_task(env_id: int) -> dict:
+    """Background task: run libdoc over the environment's installed libraries
+    and persist the keyword cache (Story: Flow Editor — libdoc-per-environment
+    discovery). Safe to call repeatedly; it only re-introspects what's there."""
+    from src.environments.service import rebuild_keyword_cache
+
+    with get_sync_session() as session:
+        cache = rebuild_keyword_cache(session, env_id)
+        if cache is None:
+            return {"status": "error", "message": "Environment not found"}
+        return {"status": cache.status, "count": len(cache.keywords_json)}
+
+
 def uninstall_package(env_id: int, package_name: str) -> dict:
     """Uninstall a pip package from an environment's virtualenv."""
     with get_sync_session() as session:

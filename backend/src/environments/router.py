@@ -12,7 +12,7 @@ from src.auth.models import User
 from sqlalchemy import select
 from src.task_executor import TaskDispatchError, dispatch_task
 from src.database import get_db
-from src.environments.models import Environment, EnvironmentPackage
+from src.environments.models import Environment, EnvironmentKeywordCache, EnvironmentPackage
 
 logger = logging.getLogger("roboscope.environments")
 from src.environments.schemas import (
@@ -21,6 +21,7 @@ from src.environments.schemas import (
     EnvUpdate,
     EnvVarCreate,
     EnvVarResponse,
+    KeywordCacheResponse,
     PackageCreate,
     PackageResponse,
     PyPISearchResult,
@@ -33,6 +34,8 @@ from src.environments.service import (
     delete_environment,
     generate_dockerfile,
     get_environment,
+    get_keyword_cache,
+    keyword_cache_is_fresh,
     list_environments,
     list_packages,
     list_variables,
@@ -450,6 +453,61 @@ def get_rf_libraries(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
     installed = pip_list_installed(env.venv_path)
     return identify_rf_libraries(installed)
+
+
+@router.get("/{env_id}/keywords", response_model=KeywordCacheResponse)
+def get_environment_keywords(
+    env_id: int,
+    refresh: bool = Query(False, description="Force re-introspection"),
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Keywords (standard + third-party) discovered via ``robot.libdoc`` for an
+    environment's installed libraries — offline-first, no rf-mcp required.
+
+    Returns the cached result immediately when fresh. On a cache miss / stale
+    digest / ``refresh=true`` it dispatches a background re-introspection and
+    returns the current (possibly stale or empty) cache with status
+    ``building`` so the caller can render what's there and poll for the rest.
+    """
+    import json
+
+    env = get_environment(db, env_id)
+    if env is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
+
+    cache = get_keyword_cache(db, env_id)
+    fresh = keyword_cache_is_fresh(db, env, cache)
+
+    if cache is not None and fresh and not refresh:
+        return KeywordCacheResponse(
+            status="ready",
+            source_hash=cache.source_hash,
+            updated_at=cache.updated_at,
+            keywords=json.loads(cache.keywords_json or "[]"),
+        )
+
+    # Stale / missing / forced refresh → kick off a background rebuild and
+    # return whatever we have right now (commit first so the worker sees it).
+    if cache is None:
+        cache = EnvironmentKeywordCache(environment_id=env_id, status="building")
+        db.add(cache)
+    else:
+        cache.status = "building"
+    db.commit()
+
+    from src.environments.tasks import introspect_keywords_task
+    try:
+        dispatch_task(introspect_keywords_task, env_id)
+    except TaskDispatchError:
+        logger.warning("Could not dispatch keyword introspection for env %s", env_id)
+
+    return KeywordCacheResponse(
+        status="building",
+        source_hash=cache.source_hash or "",
+        updated_at=cache.updated_at,
+        keywords=json.loads(cache.keywords_json or "[]"),
+    )
 
 
 @router.post("/{env_id}/packages", response_model=PackageResponse, status_code=status.HTTP_201_CREATED)
