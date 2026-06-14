@@ -115,4 +115,10 @@
 - **Tests:** tests/debug/test_session_manager.py (2 — first tests for the manager; dedup raises before factory, no spawn). Debug suite 70 passed.
 - **Remaining (niche): H2 (SSE single-subscriber), C2 (heal unknown-outcome UI), M4 (recorder restart-crash), M5 (heal iframe sep), L1/L2.**
 
+## Pass 20 — 2026-06-14 — Dev: recorder H2 (SSE single-subscriber)
+- **Role:** BMAD Dev.
+- **Fixed at source:** H2 — the SSE command-stream now enforces one subscriber per session via a per-session active-subscriber flag in v2_command_queue (try_acquire_subscriber / release_subscriber under the registry lock). The endpoint returns 409 for a second concurrent EventSource and releases the slot in a finally so a legitimate reconnect works. Previously two tabs split the single SimpleQueue, each seeing half the recording.
+- **Tests:** tests/recording/test_v2_command_queue_subscriber.py (2). Recording suite: 410 passed.
+- **Milestone: all CRITICAL + HIGH findings across all 4 QA audits are now fixed (27 defects).** Remaining: niche MED/LOW — Heal C2 (unknown-outcome UI) / M5 (iframe sep), Recorder M4 (restart-crash), L1/L2.
+
 <!-- Append a new "## Pass N" block per iteration. -->
