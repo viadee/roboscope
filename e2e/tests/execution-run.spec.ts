@@ -44,7 +44,12 @@ async function pollRunToCompletion(
   page: Page,
   token: string,
   runId: number,
-  maxIterations = 60,
+  // 110 × 2 s = 220 s. RoboScope runs background tasks through a single
+  // ThreadPoolExecutor(max_workers=1), so under a full suite a fresh run can
+  // sit queued behind other specs' tasks well past 2 min before it executes.
+  // The run itself completes fine (no hang — the H4 reaper guarantees that);
+  // the poll just has to out-wait the global queue.
+  maxIterations = 110,
 ): Promise<any> {
   let detail: any;
   for (let i = 0; i < maxIterations; i++) {
@@ -101,7 +106,7 @@ test.describe.serial('Execution Run — API Tests', () => {
   let completedDetail: any;
 
   test('POST /runs should start a test run', async ({ page }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(260_000);  // poll window (220 s) + setup headroom
     token = await getAuthToken(page);
     repoId = await getExamplesRepoId(page, token);
 
@@ -241,7 +246,7 @@ test.describe('Execution Run — UI Tests', () => {
     // assertion flaky on a cold run (dialog handling + POST latency could
     // push the toast out of view before it was polled). The overlay is the
     // real, durable success signal the test is about ("see overlay").
-    await expect(page.locator('.run-overlay-success')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('.run-overlay-success')).toBeVisible({ timeout: 30_000 });
     // File name appears in the run overlay text
     await expect(page.locator('.run-overlay-success')).toContainText('basic_math.robot');
 

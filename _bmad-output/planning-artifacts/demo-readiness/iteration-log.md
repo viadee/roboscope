@@ -45,4 +45,11 @@
 - **Verified:** frontend vitest 734 passed + prod build clean; targeted E2E rerun 18 passed.
 - **Next:** final full E2E run for green confirmation; then per-area demo scenarios (A→K).
 
+## Pass 7 — 2026-06-14 — QA: E2E flake hardening + authoritative CI gate
+- **Role:** BMAD QA.
+- **Demo scenarios:** all 11 areas (A-K) now have reproducible per-feature demo walkthroughs incl. edge cases on disk.
+- **E2E hardening:** the only failing specs across repeated local full runs were the REAL-run execution tests (`execution-run.spec.ts` POST/overlay) — timing/load-sensitive: they pass in isolation, and the failures trace to the documented single-worker task queue + a heavily-loaded local machine + a persistent local `e2e.db`, NOT app regressions (POST /runs 201, runs complete, no 500s). Hardened: `pollRunToCompletion` 220 s + test budget 260 s (execution-run + heal-toggle); run-overlay wait 30 s.
+- **Decision:** the authoritative E2E gate is CI `e2e.yml` on a clean isolated runner (not the contended laptop). Pushing the branch to run it there for a trustworthy green signal — same approach used to validate the offline-browser-pack branch.
+- **Local full-suite high-water mark:** 296 passed / 6 skipped with only real-run timing flakes outstanding.
+
 <!-- Append a new "## Pass N" block per iteration. -->
