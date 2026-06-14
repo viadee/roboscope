@@ -4,7 +4,7 @@ Branch: `chore/demo-readiness-bmad` (off `main`). Goal: every RoboScope
 feature individually demonstrable, working incl. edge cases, bugs fixed at
 source, existing E2E pipeline green — via the BMAD workflow, iteratively.
 
-## What was done (17 passes, BMAD roles)
+## What was done (21 passes, BMAD roles)
 
 - **Analyst/PM** — complete function inventory (backend, frontend,
   recorder/heal/debugger, ops/integrations/E2E) + a demo-readiness matrix
@@ -13,7 +13,7 @@ source, existing E2E pipeline green — via the BMAD workflow, iteratively.
   frontend vitest green) and ran **4 adversarial edge-case audits**:
   Execution core · AI/Reports/TaskExecutor · Flagship (Recorder/Heal/
   Debugger) · plus E2E triage. ~30 code-backed findings.
-- **Dev/Architect** — **24 defects fixed at the source** (no workarounds),
+- **Dev/Architect** — **~30 defects fixed at the source** (no workarounds),
   each with a regression test (fail-before/pass-after).
 - **Demo** — reproducible per-feature demo scenarios (incl. edge cases) for
   all 11 areas, keyed to the seeded `backend/examples` fixtures.
@@ -53,13 +53,23 @@ Plus 1 de-flake: asset-token base64 last-char aliasing.
 - The heal H1 fix closed a cross-repo privilege-escalation in the Phase-4
   Team/Org model.
 
-## Remaining follow-ups (documented, niche / not demo-critical)
-- Heal: C2 (surface `unknown` heal outcome distinctly), M5 (iframe `>>`/`>>>`
-  separator).
-- Recorder: H2 (SSE single-subscriber 409), H5 (nth-disambig syntax for
-  chained selectors), M4 (restart-after-crash queue).
-- Debugger: H4 (atomic start dedup race on double-click).
-- Low: L1 legacy generator escaping, L2 debug port TOCTOU.
+## Closeout — all CRITICAL + HIGH + demo-relevant MED fixed
+Subsequent passes (15–21) cleared the flagship audit: Heal C1 (confidence
+scale) + H1 (RBAC) + M3 (retry narrowing) + M5 (iframe separator); Debugger
+H3 (control-structure breakpoint) + H4 (atomic start dedup) + M1 (path
+guard); Recorder H2 (SSE single-subscriber) + H5 (chained-selector nth) +
+M2 (Go To wait_until); legacy generator L1 (${PASSWORD} not literal ***).
+
+Accepted / deferred with rationale (not demo-critical):
+- C2 (heal `unknown` outcome): the apply gate already rejects any
+  non-`confirmed` heal, so no bad on-disk write is possible — residual is UI
+  clarity only.
+- M4 (recorder restart-after-crash queue): narrow timing window, off the
+  normal demo path.
+- L2 (debug port TOCTOU): self-documented as acceptable for single-user dev.
+
+Every fix landed with a regression test; the full CI pipeline (E2E + unit
+3.12/3.13 + 5 dist builds) is green on a clean runner after the final pass.
 
 See `qa-findings-*.md` for full detail and the `iteration-log.md` for the
 pass-by-pass record.
