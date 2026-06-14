@@ -109,4 +109,10 @@
 - **Tests:** test_robot_emit::TestChainedSelectorDisambiguation (3). robot_emit suite 45 passed.
 - **Remaining (niche): Heal C2/M5, Recorder H2/M4, Debugger H4, L1/L2.**
 
+## Pass 19 — 2026-06-14 — Dev: debugger H4 (atomic start dedup)
+- **Role:** BMAD Dev.
+- **Fixed at source:** H4 — DebugSessionManager.start now does the (user, run) dedup atomically UNDER the manager lock and raises DuplicateDebugSessionError before spawning, so a concurrent/double-click start can't create a second session + orphan robotcode subprocess. Both run-based router start paths catch it → 409 (same shape as the find_by_user_run pre-check).
+- **Tests:** tests/debug/test_session_manager.py (2 — first tests for the manager; dedup raises before factory, no spawn). Debug suite 70 passed.
+- **Remaining (niche): H2 (SSE single-subscriber), C2 (heal unknown-outcome UI), M4 (recorder restart-crash), M5 (heal iframe sep), L1/L2.**
+
 <!-- Append a new "## Pass N" block per iteration. -->

@@ -9,7 +9,7 @@ BMAD QA edge-case audit. Fix status:
 | C2 | CRITICAL* | Heal | Heal "success" recorded the instant the swapped keyword returns; relies entirely on the report layer reclassifying via output.xml. Missing output.xml → `unknown` (apply still rejects it, but UI doesn't flag it as suspect). | ⏳ follow-up (surface `unknown` distinctly; apply gate already rejects non-confirmed) |
 | H2 | HIGH | Recorder | SSE "single-subscriber, 409 on 2nd GET" documented but unenforced → two tabs split one SimpleQueue → each sees half the recording. | ⏳ follow-up (subscriber registry + 409) |
 | H3 | HIGH | Debugger | `output_xml_walker` only descends `<kw>` → misses failures inside FOR/IF/TRY/WHILE → DEBUG-2 breakpoint lands at wrong line. | ✅ fixed (Pass 16: recurse FOR/IF/TRY/WHILE/iter/branch/group; +4 tests) |
-| H4 | HIGH | Debugger | Racy start dedup (find-then-start not atomic) → duplicate sessions + orphan subprocesses on double-click. | ⏳ next (atomic find+register under lock) |
+| H4 | HIGH | Debugger | Racy start dedup → duplicate sessions + orphan subprocesses on double-click. | ✅ fixed (Pass 19: atomic in-lock dedup raises DuplicateDebugSessionError before spawn; +2 tests) |
 | H5 | HIGH | Recorder | `_is_already_disambiguated` treats any `>>` as nth-safe → chained multi-match selectors skip the nth wrap → strict-mode replay crash. | ✅ fixed (Pass 18: only real nth markers count; +3 tests) |
 | M1 | MED | Debugger | Path-traversal guard uses `startswith` (sibling-dir bypass). | ✅ fixed (Pass 16: relative_to) |
 | M2 | MED | Recorder | Only first `Go To`/`New Page` gets `wait_until=domcontentloaded`; later navigations inherit `load` → hang on ad-heavy pages. | ✅ fixed (Pass 17: every Go To gets wait_until) |
