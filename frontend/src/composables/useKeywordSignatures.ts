@@ -28,16 +28,22 @@ export function useKeywordSignatures() {
 
   const argsByName = computed<Map<string, string[]>>(() => {
     const m = new Map<string, string[]>()
-    // Built-in fallback first so dynamic entries can override it.
+    // Resolution order mirrors Robot Framework's own keyword search order:
+    // project/resource keywords > library keywords > BuiltIn. We build the
+    // map LOWEST-precedence first so higher tiers overwrite on a name clash.
+    //
+    //   1. static BuiltIn fallback (lowest)
     for (const [k, v] of RF_KEYWORD_SIGNATURES) m.set(k.toLowerCase(), v)
-    // TODO(EDITOR-2 follow-up): project-resource keywords (loaded by
-    // KeywordPalette via `getProjectKeywords`) are not merged here. A
-    // user-defined keyword with the same name as a BuiltIn would be
-    // shadowed by the BuiltIn unless the dynamic library cache also
-    // returns it. Promote project keywords once the palette stops
-    // owning that fetch.
+    //   2. dynamic library introspection (libdoc / rf-knowledge cache)
     for (const kw of explorer.keywords) {
       if (kw.args && kw.args.length) m.set(kw.name.toLowerCase(), kw.args)
+    }
+    //   3. the repo's OWN user-defined keywords (highest) — fixes the
+    //      shadowing bug where a project keyword sharing a BuiltIn name
+    //      showed the BuiltIn's signature. Empty-arg user keywords still
+    //      register (overwrite) so we don't fall back to a library spec.
+    for (const kw of explorer.projectKeywords) {
+      if (kw.name) m.set(kw.name.toLowerCase(), kw.arguments ?? [])
     }
     return m
   })

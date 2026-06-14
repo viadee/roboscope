@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as explorerApi from '@/api/explorer.api'
+import type { ProjectKeyword } from '@/api/explorer.api'
 import { searchKeywords, invalidateKeywordCache } from '@/api/ai.api'
 import type { FileContent, SearchResult, TestCaseInfo, TreeNode } from '@/types/domain.types'
 
@@ -24,6 +25,15 @@ export const useExplorerStore = defineStore('explorer', () => {
   const keywords = ref<CachedKeyword[]>([])
   const keywordsLoading = ref(false)
   const keywordsLoaded = ref(false)
+  // User-defined keywords parsed from the repo's own .robot/.resource files.
+  // Shared here (rather than owned by KeywordPalette) so useKeywordSignatures
+  // can give them precedence over library/BuiltIn keywords — RF resolves
+  // project/resource keywords ABOVE library keywords on a name collision.
+  const projectKeywords = ref<ProjectKeyword[]>([])
+
+  function setProjectKeywords(kws: ProjectKeyword[]) {
+    projectKeywords.value = kws
+  }
 
   async function fetchTree(repoId: number, path: string = '') {
     loading.value = true
@@ -144,13 +154,14 @@ export const useExplorerStore = defineStore('explorer', () => {
     testCases.value = []
     keywords.value = []
     keywordsLoaded.value = false
+    projectKeywords.value = []
   }
 
   return {
     tree, selectedFile, searchResults, testCases, loading, currentRepoId,
-    keywords, keywordsLoading, keywordsLoaded,
+    keywords, keywordsLoading, keywordsLoaded, projectKeywords,
     fetchTree, openFile, searchInRepo, fetchTestCases, clearSelection, clearAll,
     saveFile, createFile, deleteFileAction, renameFileAction, openInEditorAction, openInFileBrowserAction,
-    preloadKeywords, refreshKeywords,
+    preloadKeywords, refreshKeywords, setProjectKeywords,
   }
 })
