@@ -15,7 +15,7 @@ const ui = useUiStore()
 const { t, locale } = useI18n()
 const { startTour } = useTour()
 
-const languages = ['de', 'en', 'fr', 'es'] as const
+const languages = ['de', 'en', 'fr', 'es', 'zh'] as const
 
 function switchLanguage(lang: string) {
   locale.value = lang
