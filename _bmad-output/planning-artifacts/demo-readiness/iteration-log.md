@@ -68,4 +68,10 @@
 - **Tests:** tests/reports/test_parser_hierarchy.py (4) + existing parser suite = 26 passed.
 - **Remaining follow-ups:** H3 (rotated-key UX), M2 (report orphans), M3 (LLM connect-timeout starving the worker), M4 (spec size cap), L1/L2/L3.
 
+## Pass 11 — 2026-06-14 — QA: CI regression green for AI/Reports fixes
+- **Role:** BMAD QA (regression gate).
+- **build.yml on clean runner = success:** backend pytest 3.12 + 3.13, frontend vitest, and all 5 dist builds pass with the accumulated Execution + AI + Reports fixes (15 defects). No regression across the full unit suite.
+- **State:** branch chore/demo-readiness-bmad — E2E green (Pass 8) + full Build/unit green (this pass). 15 root-cause fixes shipped with regression tests; inventory + demo matrix + demo scenarios (A-K) complete.
+- **Remaining follow-ups (documented):** H3 rotated-key UX, M2 report orphans, M3 LLM connect-timeout (demo-relevant), M4 spec size cap, L1/L2/L3; plus deeper per-edge-case audits of recorder/heal/debugger if desired.
+
 <!-- Append a new "## Pass N" block per iteration. -->
