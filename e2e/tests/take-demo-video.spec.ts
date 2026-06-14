@@ -216,7 +216,7 @@ async function login(page: import('@playwright/test').Page) {
 }
 
 async function nav(page: import('@playwright/test').Page, p: string) {
-  await page.goto(`${BASE}${p}`, { waitUntil: 'networkidle' }); await injectOverlayStyles(page); await wait(page, 800);
+  await page.goto(`${BASE}${p}`, { waitUntil: 'domcontentloaded' }); await injectOverlayStyles(page); await wait(page, 800);
 }
 
 // ---------------------------------------------------------------------------
@@ -236,7 +236,7 @@ test.describe('Demo Video Recording', () => {
     // === SCENE 1 — INTRO ===
     await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
     await login(page);
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
     await injectOverlayStyles(page);
 
     await showOverlay(page, 'big-title', 'RoboScope', 3500);
@@ -279,7 +279,7 @@ test.describe('Demo Video Recording', () => {
 
     const exploreLink = page.locator('a[href*="/explorer"]').first();
     if (await exploreLink.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await exploreLink.click(); await page.waitForLoadState('networkidle');
+      await exploreLink.click(); await page.waitForLoadState('domcontentloaded');
     } else { await nav(page, '/explorer'); }
 
     // === SCENE 4 — EXPLORER & EDITORS ===
@@ -431,7 +431,7 @@ test.describe('Demo Video Recording', () => {
     // Wait for runs to complete — poll until we see passed/failed badges
     for (let i = 0; i < 6; i++) {
       await wait(page, 3000);
-      await page.reload({ waitUntil: 'networkidle' });
+      await page.reload({ waitUntil: 'domcontentloaded' });
       await injectOverlayStyles(page);
       const passedBadge = page.locator('text=passed').first();
       if (await passedBadge.isVisible({ timeout: 1000 }).catch(() => false)) break;
@@ -456,7 +456,7 @@ test.describe('Demo Video Recording', () => {
     // Navigate to report — look for report link in detail panel or via direct URL
     const reportLink = page.locator('a[href*="/reports/"]').first();
     if (await reportLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await reportLink.click(); await page.waitForLoadState('networkidle');
+      await reportLink.click(); await page.waitForLoadState('domcontentloaded');
       await injectOverlayStyles(page); await wait(page, 2000);
       bg(page, 'scene-title', t.reportDetail, 5000); await wait(page, 2000);
       bg(page, 'callout', t.reportResults, 3500, { top: '200px', right: '60px', left: 'auto' }); await wait(page, 4000);
@@ -534,7 +534,7 @@ test.describe('Demo Video Recording', () => {
     // ---- A · AUTH / RBAC (real wrong-login + viewer read-only) ----------
     await sceneCap({ en: 'A · Auth & Roles', de: 'A · Auth & Rollen' });
     await page.evaluate(() => localStorage.removeItem('access_token'));
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' }); await injectOverlayStyles(page);
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' }); await injectOverlayStyles(page);
     const eIn = page.locator('input[type="email"], input[type="text"]').first();
     const pIn = page.locator('input[type="password"]').first();
     if (await eIn.isVisible({ timeout: 4000 }).catch(() => false)) {
@@ -658,7 +658,7 @@ test.describe('Demo Video Recording', () => {
     await tag({ en: 'Status streams live: pending → running → passed/failed', de: 'Status live: pending → running → passed/failed' }, 3500);
     for (let i = 0; i < 100; i++) {
       await wait(page, 3000);
-      await page.reload({ waitUntil: 'networkidle' }).catch(() => {}); await injectOverlayStyles(page);
+      await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {}); await injectOverlayStyles(page);
       let allTerm = runIds.length > 0;
       for (const id of runIds) {
         const d = await page.request.get(`${API}/runs/${id}`, { headers: authH })
@@ -685,14 +685,16 @@ test.describe('Demo Video Recording', () => {
 
     // ---- J · INTERACTIVE DEBUGGER (real, on a failed run) --------------
     await sceneCap({ en: 'J · Interactive Debugger', de: 'J · Interaktiver Debugger' });
-    let failedId: number | null = null;
-    try {
-      const rr = await page.request.get(`${API}/runs?page=1`, { headers: authH });
-      const data = await rr.json();
-      const runs = data.items || data.runs || data || [];
-      const f = (Array.isArray(runs) ? runs : []).find((r: any) => /fail|error/i.test(r.status));
-      if (f) failedId = f.id;
-    } catch { /* */ }
+    // Reuse the failed run from the execution scene; resolve one if absent.
+    if (failedId == null) {
+      try {
+        const rr = await page.request.get(`${API}/runs?page=1`, { headers: authH });
+        const data = await rr.json();
+        const runs = data.items || data.runs || data || [];
+        const f = (Array.isArray(runs) ? runs : []).find((r: any) => /fail|error/i.test(r.status));
+        if (f) failedId = f.id;
+      } catch { /* */ }
+    }
     if (failedId) {
       await nav(page, `/runs?run=${failedId}`);
       const dbg = page.getByTestId('debug-btn');
@@ -729,7 +731,7 @@ test.describe('Demo Video Recording', () => {
 
     // ---- F · REPORTS · STATS · HISTORY (real) --------------------------
     await sceneCap({ en: 'F · Reports, Stats & History', de: 'F · Reports, Stats & Historie' });
-    await page.goto(`${BASE}/reports/1`, { waitUntil: 'networkidle' }).catch(() => {}); await injectOverlayStyles(page);
+    await page.goto(`${BASE}/reports/1`, { waitUntil: 'domcontentloaded' }).catch(() => {}); await injectOverlayStyles(page);
     if (await page.locator('.xml-tree, .kpi-card').first().isVisible({ timeout: 4000 }).catch(() => false)) {
       await tag({ en: 'Report detail: KPIs, keyword tree, HTML report', de: 'Report-Detail: KPIs, Keyword-Baum, HTML-Report' }, 3500);
       await clickIf(page.locator('.suite-header').first(), 1500);
@@ -791,11 +793,11 @@ test.describe('Demo Video Recording', () => {
     await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
     await login(page);
 
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
     await injectOverlayStyles(page);
     await showOverlay(page, 'big-title', 'RoboScope', 2500);
 
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
     await injectOverlayStyles(page);
 
     for (const s of [
@@ -803,18 +805,18 @@ test.describe('Demo Video Recording', () => {
       { p: '/explorer', t: 'EDIT' }, { p: '/runs', t: 'EXECUTE' },
       { p: '/stats', t: 'ANALYZE' }, { p: '/environments', t: 'MANAGE' },
     ]) {
-      await page.goto(`${BASE}${s.p}`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}${s.p}`, { waitUntil: 'domcontentloaded' });
       await injectOverlayStyles(page);
       bg(page, 'big-title', s.t, 1800); await wait(page, 1800);
     }
 
-    await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/settings`, { waitUntil: 'domcontentloaded' });
     await injectOverlayStyles(page);
     await showOverlay(page, 'big-title', '15 KPIs', 1800);
     await showOverlay(page, 'big-title', 'AI-POWERED', 1800);
     await showOverlay(page, 'big-title', 'ENTERPRISE', 1800);
 
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
     await injectOverlayStyles(page);
     await showOverlay(page, 'big-title', 'RoboScope', 2500);
     await showOverlay(page, 'feature-tag-center', 'Open Source / github.com/viadee/roboscope', 3000);
