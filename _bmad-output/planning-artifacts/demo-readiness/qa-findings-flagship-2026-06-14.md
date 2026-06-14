@@ -8,10 +8,10 @@ BMAD QA edge-case audit. Fix status:
 | H1 | HIGH | Heal | `get_run_heal_report` (any authed user) + `apply_heal_patch` (global EDITOR) bypass per-repo effective-role RBAC — global EDITOR w/o repo grant can write .robot files cross-repo. | ✅ fixed (Pass 15: `require_effective_role_for_run` VIEWER/EDITOR, mirrors cancel/retry) |
 | C2 | CRITICAL* | Heal | Heal "success" recorded the instant the swapped keyword returns; relies entirely on the report layer reclassifying via output.xml. Missing output.xml → `unknown` (apply still rejects it, but UI doesn't flag it as suspect). | ⏳ follow-up (surface `unknown` distinctly; apply gate already rejects non-confirmed) |
 | H2 | HIGH | Recorder | SSE "single-subscriber, 409 on 2nd GET" documented but unenforced → two tabs split one SimpleQueue → each sees half the recording. | ⏳ follow-up (subscriber registry + 409) |
-| H3 | HIGH | Debugger | `output_xml_walker` only descends `<kw>` → misses failures inside FOR/IF/TRY/WHILE → DEBUG-2 breakpoint lands at wrong line. | ⏳ next (recurse control-structure elements) |
+| H3 | HIGH | Debugger | `output_xml_walker` only descends `<kw>` → misses failures inside FOR/IF/TRY/WHILE → DEBUG-2 breakpoint lands at wrong line. | ✅ fixed (Pass 16: recurse FOR/IF/TRY/WHILE/iter/branch/group; +4 tests) |
 | H4 | HIGH | Debugger | Racy start dedup (find-then-start not atomic) → duplicate sessions + orphan subprocesses on double-click. | ⏳ next (atomic find+register under lock) |
 | H5 | HIGH | Recorder | `_is_already_disambiguated` treats any `>>` as nth-safe; emitter `>> nth=0` vs verifier `:nth-match(1)` inconsistent for chained shadow selectors → strict-mode replay crash survives. | ⏳ follow-up |
-| M1 | MED | Debugger | Path-traversal guard uses `startswith` (sibling-dir bypass). | ⏳ next (relative_to) |
+| M1 | MED | Debugger | Path-traversal guard uses `startswith` (sibling-dir bypass). | ✅ fixed (Pass 16: relative_to) |
 | M2 | MED | Recorder | Only first `Go To`/`New Page` gets `wait_until=domcontentloaded`; later navigations inherit `load` → hang on ad-heavy pages. | ⏳ follow-up |
 | M3 | MED | Heal | `_should_retry` substring match (`timeout`, `locator(`) over-triggers heals on non-selector failures. | ⏳ follow-up |
 | M4 | MED | Recorder | Restart-after-crash can tear down the queue → restarted browser with a dead stream. | ⏳ follow-up |

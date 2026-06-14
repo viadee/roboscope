@@ -166,11 +166,15 @@ def _validate_step_invocation(
     # so this is a reasonable boundary.
     try:
         repo_root = Path(repo.local_path).resolve()
-        if not str(file_path.resolve()).startswith(str(repo_root)):
+        # M1: containment via relative_to, not startswith — a string prefix
+        # check lets a sibling dir (/data/repo-secrets vs /data/repo) pass.
+        try:
+            file_path.resolve().relative_to(repo_root)
+        except ValueError:
             raise HTTPException(
                 status_code=422,
                 detail="File is not inside the repository",
-            )
+            ) from None
     except OSError as e:
         raise HTTPException(
             status_code=422,

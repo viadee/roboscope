@@ -91,4 +91,10 @@
 - **Tests:** tests/execution/test_heal_confidence_scale.py (3) — FIRST unit tests for the vendored RoboScopeHeal candidate_finder (was zero coverage). Existing heal apply/report: 20 passed (H1 swap doesn't break legit access).
 - **Next:** debugger fixes H3 (output.xml walker control structures → correct breakpoint), H4 (atomic start dedup), M1 (path guard) — first tests in the empty backend/tests/debug/. Then recorder follow-ups (H2/H5/M2/M4) + heal C2/M3/M5.
 
+## Pass 16 — 2026-06-14 — Dev: debugger fixes H3 + M1
+- **Role:** BMAD Dev.
+- **Fixed at source:** H3 — output_xml_walker now recurses through RF 7.x control structures (FOR/IF/TRY/WHILE/iter/branch/group), so a failure nested in a loop/conditional yields the correct breakpoint line instead of falling back to the test header. M1 — debug file path-traversal guard uses relative_to (not startswith), closing the sibling-dir bypass.
+- **Tests:** tests/debug/test_output_xml_walker.py (4: plain kw, FOR, IF, no-failure). Debug suite regression: 68 passed / 30 deselected.
+- **Remaining flagship follow-ups (documented):** C2 (unknown-outcome UI), H2 (SSE single-subscriber), H4 (atomic start dedup), H5 (nth-disambig syntax), M2 (Go To wait_until), M3 (_should_retry), M4 (restart-crash queue), M5 (iframe sep), L1/L2.
+
 <!-- Append a new "## Pass N" block per iteration. -->
