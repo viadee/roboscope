@@ -7,7 +7,7 @@
 
 import type { Node, Edge } from '@vue-flow/core'
 import type { RecordedCommand, RecordedFlow, SelectorCandidate } from '@/types/recorder.types'
-import { parseArgSignature, type ParsedArg } from '@/utils/robotKeywordSignatures'
+import { parseArgSignature, splitBddPrefix, type ParsedArg } from '@/utils/robotKeywordSignatures'
 import { effectiveSelectorForCandidate, renderSelector } from '@/utils/effectiveSelector'
 
 // Map of lowercase-keyword-name → raw libdoc args; produced by
@@ -123,6 +123,12 @@ export interface FlowNodeData {
    * labels and plain text inputs.
    */
   argSpecs: ParsedArg[] | null
+  /**
+   * Story FE-BDD — when a keyword step's name carries a Gherkin/BDD prefix
+   * (Given/When/Then/And/But), this holds `{ prefix, rest }` so the node can
+   * render a prefix badge. Null for non-BDD or non-keyword steps.
+   */
+  bdd?: { prefix: string; rest: string } | null
 }
 
 // --- Sidecar matching (Story EDITOR-1) ---
@@ -580,6 +586,9 @@ export function stepsToFlow(
         stepIndex: i,
         recording: matchStepToCommand(steps, sidecar, i),
         argSpecs: resolveArgSpecs(step, signatures),
+        bdd: (step.type === 'keyword' || step.type === 'assignment')
+          ? splitBddPrefix(step.keyword)
+          : null,
       } as FlowNodeData,
     })
 

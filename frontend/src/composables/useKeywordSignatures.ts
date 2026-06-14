@@ -20,6 +20,7 @@ import { searchKeywords } from '@/api/ai.api'
 import {
   RF_KEYWORD_SIGNATURES,
   parseArgSignature,
+  splitBddPrefix,
   type ParsedArg,
 } from '@/utils/robotKeywordSignatures'
 
@@ -50,7 +51,14 @@ export function useKeywordSignatures() {
 
   function getArgs(keywordName: string): string[] | null {
     if (!keywordName) return null
-    return argsByName.value.get(keywordName.toLowerCase()) ?? null
+    // Verbatim name wins (a keyword may be named with the prefix on purpose).
+    const direct = argsByName.value.get(keywordName.toLowerCase())
+    if (direct) return direct
+    // Story FE-BDD — fall back to the BDD-prefix-stripped name so `When Login`
+    // resolves against `Login`'s signature.
+    const bdd = splitBddPrefix(keywordName)
+    if (bdd) return argsByName.value.get(bdd.rest.toLowerCase()) ?? null
+    return null
   }
 
   function getParsedArgs(keywordName: string): ParsedArg[] | null {

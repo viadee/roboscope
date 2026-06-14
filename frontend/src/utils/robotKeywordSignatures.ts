@@ -10,6 +10,25 @@
  * Covers: BuiltIn, String, Collections, DateTime, OperatingSystem, Process, XML
  */
 
+// Story FE-BDD — Gherkin/BDD prefixes are pure RF syntactic sugar:
+// `Given user logs in` calls the keyword `user logs in` (unless a keyword
+// named with the prefix exists verbatim). Recognising them lets the Flow
+// editor badge BDD steps and resolve signatures against the stripped name.
+const _BDD_PREFIX_RE = /^(Given|When|Then|And|But)\s+(.+)$/i
+
+/**
+ * Split a leading BDD prefix off a keyword name. Returns `{ prefix, rest }`
+ * (prefix in its canonical Title-case, `rest` the remaining keyword text), or
+ * `null` when the name has no BDD prefix. The match needs whitespace after the
+ * prefix, so a keyword literally named `Given` (no trailing word) is NOT split.
+ */
+export function splitBddPrefix(name: string): { prefix: string; rest: string } | null {
+  const m = _BDD_PREFIX_RE.exec((name ?? '').trim())
+  if (!m) return null
+  const prefix = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase()
+  return { prefix, rest: m[2].trim() }
+}
+
 /**
  * Find the index of the `=` that separates `name[: type]` from `default`
  * at the top scope of `body`. Returns -1 when there is no default.
