@@ -306,8 +306,19 @@ def _emit_command(cmd: RecordedCommand) -> str:
 
     # Any remaining args (extensibility for stretch keywords).
     for key, val in cmd.args.items():
-        if key not in ordered:
+        if key not in ordered and key != "wait_until":
             parts.append(_render_arg(val))
+
+    # M2: every `Go To` (not just the synthesised initial `New Page`) gets
+    # wait_until=domcontentloaded. RF Browser's `Go To` defaults to
+    # wait_until=load, which waits for every ad/tracker subresource and
+    # routinely exceeds the 10s timeout on real-world pages even when the
+    # page is interactive — so a recording that navigates more than once
+    # would hang at replay on the second navigation. Honour an explicit
+    # wait_until from the recording if present.
+    if cmd.keyword == "Go To":
+        wu = cmd.args.get("wait_until") or "domcontentloaded"
+        parts.append(f"wait_until={wu}")
 
     # Story RECORDER-IDMAP — trailing comment with the command's
     # position-independent id. RF treats it as a regular line comment

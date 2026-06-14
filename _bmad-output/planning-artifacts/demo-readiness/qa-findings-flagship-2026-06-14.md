@@ -12,8 +12,8 @@ BMAD QA edge-case audit. Fix status:
 | H4 | HIGH | Debugger | Racy start dedup (find-then-start not atomic) → duplicate sessions + orphan subprocesses on double-click. | ⏳ next (atomic find+register under lock) |
 | H5 | HIGH | Recorder | `_is_already_disambiguated` treats any `>>` as nth-safe; emitter `>> nth=0` vs verifier `:nth-match(1)` inconsistent for chained shadow selectors → strict-mode replay crash survives. | ⏳ follow-up |
 | M1 | MED | Debugger | Path-traversal guard uses `startswith` (sibling-dir bypass). | ✅ fixed (Pass 16: relative_to) |
-| M2 | MED | Recorder | Only first `Go To`/`New Page` gets `wait_until=domcontentloaded`; later navigations inherit `load` → hang on ad-heavy pages. | ⏳ follow-up |
-| M3 | MED | Heal | `_should_retry` substring match (`timeout`, `locator(`) over-triggers heals on non-selector failures. | ⏳ follow-up |
+| M2 | MED | Recorder | Only first `Go To`/`New Page` gets `wait_until=domcontentloaded`; later navigations inherit `load` → hang on ad-heavy pages. | ✅ fixed (Pass 17: every Go To gets wait_until) |
+| M3 | MED | Heal | `_should_retry` substring match (`timeout`, `locator(`) over-triggers heals on non-selector failures. | ✅ fixed (Pass 17: selector-resolution signatures only) |
 | M4 | MED | Recorder | Restart-after-crash can tear down the queue → restarted browser with a dead stream. | ⏳ follow-up |
 | M5 | MED | Heal | `_split_iframe_wrap` mismatches `>>`/`>>>` separators → heal silently won't fire for hand-edited iframe selectors. | ⏳ follow-up |
 | L1/L2 | LOW | Recorder/Debug | Legacy generator unescaped + literal `***` secret; debug port TOCTOU. | ⏳ follow-up |

@@ -867,3 +867,24 @@ class TestEffectiveOverride:
         )
         cand = SelectorCandidate.model_validate_json(legacy_json)
         assert cand.effective_override is None
+
+
+class TestGoToWaitUntil:
+    """M2: every Go To (not just the synthesised New Page) gets
+    wait_until=domcontentloaded so a multi-navigation recording doesn't hang
+    at replay on the default wait_until=load."""
+
+    def test_subsequent_go_to_gets_domcontentloaded(self) -> None:
+        flow = _flow([
+            RecordedCommand(index=0, keyword="Go To", args={"url": "https://a.example"}),
+            RecordedCommand(index=1, keyword="Go To", args={"url": "https://b.example"}),
+        ])
+        out = emit_robot(flow)
+        assert "New Page    https://a.example    wait_until=domcontentloaded" in out
+        assert "Go To    https://b.example    wait_until=domcontentloaded" in out
+
+    def test_emit_command_go_to_has_wait_until(self) -> None:
+        line = _emit_command(
+            RecordedCommand(index=0, keyword="Go To", args={"url": "https://x.example"})
+        )
+        assert "Go To    https://x.example    wait_until=domcontentloaded" in line

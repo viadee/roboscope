@@ -97,4 +97,10 @@
 - **Tests:** tests/debug/test_output_xml_walker.py (4: plain kw, FOR, IF, no-failure). Debug suite regression: 68 passed / 30 deselected.
 - **Remaining flagship follow-ups (documented):** C2 (unknown-outcome UI), H2 (SSE single-subscriber), H4 (atomic start dedup), H5 (nth-disambig syntax), M2 (Go To wait_until), M3 (_should_retry), M4 (restart-crash queue), M5 (iframe sep), L1/L2.
 
+## Pass 17 — 2026-06-14 — Dev: recorder M2 + heal M3
+- **Role:** BMAD Dev.
+- **Fixed at source:** M2 — every emitted `Go To` now carries wait_until=domcontentloaded (not just the synthesised first New Page), so multi-navigation recordings don't hang at replay on ad-heavy pages. M3 — heal `_should_retry` matches selector-resolution signatures only (dropped bare "timeout"/"locator(") so non-selector failures don't trigger a risky heal swap.
+- **Tests:** test_robot_emit TestGoToWaitUntil (2) + test_heal_should_retry (2); robot_emit suite 44 passed.
+- **Remaining (documented, niche):** Heal C2/M5, Recorder H2/H5/M4, Debugger H4, L1/L2.
+
 <!-- Append a new "## Pass N" block per iteration. -->
