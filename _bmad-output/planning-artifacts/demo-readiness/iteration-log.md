@@ -52,4 +52,9 @@
 - **Decision:** the authoritative E2E gate is CI `e2e.yml` on a clean isolated runner (not the contended laptop). Pushing the branch to run it there for a trustworthy green signal — same approach used to validate the offline-browser-pack branch.
 - **Local full-suite high-water mark:** 296 passed / 6 skipped with only real-run timing flakes outstanding.
 
+## Pass 8 — 2026-06-14 — QA: authoritative CI green ✅
+- **Role:** BMAD QA (regression gate).
+- **Result on clean CI runners:** E2E Tests (e2e.yml) = success (full Playwright suite); Build Distribution (build.yml) = success (backend pytest 3.12+3.13 + frontend vitest + all 5 dist builds).
+- **Conclusion:** all changes across Passes 1-7 keep the existing pipeline fully green; the local full-run flakes were environmental, not regressions. DoD E2E/regression gate MET.
+
 <!-- Append a new "## Pass N" block per iteration. -->
