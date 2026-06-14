@@ -393,6 +393,19 @@ export function getArgLabel(
   return fallback()
 }
 
+/**
+ * Story FE-KWSRC — BOOTSTRAP-ONLY signature map.
+ *
+ * This is the lowest-precedence fallback, used only BEFORE an environment has
+ * been introspected via `robot.libdoc` (the libdoc-per-environment endpoint is
+ * the universal source). Resolution order in `useKeywordSignatures` is:
+ *   project keywords  >  libdoc(env)  >  THIS bootstrap.
+ *
+ * INVARIANT — keep this STANDARD-LIBRARY-ONLY (BuiltIn, Collections, String,
+ * DateTime, OperatingSystem, Process, XML). Do NOT add third-party libraries
+ * (Browser, SeleniumLibrary, …): those come from libdoc, which never ages.
+ * Pinned by `RfKeywordSignaturesBootstrap.spec.ts`. "Shrink, don't grow."
+ */
 export const RF_KEYWORD_SIGNATURES = new Map<string, string[]>([
   // =====================================================================
   // BuiltIn Library
@@ -716,3 +729,10 @@ export const RF_KEYWORD_SIGNATURES = new Map<string, string[]>([
   ['set elements tag', ['source', 'tag', 'xpath=.']],
   ['set elements text', ['source', 'text=None', 'tail=None', 'xpath=.']],
 ])
+
+/**
+ * Story FE-KWSRC — explicit bootstrap alias. Prefer this name at new call
+ * sites to make the bootstrap-only role obvious; `RF_KEYWORD_SIGNATURES` is
+ * kept as the historical name so existing imports don't churn.
+ */
+export const RF_BOOTSTRAP_SIGNATURES = RF_KEYWORD_SIGNATURES
