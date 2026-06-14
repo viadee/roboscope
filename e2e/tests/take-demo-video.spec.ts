@@ -215,7 +215,7 @@ async function nav(page: import('@playwright/test').Page, p: string) {
 // ---------------------------------------------------------------------------
 
 test.describe('Demo Video Recording', () => {
-  test.setTimeout(600_000);
+  test.setTimeout(2_400_000);
 
   test(`Full Feature Tour [${LANG.toUpperCase()}]`, async ({ browser }) => {
     const context = await browser.newContext({
@@ -485,6 +485,164 @@ test.describe('Demo Video Recording', () => {
     const auditTab = page.getByRole('button', { name: t.btnAudit });
     if (await auditTab.isVisible({ timeout: 2000 }).catch(() => false)) { await auditTab.click(); await wait(page, 800); }
     bg(page, 'feature-tag', t.auditLog, 3000); await wait(page, 4000);
+
+    // =====================================================================
+    // DEEP DIVE — EVERY FEATURE + EDGE CASE (demo-readiness matrix A–K)
+    // =====================================================================
+    const cap = (o: { en: string; de: string }) => (LANG === 'de' ? o.de : o.en);
+    const clickIf = async (loc: import('@playwright/test').Locator, ms = 1200) => {
+      if (await loc.isVisible({ timeout: 2500 }).catch(() => false)) {
+        await loc.click({ timeout: 5000 }).catch(() => {});
+        await wait(page, ms);
+        return true;
+      }
+      return false;
+    };
+    // Blocking captions: hold the page for the full caption duration so each
+    // feature/edge-case overlay is actually readable (fire-and-forget cut them off).
+    const sceneCap = async (o: { en: string; de: string }, ms = 4500) => {
+      await showOverlay(page, 'scene-title', cap(o), ms);
+    };
+    const tag = async (o: { en: string; de: string }, ms = 4000) => {
+      await showOverlay(page, 'feature-tag', cap(o), ms);
+    };
+
+    await showOverlay(page, 'big-title',
+      cap({ en: 'Deep Dive — Every Feature & Edge Case',
+            de: 'Deep Dive — Alle Features & Edge Cases' }), 3800);
+
+    // --- AREA A: AUTH / RBAC / IDENTITY -------------------------------------
+    await sceneCap({ en: 'A · Auth, Roles & Identity', de: 'A · Auth, Rollen & Identität' });
+    await wait(page, 1500);
+    // Login error edge case (wrong password) — show on a logged-out page.
+    await page.evaluate(() => { localStorage.removeItem('access_token'); });
+    await nav(page, '/login');
+    await tag({ en: 'Edge case: wrong credentials → inline error', de: 'Edge Case: falsche Daten → Inline-Fehler' });
+    const emailInp = page.locator('input[type="email"], input[name*="email"]').first();
+    const pwInp = page.locator('input[type="password"]').first();
+    if (await emailInp.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await emailInp.fill('admin@roboscope.local').catch(() => {});
+      await pwInp.fill('wrong-password').catch(() => {});
+      await clickIf(page.getByRole('button', { name: /anmelden|login|sign in/i }), 2500);
+      await tag({ en: 'Rate-limited after repeated failures', de: 'Rate-Limit nach wiederholten Fehlversuchen' }, 3000);
+      await wait(page, 1500);
+    }
+    await login(page);  // back to admin
+    // RBAC: create + log in as a VIEWER to show the read-only UI.
+    await page.request.post(`${API}/auth/users`, {
+      headers: { Authorization: `Bearer ${await page.evaluate(() => localStorage.getItem('access_token'))}` },
+      data: { email: 'viewer@demo.local', username: 'viewer', password: 'viewer123', role: 'viewer' },
+    }).catch(() => {});
+    const viewerRes = await page.request.post(`${API}/auth/login`,
+      { data: { email: 'viewer@demo.local', password: 'viewer123' } }).catch(() => null);
+    if (viewerRes && viewerRes.ok()) {
+      const vb = await viewerRes.json();
+      await page.evaluate((tok) => {
+        localStorage.setItem('access_token', tok.access_token);
+        localStorage.setItem('refresh_token', tok.refresh_token);
+      }, vb);
+      await nav(page, '/dashboard');
+      await tag({ en: 'VIEWER role — read-only; no Recorder/Environments', de: 'VIEWER-Rolle — nur lesend; kein Recorder/Environments' }, 4000);
+      await wait(page, 2500);
+      await login(page);  // restore admin
+    }
+    // i18n: switch language from the header (4 locales EN/DE/FR/ES).
+    await nav(page, '/dashboard');
+    await tag({ en: 'i18n — EN / DE / FR / ES, switchable live', de: 'i18n — EN / DE / FR / ES, live umschaltbar' }, 4000);
+    await wait(page, 2500);
+
+    // --- AREA B/C: EXPLORER & EDITORS edge cases ---------------------------
+    await sceneCap({ en: 'C · Explorer & Editors — edge cases', de: 'C · Explorer & Editoren — Edge Cases' });
+    await nav(page, '/explorer');
+    await tag({ en: 'File tree, search, create / rename / delete', de: 'Dateibaum, Suche, Anlegen / Umbenennen / Löschen' }, 3500);
+    await wait(page, 1500);
+    await tag({ en: 'Flow Editor: 0-node placeholder, large graphs', de: 'Flow-Editor: 0-Knoten-Platzhalter, große Graphen' }, 3500);
+    await wait(page, 1500);
+    await tag({ en: 'Spec Editor → AI test generation (diff accept/reject)', de: 'Spec-Editor → KI-Testgenerierung (Diff annehmen/ablehnen)' }, 3500);
+    await wait(page, 1500);
+
+    // --- AREA I: SELF-HEALING (flagship) ----------------------------------
+    await sceneCap({ en: 'I · Self-Healing Library', de: 'I · Self-Healing-Library' });
+    await tag({ en: 'Opt-in: write "Heal Click" — plain Click untouched', de: 'Opt-in: "Heal Click" schreiben — Click bleibt unberührt' }, 4000);
+    await wait(page, 1000);
+    await tag({ en: 'Confidence thresholds + per-test budget gate every swap', de: 'Confidence-Schwellen + Budget pro Test gaten jeden Swap' }, 4000);
+    await wait(page, 1000);
+    await tag({ en: 'Heal report: diff + Copy-patch (suspect heals blocked)', de: 'Heal-Report: Diff + Copy-Patch (suspect-Heals gesperrt)' }, 4000);
+    await wait(page, 1000);
+    await tag({ en: 'no-heal tag = per-test escape hatch', de: 'no-heal-Tag = Escape-Hatch pro Test' }, 3500);
+    await wait(page, 1000);
+
+    // --- AREA J: INTERACTIVE DEBUGGER (flagship) --------------------------
+    await sceneCap({ en: 'J · Interactive Debugger', de: 'J · Interaktiver Debugger' });
+    await nav(page, '/runs');
+    // Click a FAILED run → 🐞 Debug (best-effort).
+    const failRow = page.locator('table tbody tr').filter({ hasText: /failed/i }).first();
+    if (await clickIf(failRow, 1500)) {
+      await clickIf(page.getByRole('button', { name: /debug|🐞/i }), 2500);
+    }
+    await tag({ en: 'Re-run to error · breakpoint from output.xml', de: 'Re-run bis Fehler · Breakpoint aus output.xml' }, 4000);
+    await wait(page, 1000);
+    await tag({ en: 'Run up to here · step/continue · scope tree', de: 'Bis hier ausführen · Step/Continue · Scope-Baum' }, 4000);
+    await wait(page, 1000);
+    await tag({ en: 'RobotCode prereq → one-click install', de: 'RobotCode-Prereq → Ein-Klick-Installation' }, 3500);
+    await wait(page, 1000);
+
+    // --- AREA H: RECORDER (flagship) --------------------------------------
+    await sceneCap({ en: 'H · Chrome/Playwright Recorder', de: 'H · Chrome/Playwright-Recorder' });
+    await nav(page, '/recordings/new');
+    await tag({ en: 'Transport picker + capability gating (headless server)', de: 'Transport-Auswahl + Capability-Gating (Headless-Server)' }, 4000);
+    await wait(page, 1500);
+    await tag({ en: 'Shadow DOM, cross-frame, selector quality scoring', de: 'Shadow DOM, Cross-Frame, Selector-Qualitäts-Scoring' }, 4000);
+    await wait(page, 1500);
+    await tag({ en: 'Live SSE stream · single-subscriber enforced', de: 'Live-SSE-Stream · Single-Subscriber erzwungen' }, 3500);
+    await wait(page, 1500);
+
+    // --- AREA D: EXECUTION edge cases (cancel, schedules) -----------------
+    await sceneCap({ en: 'D · Execution edge cases', de: 'D · Execution-Edge-Cases' });
+    await nav(page, '/runs');
+    await tag({ en: 'Cancel a run · timeout vs failed · orphan reaper', de: 'Run abbrechen · Timeout vs. Failed · Orphan-Reaper' }, 4000);
+    await wait(page, 1000);
+    // Schedules tab + invalid cron edge case.
+    await clickIf(page.getByRole('button', { name: /schedule|zeitplan|plan/i }), 1500);
+    const newSched = page.getByRole('button', { name: /\+.*schedule|\+.*plan|neuer plan/i });
+    if (await clickIf(newSched, 1200)) {
+      const cron = page.locator('input[placeholder*="cron"], input[name*="cron"]').first();
+      if (await cron.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await cron.fill('not-a-cron').catch(() => {});
+        await tag({ en: 'Edge case: invalid cron → validation error', de: 'Edge Case: ungültiger Cron → Validierungsfehler' }, 3500);
+        await wait(page, 2000);
+        await page.keyboard.press('Escape').catch(() => {});
+      }
+    }
+
+    // --- AREA E: ENVIRONMENTS edge cases ---------------------------------
+    await sceneCap({ en: 'E · Environments & Packages', de: 'E · Environments & Pakete' });
+    await nav(page, '/environments');
+    await tag({ en: 'venv (uv) · invalid Python version validation', de: 'venv (uv) · ungültige Python-Version-Validierung' }, 4000);
+    await wait(page, 1000);
+    await tag({ en: 'Package install · Browser + heal provisioning · offline pack', de: 'Paket-Install · Browser + Heal-Provisioning · Offline-Pack' }, 4000);
+    await wait(page, 1000);
+
+    // --- AREA F: REPORTS & STATS edge cases ------------------------------
+    await sceneCap({ en: 'F · Reports, Stats & History', de: 'F · Reports, Stats & Historie' });
+    await nav(page, '/reports');
+    await tag({ en: 'Upload ZIP · path-traversal guarded · 500MB limit', de: 'ZIP-Upload · Path-Traversal geschützt · 500MB-Limit' }, 4000);
+    await wait(page, 1000);
+    await nav(page, '/test-history');
+    await tag({ en: 'Flakiness trends · quarantine (skip at run-time)', de: 'Flaky-Trends · Quarantäne (Skip zur Laufzeit)' }, 4000);
+    await wait(page, 1500);
+
+    // --- ADMIN: TEAMS / SSO / EMERGENCY BYPASS ---------------------------
+    await sceneCap({ en: 'Enterprise · SSO, Teams, Emergency Bypass', de: 'Enterprise · SSO, Teams, Notfall-Bypass' });
+    await nav(page, '/admin/identity-providers');
+    await tag({ en: 'OIDC/SSO · dry-run checks · test-login · handoff', de: 'OIDC/SSO · Dry-Run-Checks · Test-Login · Handoff' }, 4000);
+    await wait(page, 1500);
+    await nav(page, '/admin/teams');
+    await tag({ en: 'Teams · IdP-group → role mapping · inherited roles', de: 'Teams · IdP-Gruppe → Rolle · vererbte Rollen' }, 4000);
+    await wait(page, 1500);
+    await nav(page, '/admin/emergency-bypass');
+    await tag({ en: 'Emergency SSO bypass (time-boxed, audited)', de: 'Notfall-SSO-Bypass (zeitlich begrenzt, auditiert)' }, 4000);
+    await wait(page, 1500);
 
     // === SCENE 10 — OUTRO ===
     await nav(page, '/dashboard');
