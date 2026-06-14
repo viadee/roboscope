@@ -198,6 +198,15 @@ async function wait(page: import('@playwright/test').Page, ms: number) { await p
 async function login(page: import('@playwright/test').Page) {
   const res = await page.request.post(`${API}/auth/login`, { data: { email: 'admin@roboscope.local', password: 'admin123' } });
   const body = await res.json();
+  // CRITICAL: the router guard (router/index.ts) redirects EVERY route to
+  // /welcome while `user.first_login_complete === false`. On a fresh demo DB
+  // the seeded admin has it false, so without this the whole tour renders the
+  // onboarding screen instead of the real feature pages. Mark it complete
+  // (server-side, persistent) before the SPA ever loads the user.
+  await page.request.patch(`${API}/auth/me/first-login-complete`, {
+    headers: { Authorization: `Bearer ${body.access_token}` },
+    data: { value: true },
+  }).catch(() => {});
   await page.evaluate(({ tokens, lang }) => {
     localStorage.setItem('access_token', tokens.access_token);
     localStorage.setItem('refresh_token', tokens.refresh_token);
@@ -487,162 +496,277 @@ test.describe('Demo Video Recording', () => {
     bg(page, 'feature-tag', t.auditLog, 3000); await wait(page, 4000);
 
     // =====================================================================
-    // DEEP DIVE — EVERY FEATURE + EDGE CASE (demo-readiness matrix A–K)
+    // DEEP DIVE — FULL-FLEDGED EXECUTION OF EVERY FEATURE + EDGE CASES
+    // (real interactions, German UI; selectors harvested from the green e2e specs)
     // =====================================================================
     const cap = (o: { en: string; de: string }) => (LANG === 'de' ? o.de : o.en);
     const clickIf = async (loc: import('@playwright/test').Locator, ms = 1200) => {
       if (await loc.isVisible({ timeout: 2500 }).catch(() => false)) {
-        await loc.click({ timeout: 5000 }).catch(() => {});
-        await wait(page, ms);
-        return true;
+        await loc.click({ timeout: 6000 }).catch(() => {}); await wait(page, ms); return true;
       }
       return false;
     };
-    // Blocking captions: hold the page for the full caption duration so each
-    // feature/edge-case overlay is actually readable (fire-and-forget cut them off).
-    const sceneCap = async (o: { en: string; de: string }, ms = 4500) => {
+    const sceneCap = async (o: { en: string; de: string }, ms = 4200) => {
       await showOverlay(page, 'scene-title', cap(o), ms);
     };
-    const tag = async (o: { en: string; de: string }, ms = 4000) => {
+    const tag = async (o: { en: string; de: string }, ms = 3800) => {
       await showOverlay(page, 'feature-tag', cap(o), ms);
     };
+    const token = await page.evaluate(() => localStorage.getItem('access_token'));
+    const authH = { Authorization: `Bearer ${token}` };
+    // Resolve the seeded "Examples" repo id for explorer/run flows.
+    let repoId = 1;
+    try {
+      const rr = await page.request.get(`${API}/repos`, { headers: authH });
+      const repos = await rr.json();
+      const list = Array.isArray(repos) ? repos : (repos.items || repos.repositories || []);
+      // Prefer the LOCAL "Examples" repo (has calculator/basic_math.robot on
+      // disk). The git-clone "Robot Framework Examples" may be empty offline.
+      const ex = list.find((r: any) => r.name === 'Examples')
+        || list.find((r: any) => r.repo_type === 'local')
+        || list.find((r: any) => /example/i.test(r.name)) || list[0];
+      if (ex) repoId = ex.id;
+    } catch { /* fall back to 1 */ }
 
     await showOverlay(page, 'big-title',
-      cap({ en: 'Deep Dive — Every Feature & Edge Case',
-            de: 'Deep Dive — Alle Features & Edge Cases' }), 3800);
+      cap({ en: 'Deep Dive — Every Feature, Live', de: 'Deep Dive — Jedes Feature, live' }), 3800);
 
-    // --- AREA A: AUTH / RBAC / IDENTITY -------------------------------------
-    await sceneCap({ en: 'A · Auth, Roles & Identity', de: 'A · Auth, Rollen & Identität' });
-    await wait(page, 1500);
-    // Login error edge case (wrong password) — show on a logged-out page.
-    await page.evaluate(() => { localStorage.removeItem('access_token'); });
-    await nav(page, '/login');
-    await tag({ en: 'Edge case: wrong credentials → inline error', de: 'Edge Case: falsche Daten → Inline-Fehler' });
-    const emailInp = page.locator('input[type="email"], input[name*="email"]').first();
-    const pwInp = page.locator('input[type="password"]').first();
-    if (await emailInp.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await emailInp.fill('admin@roboscope.local').catch(() => {});
-      await pwInp.fill('wrong-password').catch(() => {});
+    // ---- A · AUTH / RBAC (real wrong-login + viewer read-only) ----------
+    await sceneCap({ en: 'A · Auth & Roles', de: 'A · Auth & Rollen' });
+    await page.evaluate(() => localStorage.removeItem('access_token'));
+    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' }); await injectOverlayStyles(page);
+    const eIn = page.locator('input[type="email"], input[type="text"]').first();
+    const pIn = page.locator('input[type="password"]').first();
+    if (await eIn.isVisible({ timeout: 4000 }).catch(() => false)) {
+      await eIn.fill('admin@roboscope.local').catch(() => {});
+      await pIn.fill('falsch-falsch').catch(() => {});
+      await tag({ en: 'Edge: wrong password → inline error', de: 'Edge: falsches Passwort → Inline-Fehler' }, 1200);
       await clickIf(page.getByRole('button', { name: /anmelden|login|sign in/i }), 2500);
-      await tag({ en: 'Rate-limited after repeated failures', de: 'Rate-Limit nach wiederholten Fehlversuchen' }, 3000);
-      await wait(page, 1500);
+      await tag({ en: 'Login is rejected — try again', de: 'Login wird abgewiesen — erneut versuchen' }, 3500);
     }
-    await login(page);  // back to admin
-    // RBAC: create + log in as a VIEWER to show the read-only UI.
-    await page.request.post(`${API}/auth/users`, {
-      headers: { Authorization: `Bearer ${await page.evaluate(() => localStorage.getItem('access_token'))}` },
-      data: { email: 'viewer@demo.local', username: 'viewer', password: 'viewer123', role: 'viewer' },
-    }).catch(() => {});
-    const viewerRes = await page.request.post(`${API}/auth/login`,
-      { data: { email: 'viewer@demo.local', password: 'viewer123' } }).catch(() => null);
-    if (viewerRes && viewerRes.ok()) {
-      const vb = await viewerRes.json();
-      await page.evaluate((tok) => {
-        localStorage.setItem('access_token', tok.access_token);
-        localStorage.setItem('refresh_token', tok.refresh_token);
-      }, vb);
+    await login(page);
+    // Create + log in as a VIEWER → real read-only dashboard.
+    await page.request.post(`${API}/auth/users`, { headers: authH,
+      data: { email: 'viewer@demo.local', username: 'viewer', password: 'viewer123', role: 'viewer' } }).catch(() => {});
+    const vr = await page.request.post(`${API}/auth/login`, { data: { email: 'viewer@demo.local', password: 'viewer123' } }).catch(() => null);
+    if (vr && vr.ok()) {
+      const vb = await vr.json();
+      await page.request.patch(`${API}/auth/me/first-login-complete`, { headers: { Authorization: `Bearer ${vb.access_token}` }, data: { value: true } }).catch(() => {});
+      await page.evaluate((tok) => { localStorage.setItem('access_token', tok.access_token); localStorage.setItem('refresh_token', tok.refresh_token); localStorage.setItem('roboscope_tour_completed', 'true'); }, vb);
       await nav(page, '/dashboard');
-      await tag({ en: 'VIEWER role — read-only; no Recorder/Environments', de: 'VIEWER-Rolle — nur lesend; kein Recorder/Environments' }, 4000);
-      await wait(page, 2500);
-      await login(page);  // restore admin
+      await tag({ en: 'VIEWER role — read-only (no Recorder/Environments)', de: 'VIEWER-Rolle — nur lesend (kein Recorder/Umgebungen)' }, 4000);
     }
-    // i18n: switch language from the header (4 locales EN/DE/FR/ES).
-    await nav(page, '/dashboard');
-    await tag({ en: 'i18n — EN / DE / FR / ES, switchable live', de: 'i18n — EN / DE / FR / ES, live umschaltbar' }, 4000);
-    await wait(page, 2500);
+    await login(page);
 
-    // --- AREA B/C: EXPLORER & EDITORS edge cases ---------------------------
-    await sceneCap({ en: 'C · Explorer & Editors — edge cases', de: 'C · Explorer & Editoren — Edge Cases' });
-    await nav(page, '/explorer');
-    await tag({ en: 'File tree, search, create / rename / delete', de: 'Dateibaum, Suche, Anlegen / Umbenennen / Löschen' }, 3500);
-    await wait(page, 1500);
-    await tag({ en: 'Flow Editor: 0-node placeholder, large graphs', de: 'Flow-Editor: 0-Knoten-Platzhalter, große Graphen' }, 3500);
-    await wait(page, 1500);
-    await tag({ en: 'Spec Editor → AI test generation (diff accept/reject)', de: 'Spec-Editor → KI-Testgenerierung (Diff annehmen/ablehnen)' }, 3500);
-    await wait(page, 1500);
-
-    // --- AREA I: SELF-HEALING (flagship) ----------------------------------
-    await sceneCap({ en: 'I · Self-Healing Library', de: 'I · Self-Healing-Library' });
-    await tag({ en: 'Opt-in: write "Heal Click" — plain Click untouched', de: 'Opt-in: "Heal Click" schreiben — Click bleibt unberührt' }, 4000);
-    await wait(page, 1000);
-    await tag({ en: 'Confidence thresholds + per-test budget gate every swap', de: 'Confidence-Schwellen + Budget pro Test gaten jeden Swap' }, 4000);
-    await wait(page, 1000);
-    await tag({ en: 'Heal report: diff + Copy-patch (suspect heals blocked)', de: 'Heal-Report: Diff + Copy-Patch (suspect-Heals gesperrt)' }, 4000);
-    await wait(page, 1000);
-    await tag({ en: 'no-heal tag = per-test escape hatch', de: 'no-heal-Tag = Escape-Hatch pro Test' }, 3500);
-    await wait(page, 1000);
-
-    // --- AREA J: INTERACTIVE DEBUGGER (flagship) --------------------------
-    await sceneCap({ en: 'J · Interactive Debugger', de: 'J · Interaktiver Debugger' });
-    await nav(page, '/runs');
-    // Click a FAILED run → 🐞 Debug (best-effort).
-    const failRow = page.locator('table tbody tr').filter({ hasText: /failed/i }).first();
-    if (await clickIf(failRow, 1500)) {
-      await clickIf(page.getByRole('button', { name: /debug|🐞/i }), 2500);
+    // ---- C · EXPLORER & EDITORS (real tree, tabs, create, search) -------
+    await sceneCap({ en: 'C · Explorer & Editors', de: 'C · Explorer & Editoren' });
+    await nav(page, `/explorer/${repoId}`);
+    await page.locator('.tree-content').isVisible({ timeout: 8000 }).catch(() => false);
+    await clickIf(page.locator('.tree-node .node-name', { hasText: /^calculator$/ }), 800);
+    await clickIf(page.locator('.node-name', { hasText: 'basic_math.robot' }), 1500);
+    await tag({ en: 'File tree · test count per folder', de: 'Dateibaum · Testanzahl pro Ordner' }, 3000);
+    await clickIf(page.locator('button.tab-btn, .tab-btn', { hasText: 'Code' }).first(), 1200);
+    await tag({ en: 'Code editor — syntax highlighting', de: 'Code-Editor — Syntax-Highlighting' }, 3000);
+    await clickIf(page.locator('button', { hasText: /^Flow$/ }).first(), 1500);
+    await tag({ en: 'Flow editor — visual test graph', de: 'Flow-Editor — visueller Testgraph' }, 3500);
+    await clickIf(page.locator('button.tab-btn', { hasText: /(visual|visuel)/i }).first(), 1200);
+    await tag({ en: 'Visual editor — structured editing', de: 'Visual-Editor — strukturierte Bearbeitung' }, 3000);
+    // Real create-file dialog
+    if (await clickIf(page.getByRole('button', { name: '+' }).first(), 800)) {
+      const nf = page.locator('input[placeholder*="tests/neue_tests"], input[placeholder*="tests/neue"]').first();
+      if (await nf.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await nf.fill('tests/demo_created.robot').catch(() => {});
+        await tag({ en: 'Create / rename / delete files', de: 'Dateien anlegen / umbenennen / löschen' }, 2500);
+        await clickIf(page.getByRole('button', { name: 'Anlegen' }), 1500);
+      } else { await page.keyboard.press('Escape').catch(() => {}); }
     }
-    await tag({ en: 'Re-run to error · breakpoint from output.xml', de: 'Re-run bis Fehler · Breakpoint aus output.xml' }, 4000);
-    await wait(page, 1000);
-    await tag({ en: 'Run up to here · step/continue · scope tree', de: 'Bis hier ausführen · Step/Continue · Scope-Baum' }, 4000);
-    await wait(page, 1000);
-    await tag({ en: 'RobotCode prereq → one-click install', de: 'RobotCode-Prereq → Ein-Klick-Installation' }, 3500);
-    await wait(page, 1000);
+    // Real search
+    const searchInp = page.locator('input[placeholder*="suchen"], input[placeholder*="search"]').first();
+    if (await searchInp.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await searchInp.fill('Test').catch(() => {});
+      await clickIf(page.getByRole('button', { name: /suchen|search/i }), 2000);
+      await tag({ en: 'Full-text search across the repo', de: 'Volltextsuche über das Repo' }, 3000);
+    }
 
-    // --- AREA H: RECORDER (flagship) --------------------------------------
-    await sceneCap({ en: 'H · Chrome/Playwright Recorder', de: 'H · Chrome/Playwright-Recorder' });
-    await nav(page, '/recordings/new');
-    await tag({ en: 'Transport picker + capability gating (headless server)', de: 'Transport-Auswahl + Capability-Gating (Headless-Server)' }, 4000);
-    await wait(page, 1500);
-    await tag({ en: 'Shadow DOM, cross-frame, selector quality scoring', de: 'Shadow DOM, Cross-Frame, Selector-Qualitäts-Scoring' }, 4000);
-    await wait(page, 1500);
-    await tag({ en: 'Live SSE stream · single-subscriber enforced', de: 'Live-SSE-Stream · Single-Subscriber erzwungen' }, 3500);
-    await wait(page, 1500);
+    // ---- I · SELF-HEALING (real per-step + suite toggle) ----------------
+    await sceneCap({ en: 'I · Self-Healing', de: 'I · Self-Healing' });
+    const healRobot = [
+      '*** Settings ***', 'Library    Browser', '',
+      '*** Test Cases ***', 'Heal Demo',
+      '    Click    text=Submit', '    Fill Text    id=user    alice', '    Log    done', '',
+    ].join('\n');
+    await page.request.post(`${API}/explorer/${repoId}/file`, { headers: authH, data: { path: 'tests/heal_demo.robot', content: healRobot } }).catch(() => {});
+    await nav(page, `/explorer/${repoId}`);
+    await clickIf(page.locator('.tree-node .node-name', { hasText: /^tests$/ }), 600);
+    await clickIf(page.locator('.node-name', { hasText: 'heal_demo.robot' }), 1500);
+    await clickIf(page.locator('button', { hasText: /^Flow$/ }).first(), 1500);
+    const clickNode = page.locator('.vue-flow__node', { has: page.locator('.flow-node-label:text-is("Click")') }).first();
+    if (await clickNode.isVisible({ timeout: 4000 }).catch(() => false)) {
+      await clickNode.click().catch(() => {}); await wait(page, 800);
+      const healToggle = page.getByTestId('flow-step-heal-toggle');
+      if (await healToggle.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await tag({ en: 'Opt-in per step: enable healing on "Click"', de: 'Opt-in pro Step: Healing für "Click" aktivieren' }, 2000);
+        await healToggle.check().catch(() => {}); await wait(page, 1200);
+      }
+    }
+    // Non-healable edge: Log node has no toggle
+    const logNode = page.locator('.vue-flow__node', { has: page.locator('.flow-node-label:text-is("Log")') }).first();
+    if (await logNode.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await logNode.click().catch(() => {}); await wait(page, 800);
+      await tag({ en: 'Edge: "Log" is non-healable → no toggle', de: 'Edge: "Log" ist nicht heilbar → kein Toggle' }, 3000);
+    }
+    await clickIf(page.locator('.tab-btn', { hasText: 'Code' }).first(), 1200);
+    await tag({ en: 'Code now shows "Heal Click" — plain Click untouched', de: 'Code zeigt "Heal Click" — Click bleibt unberührt' }, 4000);
 
-    // --- AREA D: EXECUTION edge cases (cancel, schedules) -----------------
-    await sceneCap({ en: 'D · Execution edge cases', de: 'D · Execution-Edge-Cases' });
+    // ---- D · EXECUTION (REAL runs: pass + fail, live status, real output) --
+    await sceneCap({ en: 'D · Live Execution', de: 'D · Live-Ausführung' });
+    await page.request.post(`${API}/runs/cancel-all`, { headers: authH }).catch(() => {});
+    await wait(page, 1500);
+    // Show the real run-creation modal once (this is how a user starts a run).
     await nav(page, '/runs');
-    await tag({ en: 'Cancel a run · timeout vs failed · orphan reaper', de: 'Run abbrechen · Timeout vs. Failed · Orphan-Reaper' }, 4000);
-    await wait(page, 1000);
-    // Schedules tab + invalid cron edge case.
-    await clickIf(page.getByRole('button', { name: /schedule|zeitplan|plan/i }), 1500);
-    const newSched = page.getByRole('button', { name: /\+.*schedule|\+.*plan|neuer plan/i });
-    if (await clickIf(newSched, 1200)) {
-      const cron = page.locator('input[placeholder*="cron"], input[name*="cron"]').first();
-      if (await cron.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await cron.fill('not-a-cron').catch(() => {});
-        await tag({ en: 'Edge case: invalid cron → validation error', de: 'Edge Case: ungültiger Cron → Validierungsfehler' }, 3500);
-        await wait(page, 2000);
+    await tag({ en: 'Run 1: calculator/basic_math.robot → PASS', de: 'Run 1: calculator/basic_math.robot → BESTEHT' }, 2200);
+    if (await clickIf(page.getByRole('button', { name: /Neuer Run|New Run/ }), 1000)) {
+      // Pick the local Examples repo by label (falls back to first real option).
+      await page.locator('select').first().selectOption({ label: 'Examples' })
+        .catch(async () => { await page.locator('select').first().selectOption({ index: 1 }).catch(() => {}); });
+      await wait(page, 500);
+      const pathInp = page.getByPlaceholder(/tests\/ oder|tests\/login|tests\//).first();
+      await pathInp.fill('calculator/basic_math.robot').catch(() => {});
+      await wait(page, 1200);
+      await clickIf(page.getByRole('button', { name: 'Starten', exact: true }), 1000);
+      // Edge: environment-setup dialog — run without provisioning.
+      if (await page.getByText(/Umgebung einrichten\?|Set up environment/).isVisible({ timeout: 2500 }).catch(() => false)) {
+        await tag({ en: 'Edge: environment setup prompt → run anyway', de: 'Edge: Umgebungs-Setup-Dialog → trotzdem starten' }, 2200);
+        await clickIf(page.getByRole('button', { name: /Nein, ohne starten|without/ }), 1000);
+      }
+      await page.keyboard.press('Escape').catch(() => {});
+    }
+    // GUARANTEE real execution via the proven API path (the modal above may or
+    // may not have dispatched depending on which repo option was picked). These
+    // POSTs genuinely run Robot Framework and produce real output + reports.
+    const runIds: number[] = [];
+    for (const target of ['calculator/basic_math.robot', 'api_testing/errorneus.robot']) {
+      const r = await page.request.post(`${API}/runs`, { headers: authH,
+        data: { repository_id: repoId, target_path: target } }).catch(() => null);
+      if (r && r.ok()) { const j = await r.json(); if (j && j.id) runIds.push(j.id); }
+    }
+    await tag({ en: 'Run 2: api_testing/errorneus.robot → FAIL', de: 'Run 2: api_testing/errorneus.robot → SCHEITERT' }, 2500);
+    // Show the live table updating while the single-worker executor drains the
+    // queue (pending → running → passed/failed). Poll real status via the API.
+    const TERMINAL = new Set(['passed', 'failed', 'error', 'timeout', 'cancelled']);
+    let passedId: number | null = null, failedId: number | null = null;
+    await tag({ en: 'Status streams live: pending → running → passed/failed', de: 'Status live: pending → running → passed/failed' }, 3500);
+    for (let i = 0; i < 100; i++) {
+      await wait(page, 3000);
+      await page.reload({ waitUntil: 'networkidle' }).catch(() => {}); await injectOverlayStyles(page);
+      let allTerm = runIds.length > 0;
+      for (const id of runIds) {
+        const d = await page.request.get(`${API}/runs/${id}`, { headers: authH })
+          .then((x) => x.json()).catch(() => ({} as any));
+        if (!TERMINAL.has(d.status)) allTerm = false;
+        if (d.status === 'passed') passedId = id;
+        if (['failed', 'error', 'timeout'].includes(d.status)) failedId = id;
+      }
+      if (allTerm) break;
+    }
+    // Open the FAILED run's detail panel + real Output modal.
+    const targetRunId = failedId ?? passedId ?? runIds[0] ?? null;
+    if (targetRunId) {
+      await nav(page, `/runs?run=${targetRunId}`);
+      const detailRow = page.locator('.data-table tbody tr.clickable-row, .data-table tbody tr').first();
+      if (await clickIf(detailRow, 1500)) {
+        await tag({ en: 'Run detail — duration, KPIs, AI failure analysis', de: 'Run-Detail — Dauer, KPIs, KI-Fehleranalyse' }, 3500);
+      }
+      if (await clickIf(page.getByRole('button', { name: 'Output' }).first(), 2000)) {
+        await tag({ en: 'Real console output (stdout / stderr)', de: 'Echte Konsolenausgabe (stdout / stderr)' }, 4000);
         await page.keyboard.press('Escape').catch(() => {});
       }
     }
 
-    // --- AREA E: ENVIRONMENTS edge cases ---------------------------------
-    await sceneCap({ en: 'E · Environments & Packages', de: 'E · Environments & Pakete' });
+    // ---- J · INTERACTIVE DEBUGGER (real, on a failed run) --------------
+    await sceneCap({ en: 'J · Interactive Debugger', de: 'J · Interaktiver Debugger' });
+    let failedId: number | null = null;
+    try {
+      const rr = await page.request.get(`${API}/runs?page=1`, { headers: authH });
+      const data = await rr.json();
+      const runs = data.items || data.runs || data || [];
+      const f = (Array.isArray(runs) ? runs : []).find((r: any) => /fail|error/i.test(r.status));
+      if (f) failedId = f.id;
+    } catch { /* */ }
+    if (failedId) {
+      await nav(page, `/runs?run=${failedId}`);
+      const dbg = page.getByTestId('debug-btn');
+      if (await clickIf(dbg, 2500)) {
+        await tag({ en: 'Re-run to the failing keyword · breakpoint set', de: 'Re-run bis zum fehlschlagenden Keyword · Breakpoint' }, 3500);
+        if (await page.getByTestId('debug-prereq-dialog').isVisible({ timeout: 2000 }).catch(() => false)) {
+          await tag({ en: 'Edge: RobotCode missing → one-click install', de: 'Edge: RobotCode fehlt → Ein-Klick-Installation' }, 3500);
+          await clickIf(page.getByTestId('debug-prereq-cancel-btn'), 800);
+        }
+      }
+    }
+    await tag({ en: 'Step / continue · scope tree · run-up-to-here', de: 'Step / Continue · Scope-Baum · Bis-hier-ausführen' }, 3500);
+
+    // ---- D2 · SCHEDULES (real cron preset) -----------------------------
+    await sceneCap({ en: 'D · Scheduling (cron)', de: 'D · Zeitpläne (Cron)' });
+    await nav(page, '/runs');
+    await clickIf(page.locator('.tab-btn', { hasText: /Schedules|Zeitpläne/ }), 1200);
+    if (await clickIf(page.locator('button', { hasText: /New Schedule|Neuer Zeitplan/ }), 1200)) {
+      await clickIf(page.locator('.preset-btn', { hasText: /Hourly|Stündlich/ }), 1500);
+      await tag({ en: 'Cron editor: presets → live preview (0 * * * *)', de: 'Cron-Editor: Presets → Live-Vorschau (0 * * * *)' }, 4000);
+      await page.keyboard.press('Escape').catch(() => {});
+    }
+
+    // ---- E · ENVIRONMENTS & LIBRARY CHECK (real) -----------------------
+    await sceneCap({ en: 'E · Environments & Packages', de: 'E · Umgebungen & Pakete' });
     await nav(page, '/environments');
-    await tag({ en: 'venv (uv) · invalid Python version validation', de: 'venv (uv) · ungültige Python-Version-Validierung' }, 4000);
-    await wait(page, 1000);
-    await tag({ en: 'Package install · Browser + heal provisioning · offline pack', de: 'Paket-Install · Browser + Heal-Provisioning · Offline-Pack' }, 4000);
-    await wait(page, 1000);
+    if (await clickIf(page.getByRole('button', { name: /Neue Umgebung|New Environment/ }), 1000)) {
+      await page.getByPlaceholder('production').fill('demo-env').catch(() => {});
+      await page.getByPlaceholder('3.12').first().fill('3.12').catch(() => {});
+      await tag({ en: 'Create venv (uv): name + Python version', de: 'venv anlegen (uv): Name + Python-Version' }, 3500);
+      await clickIf(page.getByRole('button', { name: 'Abbrechen' }), 800);
+    }
+    await tag({ en: 'Browser + heal auto-provisioned · offline browser-pack', de: 'Browser + Heal auto-provisioniert · Offline-Browser-Pack' }, 3800);
 
-    // --- AREA F: REPORTS & STATS edge cases ------------------------------
+    // ---- F · REPORTS · STATS · HISTORY (real) --------------------------
     await sceneCap({ en: 'F · Reports, Stats & History', de: 'F · Reports, Stats & Historie' });
-    await nav(page, '/reports');
-    await tag({ en: 'Upload ZIP · path-traversal guarded · 500MB limit', de: 'ZIP-Upload · Path-Traversal geschützt · 500MB-Limit' }, 4000);
-    await wait(page, 1000);
+    await page.goto(`${BASE}/reports/1`, { waitUntil: 'networkidle' }).catch(() => {}); await injectOverlayStyles(page);
+    if (await page.locator('.xml-tree, .kpi-card').first().isVisible({ timeout: 4000 }).catch(() => false)) {
+      await tag({ en: 'Report detail: KPIs, keyword tree, HTML report', de: 'Report-Detail: KPIs, Keyword-Baum, HTML-Report' }, 3500);
+      await clickIf(page.locator('.suite-header').first(), 1500);
+      await clickIf(page.locator('.tab-btn').nth(1), 2500);
+    }
+    await nav(page, '/stats');
+    await tag({ en: 'Statistics — KPIs, trends, flakiness', de: 'Statistiken — KPIs, Trends, Flakiness' }, 3000);
+    await clickIf(page.getByText(/Tiefenanalyse|Deep Analysis/), 1500);
+    if (await clickIf(page.getByRole('button', { name: /Neue Analyse|New Analysis/ }), 1200)) {
+      await tag({ en: 'Deep analysis: pick KPIs → generate report', de: 'Tiefenanalyse: KPIs wählen → Report erzeugen' }, 3500);
+      await page.keyboard.press('Escape').catch(() => {});
+    }
     await nav(page, '/test-history');
-    await tag({ en: 'Flakiness trends · quarantine (skip at run-time)', de: 'Flaky-Trends · Quarantäne (Skip zur Laufzeit)' }, 4000);
-    await wait(page, 1500);
+    await tag({ en: 'Test history: per-test flakiness & quarantine', de: 'Test-Historie: Flakiness pro Test & Quarantäne' }, 3500);
 
-    // --- ADMIN: TEAMS / SSO / EMERGENCY BYPASS ---------------------------
-    await sceneCap({ en: 'Enterprise · SSO, Teams, Emergency Bypass', de: 'Enterprise · SSO, Teams, Notfall-Bypass' });
-    await nav(page, '/admin/identity-providers');
-    await tag({ en: 'OIDC/SSO · dry-run checks · test-login · handoff', de: 'OIDC/SSO · Dry-Run-Checks · Test-Login · Handoff' }, 4000);
-    await wait(page, 1500);
-    await nav(page, '/admin/teams');
-    await tag({ en: 'Teams · IdP-group → role mapping · inherited roles', de: 'Teams · IdP-Gruppe → Rolle · vererbte Rollen' }, 4000);
-    await wait(page, 1500);
+    // ---- ADMIN · USERS · SSO (real user create + IdP dry-run) ---------
+    await sceneCap({ en: 'Enterprise · Users, SSO, Teams', de: 'Enterprise · Benutzer, SSO, Teams' });
+    await nav(page, '/settings');
+    // Settings has a "Benutzer" sub-tab button (no nav-more-toggle needed).
+    await clickIf(page.getByRole('button', { name: /^Benutzer$|^Users$/ }), 1000);
+    if (await clickIf(page.getByRole('button', { name: /Benutzer hinzufügen|Add user/ }), 1000)) {
+      await page.getByPlaceholder('max.mustermann').fill('demo.user').catch(() => {});
+      await page.getByPlaceholder('max@example.com').fill('demo.user@demo.local').catch(() => {});
+      await page.getByPlaceholder(/Mindestens 6|At least 6/).fill('demo123456').catch(() => {});
+      await tag({ en: 'Create user · assign role (4-tier RBAC)', de: 'Benutzer anlegen · Rolle zuweisen (4-Stufen-RBAC)' }, 3000);
+      await clickIf(page.getByRole('button', { name: 'Erstellen', exact: true }), 1500);
+    }
+    await nav(page, '/admin/identity-providers/new');
+    if (await page.locator('#idp-name, [data-testid="run-dry-run-btn"]').first().isVisible({ timeout: 3000 }).catch(() => false)) {
+      await page.locator('#idp-name').fill('Demo Azure AD').catch(() => {});
+      await page.locator('#idp-issuer-url').fill('https://login.microsoftonline.com/demo/v2.0').catch(() => {});
+      await page.locator('#idp-client-id').fill('demo-client-id').catch(() => {});
+      await tag({ en: 'SSO: Save gated behind a passing dry-run', de: 'SSO: Speichern erst nach bestandenem Dry-Run' }, 3500);
+      await clickIf(page.getByTestId('run-dry-run-btn'), 2500);
+    }
     await nav(page, '/admin/emergency-bypass');
-    await tag({ en: 'Emergency SSO bypass (time-boxed, audited)', de: 'Notfall-SSO-Bypass (zeitlich begrenzt, auditiert)' }, 4000);
-    await wait(page, 1500);
+    await tag({ en: 'Emergency SSO bypass — time-boxed & audited', de: 'Notfall-SSO-Bypass — zeitlich begrenzt & auditiert' }, 3500);
 
     // === SCENE 10 — OUTRO ===
     await nav(page, '/dashboard');
