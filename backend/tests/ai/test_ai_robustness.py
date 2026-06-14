@@ -75,3 +75,18 @@ def test_strip_code_fences_no_dangling_fence_in_output() -> None:
     """The corruption signature: a leftover ``` in the accepted .robot."""
     out = _strip_code_fences("Here is your file:\n```robot\n*** Settings ***\n```")
     assert "```" not in out
+
+
+# ----- H3: rotated SECRET_KEY → clear decrypt error -----
+
+
+def test_decrypt_with_rotated_secret_key_raises_clear_error(monkeypatch) -> None:
+    from src.ai import encryption
+    from src.ai.encryption import ApiKeyDecryptError, decrypt_api_key, encrypt_api_key
+
+    monkeypatch.setattr(encryption.settings, "SECRET_KEY", "secret-key-AAAAAAAAAAAA")
+    ciphertext = encrypt_api_key("sk-provider-secret")
+
+    monkeypatch.setattr(encryption.settings, "SECRET_KEY", "secret-key-BBBBBBBBBBBB")
+    with pytest.raises(ApiKeyDecryptError, match="SECRET_KEY"):
+        decrypt_api_key(ciphertext)

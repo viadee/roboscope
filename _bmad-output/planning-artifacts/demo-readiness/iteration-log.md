@@ -74,4 +74,10 @@
 - **State:** branch chore/demo-readiness-bmad — E2E green (Pass 8) + full Build/unit green (this pass). 15 root-cause fixes shipped with regression tests; inventory + demo matrix + demo scenarios (A-K) complete.
 - **Remaining follow-ups (documented):** H3 rotated-key UX, M2 report orphans, M3 LLM connect-timeout (demo-relevant), M4 spec size cap, L1/L2/L3; plus deeper per-edge-case audits of recorder/heal/debugger if desired.
 
+## Pass 12 — 2026-06-14 — Dev: AI follow-ups M3 + H3
+- **Role:** BMAD Dev.
+- **Fixed at source:** M3 — LLM calls now use httpx.Timeout(connect=5s) and translate ConnectError/TimeoutException into a clear "provider unreachable / timed out" message (a dead/misconfigured provider no longer freezes the single worker for 5 min). H3 — decrypt_api_key raises a typed ApiKeyDecryptError ("re-enter the key") instead of an opaque InvalidToken on a rotated SECRET_KEY.
+- **Tests:** M3 connect/timeout tests + H3 rotated-key test; updated the existing wrong-key test to the new typed error. ai encryption+robustness+llm: 67 passed.
+- **Remaining follow-ups (low/medium):** M2 (report orphans), M4 (spec size cap), L1/L2/L3.
+
 <!-- Append a new "## Pass N" block per iteration. -->

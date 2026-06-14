@@ -10,9 +10,9 @@ BMAD QA edge-case audit of the next-highest-risk untested paths. Fix status:
 | H2 | HIGH | `_parse_test` used a `.//tag` descendant axis → pulled keyword-level tags into test tags. | ✅ fixed (read only the test's own tags container / pre-RF7 flat tag) |
 | H4 | HIGH | Malformed LLM JSON (empty `choices` / missing content) → opaque IndexError/KeyError job failure. | ✅ fixed (validate → clear RuntimeError) |
 | M1 | MED | AI dispatch-failure path used `db.flush()` not commit (job could strand pending). | ✅ fixed (commit on all 3 dispatch except paths) |
-| H3 | HIGH | Rotated/invalid SECRET_KEY → AI key decrypt raises opaque InvalidToken; no "re-enter key" path. | ⏳ follow-up (typed error + consolidate ai/encryption into src/encryption) |
+| H3 | HIGH | Rotated/invalid SECRET_KEY → AI key decrypt raises opaque InvalidToken; no "re-enter key" path. | ✅ fixed (Pass 12: typed ApiKeyDecryptError with re-enter message) |
 | M2 | MED | `delete_all_reports` orphans archive dirs on partial rmtree failure. | ⏳ follow-up |
-| M3 | MED | `call_llm` fixed 300s timeout, no connect-timeout → a misconfigured provider freezes the single worker for 5 min. | ⏳ follow-up (httpx connect timeout + clear "provider unreachable") |
+| M3 | MED | `call_llm` fixed 300s timeout, no connect-timeout → a misconfigured provider freezes the single worker for 5 min. | ✅ fixed (Pass 12: httpx.Timeout connect=5s + clear unreachable/timeout errors) |
 | M4 | MED | No spec/robot size cap before sending to the LLM. | ⏳ follow-up |
 | L1/L2/L3 | LOW | zip-slip startswith (latent, not exploitable); is_encrypted broad except; RF7 duration-0 (known/tested). | ⏳ follow-up |
 
