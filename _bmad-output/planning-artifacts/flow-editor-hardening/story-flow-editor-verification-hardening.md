@@ -1,6 +1,6 @@
 # Story: Flow Editor — Verification & Hardening (RF-Syntax-Vollständigkeit, Konsistenz, Round-Trip-Treue)
 
-- **Status:** In Progress
+- **Status:** Done (2026-06-14)
 - **Owner:** Dev (Amelia) · Architect (Winston) · UX (Sally)
 - **Created:** 2026-06-14
 - **Branch:** `chore/demo-readiness-bmad` (Flow-Editor-Arbeit)
@@ -170,3 +170,32 @@ Heal-Toggle, Selector-Picker, Reorder; 12 `FlowEditor*.spec.ts` Unit-Tests +
 - Optional: `[Template]`-Datenzeilen als Tabellen-Node; BDD-Phrasing als
   eigener Step-Typ; `%{}`-Editing-UI; vollständige Migration weg vom statischen
   Fallback, sobald libdoc-per-Env überall greift.
+
+---
+
+## Closeout (2026-06-14)
+
+All AC met; shipped in 6 commits on `chore/demo-readiness-bmad`:
+
+| Commit | AC | Summary |
+|---|---|---|
+| `a575937` | AC-A | Round-trip: pure `robotTextIO.ts` extracted; trailing-comment + column-0-comment corruption fixed; 20 golden-corpus tests |
+| `e8ac772` | AC-C1/2 | libdoc-per-env backend: endpoint + cache table + migration + task; 15 pytest |
+| `45db750` | AC-C4 | shadowing fix project>library>BuiltIn + env-keywords API client; +4 tests |
+| `64c29ec` | AC-C3 | palette sources keywords offline-first from libdoc endpoint; +4 tests |
+| `14079d2` | AC-B | inline *** Variables *** + suite-settings panels; i18n×4; e2e |
+| `baf5b4d` | AC-D | control-structure nesting round-trip unit (5) + e2e |
+
+**Gate results:** 767 frontend vitest green · vue-tsc clean · 198 backend
+environments pytest green (incl. 15 new) · ruff + mypy clean on all new code ·
+10 flow-editor e2e green (3 file-settings + 1 control + 6 existing regression).
+Full backend pytest (~1980) deferred to CI `build.yml::test-unit`.
+
+**AC-C5** (`${}`/`@{}`/`&{}`/`%{}` survive as arg values) verified within the
+round-trip golden-corpus tests.
+
+**Deferred (documented, follow-up story):** `[Template]` data-row table node;
+BDD Given/When/Then as a distinct step type; `%{}` env-var editing UI;
+retiring the static fallback map once libdoc-per-env is the universal source.
+Unknown/not-yet-modelled constructs pass through round-trip unmangled per the
+"RF owns the format" invariant.
