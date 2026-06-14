@@ -119,6 +119,24 @@ export function escapeRfToken(s: string): string {
   return s.startsWith('#') ? '\\' + s : s
 }
 
+/**
+ * Escape a [Template] data-table cell so it round-trips as a single argument:
+ *  - leading `#` → `\#` (else RF reads the cell as a comment),
+ *  - each space inside a run of 2+ spaces → `\ ` (else RF's 2-space separator
+ *    splits one value into multiple cells).
+ */
+export function escapeRfCell(s: string): string {
+  if (!s) return s
+  const head = escapeRfToken(s)
+  return head.replace(/ {2,}/g, (run) => '\\ '.repeat(run.length))
+}
+
+/** Inverse of `escapeRfCell`. */
+export function unescapeRfCell(s: string): string {
+  if (!s) return s
+  return unescapeRfToken(s.replace(/\\ /g, ' '))
+}
+
 // --- Step line parser ---
 const _RBS_ID_CELL = /^# rbs:([a-f0-9]{8,32})$/
 const SEP = '    '
@@ -135,6 +153,21 @@ const _CONTROL_FIRST_CELLS = new Set([
 function isControlRow(bodyTrimmed: string): boolean {
   const first = bodyTrimmed.split(/  +|\t+/)[0]
   return _CONTROL_FIRST_CELLS.has(first)
+}
+
+// Story FE-TPL (hardening) — a `[Template]` setting may appear AFTER some data
+// rows. Look ahead within the current test's body (until the next item header
+// or section) so those earlier rows are classified as data, not keyword steps.
+function templateSettingAhead(lines: string[], fromIdx: number): boolean {
+  for (let j = fromIdx; j < lines.length; j++) {
+    const ln = lines[j]
+    const tr = ln.trimEnd()
+    if (!tr) continue
+    if (SECTION_HEADER_RE.test(tr)) return false
+    if (!/^\s/.test(ln)) return false // next item header at column 0
+    if (/^\s*\[Template\]/i.test(ln)) return true
+  }
+  return false
 }
 
 /**
@@ -300,47 +333,53 @@ export function serializeStep(step: RobotStep): string {
   // RECORDER-RF-ESCAPE — mirror the backend escape on the save path.
   const args = step.args.map(escapeRfToken)
 
+  // Build the base line per step type, then apply trailers (rbs id + inline
+  // comment) UNIFORMLY — control-structure lines (IF/FOR/…) carry inline
+  // comments too, and previously dropped them on serialize.
+  let line: string
   switch (step.type) {
     case 'keyword':
-      return withTrailers([step.keyword, ...args].filter(Boolean).join(SEP))
+      line = [step.keyword, ...args].filter(Boolean).join(SEP); break
     case 'assignment': {
       const vars = step.returnVars.map((v, i) =>
         i === step.returnVars.length - 1 ? v + '=' : v
       )
-      return withTrailers([...vars, step.keyword, ...args].filter(Boolean).join(SEP))
+      line = [...vars, step.keyword, ...args].filter(Boolean).join(SEP); break
     }
     case 'for':
-      return ['FOR', step.loopVar, step.loopFlavor, ...step.loopValues].filter(Boolean).join(SEP)
-    case 'end': return 'END'
+      line = ['FOR', step.loopVar, step.loopFlavor, ...step.loopValues].filter(Boolean).join(SEP); break
+    case 'end': line = 'END'; break
     case 'if':
-      return ['IF', step.condition].filter(Boolean).join(SEP)
+      line = ['IF', step.condition].filter(Boolean).join(SEP); break
     case 'else_if':
-      return ['ELSE IF', step.condition].filter(Boolean).join(SEP)
-    case 'else': return 'ELSE'
+      line = ['ELSE IF', step.condition].filter(Boolean).join(SEP); break
+    case 'else': line = 'ELSE'; break
     case 'while':
-      return ['WHILE', step.condition].filter(Boolean).join(SEP)
-    case 'try': return 'TRY'
+      line = ['WHILE', step.condition].filter(Boolean).join(SEP); break
+    case 'try': line = 'TRY'; break
     case 'except': {
       const parts = ['EXCEPT']
       if (step.exceptPattern) parts.push(step.exceptPattern)
       if (step.exceptVar) parts.push('AS', step.exceptVar)
-      return parts.join(SEP)
+      line = parts.join(SEP); break
     }
-    case 'finally': return 'FINALLY'
-    case 'break': return 'BREAK'
-    case 'continue': return 'CONTINUE'
+    case 'finally': line = 'FINALLY'; break
+    case 'break': line = 'BREAK'; break
+    case 'continue': line = 'CONTINUE'; break
     case 'return':
-      return ['RETURN', ...step.args].filter(Boolean).join(SEP)
+      line = ['RETURN', ...step.args].filter(Boolean).join(SEP); break
     case 'var': {
       const parts = ['VAR', step.returnVars[0] || '${var}', ...step.args]
       if (step.varScope) parts.push('scope=' + step.varScope)
-      return parts.filter(Boolean).join(SEP)
+      line = parts.filter(Boolean).join(SEP); break
     }
     case 'comment':
+      // A full-line comment IS the comment; never double-append it.
       return step.comment || '# '
     default:
       return ''
   }
+  return withTrailers(line)
 }
 
 // --- Main Parser ---
@@ -361,6 +400,9 @@ export function parseRobotText(content: string): RobotForm {
   let currentItemType: 'testcase' | 'keyword' | null = null
   // Round-trip-fidelity — column-0 comments waiting to attach to the next item.
   let pendingLeadingComments: string[] = []
+  // True when the current test case declares [Template] somewhere in its body
+  // (even below the data rows) — set on the test-case header via look-ahead.
+  let templateAhead = false
 
   const flushItem = () => {
     if (currentItem && currentItemType) {
@@ -451,12 +493,14 @@ export function parseRobotText(content: string): RobotForm {
 
       if (!isIndented && trimmed) {
         flushItem()
+        templateAhead = false
         if (currentSection === 'testcases') {
           currentItem = {
             name: trimmed, documentation: '', tags: [],
             setup: '', teardown: '', timeout: '', template: '', steps: [],
           }
           currentItemType = 'testcase'
+          templateAhead = templateSettingAhead(lines, i + 1)
         } else {
           currentItem = {
             name: trimmed, documentation: '', arguments: [], tags: [],
@@ -476,7 +520,7 @@ export function parseRobotText(content: string): RobotForm {
 
         // Story FE-TPL — is this a data row of a templated test?
         const tcItem = currentItemType === 'testcase' ? (currentItem as RobotTestCase) : null
-        const inTemplate = !!tcItem && !!tcItem.template
+        const inTemplate = !!tcItem && (!!tcItem.template || templateAhead)
 
         // Continuation line
         if (bodyTrimmed.startsWith('...')) {
@@ -484,7 +528,7 @@ export function parseRobotText(content: string): RobotForm {
           // A `...` after a template data row extends that row.
           if (inTemplate && tcItem!.templateRows && tcItem!.templateRows.length > 0
               && currentItem.steps.length === 0) {
-            tcItem!.templateRows[tcItem!.templateRows.length - 1].push(...contCells)
+            tcItem!.templateRows[tcItem!.templateRows.length - 1].push(...contCells.map(unescapeRfCell))
             continue
           }
           if (currentItem.steps.length > 0) {
@@ -540,7 +584,7 @@ export function parseRobotText(content: string): RobotForm {
         // Story FE-TPL — a non-control body row of a templated test is a data
         // row (cells = args for the template keyword), NOT a keyword step.
         if (inTemplate && !isControlRow(bodyTrimmed)) {
-          const cells = bodyTrimmed.split(/  +|\t+/).filter((c) => c !== '')
+          const cells = bodyTrimmed.split(/  +|\t+/).filter((c) => c !== '').map(unescapeRfCell)
           if (!tcItem!.templateRows) tcItem!.templateRows = []
           tcItem!.templateRows.push(cells)
           continue
@@ -636,7 +680,9 @@ export function serializeRobotForm(form: RobotForm, opts: { isResource?: boolean
       if (tc.template) lines.push(SEP + '[Template]' + SEP + tc.template)
       // Story FE-TPL — data rows (each cell-array is one argument set).
       if (tc.templateRows) {
-        for (const row of tc.templateRows) lines.push(SEP + row.join(SEP))
+        for (const row of tc.templateRows) {
+          lines.push(SEP + row.map(escapeRfCell).join(SEP))
+        }
       }
       for (const step of tc.steps) lines.push(SEP + serializeStep(step))
       lines.push('')
