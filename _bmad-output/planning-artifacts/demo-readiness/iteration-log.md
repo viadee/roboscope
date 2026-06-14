@@ -85,4 +85,10 @@
 - **CI re-run = success on both Python 3.12 + 3.13 + all 5 dist builds.** Full pipeline green with all 18 fixes (17 real bugs + 1 de-flake).
 - **Next:** dedicated QA edge-case audit of the flagship subsystems (recorder / heal / debugger).
 
+## Pass 15 — 2026-06-14 — QA+Dev: flagship audit; heal C1 + H1 fixed
+- **Role:** BMAD QA (audit of Recorder/Heal/Debugger) + Dev (fixes). Findings in qa-findings-flagship-2026-06-14.md (2 CRITICAL + 5 HIGH + MED/LOW).
+- **Fixed at source:** C1 — heal sidecar quality_score normalized 0–100 → 0–1 so the confidence threshold actually gates sidecar swaps (was fully bypassed; the core heal safety invariant); H1 — heal-report/apply endpoints now gate on require_effective_role_for_run (per-repo RBAC), closing a cross-repo write/read escalation for global EDITORs without a repo grant.
+- **Tests:** tests/execution/test_heal_confidence_scale.py (3) — FIRST unit tests for the vendored RoboScopeHeal candidate_finder (was zero coverage). Existing heal apply/report: 20 passed (H1 swap doesn't break legit access).
+- **Next:** debugger fixes H3 (output.xml walker control structures → correct breakpoint), H4 (atomic start dedup), M1 (path guard) — first tests in the empty backend/tests/debug/. Then recorder follow-ups (H2/H5/M2/M4) + heal C2/M3/M5.
+
 <!-- Append a new "## Pass N" block per iteration. -->
