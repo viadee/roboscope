@@ -1251,6 +1251,7 @@ export default {
     variableValuePlaceholder: 'valor',
     variableAdd: 'Añadir',
     variableRemoveTitle: 'Quitar {name}',
+    envVarsUsed: 'Variables de entorno usadas:',
     suiteSettings: 'Ajustes',
     suiteSettingsTitle: 'Ajustes de suite (Setup/Teardown, Tags, Documentación, Metadata)',
     suiteSettingsNone: 'No hay ajustes de suite.',

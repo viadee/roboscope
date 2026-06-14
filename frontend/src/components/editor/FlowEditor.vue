@@ -23,6 +23,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useDebugStore } from '@/stores/debug.store'
 import { extractErrorDetail } from '@/utils/errors'
+import { collectEnvVarRefs } from '@/utils/robotEnvVars'
 import { type RecordedFlow, type SelectorCandidate, type SelectorStrategy } from '@/types/recorder.types'
 import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
 import {
@@ -323,6 +324,20 @@ function removeVariable(idx: number): void {
   if (idx < 0 || idx >= props.form.variables.length) return
   props.form.variables.splice(idx, 1)
 }
+
+// Story FE-ENV — read-only summary of %{ENV} references used by the active
+// test case / keyword. Informational only; OS env vars aren't edited here.
+const activeEnvVarRefs = computed(() => {
+  const item = activeSection.value === 'testcases'
+    ? props.form.testCases[activeItemIndex.value]
+    : props.form.keywords[activeItemIndex.value]
+  if (!item) return []
+  const texts: string[] = []
+  for (const s of item.steps) {
+    texts.push(...s.args, s.condition, ...s.loopValues)
+  }
+  return collectEnvVarRefs(texts)
+})
 
 // --- Suite-level settings (Suite Setup/Teardown, Force/Default Tags, Doc) ---
 //
@@ -2158,6 +2173,22 @@ function onDebugOverlayClose(): void {
           @click="addVariable"
         >+ {{ t('flowEditor.variableAdd') }}</button>
       </div>
+      <!-- Story FE-ENV — read-only summary of %{ENV} refs used here. -->
+      <div
+        v-if="activeEnvVarRefs.length"
+        class="flow-vars__envrefs"
+        data-testid="flow-env-vars"
+      >
+        <span class="flow-vars__envrefs-title">{{ t('flowEditor.envVarsUsed') }}</span>
+        <span
+          v-for="ref in activeEnvVarRefs"
+          :key="ref.name"
+          class="flow-libraries__chip"
+          data-testid="flow-env-var"
+        >
+          <span class="flow-libraries__chip-name">%{{ '{' }}{{ ref.name }}{{ ref.default !== null ? '=' + ref.default : '' }}{{ '}' }}</span>
+        </span>
+      </div>
     </div>
 
     <!-- Suite-settings panel — Suite Setup/Teardown, Force/Default Tags,
@@ -3098,6 +3129,19 @@ function onDebugOverlayClose(): void {
   background: var(--color-bg-subtle, #f1f5f9);
   color: var(--color-text-secondary, #555);
   white-space: nowrap;
+}
+.flow-vars__envrefs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border, #e2e8f0);
+}
+.flow-vars__envrefs-title {
+  font-size: 11px;
+  color: var(--color-text-secondary, #555);
 }
 .flow-section-tab {
   padding: 7px 18px;

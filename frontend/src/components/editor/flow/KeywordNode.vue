@@ -136,6 +136,13 @@ const candidateTooltip = computed(() =>
         data-testid="bdd-badge"
       >{{ data.bdd.prefix }}</span>
       <span class="flow-node-label">{{ data.bdd ? data.bdd.rest : (data.step.keyword || 'Keyword') }}</span>
+      <!-- Story FE-ENV — environment-variable indicator. -->
+      <span
+        v-if="data.envRefs && data.envRefs.length"
+        class="flow-node-env-badge"
+        data-testid="env-badge"
+        :title="data.envRefs.map((r) => r.default !== null ? `%{${r.name}=${r.default}}` : `%{${r.name}}`).join('\n')"
+      >%{}</span>
     </div>
     <div v-if="data.step.args.length" class="flow-node-args">
       <span
@@ -226,6 +233,19 @@ const candidateTooltip = computed(() =>
   text-transform: uppercase;
   letter-spacing: 0.03em;
   line-height: 16px;
+}
+/* Story FE-ENV — environment-variable indicator. */
+.flow-node-env-badge {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--color-navy, #1A2D50);
+  color: #fff;
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  line-height: 16px;
+  cursor: help;
 }
 .flow-drag-handle {
   cursor: grab;

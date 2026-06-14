@@ -8,6 +8,7 @@
 import type { Node, Edge } from '@vue-flow/core'
 import type { RecordedCommand, RecordedFlow, SelectorCandidate } from '@/types/recorder.types'
 import { parseArgSignature, splitBddPrefix, type ParsedArg } from '@/utils/robotKeywordSignatures'
+import { collectEnvVarRefs, type EnvVarRef } from '@/utils/robotEnvVars'
 import { effectiveSelectorForCandidate, renderSelector } from '@/utils/effectiveSelector'
 
 // Map of lowercase-keyword-name → raw libdoc args; produced by
@@ -129,6 +130,12 @@ export interface FlowNodeData {
    * render a prefix badge. Null for non-BDD or non-keyword steps.
    */
   bdd?: { prefix: string; rest: string } | null
+  /**
+   * Story FE-ENV — `%{NAME}` / `%{NAME=default}` environment-variable
+   * references found in this step's args/condition/loop values. Empty when
+   * none. Drives the node's `%{}` indicator.
+   */
+  envRefs?: EnvVarRef[]
 }
 
 // --- Sidecar matching (Story EDITOR-1) ---
@@ -589,6 +596,9 @@ export function stepsToFlow(
         bdd: (step.type === 'keyword' || step.type === 'assignment')
           ? splitBddPrefix(step.keyword)
           : null,
+        envRefs: collectEnvVarRefs([
+          ...step.args, step.condition, ...step.loopValues,
+        ]),
       } as FlowNodeData,
     })
 
