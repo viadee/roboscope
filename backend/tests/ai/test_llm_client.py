@@ -459,3 +459,24 @@ class TestRaiseWithBody:
             _raise_with_body(resp)
         # The detail from resp.text[:500] should be 500 X's
         assert "500" in str(exc_info.value)
+
+
+class TestEmptyContentHandling:
+    """H4: malformed/empty LLM responses must raise a clear error, not an
+    opaque IndexError/KeyError that surfaces as a cryptic job failure."""
+
+    @patch("httpx.Client")
+    def test_empty_choices_raises_clear_error(self, mock_client_cls):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = {"choices": []}
+        _mock_httpx_client(mock_client_cls, resp)
+        with pytest.raises(RuntimeError, match="no content"):
+            _call_openai_compatible(_make_provider(), "sk", "sys", "usr")
+
+    @patch("httpx.Client")
+    def test_missing_content_raises_clear_error(self, mock_client_cls):
+        resp = _openai_response(content=None)
+        _mock_httpx_client(mock_client_cls, resp)
+        with pytest.raises(RuntimeError, match="no content"):
+            _call_openai_compatible(_make_provider(), "sk", "sys", "usr")

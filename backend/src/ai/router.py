@@ -179,7 +179,7 @@ def generate_robot(
     except TaskDispatchError as e:
         job.status = "failed"
         job.error_message = str(e)
-        db.flush()
+        db.commit()  # M1: persist terminal state, not just flush (job already committed)
 
     return _job_to_response(job)
 
@@ -218,7 +218,7 @@ def reverse_robot(
     except TaskDispatchError as e:
         job.status = "failed"
         job.error_message = str(e)
-        db.flush()
+        db.commit()  # M1: persist terminal state, not just flush (job already committed)
 
     return _job_to_response(job)
 
@@ -267,7 +267,7 @@ def analyze_failures(
     except TaskDispatchError as e:
         job.status = "failed"
         job.error_message = str(e)
-        db.flush()
+        db.commit()  # M1: persist terminal state, not just flush (job already committed)
 
     return _job_to_response(job)
 

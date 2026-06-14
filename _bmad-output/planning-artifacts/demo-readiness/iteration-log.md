@@ -57,4 +57,15 @@
 - **Result on clean CI runners:** E2E Tests (e2e.yml) = success (full Playwright suite); Build Distribution (build.yml) = success (backend pytest 3.12+3.13 + frontend vitest + all 5 dist builds).
 - **Conclusion:** all changes across Passes 1-7 keep the existing pipeline fully green; the local full-run flakes were environmental, not regressions. DoD E2E/regression gate MET.
 
+## Pass 9 — 2026-06-14 — QA+Dev: AI subsystem defects (C1/C2/H4/M1)
+- **Role:** BMAD QA (audit) + Dev (fixes). Audited AI/Reports/TaskExecutor → 2 CRITICAL + 4 HIGH + MED/LOW (qa-findings-ai-reports-2026-06-14.md).
+- **Fixed at source:** C1 path-traversal in write_generated_file/update_spec_hash (_contained_target); C2 _strip_code_fences corruption on prose preamble; H4 empty/malformed LLM response → clear error; M1 AI dispatch flush→commit.
+- **Tests:** test_ai_robustness.py + TestEmptyContentHandling; AI affected files 76 passed + 49 robustness/llm green.
+
+## Pass 10 — 2026-06-14 — Dev: report-parser defects (H1/H2)
+- **Role:** BMAD Dev.
+- **Fixed at source:** H1 nested-suite names hierarchical again (recurse direct child suites, was a flattening descendant iterator); H2 test tags exclude keyword-level tags (read only the test's own tags container).
+- **Tests:** tests/reports/test_parser_hierarchy.py (4) + existing parser suite = 26 passed.
+- **Remaining follow-ups:** H3 (rotated-key UX), M2 (report orphans), M3 (LLM connect-timeout starving the worker), M4 (spec size cap), L1/L2/L3.
+
 <!-- Append a new "## Pass N" block per iteration. -->

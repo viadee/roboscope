@@ -80,7 +80,19 @@ def _call_openai_compatible(
             _raise_with_body(response)
         data = response.json()
 
-    content = data["choices"][0]["message"]["content"]
+    # H4: validate shape — providers/proxies (e.g. Ollama under load) can
+    # return 200 with `choices: []` or a missing message/content. The old
+    # direct index/key access raised an opaque IndexError/KeyError that
+    # surfaced as a cryptic job failure; give a clear, actionable message.
+    choices = data.get("choices") or []
+    content = (
+        choices[0].get("message", {}).get("content") if choices else None
+    )
+    if not content:
+        raise RuntimeError(
+            "The LLM returned no content (empty 'choices' or missing message). "
+            "The provider may be overloaded or the request was content-filtered."
+        )
     tokens = data.get("usage", {}).get("total_tokens", 0)
 
     return LlmResponse(content=content, tokens_used=tokens)

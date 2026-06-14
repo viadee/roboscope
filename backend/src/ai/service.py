@@ -352,9 +352,26 @@ def check_drift(repo_path: Path) -> list[DriftResult]:
 # ---------------------------------------------------------------------------
 
 
+def _contained_target(repo_path: Path, relative_path: str) -> Path:
+    """Resolve `relative_path` under `repo_path` and refuse any result that
+    escapes the repo (path traversal). C1: a spec's `target_file` is
+    user-authored, so `../../../x` or an absolute path could otherwise make
+    the accept-job write arbitrary files outside the repo.
+    """
+    repo_root = repo_path.resolve()
+    target = (repo_root / relative_path).resolve()
+    try:
+        target.relative_to(repo_root)
+    except ValueError as e:
+        raise ValueError(
+            f"Refusing to write outside the repository: {relative_path!r}"
+        ) from e
+    return target
+
+
 def write_generated_file(repo_path: Path, relative_path: str, content: str) -> str:
     """Write generated content to a file in the repo and return its SHA256."""
-    target = repo_path / relative_path
+    target = _contained_target(repo_path, relative_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
@@ -362,7 +379,11 @@ def write_generated_file(repo_path: Path, relative_path: str, content: str) -> s
 
 def update_spec_hash(repo_path: Path, spec_relative: str, new_hash: str) -> None:
     """Update the generation_hash in a .roboscope file after writing generated output."""
-    spec_path = repo_path / spec_relative
+    try:
+        spec_path = _contained_target(repo_path, spec_relative)
+    except ValueError:
+        logger.warning("update_spec_hash: refusing path outside repo: %r", spec_relative)
+        return
     if not spec_path.exists():
         return
     content = spec_path.read_text(encoding="utf-8")
