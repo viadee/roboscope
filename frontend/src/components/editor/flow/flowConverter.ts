@@ -76,6 +76,8 @@ export interface RobotTestCase {
   timeout: string
   template: string
   steps: RobotStep[]
+  // Story FE-TPL — data-driven test rows (cells = args for the template kw).
+  templateRows?: string[][]
 }
 
 export interface RobotKeywordDef {
@@ -731,6 +733,30 @@ export function testCaseToFlow(
 ): { nodes: Node[]; edges: Edge[] } {
   const out = stepsToFlow(tc.steps, tc.name, `tc${index}`, 'testcase', index, sidecar, signatures)
   appendSettingMetaNodes(out.nodes, out.edges, `tc${index}`, tc, 'testcase', index, TC_SETTING_KINDS)
+  // Story FE-TPL — a data-driven test renders its rows as a single
+  // template-table node between Start and End (its steps are empty).
+  if (tc.templateRows && tc.templateRows.length > 0) {
+    const prefix = `tc${index}`
+    const startNode = out.nodes.find((n) => n.id === `${prefix}-start`)
+    const tableId = `${prefix}-template-table`
+    out.nodes.push({
+      id: tableId,
+      type: 'template-table',
+      position: { x: NODE_X, y: (startNode?.position.y ?? 0) + START_END_HEIGHT + NODE_GAP },
+      data: {
+        templateKeyword: tc.template,
+        templateRows: tc.templateRows,
+        section: 'testcase',
+        sectionIndex: index,
+      },
+    })
+    // Re-route Start → table → End (drop the direct start→end edge).
+    const endId = `${prefix}-end`
+    const direct = out.edges.findIndex((e) => e.source === `${prefix}-start` && e.target === endId)
+    if (direct >= 0) out.edges.splice(direct, 1)
+    out.edges.push({ id: `${prefix}-e-start-table`, source: `${prefix}-start`, target: tableId })
+    out.edges.push({ id: `${prefix}-e-table-end`, source: tableId, target: endId })
+  }
   return out
 }
 

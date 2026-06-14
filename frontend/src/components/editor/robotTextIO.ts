@@ -66,6 +66,10 @@ export interface RobotTestCase {
   name: string; documentation: string; tags: string[]
   setup: string; teardown: string; timeout: string; template: string
   steps: RobotStep[]
+  // Story FE-TPL — data-driven test rows. When `[Template]` is set, the test's
+  // body rows are argument-sets for the template keyword (NOT keyword steps).
+  // Each entry is one row's cells. Empty/absent for non-templated tests.
+  templateRows?: string[][]
   // Round-trip-fidelity — comments sitting at column 0 directly above this
   // item. Previously such a line became a test case NAMED `# comment`.
   leadingComments?: string[]
@@ -118,6 +122,20 @@ export function escapeRfToken(s: string): string {
 // --- Step line parser ---
 const _RBS_ID_CELL = /^# rbs:([a-f0-9]{8,32})$/
 const SEP = '    '
+
+// Story FE-TPL — a body row inside a templated test is DATA unless its first
+// cell is a control-structure marker (RF allows FOR/IF/WHILE/TRY wrapping a
+// templated body); those stay real steps so we never force control flow into
+// the data table.
+const _CONTROL_FIRST_CELLS = new Set([
+  'FOR', 'END', 'IF', 'ELSE', 'ELSE IF', 'WHILE', 'TRY', 'EXCEPT', 'FINALLY',
+  'BREAK', 'CONTINUE', 'RETURN', 'VAR',
+])
+
+function isControlRow(bodyTrimmed: string): boolean {
+  const first = bodyTrimmed.split(/  +|\t+/)[0]
+  return _CONTROL_FIRST_CELLS.has(first)
+}
 
 /**
  * A cell is an inline-comment opener when it starts with a bare `#` that is
@@ -456,9 +474,19 @@ export function parseRobotText(content: string): RobotForm {
       if (currentItem && isIndented) {
         const bodyTrimmed = trimmed.trim()
 
+        // Story FE-TPL — is this a data row of a templated test?
+        const tcItem = currentItemType === 'testcase' ? (currentItem as RobotTestCase) : null
+        const inTemplate = !!tcItem && !!tcItem.template
+
         // Continuation line
         if (bodyTrimmed.startsWith('...')) {
           const contCells = bodyTrimmed.slice(3).trim().split(/  +|\t+/).filter(c => c !== '')
+          // A `...` after a template data row extends that row.
+          if (inTemplate && tcItem!.templateRows && tcItem!.templateRows.length > 0
+              && currentItem.steps.length === 0) {
+            tcItem!.templateRows[tcItem!.templateRows.length - 1].push(...contCells)
+            continue
+          }
           if (currentItem.steps.length > 0) {
             const prev = currentItem.steps[currentItem.steps.length - 1]
             switch (prev.type) {
@@ -506,6 +534,15 @@ export function parseRobotText(content: string): RobotForm {
               if ('returnValue' in currentItem) (currentItem as RobotKeyword).returnValue = settingValue
               break
           }
+          continue
+        }
+
+        // Story FE-TPL — a non-control body row of a templated test is a data
+        // row (cells = args for the template keyword), NOT a keyword step.
+        if (inTemplate && !isControlRow(bodyTrimmed)) {
+          const cells = bodyTrimmed.split(/  +|\t+/).filter((c) => c !== '')
+          if (!tcItem!.templateRows) tcItem!.templateRows = []
+          tcItem!.templateRows.push(cells)
           continue
         }
 
@@ -597,6 +634,10 @@ export function serializeRobotForm(form: RobotForm, opts: { isResource?: boolean
       if (tc.teardown) lines.push(SEP + '[Teardown]' + SEP + tc.teardown)
       if (tc.timeout) lines.push(SEP + '[Timeout]' + SEP + tc.timeout)
       if (tc.template) lines.push(SEP + '[Template]' + SEP + tc.template)
+      // Story FE-TPL — data rows (each cell-array is one argument set).
+      if (tc.templateRows) {
+        for (const row of tc.templateRows) lines.push(SEP + row.join(SEP))
+      }
       for (const step of tc.steps) lines.push(SEP + serializeStep(step))
       lines.push('')
     }

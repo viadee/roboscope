@@ -325,6 +325,41 @@ function removeVariable(idx: number): void {
   props.form.variables.splice(idx, 1)
 }
 
+// --- Story FE-TPL: [Template] data-row table editing ---
+// All edits write straight to the test case's `templateRows` by index; the
+// form watcher rebuilds the graph (the cell input already committed on blur).
+function templateRowsFor(sectionIndex: number): string[][] {
+  const tc = props.form.testCases[sectionIndex]
+  if (!tc) return []
+  if (!tc.templateRows) tc.templateRows = []
+  return tc.templateRows
+}
+
+function updateTemplateCell(sectionIndex: number, row: number, col: number, value: string): void {
+  const rows = templateRowsFor(sectionIndex)
+  if (row < 0 || row >= rows.length) return
+  while (rows[row].length <= col) rows[row].push('')
+  rows[row][col] = value
+}
+
+function addTemplateRow(sectionIndex: number): void {
+  const rows = templateRowsFor(sectionIndex)
+  const cols = rows.length ? Math.max(...rows.map((r) => r.length)) : 1
+  rows.push(Array.from({ length: cols }, () => ''))
+  rebuildAndReselect(`tc${sectionIndex}-template-table`)
+}
+
+function removeTemplateRow(sectionIndex: number, row: number): void {
+  const rows = templateRowsFor(sectionIndex)
+  if (row >= 0 && row < rows.length) rows.splice(row, 1)
+  rebuildAndReselect(`tc${sectionIndex}-template-table`)
+}
+
+function addTemplateColumn(sectionIndex: number): void {
+  for (const r of templateRowsFor(sectionIndex)) r.push('')
+  rebuildAndReselect(`tc${sectionIndex}-template-table`)
+}
+
 // Story FE-ENV — read-only summary of %{ENV} references used by the active
 // test case / keyword. Informational only; OS env vars aren't edited here.
 const activeEnvVarRefs = computed(() => {
@@ -426,6 +461,9 @@ const selectedNodeData = computed<FlowNodeData | null>(() => {
   // missing `stepType` / `step` fields and crashing.
   if (selectedNode.value.type === 'setting-meta') return null
   if (selectedNode.value.type === 'start') return null
+  // Story FE-TPL — the data table node carries {templateKeyword, templateRows}
+  // not a step; the step detail panel would deref missing fields and crash.
+  if (selectedNode.value.type === 'template-table') return null
   return selectedNode.value.data as FlowNodeData
 })
 
@@ -2342,6 +2380,57 @@ function onDebugOverlayClose(): void {
               <span>{{ nodeProps.data.label }}</span>
             </div>
           </template>
+          <!-- Story FE-TPL — data-driven [Template] table. -->
+          <template #node-template-table="nodeProps">
+            <div class="flow-node-template" data-testid="flow-template-table">
+              <VueFlowHandle type="target" :position="HandlePosition.Top" />
+              <div class="flow-node-template__head">
+                <span class="flow-node-template__badge">[Template]</span>
+                <span class="flow-node-template__kw">{{ nodeProps.data.templateKeyword || '—' }}</span>
+              </div>
+              <table class="flow-node-template__table">
+                <tbody>
+                  <tr v-for="(row, r) in nodeProps.data.templateRows" :key="r">
+                    <td v-for="(cell, c) in row" :key="c">
+                      <input
+                        class="flow-node-template__cell"
+                        :value="cell"
+                        spellcheck="false"
+                        data-testid="flow-template-cell"
+                        @mousedown.stop
+                        @change="updateTemplateCell(nodeProps.data.sectionIndex, r, c, ($event.target as HTMLInputElement).value)"
+                      />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        class="flow-node-template__rm"
+                        data-testid="flow-template-remove-row"
+                        :title="t('flowEditor.templateRemoveRow')"
+                        @mousedown.stop
+                        @click.stop="removeTemplateRow(nodeProps.data.sectionIndex, r)"
+                      >×</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="flow-node-template__actions">
+                <button
+                  type="button"
+                  data-testid="flow-template-add-row"
+                  @mousedown.stop
+                  @click.stop="addTemplateRow(nodeProps.data.sectionIndex)"
+                >+ {{ t('flowEditor.templateAddRow') }}</button>
+                <button
+                  type="button"
+                  data-testid="flow-template-add-col"
+                  @mousedown.stop
+                  @click.stop="addTemplateColumn(nodeProps.data.sectionIndex)"
+                >+ {{ t('flowEditor.templateAddColumn') }}</button>
+              </div>
+              <VueFlowHandle type="source" :position="HandlePosition.Bottom" />
+            </div>
+          </template>
           <template #node-flow-control="nodeProps">
             <div class="flow-node-flowctrl" :class="{ 'flow-node--selected': selectedNode?.id === nodeProps.id }">
               <div
@@ -3142,6 +3231,42 @@ function onDebugOverlayClose(): void {
 .flow-vars__envrefs-title {
   font-size: 11px;
   color: var(--color-text-secondary, #555);
+}
+/* Story FE-TPL — data-driven template table node. */
+.flow-node-template {
+  background: #fff;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-width: 220px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.flow-node-template__head {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+}
+.flow-node-template__badge {
+  font-size: 10px; font-weight: 600; color: #fff;
+  background: var(--color-primary, #3B7DD8);
+  border-radius: 6px; padding: 0 6px; line-height: 16px;
+}
+.flow-node-template__kw { font-family: var(--font-mono, monospace); font-size: 12px; }
+.flow-node-template__table { border-collapse: collapse; }
+.flow-node-template__cell {
+  width: 84px; padding: 2px 4px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 3px; font-size: 11px; font-family: var(--font-mono, monospace);
+}
+.flow-node-template__rm,
+.flow-node-template__actions button {
+  border: 1px solid var(--color-border, #e2e8f0);
+  background: transparent; border-radius: 4px;
+  font-size: 11px; cursor: pointer; color: var(--color-text-secondary, #555);
+}
+.flow-node-template__rm { padding: 0 6px; }
+.flow-node-template__actions { display: flex; gap: 6px; margin-top: 6px; }
+.flow-node-template__actions button { padding: 2px 8px; }
+.flow-node-template__actions button:hover {
+  border-color: var(--color-primary, #3B7DD8); color: var(--color-primary, #3B7DD8);
 }
 .flow-section-tab {
   padding: 7px 18px;
