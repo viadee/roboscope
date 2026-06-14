@@ -80,4 +80,9 @@
 - **Tests:** M3 connect/timeout tests + H3 rotated-key test; updated the existing wrong-key test to the new typed error. ai encryption+robustness+llm: 67 passed.
 - **Remaining follow-ups (low/medium):** M2 (report orphans), M4 (spec size cap), L1/L2/L3.
 
+## Pass 13/14 — 2026-06-14 — QA: de-flake asset-token test + CI green
+- The Pass-12 CI run failed on a PRE-EXISTING flaky test (test_asset_tokens.py::test_rejects_tampered_signature, untouched by me): flipping the LAST base64url char can alias to the same signature bytes. Fixed by perturbing the first char (30/30 deterministic).
+- **CI re-run = success on both Python 3.12 + 3.13 + all 5 dist builds.** Full pipeline green with all 18 fixes (17 real bugs + 1 de-flake).
+- **Next:** dedicated QA edge-case audit of the flagship subsystems (recorder / heal / debugger).
+
 <!-- Append a new "## Pass N" block per iteration. -->
