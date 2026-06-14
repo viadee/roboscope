@@ -85,19 +85,22 @@ def _escape_rf_token(s: str) -> str:
 # real-world Sourcepoint / OneTrust / TCF-banner case where the iframe
 # disappears between click and verify.
 #
-# The wrap is suppressed when the selector already carries `nth=` /
-# `:nth-match(` (already disambiguated) or `>>` (chained pierce) so we
-# don't double-wrap or interfere with hand-edited chains.
+# The wrap is suppressed only when the selector already carries a real nth
+# marker. A bare `>>` (chained pierce) / `>>>` (iframe pierce) is NOT a
+# disambiguator — a chained selector like `#host >> .inner` can still match
+# multiple elements, so it must still get a trailing `>> nth=0` (which
+# Browser library applies to the final result of the chain).
 _RISKY_UNVERIFIED_STRATEGIES = {"text", "css", "role", "aria"}
 
 
 def _is_already_disambiguated(value: str) -> bool:
+    # H5: only an actual nth marker counts. The old code returned True for any
+    # `>>`/`>>>`, so an unverified multi-match chained shadow selector skipped
+    # the wrap and crashed Browser-library strict mode at replay.
     return (
         ">> nth=" in value
         or ":nth-match(" in value
         or ":nth-of-type(" in value
-        or ">>>" in value
-        or ">>" in value
     )
 
 

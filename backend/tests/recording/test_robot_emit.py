@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.recording.robot_emit import _emit_command, emit_robot
+from src.recording.robot_emit import _emit_command, _render_selector, emit_robot
 from src.recording.selector_schema import (
     FrameDescriptor,
     RecordedCommand,
@@ -888,3 +888,30 @@ class TestGoToWaitUntil:
             RecordedCommand(index=0, keyword="Go To", args={"url": "https://x.example"})
         )
         assert "Go To    https://x.example    wait_until=domcontentloaded" in line
+
+
+class TestChainedSelectorDisambiguation:
+    """H5: a chained pierce (>>) is NOT a disambiguator — an unverified
+    multi-match chained selector must still get a trailing nth=0, or Browser
+    strict mode crashes at replay."""
+
+    def test_chained_css_without_nth_gets_wrapped(self) -> None:
+        cand = SelectorCandidate(
+            strategy="css", value=".host >> .inner",
+            quality_score=50, verified_unique=False,
+        )
+        assert _render_selector(cand) == ".host >> .inner >> nth=0"
+
+    def test_chained_with_existing_nth_not_double_wrapped(self) -> None:
+        cand = SelectorCandidate(
+            strategy="css", value=".host >> .inner >> nth=0",
+            quality_score=50, verified_unique=False,
+        )
+        assert _render_selector(cand).count("nth=0") == 1
+
+    def test_verified_chained_not_wrapped(self) -> None:
+        cand = SelectorCandidate(
+            strategy="css", value=".host >> .inner",
+            quality_score=90, verified_unique=True,
+        )
+        assert _render_selector(cand) == ".host >> .inner"

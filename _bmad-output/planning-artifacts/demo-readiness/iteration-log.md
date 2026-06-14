@@ -103,4 +103,10 @@
 - **Tests:** test_robot_emit TestGoToWaitUntil (2) + test_heal_should_retry (2); robot_emit suite 44 passed.
 - **Remaining (documented, niche):** Heal C2/M5, Recorder H2/H5/M4, Debugger H4, L1/L2.
 
+## Pass 18 — 2026-06-14 — Dev: recorder H5 (chained-selector nth wrap)
+- **Role:** BMAD Dev.
+- **Fixed at source:** H5 — `_is_already_disambiguated` no longer treats a bare `>>`/`>>>` chained/iframe pierce as "already disambiguated", so an unverified multi-match chained selector (e.g. `.host >> .inner`) now gets the `>> nth=0` wrap and won't crash Browser strict mode at replay.
+- **Tests:** test_robot_emit::TestChainedSelectorDisambiguation (3). robot_emit suite 45 passed.
+- **Remaining (niche): Heal C2/M5, Recorder H2/M4, Debugger H4, L1/L2.**
+
 <!-- Append a new "## Pass N" block per iteration. -->
