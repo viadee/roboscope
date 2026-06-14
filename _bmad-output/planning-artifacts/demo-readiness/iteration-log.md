@@ -121,4 +121,10 @@
 - **Tests:** tests/recording/test_v2_command_queue_subscriber.py (2). Recording suite: 410 passed.
 - **Milestone: all CRITICAL + HIGH findings across all 4 QA audits are now fixed (27 defects).** Remaining: niche MED/LOW — Heal C2 (unknown-outcome UI) / M5 (iframe sep), Recorder M4 (restart-crash), L1/L2.
 
+## Pass 21 — 2026-06-14 — Dev: heal M5 + recorder L1
+- **Role:** BMAD Dev.
+- **Fixed at source:** M5 — `_split_iframe_wrap` is now spacing-tolerant for the `>>>` frame separator (was a fixed ` >>> `), so iframe-recorded heals (consent banners) fire regardless of separator spacing. L1 — the legacy recorder generator now emits a `${PASSWORD}` variable + placeholder definition instead of a literal `***` (which typed asterisks and broke recorded logins); the real captured secret is never written.
+- **Tests:** test_heal_iframe_split.py (4) + test_generator TestPasswordVariable (2) + updated test_password_masked.
+- **Closeout:** all CRITICAL + HIGH + the demo-relevant MED fixed. Accepted/deferred (with rationale): L2 (port TOCTOU, self-documented), C2 (apply gate already rejects), M4 (narrow restart-crash race). See flagship findings table.
+
 <!-- Append a new "## Pass N" block per iteration. -->

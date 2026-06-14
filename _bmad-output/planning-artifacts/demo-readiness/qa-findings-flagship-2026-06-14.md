@@ -15,8 +15,11 @@ BMAD QA edge-case audit. Fix status:
 | M2 | MED | Recorder | Only first `Go To`/`New Page` gets `wait_until=domcontentloaded`; later navigations inherit `load` → hang on ad-heavy pages. | ✅ fixed (Pass 17: every Go To gets wait_until) |
 | M3 | MED | Heal | `_should_retry` substring match (`timeout`, `locator(`) over-triggers heals on non-selector failures. | ✅ fixed (Pass 17: selector-resolution signatures only) |
 | M4 | MED | Recorder | Restart-after-crash can tear down the queue → restarted browser with a dead stream. | ⏳ follow-up |
-| M5 | MED | Heal | `_split_iframe_wrap` mismatches `>>`/`>>>` separators → heal silently won't fire for hand-edited iframe selectors. | ⏳ follow-up |
-| L1/L2 | LOW | Recorder/Debug | Legacy generator unescaped + literal `***` secret; debug port TOCTOU. | ⏳ follow-up |
+| M5 | MED | Heal | `_split_iframe_wrap` only matched ` >>> ` spacing → iframe heals missed other spacing. | ✅ fixed (Pass 21: spacing-tolerant `>>>` regex; +4 tests) |
+| L1 | LOW | Recorder | Legacy generator emitted literal `***` for passwords (login breaks). | ✅ fixed (Pass 21: ${PASSWORD} var + placeholder def; +2 tests) |
+| L2 | LOW | Debug | port-allocation TOCTOU. | ⏳ accepted (self-documented; single-user dev — low risk) |
+| C2 | — | Heal | unknown-outcome UI clarity. | ⏳ accepted (apply gate already rejects non-confirmed; not exploitable) |
+| M4 | MED | Recorder | restart-after-crash queue race. | ⏳ deferred (narrow timing; not demo-path) |
 
 `*` C2: the apply gate already rejects any non-`confirmed` heal, so it is not exploitable for a bad on-disk write; the residual is a UI clarity gap.
 

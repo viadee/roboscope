@@ -305,11 +305,15 @@ def _split_iframe_wrap(selector: str) -> tuple[str, str]:
     s = selector.strip()
     prefix_parts: list[str] = []
     while s.startswith("iframe["):
-        sep = s.find(" >>> ")
-        if sep < 0:
+        # M5: tolerate spacing variants around the `>>>` frame separator
+        # (` >>> `, `>>>`, ` >>>`). The old fixed ` >>> ` find missed any
+        # other spacing, leaving the whole selector as `inner` so iframe
+        # sidecar/fingerprint lookups silently failed to fire.
+        m = re.search(r"\s*>>>\s*", s)
+        if m is None:
             break
-        prefix_parts.append(s[: sep + len(" >>> ")])
-        s = s[sep + len(" >>> "):]
+        prefix_parts.append(s[: m.end()])  # keep the original separator text
+        s = s[m.end():]
     return ("".join(prefix_parts), s)
 
 

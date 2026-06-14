@@ -73,7 +73,10 @@ class TestGenerateRobotFile:
             {"event_type": "password", "selector": "//input[@id='pass']", "value": "secret"},
         ])
         result = generate_robot_file(events, "Browser")
-        assert "Fill Secret    //input[@id='pass']    ***" in result
+        # L1: reference a ${PASSWORD} variable (defined as a placeholder),
+        # not a literal "***" that types asterisks and breaks login.
+        assert "Fill Secret    //input[@id='pass']    ${PASSWORD}" in result
+        assert "${PASSWORD}    CHANGE_ME" in result
         assert "secret" not in result
 
     def test_select_browser(self):
@@ -124,3 +127,25 @@ class TestGenerateRobotFile:
         result = generate_robot_file(events, "SeleniumLibrary")
         assert "Library           SeleniumLibrary" in result
         assert "Close Browser" in result
+
+
+class TestPasswordVariable:
+    """L1: a recorded password field must reference ${PASSWORD} (with a
+    defined placeholder), not a literal '***' that would type asterisks and
+    break the login — and must never emit the real captured secret."""
+
+    def test_password_uses_variable_not_literal(self):
+        events = json.dumps([
+            {"event_type": "password", "selector": "#pw", "value": "hunter2"},
+        ])
+        out = generate_robot_file(events, "Browser")
+        assert "${PASSWORD}" in out
+        assert "${PASSWORD}    CHANGE_ME" in out  # placeholder defined
+        assert "hunter2" not in out               # real secret never emitted
+
+    def test_no_password_no_password_var(self):
+        events = json.dumps([
+            {"event_type": "input", "selector": "#u", "value": "alice"},
+        ])
+        out = generate_robot_file(events, "Browser")
+        assert "${PASSWORD}" not in out
