@@ -154,14 +154,14 @@ async function dismissAndGo(path: string) {
 }
 
 .welcome-cta--primary {
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: white;
 }
 
 .welcome-cta--secondary {
   background: transparent;
-  border-color: var(--color-primary, #3B7DD8);
-  color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
+  color: var(--color-primary, #2D63B0);
 }
 
 .welcome-skip {

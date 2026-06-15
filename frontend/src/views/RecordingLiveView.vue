@@ -520,7 +520,7 @@ const uptimeLabel = computed<string | null>(() => {
 .recording-live__status.is-browser_ready       { background: rgba(44, 152, 70, 0.15); color: #1a5c2a; }
 .recording-live__status.is-browser_restarting  { background: rgba(212, 136, 62, 0.2);  color: #6e3d09; }
 .recording-live__status.is-browser_crashed     { background: #fee2e2; color: #7f1d1d; }
-.recording-live__status.is-done                { background: rgba(59, 125, 216, 0.15); color: #1a3c7a; }
+.recording-live__status.is-done                { background: rgba(45, 99, 176, 0.15); color: #1a3c7a; }
 .recording-live__status.is-error               { background: #fee2e2; color: #7f1d1d; }
 
 /* Story RECORDER-VIS-1 — phase card next to the heading. */
@@ -545,8 +545,8 @@ const uptimeLabel = computed<string | null>(() => {
   color: var(--color-text-muted, #5A6380);
 }
 .recording-live__restart-browser:hover:not(:disabled) {
-  border-color: var(--color-primary, #3B7DD8);
-  color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
+  color: var(--color-primary, #2D63B0);
 }
 .recording-live__restart-browser:disabled {
   opacity: 0.45;
@@ -607,7 +607,7 @@ const uptimeLabel = computed<string | null>(() => {
 
 .recording-live__keyword {
   font-weight: 600;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
 }
 
 .recording-live__args {

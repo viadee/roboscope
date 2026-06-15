@@ -258,7 +258,7 @@ function onCancel() {
 }
 .publish-message-input:focus {
   outline: none;
-  border-color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
 }
 .publish-conflict { display: flex; flex-direction: column; gap: 10px; }
 .publish-conflict h4 { margin: 0; color: var(--color-accent, #D4883E); }

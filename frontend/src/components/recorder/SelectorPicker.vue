@@ -662,7 +662,7 @@ const addEffectiveIsOverride = computed(() => {
 
 .selector-picker__item:hover,
 .selector-picker__item.is-active {
-  background: rgba(59, 125, 216, 0.08);
+  background: rgba(45, 99, 176, 0.08);
 }
 
 .selector-picker__item .selector-picker__dot,
@@ -694,7 +694,7 @@ const addEffectiveIsOverride = computed(() => {
   font-family: var(--font-mono, monospace);
   font-size: 0.85rem;
   padding: 3px 6px;
-  border: 1px solid var(--color-primary, #3B7DD8);
+  border: 1px solid var(--color-primary, #2D63B0);
   border-radius: 3px;
   outline: none;
   min-width: 0;
@@ -755,14 +755,14 @@ const addEffectiveIsOverride = computed(() => {
   border-radius: 3px;
   padding: 4px 8px;
   cursor: pointer;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   font-family: var(--font-sans, sans-serif);
   font-size: 0.82rem;
   text-align: left;
 }
 .selector-picker__add-btn:hover {
-  border-color: var(--color-primary, #3B7DD8);
-  background: rgba(59, 125, 216, 0.06);
+  border-color: var(--color-primary, #2D63B0);
+  background: rgba(45, 99, 176, 0.06);
 }
 
 .selector-picker--compact .selector-picker__value {
@@ -800,7 +800,7 @@ const addEffectiveIsOverride = computed(() => {
   min-width: 0;
 }
 .selector-picker__effective-input:focus {
-  border-color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
 }
 .selector-picker__effective-input.is-override {
   border-color: var(--color-accent, #D4883E);

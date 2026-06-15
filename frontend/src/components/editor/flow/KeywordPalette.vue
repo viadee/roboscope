@@ -655,7 +655,7 @@ function onControlDragStart(event: DragEvent, type: StepType) {
   margin: 0 10px 8px;
   padding: 5px 8px;
   background: #EBF4FF;
-  border: 1px solid var(--color-primary, #3B7DD8);
+  border: 1px solid var(--color-primary, #2D63B0);
   border-radius: 6px;
 }
 .palette-add-info {
@@ -665,7 +665,7 @@ function onControlDragStart(event: DragEvent, type: StepType) {
 .palette-add-label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -679,7 +679,7 @@ function onControlDragStart(event: DragEvent, type: StepType) {
 }
 .palette-arg-tag {
   background: #fff;
-  border: 1px solid var(--color-primary, #3B7DD8);
+  border: 1px solid var(--color-primary, #2D63B0);
   color: var(--color-text-muted, #5A6380);
   padding: 1px 5px;
   border-radius: 3px;
@@ -694,7 +694,7 @@ function onControlDragStart(event: DragEvent, type: StepType) {
   width: 24px;
   height: 24px;
   border: none;
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: #fff;
   border-radius: 50%;
   font-size: 16px;
@@ -717,7 +717,7 @@ function onControlDragStart(event: DragEvent, type: StepType) {
   outline: none;
 }
 .palette-search:focus {
-  border-color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
 }
 .palette-categories {
   flex: 1;
@@ -771,19 +771,19 @@ function onControlDragStart(event: DragEvent, type: StepType) {
    right now — pinned to the top of the palette and tinted so it
    stands out from the other Project: entries. */
 .palette-category--current .category-header {
-  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 8%, transparent);
+  background: color-mix(in srgb, var(--color-primary, #2D63B0) 8%, transparent);
 }
 .palette-category--current .category-name {
   font-weight: 700;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
 }
 .category-current-badge {
   font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--color-primary, #3B7DD8);
-  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 14%, transparent);
+  color: var(--color-primary, #2D63B0);
+  background: color-mix(in srgb, var(--color-primary, #2D63B0) 14%, transparent);
   padding: 1px 6px;
   border-radius: 8px;
   margin-right: 4px;
@@ -804,7 +804,7 @@ function onControlDragStart(event: DragEvent, type: StepType) {
 }
 .palette-item.selected {
   background: #EBF4FF;
-  border: 1px solid var(--color-primary, #3B7DD8);
+  border: 1px solid var(--color-primary, #2D63B0);
   margin: -1px 0;
 }
 .palette-item-content {
@@ -855,7 +855,7 @@ function onControlDragStart(event: DragEvent, type: StepType) {
   cursor: grabbing;
 }
 .palette-item-keyword .palette-icon {
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
 }
 .palette-item-control .palette-icon {
   color: #E8A838;

@@ -1686,7 +1686,7 @@ const flatNodes = computed(() => {
 }
 
 .env-prompt-icon {
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
 }
 
 .env-prompt-body p {
@@ -1707,7 +1707,7 @@ const flatNodes = computed(() => {
   display: inline-block;
   padding: 3px 10px;
   background: rgba(60, 181, 161, 0.1);
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   border-radius: 20px;
   font-size: 12px;
   font-weight: 500;
@@ -1801,7 +1801,7 @@ const flatNodes = computed(() => {
   position: absolute;
   left: 0; top: 0; bottom: 0;
   width: 30%;
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   opacity: 0.15;
   animation: keyword-loading-slide 1.5s ease-in-out infinite;
 }

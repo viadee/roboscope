@@ -78,7 +78,7 @@ onUnmounted(() => {
   top: 0;
   z-index: 10000;
   padding: 8px 16px;
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: #fff;
   text-decoration: none;
   font-weight: 600;

@@ -1260,8 +1260,8 @@ function formatDate(d: string | null) {
   background: var(--color-bg-hover, #f8fafc);
 }
 .tab-btn.active {
-  color: var(--color-primary, #3B7DD8);
-  border-bottom-color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
+  border-bottom-color: var(--color-primary, #2D63B0);
 }
 
 /* Progress */
@@ -1282,7 +1282,7 @@ function formatDate(d: string | null) {
 }
 .progress-bar {
   height: 100%;
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   border-radius: 4px;
   transition: width 0.3s ease;
 }
@@ -1316,7 +1316,7 @@ function formatDate(d: string | null) {
 }
 .lib-bar-label { width: 140px; font-size: 13px; text-align: right; flex-shrink: 0; }
 .lib-bar-track { flex: 1; height: 18px; background: var(--color-bg, #f4f7fa); border-radius: 3px; overflow: hidden; }
-.lib-bar-fill { height: 100%; background: var(--color-primary, #3B7DD8); border-radius: 3px; transition: width 0.3s; }
+.lib-bar-fill { height: 100%; background: var(--color-primary, #2D63B0); border-radius: 3px; transition: width 0.3s; }
 .lib-bar-value { width: 100px; font-size: 12px; color: var(--color-text-muted); }
 
 /* Histogram */
@@ -1347,7 +1347,7 @@ function formatDate(d: string | null) {
   font-size: 13px;
 }
 .tag-count {
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: white;
   border-radius: 10px;
   padding: 1px 6px;
@@ -1417,7 +1417,7 @@ function formatDate(d: string | null) {
   min-height: 80px;
 }
 .treemap-block {
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: white;
   border-radius: 6px;
   padding: 10px;
@@ -1522,7 +1522,7 @@ function formatDate(d: string | null) {
 }
 .heal-kpi__bar {
   flex: 1;
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   border-radius: 2px 2px 0 0;
   min-height: 2px;
   transition: height 0.2s ease;
@@ -1560,9 +1560,9 @@ function formatDate(d: string | null) {
   margin-left: 4px;
 }
 .quarantine-btn:hover:not(:disabled) {
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: white;
-  border-color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
 }
 .quarantine-btn:disabled {
   opacity: 0.5;

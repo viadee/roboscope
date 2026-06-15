@@ -121,10 +121,10 @@ const iconMap: Record<string, string> = {
 /* Selected-node highlight — outline + tint, mirrors KeywordNode and
    the inline comment/flow-control nodes in FlowEditor.vue. */
 .flow-node--selected {
-  outline: 3px solid var(--color-primary, #3B7DD8);
+  outline: 3px solid var(--color-primary, #2D63B0);
   outline-offset: 2px;
-  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 10%, #FFFBF0);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary, #3B7DD8) 18%, transparent),
+  background: color-mix(in srgb, var(--color-primary, #2D63B0) 10%, #FFFBF0);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary, #2D63B0) 18%, transparent),
               0 2px 6px rgba(0, 0, 0, 0.1);
 }
 .flow-node-header {
