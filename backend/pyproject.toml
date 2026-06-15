@@ -43,8 +43,15 @@ dependencies = [
     "httpx>=0.28.0",
     "slowapi>=0.1.9",
     "python-json-logger>=3.0.0",
-    "rf-mcp>=0.30.0",
-    "fastmcp<3",
+    "rf-mcp>=0.31.2",
+    # fastmcp pulled in transitively via rf-mcp. Floor >=3.2.4 closes the
+    # fastmcp 2.x CVEs (CVE-2026-32871 / CVE-2026-27124 / cmd-injection) and
+    # skips the 3.0.0-3.2.3 auth-header-leak window. The <4 ceiling stops an
+    # untested fastmcp 4.0 from being pulled into fresh-resolution builds
+    # (CI/Docker/offline bundle resolve from this file, not uv.lock) and
+    # breaking rf-mcp; all 3.x security updates still flow. RoboScope serves
+    # rf-mcp out-of-process over HTTP and never imports fastmcp. See issue #35.
+    "fastmcp>=3.2.4,<4",
     "playwright>=1.49.0",
     "authlib>=1.6.10",
     "reportlab>=4.4.10",
