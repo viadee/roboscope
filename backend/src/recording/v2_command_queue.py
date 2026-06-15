@@ -70,6 +70,10 @@ _QueueItem = RecordedCommand | LifecycleEvent | _End
 @dataclass
 class _SessionQueue:
     q: queue.SimpleQueue
+    # H2: at most one SSE consumer per session. Two consumers would each
+    # pull from this single SimpleQueue, splitting the stream so neither
+    # tab sees the full recording.
+    active_subscriber: bool = False
 
 
 _registry: dict[int, _SessionQueue] = {}
@@ -119,6 +123,30 @@ def tear_down_session(session_id: int) -> None:
     """Remove the queue entry — called after the consumer has drained."""
     with _registry_lock:
         _registry.pop(session_id, None)
+
+
+def try_acquire_subscriber(session_id: int) -> bool:
+    """H2: enforce a single SSE subscriber per session. Returns True when the
+    caller becomes the sole active consumer (or there is no queue yet — an
+    ended/never-registered session, which `iterate_events` then no-ops),
+    False when another consumer is already attached (the endpoint returns
+    409). Pair every True with `release_subscriber` in a finally."""
+    with _registry_lock:
+        sq = _registry.get(session_id)
+        if sq is None:
+            return True  # no live queue → iterate_events yields nothing
+        if sq.active_subscriber:
+            return False
+        sq.active_subscriber = True
+        return True
+
+
+def release_subscriber(session_id: int) -> None:
+    """Release the single-subscriber slot acquired by try_acquire_subscriber."""
+    with _registry_lock:
+        sq = _registry.get(session_id)
+        if sq is not None:
+            sq.active_subscriber = False
 
 
 def iterate_events(

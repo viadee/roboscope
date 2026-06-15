@@ -983,7 +983,12 @@ def v2_command_stream(
     """
     from fastapi.responses import StreamingResponse
     from src.auth.service import decode_token, get_user_by_id
-    from src.recording.v2_command_queue import LifecycleEvent, iterate_events
+    from src.recording.v2_command_queue import (
+        LifecycleEvent,
+        iterate_events,
+        release_subscriber,
+        try_acquire_subscriber,
+    )
     from src.recording.selector_schema import RecordedCommand as _RecCmd
 
     # Resolve current user: Authorization header wins, ?token= falls back.
@@ -1021,25 +1026,39 @@ def v2_command_stream(
             detail="Only the session owner or an admin can subscribe",
         )
 
+    # H2: a session's queue has at most one consumer — two EventSources
+    # (e.g. a duplicate tab / reconnect race) would split the single queue,
+    # so each sees only half the recording. Reject the second with 409.
+    if not try_acquire_subscriber(session_id):
+        raise HTTPException(
+            status_code=409,
+            detail="This recording session already has an active stream subscriber.",
+        )
+
     def event_gen():
         # Story RECORDER-VIS-1 — the queue now carries two payload
         # types. Multiplex onto the SSE channel so the consumer can
         # discriminate via the SSE `event:` field.
-        for item in iterate_events(session_id, poll_timeout_s=0.5):
-            if isinstance(item, _RecCmd):
-                payload = _json.dumps(item.model_dump(mode="json"), default=str)
-                yield f"event: command\ndata: {payload}\n\n"
-            elif isinstance(item, LifecycleEvent):
-                payload = _json.dumps({
-                    "phase": item.phase,
-                    "ts": item.ts,
-                    "message": item.message,
-                })
-                yield f"event: lifecycle\ndata: {payload}\n\n"
-        # End of stream — SSE clients close on connection end; emit a
-        # final explicit `event: end` so the browser-side EventSource
-        # handler can distinguish "done" from "network blip".
-        yield "event: end\ndata: {}\n\n"
+        try:
+            for item in iterate_events(session_id, poll_timeout_s=0.5):
+                if isinstance(item, _RecCmd):
+                    payload = _json.dumps(item.model_dump(mode="json"), default=str)
+                    yield f"event: command\ndata: {payload}\n\n"
+                elif isinstance(item, LifecycleEvent):
+                    payload = _json.dumps({
+                        "phase": item.phase,
+                        "ts": item.ts,
+                        "message": item.message,
+                    })
+                    yield f"event: lifecycle\ndata: {payload}\n\n"
+            # End of stream — SSE clients close on connection end; emit a
+            # final explicit `event: end` so the browser-side EventSource
+            # handler can distinguish "done" from "network blip".
+            yield "event: end\ndata: {}\n\n"
+        finally:
+            # Free the slot so a legitimate reconnect after this stream ends
+            # (or the client disconnects) can attach.
+            release_subscriber(session_id)
 
     return StreamingResponse(
         event_gen(),

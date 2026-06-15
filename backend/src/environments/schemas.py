@@ -108,3 +108,26 @@ class EnvVarResponse(BaseModel):
     is_secret: bool
 
     model_config = {"from_attributes": True}
+
+
+class KeywordEntry(BaseModel):
+    """One keyword discovered via libdoc introspection of an environment."""
+
+    name: str
+    library: str
+    args: list[str] = Field(default_factory=list)
+    shortdoc: str = ""
+
+
+class KeywordCacheResponse(BaseModel):
+    """Result of GET /environments/{id}/keywords.
+
+    ``status`` is "ready" (fresh cache returned), "building" (a refresh was
+    dispatched; ``keywords`` may be stale or empty until it completes), or
+    "error".
+    """
+
+    status: str
+    source_hash: str = ""
+    updated_at: datetime | None = None
+    keywords: list[KeywordEntry] = Field(default_factory=list)

@@ -128,6 +128,14 @@ async def lifespan(app: FastAPI):
     # Create tables (in production, use Alembic migrations instead)
     create_tables()
 
+    # H4: reap runs orphaned by a previous backend restart (the in-memory
+    # runner registry is empty now, so any PENDING/RUNNING row is dead).
+    try:
+        from src.execution.tasks import reconcile_interrupted_runs
+        reconcile_interrupted_runs()
+    except Exception:
+        logger.warning("startup run reconciliation failed", exc_info=True)
+
     # Seed default admin user
     with SessionLocal() as session:
         from src.auth.service import ensure_admin_exists

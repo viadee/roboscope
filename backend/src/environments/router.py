@@ -4,23 +4,21 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import PlainTextResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
 from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
-from sqlalchemy import select
-from src.task_executor import TaskDispatchError, dispatch_task
 from src.database import get_db
-from src.environments.models import Environment, EnvironmentPackage
-
-logger = logging.getLogger("roboscope.environments")
+from src.environments.models import Environment, EnvironmentKeywordCache, EnvironmentPackage
 from src.environments.schemas import (
     EnvCreate,
     EnvResponse,
     EnvUpdate,
     EnvVarCreate,
     EnvVarResponse,
+    KeywordCacheResponse,
     PackageCreate,
     PackageResponse,
     PyPISearchResult,
@@ -33,6 +31,8 @@ from src.environments.service import (
     delete_environment,
     generate_dockerfile,
     get_environment,
+    get_keyword_cache,
+    keyword_cache_is_fresh,
     list_environments,
     list_packages,
     list_variables,
@@ -41,6 +41,9 @@ from src.environments.service import (
     search_pypi,
     update_environment,
 )
+from src.task_executor import TaskDispatchError, dispatch_task
+
+logger = logging.getLogger("roboscope.environments")
 
 router = APIRouter()
 
@@ -133,9 +136,11 @@ def setup_default_environment(
     # Dispatch venv creation first, then package installs (FIFO queue)
     try:
         from src.environments.tasks import (
-            create_venv,
-            install_package as install_package_task,
             build_docker_image,
+            create_venv,
+        )
+        from src.environments.tasks import (
+            install_package as install_package_task,
         )
 
         dispatch_task(create_venv, env.id)
@@ -389,8 +394,8 @@ def get_packages(
     packages = list_packages(db, env_id)
 
     # Check rfbrowser init status for standard browser package
+    from src.environments.tasks import _is_batteries_package, _is_browser_package
     from src.environments.venv_utils import check_rfbrowser_initialized
-    from src.environments.tasks import _is_browser_package, _is_batteries_package
 
     has_standard_browser = any(
         _is_browser_package(p.package_name) and p.install_status == "installed"
@@ -450,6 +455,74 @@ def get_rf_libraries(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
     installed = pip_list_installed(env.venv_path)
     return identify_rf_libraries(installed)
+
+
+@router.get("/{env_id}/keywords", response_model=KeywordCacheResponse)
+def get_environment_keywords(
+    env_id: int,
+    refresh: bool = Query(False, description="Force re-introspection"),
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Keywords (standard + third-party) discovered via ``robot.libdoc`` for an
+    environment's installed libraries — offline-first, no rf-mcp required.
+
+    Returns the cached result immediately when fresh. On a cache miss / stale
+    digest / ``refresh=true`` it dispatches a background re-introspection and
+    returns the current (possibly stale or empty) cache with status
+    ``building`` so the caller can render what's there and poll for the rest.
+    """
+    import json
+
+    env = get_environment(db, env_id)
+    if env is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
+
+    cache = get_keyword_cache(db, env_id)
+    fresh = keyword_cache_is_fresh(db, env, cache)
+
+    if cache is not None and fresh and not refresh:
+        return KeywordCacheResponse(
+            status="ready",
+            source_hash=cache.source_hash,
+            updated_at=cache.updated_at,
+            keywords=json.loads(cache.keywords_json or "[]"),
+        )
+
+    # Stale / missing / forced refresh → kick off a background rebuild and
+    # return whatever we have right now. Skip the dispatch when a build is
+    # already in flight (status "building", touched < 120s ago) so repeated
+    # polls don't spawn a redundant introspection task on every request.
+    from datetime import UTC, datetime, timedelta
+    now = datetime.now(UTC)
+    in_flight = False
+    if (
+        cache is not None and cache.status == "building"
+        and cache.updated_at is not None and not refresh
+    ):
+        age = now - cache.updated_at.replace(tzinfo=UTC)
+        in_flight = age < timedelta(seconds=120)
+
+    if not in_flight:
+        if cache is None:
+            cache = EnvironmentKeywordCache(environment_id=env_id, status="building")
+            db.add(cache)
+        else:
+            cache.status = "building"
+        cache.updated_at = now  # stamp the dispatch so the in-flight guard works
+        db.commit()
+        from src.environments.tasks import introspect_keywords_task
+        try:
+            dispatch_task(introspect_keywords_task, env_id)
+        except TaskDispatchError:
+            logger.warning("Could not dispatch keyword introspection for env %s", env_id)
+
+    return KeywordCacheResponse(
+        status="building",
+        source_hash=cache.source_hash or "",
+        updated_at=cache.updated_at,
+        keywords=json.loads(cache.keywords_json or "[]"),
+    )
 
 
 @router.post("/{env_id}/packages", response_model=PackageResponse, status_code=status.HTTP_201_CREATED)

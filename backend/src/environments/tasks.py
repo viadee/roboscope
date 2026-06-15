@@ -3,12 +3,12 @@
 import asyncio
 import logging
 import subprocess
+from datetime import UTC
 from pathlib import Path
 
 from sqlalchemy import select
 
 import src.auth.models  # noqa: F401
-
 from src.database import get_sync_session
 from src.environments.models import Environment, EnvironmentPackage
 from src.environments.venv_utils import (
@@ -147,8 +147,8 @@ def is_package_task_active(env_id: int, package_name: str) -> bool:
 
 def _broadcast_package_status(env_id: int, package_name: str, status: str, **extra) -> None:
     """Broadcast a package status change from a sync background thread."""
-    from src.websocket.manager import ws_manager
     from src.main import _event_loop
+    from src.websocket.manager import ws_manager
 
     coro = ws_manager.broadcast_package_status(env_id, package_name, status, **extra)
 
@@ -160,12 +160,12 @@ def _broadcast_package_status(env_id: int, package_name: str, status: str, **ext
 
 def _mark_packages_changed(session, env_id: int) -> None:
     """Update packages_changed_at timestamp on the environment."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     env = session.execute(
         select(Environment).where(Environment.id == env_id)
     ).scalar_one_or_none()
     if env:
-        env.packages_changed_at = datetime.now(timezone.utc)
+        env.packages_changed_at = datetime.now(UTC)
 
 
 BROWSER_PACKAGE_NAMES = {"robotframework-browser", "robotframework_browser"}
@@ -679,8 +679,8 @@ def _check_docker_disk_space(
 
 def _broadcast_docker_build_log(env_id: int, line: str, done: bool = False) -> None:
     """Broadcast a Docker build log line from a sync background thread."""
-    from src.websocket.manager import ws_manager
     from src.main import _event_loop
+    from src.websocket.manager import ws_manager
 
     coro = ws_manager.broadcast_docker_build_log(env_id, line, done=done)
 
@@ -795,9 +795,9 @@ def build_docker_image(env_id: int) -> dict:
             _broadcast_docker_build_log(env_id, "", done=True)
 
             # Update environment's docker_image in DB
-            from datetime import datetime, timezone
+            from datetime import datetime
             env.docker_image = tag
-            env.docker_image_built_at = datetime.now(timezone.utc)
+            env.docker_image_built_at = datetime.now(UTC)
             env.docker_build_status = "success"
             env.docker_build_error = None
             env.docker_build_log = "\n".join(log_lines)
@@ -876,6 +876,24 @@ def rfbrowser_init_task(env_id: int) -> dict:
             return {"status": "success"}
         except Exception as exc:
             return {"status": "error", "message": str(exc)}
+
+
+def introspect_keywords_task(env_id: int) -> dict:
+    """Background task: run libdoc over the environment's installed libraries
+    and persist the keyword cache (Story: Flow Editor — libdoc-per-environment
+    discovery). Safe to call repeatedly; it only re-introspects what's there."""
+    import json as _json
+
+    from src.environments.service import rebuild_keyword_cache
+    with get_sync_session() as session:
+        cache = rebuild_keyword_cache(session, env_id)
+        if cache is None:
+            return {"status": "error", "message": "Environment not found"}
+        try:
+            count = len(_json.loads(cache.keywords_json or "[]"))
+        except (ValueError, TypeError):
+            count = 0
+        return {"status": cache.status, "count": count}
 
 
 def uninstall_package(env_id: int, package_name: str) -> dict:

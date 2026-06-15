@@ -72,6 +72,12 @@ def generate_robot_file(
     # Variables section
     lines.append("*** Variables ***")
     lines.append("${BROWSER}    chromium")
+    # L1: if the recording typed into a password field, reference a
+    # ${PASSWORD} variable instead of a literal "***" (which would type three
+    # asterisks and make the login fail). Define a clearly-placeholder value
+    # the user replaces; without the definition RF errors "variable not found".
+    if any(e.get("event_type") == "password" for e in events):
+        lines.append("${PASSWORD}    CHANGE_ME")
     lines.append("")
 
     # Test Cases section
@@ -99,7 +105,7 @@ def generate_robot_file(
             else:
                 lines.append(f"    Open Browser    {url}    ${{BROWSER}}")
         elif event_type in ("input", "password"):
-            display_value = "***" if event_type == "password" else value
+            display_value = "${PASSWORD}" if event_type == "password" else value
             lines.append(f"    {keyword}    {selector}    {display_value}")
         elif event_type == "select":
             if target_library == "Browser":

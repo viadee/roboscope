@@ -74,13 +74,42 @@ def _call_openai_compatible(
         provider.model_name,
     )
 
-    with httpx.Client(timeout=300) as client:
-        response = client.post(url, json=payload, headers=headers)
-        if response.status_code >= 400:
-            _raise_with_body(response)
-        data = response.json()
+    # M3: a short connect timeout + a bounded read timeout. The old flat
+    # timeout=300 meant a misconfigured/unreachable provider (e.g. Ollama not
+    # running) blocked the single ThreadPoolExecutor(max_workers=1) for 5
+    # minutes, starving every other background task. Translate connection /
+    # timeout errors into a clear, actionable message.
+    timeout = httpx.Timeout(120.0, connect=5.0)
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.post(url, json=payload, headers=headers)
+            if response.status_code >= 400:
+                _raise_with_body(response)
+            data = response.json()
+    except httpx.ConnectError as e:
+        raise RuntimeError(
+            f"LLM provider unreachable at {url} — check the provider URL and "
+            "that the service is running."
+        ) from e
+    except httpx.TimeoutException as e:
+        raise RuntimeError(
+            f"LLM provider timed out at {url} — it may be overloaded or "
+            "unreachable."
+        ) from e
 
-    content = data["choices"][0]["message"]["content"]
+    # H4: validate shape — providers/proxies (e.g. Ollama under load) can
+    # return 200 with `choices: []` or a missing message/content. The old
+    # direct index/key access raised an opaque IndexError/KeyError that
+    # surfaced as a cryptic job failure; give a clear, actionable message.
+    choices = data.get("choices") or []
+    content = (
+        choices[0].get("message", {}).get("content") if choices else None
+    )
+    if not content:
+        raise RuntimeError(
+            "The LLM returned no content (empty 'choices' or missing message). "
+            "The provider may be overloaded or the request was content-filtered."
+        )
     tokens = data.get("usage", {}).get("total_tokens", 0)
 
     return LlmResponse(content=content, tokens_used=tokens)
@@ -122,11 +151,28 @@ def _call_anthropic(
         provider.model_name,
     )
 
-    with httpx.Client(timeout=300) as client:
-        response = client.post(url, json=payload, headers=headers)
-        if response.status_code >= 400:
-            _raise_with_body(response)
-        data = response.json()
+    # M3: a short connect timeout + a bounded read timeout. The old flat
+    # timeout=300 meant a misconfigured/unreachable provider (e.g. Ollama not
+    # running) blocked the single ThreadPoolExecutor(max_workers=1) for 5
+    # minutes, starving every other background task. Translate connection /
+    # timeout errors into a clear, actionable message.
+    timeout = httpx.Timeout(120.0, connect=5.0)
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.post(url, json=payload, headers=headers)
+            if response.status_code >= 400:
+                _raise_with_body(response)
+            data = response.json()
+    except httpx.ConnectError as e:
+        raise RuntimeError(
+            f"LLM provider unreachable at {url} — check the provider URL and "
+            "that the service is running."
+        ) from e
+    except httpx.TimeoutException as e:
+        raise RuntimeError(
+            f"LLM provider timed out at {url} — it may be overloaded or "
+            "unreachable."
+        ) from e
 
     content = ""
     for block in data.get("content", []):

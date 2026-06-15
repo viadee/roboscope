@@ -5,7 +5,13 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
-from src.ai.llm_client import LlmResponse, _call_anthropic, _call_openai_compatible, _raise_with_body, call_llm
+from src.ai.llm_client import (
+    LlmResponse,
+    _call_anthropic,
+    _call_openai_compatible,
+    _raise_with_body,
+    call_llm,
+)
 
 
 def _make_provider(**overrides):
@@ -14,7 +20,7 @@ def _make_provider(**overrides):
     p.provider_type = overrides.get("provider_type", "openai")
     p.model_name = overrides.get("model_name", "gpt-4o")
     p.api_key_encrypted = overrides.get("api_key_encrypted", "encrypted_key")
-    p.api_base_url = overrides.get("api_base_url", None)
+    p.api_base_url = overrides.get("api_base_url")
     p.temperature = overrides.get("temperature", 0.7)
     p.max_tokens = overrides.get("max_tokens", 4096)
     return p
@@ -459,3 +465,49 @@ class TestRaiseWithBody:
             _raise_with_body(resp)
         # The detail from resp.text[:500] should be 500 X's
         assert "500" in str(exc_info.value)
+
+
+class TestEmptyContentHandling:
+    """H4: malformed/empty LLM responses must raise a clear error, not an
+    opaque IndexError/KeyError that surfaces as a cryptic job failure."""
+
+    @patch("httpx.Client")
+    def test_empty_choices_raises_clear_error(self, mock_client_cls):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = {"choices": []}
+        _mock_httpx_client(mock_client_cls, resp)
+        with pytest.raises(RuntimeError, match="no content"):
+            _call_openai_compatible(_make_provider(), "sk", "sys", "usr")
+
+    @patch("httpx.Client")
+    def test_missing_content_raises_clear_error(self, mock_client_cls):
+        resp = _openai_response(content=None)
+        _mock_httpx_client(mock_client_cls, resp)
+        with pytest.raises(RuntimeError, match="no content"):
+            _call_openai_compatible(_make_provider(), "sk", "sys", "usr")
+
+
+class TestProviderUnreachable:
+    """M3: connection/timeout errors → a clear, actionable message (and a
+    bounded timeout so a dead provider can't freeze the single worker)."""
+
+    @patch("httpx.Client")
+    def test_connect_error_raises_clear_message(self, mock_client_cls):
+        mc = MagicMock()
+        mc.__enter__ = MagicMock(return_value=mc)
+        mc.__exit__ = MagicMock(return_value=False)
+        mc.post.side_effect = httpx.ConnectError("connection refused")
+        mock_client_cls.return_value = mc
+        with pytest.raises(RuntimeError, match="unreachable"):
+            _call_openai_compatible(_make_provider(), "sk", "sys", "usr")
+
+    @patch("httpx.Client")
+    def test_timeout_raises_clear_message(self, mock_client_cls):
+        mc = MagicMock()
+        mc.__enter__ = MagicMock(return_value=mc)
+        mc.__exit__ = MagicMock(return_value=False)
+        mc.post.side_effect = httpx.ConnectTimeout("timed out")
+        mock_client_cls.return_value = mc
+        with pytest.raises(RuntimeError, match="timed out"):
+            _call_openai_compatible(_make_provider(), "sk", "sys", "usr")

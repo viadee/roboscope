@@ -517,15 +517,24 @@ class RoboScopeHeal:
         heal — clicking the wrong element when the page is actually
         stale is worse than failing."""
         msg = str(exc).lower()
+        # M3: match SELECTOR-RESOLUTION signatures only. Bare "timeout" and
+        # "locator(" were too broad — they fire on navigation timeouts,
+        # assertion-state timeouts (e.g. waiting for an element that is
+        # SUPPOSED to be absent), and generic Playwright error reprs, none of
+        # which are stale-selector failures (healing them risks clicking the
+        # wrong element). The selector-related timeout cases still match via
+        # "waiting for selector" / "resolved to 0 elements".
         return any(
             needle in msg
             for needle in (
                 "not found",
                 "did not appear",
-                "timeout",
                 "waiting for selector",
-                "locator(",
+                "waiting for locator",
                 "element(s) matching",
+                "resolved to 0 element",
+                "no node found for selector",
+                "strict mode violation",
             )
         )
 

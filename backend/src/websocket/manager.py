@@ -162,11 +162,16 @@ class ConnectionManager:
 
     @property
     def connection_count(self) -> int:
-        return len(self._connections)
+        # M1: take the lock — reading/iterating the connection collections
+        # while the event loop mutates them from another thread can raise
+        # "dictionary/list changed size during iteration".
+        with self._lock:
+            return len(self._connections)
 
     @property
     def run_connection_count(self) -> int:
-        return sum(len(conns) for conns in self._run_connections.values())
+        with self._lock:
+            return sum(len(conns) for conns in self._run_connections.values())
 
 
 # Singleton manager

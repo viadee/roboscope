@@ -56,6 +56,50 @@ describe('useKeywordSignatures', () => {
     expect(getArgs('Log')).toEqual(['custom_message: str', 'level: int = 5'])
   })
 
+  describe('keyword resolution order: project > library > BuiltIn (shadowing fix)', () => {
+    it('a project keyword overrides a same-named library keyword', () => {
+      const explorer = useExplorerStore()
+      explorer.keywords.push({
+        name: 'Click', library: 'Browser', doc: '', args: ['selector: str'],
+      })
+      explorer.setProjectKeywords([
+        { name: 'Click', file_path: 'resources/web.resource', arguments: ['locator', 'wait=True'] },
+      ])
+      const { getArgs } = useKeywordSignatures()
+      expect(getArgs('Click')).toEqual(['locator', 'wait=True'])
+    })
+
+    it('a project keyword overrides a same-named BuiltIn', () => {
+      const explorer = useExplorerStore()
+      explorer.setProjectKeywords([
+        { name: 'Log', file_path: 'resources/util.resource', arguments: ['my_msg'] },
+      ])
+      const { getArgs } = useKeywordSignatures()
+      expect(getArgs('Log')).toEqual(['my_msg'])
+    })
+
+    it('a no-arg project keyword still shadows (does not fall back to library spec)', () => {
+      const explorer = useExplorerStore()
+      explorer.keywords.push({
+        name: 'Setup', library: 'SomeLib', doc: '', args: ['a', 'b'],
+      })
+      explorer.setProjectKeywords([
+        { name: 'Setup', file_path: 'kw.resource', arguments: [] },
+      ])
+      const { getArgs } = useKeywordSignatures()
+      expect(getArgs('Setup')).toEqual([])
+    })
+
+    it('library keyword still wins over BuiltIn when no project keyword exists', () => {
+      const explorer = useExplorerStore()
+      explorer.keywords.push({
+        name: 'Log', library: 'CustomLib', doc: '', args: ['x'],
+      })
+      const { getArgs } = useKeywordSignatures()
+      expect(getArgs('Log')).toEqual(['x'])
+    })
+  })
+
   it('getParsedArgs maps each raw arg through parseArgSignature', () => {
     const explorer = useExplorerStore()
     explorer.keywords.push({

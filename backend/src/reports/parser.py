@@ -90,8 +90,15 @@ def parse_output_xml(xml_path: str) -> ParsedReport:
 
 
 def _parse_suite(element: _Element, report: ParsedReport, parent_suite: str) -> None:
-    """Recursively parse suites and their test cases."""
-    for suite_elem in element.iter("suite"):
+    """Recursively parse suites and their test cases.
+
+    H1: walk DIRECT child suites and recurse, building the dotted hierarchy
+    in `parent_suite`. The old `element.iter("suite")` is a descendant
+    iterator that flattened the tree — every nested suite was visited with
+    the same (empty) parent, so `suite_name` lost its hierarchy and two
+    same-named tests in different suites collided in history/compare views.
+    """
+    for suite_elem in element.findall("suite"):
         suite_name = suite_elem.get("name", "")
         full_suite_name = f"{parent_suite}.{suite_name}" if parent_suite else suite_name
 
@@ -101,6 +108,9 @@ def _parse_suite(element: _Element, report: ParsedReport, parent_suite: str) -> 
         for test_elem in suite_elem.findall("test"):
             result = _parse_test(test_elem, full_suite_name)
             report.test_results.append(result)
+
+        # Recurse into nested child suites with the accumulated path.
+        _parse_suite(suite_elem, report, full_suite_name)
 
 
 def _parse_test(test_elem: _Element, suite_name: str) -> ParsedTestResult:
@@ -123,13 +133,17 @@ def _parse_test(test_elem: _Element, suite_name: str) -> ParsedTestResult:
         if result.status == "FAIL" and status_elem.text:
             result.error_message = status_elem.text.strip()
 
-    # Tags
-    tags_elem = test_elem.find("tag")
-    if tags_elem is not None and tags_elem.text:
-        result.tags.append(tags_elem.text)
-
-    # Also check for multiple tags
-    for tag_elem in test_elem.findall(".//tag"):
+    # Tags — H2: read ONLY the test's own tags, never keyword-level tags.
+    # The old `.//tag` descendant axis pulled in `<tag>` elements nested
+    # inside `<kw>` keywords, polluting tag filters/stats. RF7 wraps tags in
+    # a `<tags>` container; pre-RF7 used flat `<tag>` direct children.
+    tags_container = test_elem.find("tags")
+    tag_source = (
+        tags_container.findall("tag")
+        if tags_container is not None
+        else test_elem.findall("tag")
+    )
+    for tag_elem in tag_source:
         if tag_elem.text and tag_elem.text not in result.tags:
             result.tags.append(tag_elem.text)
 

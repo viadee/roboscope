@@ -5,9 +5,13 @@ import hashlib
 from unittest.mock import patch
 
 import pytest
-from cryptography.fernet import InvalidToken
 
-from src.ai.encryption import _derive_key, decrypt_api_key, encrypt_api_key
+from src.ai.encryption import (
+    ApiKeyDecryptError,
+    _derive_key,
+    decrypt_api_key,
+    encrypt_api_key,
+)
 
 
 class TestDeriveKey:
@@ -122,14 +126,15 @@ class TestEncryptApiKey:
 
 class TestDecryptApiKey:
     def test_wrong_secret_key_fails(self):
-        """Decrypting with a different SECRET_KEY raises InvalidToken."""
+        """Decrypting with a different SECRET_KEY raises a clear
+        ApiKeyDecryptError (H3) instead of an opaque InvalidToken."""
         with patch("src.ai.encryption.settings") as mock_settings:
             mock_settings.SECRET_KEY = "encrypt-secret"
             ciphertext = encrypt_api_key("my-api-key")
 
         with patch("src.ai.encryption.settings") as mock_settings:
             mock_settings.SECRET_KEY = "wrong-secret"
-            with pytest.raises(InvalidToken):
+            with pytest.raises(ApiKeyDecryptError, match="SECRET_KEY"):
                 decrypt_api_key(ciphertext)
 
     def test_tampered_ciphertext_fails(self):

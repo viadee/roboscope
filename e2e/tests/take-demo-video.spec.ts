@@ -198,6 +198,15 @@ async function wait(page: import('@playwright/test').Page, ms: number) { await p
 async function login(page: import('@playwright/test').Page) {
   const res = await page.request.post(`${API}/auth/login`, { data: { email: 'admin@roboscope.local', password: 'admin123' } });
   const body = await res.json();
+  // CRITICAL: the router guard (router/index.ts) redirects EVERY route to
+  // /welcome while `user.first_login_complete === false`. On a fresh demo DB
+  // the seeded admin has it false, so without this the whole tour renders the
+  // onboarding screen instead of the real feature pages. Mark it complete
+  // (server-side, persistent) before the SPA ever loads the user.
+  await page.request.patch(`${API}/auth/me/first-login-complete`, {
+    headers: { Authorization: `Bearer ${body.access_token}` },
+    data: { value: true },
+  }).catch(() => {});
   await page.evaluate(({ tokens, lang }) => {
     localStorage.setItem('access_token', tokens.access_token);
     localStorage.setItem('refresh_token', tokens.refresh_token);
@@ -207,7 +216,7 @@ async function login(page: import('@playwright/test').Page) {
 }
 
 async function nav(page: import('@playwright/test').Page, p: string) {
-  await page.goto(`${BASE}${p}`, { waitUntil: 'networkidle' }); await injectOverlayStyles(page); await wait(page, 800);
+  await page.goto(`${BASE}${p}`, { waitUntil: 'domcontentloaded' }); await injectOverlayStyles(page); await wait(page, 800);
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +224,7 @@ async function nav(page: import('@playwright/test').Page, p: string) {
 // ---------------------------------------------------------------------------
 
 test.describe('Demo Video Recording', () => {
-  test.setTimeout(600_000);
+  test.setTimeout(2_400_000);
 
   test(`Full Feature Tour [${LANG.toUpperCase()}]`, async ({ browser }) => {
     const context = await browser.newContext({
@@ -227,7 +236,7 @@ test.describe('Demo Video Recording', () => {
     // === SCENE 1 — INTRO ===
     await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
     await login(page);
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
     await injectOverlayStyles(page);
 
     await showOverlay(page, 'big-title', 'RoboScope', 3500);
@@ -270,7 +279,7 @@ test.describe('Demo Video Recording', () => {
 
     const exploreLink = page.locator('a[href*="/explorer"]').first();
     if (await exploreLink.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await exploreLink.click(); await page.waitForLoadState('networkidle');
+      await exploreLink.click(); await page.waitForLoadState('domcontentloaded');
     } else { await nav(page, '/explorer'); }
 
     // === SCENE 4 — EXPLORER & EDITORS ===
@@ -383,15 +392,30 @@ test.describe('Demo Video Recording', () => {
     bg(page, 'scene-title', t.executionTitle, 5000); await wait(page, 2000);
 
     async function startRun(target: string) {
-      const runBtn = page.getByRole('button', { name: t.btnNewRun });
-      if (await runBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await runBtn.click(); await wait(page, 1000);
+      // Best-effort for the capture tour: the run-creation modal UI may have
+      // drifted from this script, but the tour must never abort mid-recording
+      // over one click (the run-start flow itself is covered by the real e2e
+      // suite). Every interaction is guarded + swallows so the video completes.
+      try {
+        const runBtn = page.getByRole('button', { name: t.btnNewRun });
+        if (!(await runBtn.isVisible({ timeout: 3000 }).catch(() => false))) return;
+        await runBtn.click({ timeout: 5000 }).catch(() => {}); await wait(page, 1000);
         const sel = page.locator('.modal select, select').first();
-        if (await sel.isVisible({ timeout: 2000 }).catch(() => false)) { await sel.selectOption({ index: 1 }); await wait(page, 500); }
+        if (await sel.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await sel.selectOption({ index: 1 }).catch(() => {}); await wait(page, 500);
+        }
         const inp = page.locator('.modal input[placeholder*="tests"], input[placeholder*="tests"]').first();
-        if (await inp.isVisible({ timeout: 2000 }).catch(() => false)) { await inp.clear(); await inp.fill(target); await wait(page, 500); }
+        if (await inp.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await inp.clear().catch(() => {}); await inp.fill(target).catch(() => {}); await wait(page, 500);
+        }
         const btn = page.getByRole('button', { name: t.btnStart });
-        if (await btn.isVisible({ timeout: 2000 }).catch(() => false)) { await btn.click(); await wait(page, 1500); }
+        if (await btn.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await btn.click({ timeout: 5000 }).catch(() => {}); await wait(page, 1500);
+        }
+        // Close any leftover modal so the tour continues cleanly.
+        await page.keyboard.press('Escape').catch(() => {});
+      } catch {
+        // never abort the recording over a run-start hiccup
       }
     }
 
@@ -407,7 +431,7 @@ test.describe('Demo Video Recording', () => {
     // Wait for runs to complete — poll until we see passed/failed badges
     for (let i = 0; i < 6; i++) {
       await wait(page, 3000);
-      await page.reload({ waitUntil: 'networkidle' });
+      await page.reload({ waitUntil: 'domcontentloaded' });
       await injectOverlayStyles(page);
       const passedBadge = page.locator('text=passed').first();
       if (await passedBadge.isVisible({ timeout: 1000 }).catch(() => false)) break;
@@ -432,7 +456,7 @@ test.describe('Demo Video Recording', () => {
     // Navigate to report — look for report link in detail panel or via direct URL
     const reportLink = page.locator('a[href*="/reports/"]').first();
     if (await reportLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await reportLink.click(); await page.waitForLoadState('networkidle');
+      await reportLink.click(); await page.waitForLoadState('domcontentloaded');
       await injectOverlayStyles(page); await wait(page, 2000);
       bg(page, 'scene-title', t.reportDetail, 5000); await wait(page, 2000);
       bg(page, 'callout', t.reportResults, 3500, { top: '200px', right: '60px', left: 'auto' }); await wait(page, 4000);
@@ -471,6 +495,281 @@ test.describe('Demo Video Recording', () => {
     if (await auditTab.isVisible({ timeout: 2000 }).catch(() => false)) { await auditTab.click(); await wait(page, 800); }
     bg(page, 'feature-tag', t.auditLog, 3000); await wait(page, 4000);
 
+    // =====================================================================
+    // DEEP DIVE — FULL-FLEDGED EXECUTION OF EVERY FEATURE + EDGE CASES
+    // (real interactions, German UI; selectors harvested from the green e2e specs)
+    // =====================================================================
+    const cap = (o: { en: string; de: string }) => (LANG === 'de' ? o.de : o.en);
+    const clickIf = async (loc: import('@playwright/test').Locator, ms = 1200) => {
+      if (await loc.isVisible({ timeout: 2500 }).catch(() => false)) {
+        await loc.click({ timeout: 6000 }).catch(() => {}); await wait(page, ms); return true;
+      }
+      return false;
+    };
+    const sceneCap = async (o: { en: string; de: string }, ms = 4200) => {
+      await showOverlay(page, 'scene-title', cap(o), ms);
+    };
+    const tag = async (o: { en: string; de: string }, ms = 3800) => {
+      await showOverlay(page, 'feature-tag', cap(o), ms);
+    };
+    const token = await page.evaluate(() => localStorage.getItem('access_token'));
+    const authH = { Authorization: `Bearer ${token}` };
+    // Resolve the seeded "Examples" repo id for explorer/run flows.
+    let repoId = 1;
+    try {
+      const rr = await page.request.get(`${API}/repos`, { headers: authH });
+      const repos = await rr.json();
+      const list = Array.isArray(repos) ? repos : (repos.items || repos.repositories || []);
+      // Prefer the LOCAL "Examples" repo (has calculator/basic_math.robot on
+      // disk). The git-clone "Robot Framework Examples" may be empty offline.
+      const ex = list.find((r: any) => r.name === 'Examples')
+        || list.find((r: any) => r.repo_type === 'local')
+        || list.find((r: any) => /example/i.test(r.name)) || list[0];
+      if (ex) repoId = ex.id;
+    } catch { /* fall back to 1 */ }
+
+    await showOverlay(page, 'big-title',
+      cap({ en: 'Deep Dive — Every Feature, Live', de: 'Deep Dive — Jedes Feature, live' }), 3800);
+
+    // ---- A · AUTH / RBAC (real wrong-login + viewer read-only) ----------
+    await sceneCap({ en: 'A · Auth & Roles', de: 'A · Auth & Rollen' });
+    await page.evaluate(() => localStorage.removeItem('access_token'));
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' }); await injectOverlayStyles(page);
+    const eIn = page.locator('input[type="email"], input[type="text"]').first();
+    const pIn = page.locator('input[type="password"]').first();
+    if (await eIn.isVisible({ timeout: 4000 }).catch(() => false)) {
+      await eIn.fill('admin@roboscope.local').catch(() => {});
+      await pIn.fill('falsch-falsch').catch(() => {});
+      await tag({ en: 'Edge: wrong password → inline error', de: 'Edge: falsches Passwort → Inline-Fehler' }, 1200);
+      await clickIf(page.getByRole('button', { name: /anmelden|login|sign in/i }), 2500);
+      await tag({ en: 'Login is rejected — try again', de: 'Login wird abgewiesen — erneut versuchen' }, 3500);
+    }
+    await login(page);
+    // Create + log in as a VIEWER → real read-only dashboard.
+    await page.request.post(`${API}/auth/users`, { headers: authH,
+      data: { email: 'viewer@demo.local', username: 'viewer', password: 'viewer123', role: 'viewer' } }).catch(() => {});
+    const vr = await page.request.post(`${API}/auth/login`, { data: { email: 'viewer@demo.local', password: 'viewer123' } }).catch(() => null);
+    if (vr && vr.ok()) {
+      const vb = await vr.json();
+      await page.request.patch(`${API}/auth/me/first-login-complete`, { headers: { Authorization: `Bearer ${vb.access_token}` }, data: { value: true } }).catch(() => {});
+      await page.evaluate((tok) => { localStorage.setItem('access_token', tok.access_token); localStorage.setItem('refresh_token', tok.refresh_token); localStorage.setItem('roboscope_tour_completed', 'true'); }, vb);
+      await nav(page, '/dashboard');
+      await tag({ en: 'VIEWER role — read-only (no Recorder/Environments)', de: 'VIEWER-Rolle — nur lesend (kein Recorder/Umgebungen)' }, 4000);
+    }
+    await login(page);
+
+    // ---- C · EXPLORER & EDITORS (real tree, tabs, create, search) -------
+    await sceneCap({ en: 'C · Explorer & Editors', de: 'C · Explorer & Editoren' });
+    await nav(page, `/explorer/${repoId}`);
+    await page.locator('.tree-content').isVisible({ timeout: 8000 }).catch(() => false);
+    await clickIf(page.locator('.tree-node .node-name', { hasText: /^calculator$/ }), 800);
+    await clickIf(page.locator('.node-name', { hasText: 'basic_math.robot' }), 1500);
+    await tag({ en: 'File tree · test count per folder', de: 'Dateibaum · Testanzahl pro Ordner' }, 3000);
+    await clickIf(page.locator('button.tab-btn, .tab-btn', { hasText: 'Code' }).first(), 1200);
+    await tag({ en: 'Code editor — syntax highlighting', de: 'Code-Editor — Syntax-Highlighting' }, 3000);
+    await clickIf(page.locator('button', { hasText: /^Flow$/ }).first(), 1500);
+    await tag({ en: 'Flow editor — visual test graph', de: 'Flow-Editor — visueller Testgraph' }, 3500);
+    await clickIf(page.locator('button.tab-btn', { hasText: /(visual|visuel)/i }).first(), 1200);
+    await tag({ en: 'Visual editor — structured editing', de: 'Visual-Editor — strukturierte Bearbeitung' }, 3000);
+    // Real create-file dialog
+    if (await clickIf(page.getByRole('button', { name: '+' }).first(), 800)) {
+      const nf = page.locator('input[placeholder*="tests/neue_tests"], input[placeholder*="tests/neue"]').first();
+      if (await nf.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await nf.fill('tests/demo_created.robot').catch(() => {});
+        await tag({ en: 'Create / rename / delete files', de: 'Dateien anlegen / umbenennen / löschen' }, 2500);
+        await clickIf(page.getByRole('button', { name: 'Anlegen' }), 1500);
+      } else { await page.keyboard.press('Escape').catch(() => {}); }
+    }
+    // Real search
+    const searchInp = page.locator('input[placeholder*="suchen"], input[placeholder*="search"]').first();
+    if (await searchInp.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await searchInp.fill('Test').catch(() => {});
+      await clickIf(page.getByRole('button', { name: /suchen|search/i }), 2000);
+      await tag({ en: 'Full-text search across the repo', de: 'Volltextsuche über das Repo' }, 3000);
+    }
+
+    // ---- I · SELF-HEALING (real per-step + suite toggle) ----------------
+    await sceneCap({ en: 'I · Self-Healing', de: 'I · Self-Healing' });
+    const healRobot = [
+      '*** Settings ***', 'Library    Browser', '',
+      '*** Test Cases ***', 'Heal Demo',
+      '    Click    text=Submit', '    Fill Text    id=user    alice', '    Log    done', '',
+    ].join('\n');
+    await page.request.post(`${API}/explorer/${repoId}/file`, { headers: authH, data: { path: 'tests/heal_demo.robot', content: healRobot } }).catch(() => {});
+    await nav(page, `/explorer/${repoId}`);
+    await clickIf(page.locator('.tree-node .node-name', { hasText: /^tests$/ }), 600);
+    await clickIf(page.locator('.node-name', { hasText: 'heal_demo.robot' }), 1500);
+    await clickIf(page.locator('button', { hasText: /^Flow$/ }).first(), 1500);
+    const clickNode = page.locator('.vue-flow__node', { has: page.locator('.flow-node-label:text-is("Click")') }).first();
+    if (await clickNode.isVisible({ timeout: 4000 }).catch(() => false)) {
+      await clickNode.click().catch(() => {}); await wait(page, 800);
+      const healToggle = page.getByTestId('flow-step-heal-toggle');
+      if (await healToggle.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await tag({ en: 'Opt-in per step: enable healing on "Click"', de: 'Opt-in pro Step: Healing für "Click" aktivieren' }, 2000);
+        await healToggle.check().catch(() => {}); await wait(page, 1200);
+      }
+    }
+    // Non-healable edge: Log node has no toggle
+    const logNode = page.locator('.vue-flow__node', { has: page.locator('.flow-node-label:text-is("Log")') }).first();
+    if (await logNode.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await logNode.click().catch(() => {}); await wait(page, 800);
+      await tag({ en: 'Edge: "Log" is non-healable → no toggle', de: 'Edge: "Log" ist nicht heilbar → kein Toggle' }, 3000);
+    }
+    await clickIf(page.locator('.tab-btn', { hasText: 'Code' }).first(), 1200);
+    await tag({ en: 'Code now shows "Heal Click" — plain Click untouched', de: 'Code zeigt "Heal Click" — Click bleibt unberührt' }, 4000);
+
+    // ---- D · EXECUTION (REAL runs: pass + fail, live status, real output) --
+    await sceneCap({ en: 'D · Live Execution', de: 'D · Live-Ausführung' });
+    await page.request.post(`${API}/runs/cancel-all`, { headers: authH }).catch(() => {});
+    await wait(page, 1500);
+    // Show the real run-creation modal once (this is how a user starts a run).
+    await nav(page, '/runs');
+    await tag({ en: 'Run 1: calculator/basic_math.robot → PASS', de: 'Run 1: calculator/basic_math.robot → BESTEHT' }, 2200);
+    if (await clickIf(page.getByRole('button', { name: /Neuer Run|New Run/ }), 1000)) {
+      // Pick the local Examples repo by label (falls back to first real option).
+      await page.locator('select').first().selectOption({ label: 'Examples' })
+        .catch(async () => { await page.locator('select').first().selectOption({ index: 1 }).catch(() => {}); });
+      await wait(page, 500);
+      const pathInp = page.getByPlaceholder(/tests\/ oder|tests\/login|tests\//).first();
+      await pathInp.fill('calculator/basic_math.robot').catch(() => {});
+      await wait(page, 1200);
+      await clickIf(page.getByRole('button', { name: 'Starten', exact: true }), 1000);
+      // Edge: environment-setup dialog — run without provisioning.
+      if (await page.getByText(/Umgebung einrichten\?|Set up environment/).isVisible({ timeout: 2500 }).catch(() => false)) {
+        await tag({ en: 'Edge: environment setup prompt → run anyway', de: 'Edge: Umgebungs-Setup-Dialog → trotzdem starten' }, 2200);
+        await clickIf(page.getByRole('button', { name: /Nein, ohne starten|without/ }), 1000);
+      }
+      await page.keyboard.press('Escape').catch(() => {});
+    }
+    // GUARANTEE real execution via the proven API path (the modal above may or
+    // may not have dispatched depending on which repo option was picked). These
+    // POSTs genuinely run Robot Framework and produce real output + reports.
+    const runIds: number[] = [];
+    for (const target of ['calculator/basic_math.robot', 'api_testing/errorneus.robot']) {
+      const r = await page.request.post(`${API}/runs`, { headers: authH,
+        data: { repository_id: repoId, target_path: target } }).catch(() => null);
+      if (r && r.ok()) { const j = await r.json(); if (j && j.id) runIds.push(j.id); }
+    }
+    await tag({ en: 'Run 2: api_testing/errorneus.robot → FAIL', de: 'Run 2: api_testing/errorneus.robot → SCHEITERT' }, 2500);
+    // Show the live table updating while the single-worker executor drains the
+    // queue (pending → running → passed/failed). Poll real status via the API.
+    const TERMINAL = new Set(['passed', 'failed', 'error', 'timeout', 'cancelled']);
+    let passedId: number | null = null, failedId: number | null = null;
+    await tag({ en: 'Status streams live: pending → running → passed/failed', de: 'Status live: pending → running → passed/failed' }, 3500);
+    for (let i = 0; i < 100; i++) {
+      await wait(page, 3000);
+      await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {}); await injectOverlayStyles(page);
+      let allTerm = runIds.length > 0;
+      for (const id of runIds) {
+        const d = await page.request.get(`${API}/runs/${id}`, { headers: authH })
+          .then((x) => x.json()).catch(() => ({} as any));
+        if (!TERMINAL.has(d.status)) allTerm = false;
+        if (d.status === 'passed') passedId = id;
+        if (['failed', 'error', 'timeout'].includes(d.status)) failedId = id;
+      }
+      if (allTerm) break;
+    }
+    // Open the FAILED run's detail panel + real Output modal.
+    const targetRunId = failedId ?? passedId ?? runIds[0] ?? null;
+    if (targetRunId) {
+      await nav(page, `/runs?run=${targetRunId}`);
+      const detailRow = page.locator('.data-table tbody tr.clickable-row, .data-table tbody tr').first();
+      if (await clickIf(detailRow, 1500)) {
+        await tag({ en: 'Run detail — duration, KPIs, AI failure analysis', de: 'Run-Detail — Dauer, KPIs, KI-Fehleranalyse' }, 3500);
+      }
+      if (await clickIf(page.getByRole('button', { name: 'Output' }).first(), 2000)) {
+        await tag({ en: 'Real console output (stdout / stderr)', de: 'Echte Konsolenausgabe (stdout / stderr)' }, 4000);
+        await page.keyboard.press('Escape').catch(() => {});
+      }
+    }
+
+    // ---- J · INTERACTIVE DEBUGGER (real, on a failed run) --------------
+    await sceneCap({ en: 'J · Interactive Debugger', de: 'J · Interaktiver Debugger' });
+    // Reuse the failed run from the execution scene; resolve one if absent.
+    if (failedId == null) {
+      try {
+        const rr = await page.request.get(`${API}/runs?page=1`, { headers: authH });
+        const data = await rr.json();
+        const runs = data.items || data.runs || data || [];
+        const f = (Array.isArray(runs) ? runs : []).find((r: any) => /fail|error/i.test(r.status));
+        if (f) failedId = f.id;
+      } catch { /* */ }
+    }
+    if (failedId) {
+      await nav(page, `/runs?run=${failedId}`);
+      const dbg = page.getByTestId('debug-btn');
+      if (await clickIf(dbg, 2500)) {
+        await tag({ en: 'Re-run to the failing keyword · breakpoint set', de: 'Re-run bis zum fehlschlagenden Keyword · Breakpoint' }, 3500);
+        if (await page.getByTestId('debug-prereq-dialog').isVisible({ timeout: 2000 }).catch(() => false)) {
+          await tag({ en: 'Edge: RobotCode missing → one-click install', de: 'Edge: RobotCode fehlt → Ein-Klick-Installation' }, 3500);
+          await clickIf(page.getByTestId('debug-prereq-cancel-btn'), 800);
+        }
+      }
+    }
+    await tag({ en: 'Step / continue · scope tree · run-up-to-here', de: 'Step / Continue · Scope-Baum · Bis-hier-ausführen' }, 3500);
+
+    // ---- D2 · SCHEDULES (real cron preset) -----------------------------
+    await sceneCap({ en: 'D · Scheduling (cron)', de: 'D · Zeitpläne (Cron)' });
+    await nav(page, '/runs');
+    await clickIf(page.locator('.tab-btn', { hasText: /Schedules|Zeitpläne/ }), 1200);
+    if (await clickIf(page.locator('button', { hasText: /New Schedule|Neuer Zeitplan/ }), 1200)) {
+      await clickIf(page.locator('.preset-btn', { hasText: /Hourly|Stündlich/ }), 1500);
+      await tag({ en: 'Cron editor: presets → live preview (0 * * * *)', de: 'Cron-Editor: Presets → Live-Vorschau (0 * * * *)' }, 4000);
+      await page.keyboard.press('Escape').catch(() => {});
+    }
+
+    // ---- E · ENVIRONMENTS & LIBRARY CHECK (real) -----------------------
+    await sceneCap({ en: 'E · Environments & Packages', de: 'E · Umgebungen & Pakete' });
+    await nav(page, '/environments');
+    if (await clickIf(page.getByRole('button', { name: /Neue Umgebung|New Environment/ }), 1000)) {
+      await page.getByPlaceholder('production').fill('demo-env').catch(() => {});
+      await page.getByPlaceholder('3.12').first().fill('3.12').catch(() => {});
+      await tag({ en: 'Create venv (uv): name + Python version', de: 'venv anlegen (uv): Name + Python-Version' }, 3500);
+      await clickIf(page.getByRole('button', { name: 'Abbrechen' }), 800);
+    }
+    await tag({ en: 'Browser + heal auto-provisioned · offline browser-pack', de: 'Browser + Heal auto-provisioniert · Offline-Browser-Pack' }, 3800);
+
+    // ---- F · REPORTS · STATS · HISTORY (real) --------------------------
+    await sceneCap({ en: 'F · Reports, Stats & History', de: 'F · Reports, Stats & Historie' });
+    await page.goto(`${BASE}/reports/1`, { waitUntil: 'domcontentloaded' }).catch(() => {}); await injectOverlayStyles(page);
+    if (await page.locator('.xml-tree, .kpi-card').first().isVisible({ timeout: 4000 }).catch(() => false)) {
+      await tag({ en: 'Report detail: KPIs, keyword tree, HTML report', de: 'Report-Detail: KPIs, Keyword-Baum, HTML-Report' }, 3500);
+      await clickIf(page.locator('.suite-header').first(), 1500);
+      await clickIf(page.locator('.tab-btn').nth(1), 2500);
+    }
+    await nav(page, '/stats');
+    await tag({ en: 'Statistics — KPIs, trends, flakiness', de: 'Statistiken — KPIs, Trends, Flakiness' }, 3000);
+    await clickIf(page.getByText(/Tiefenanalyse|Deep Analysis/), 1500);
+    if (await clickIf(page.getByRole('button', { name: /Neue Analyse|New Analysis/ }), 1200)) {
+      await tag({ en: 'Deep analysis: pick KPIs → generate report', de: 'Tiefenanalyse: KPIs wählen → Report erzeugen' }, 3500);
+      await page.keyboard.press('Escape').catch(() => {});
+    }
+    await nav(page, '/test-history');
+    await tag({ en: 'Test history: per-test flakiness & quarantine', de: 'Test-Historie: Flakiness pro Test & Quarantäne' }, 3500);
+
+    // ---- ADMIN · USERS · SSO (real user create + IdP dry-run) ---------
+    await sceneCap({ en: 'Enterprise · Users, SSO, Teams', de: 'Enterprise · Benutzer, SSO, Teams' });
+    await nav(page, '/settings');
+    // Settings has a "Benutzer" sub-tab button (no nav-more-toggle needed).
+    await clickIf(page.getByRole('button', { name: /^Benutzer$|^Users$/ }), 1000);
+    if (await clickIf(page.getByRole('button', { name: /Benutzer hinzufügen|Add user/ }), 1000)) {
+      await page.getByPlaceholder('max.mustermann').fill('demo.user').catch(() => {});
+      await page.getByPlaceholder('max@example.com').fill('demo.user@demo.local').catch(() => {});
+      await page.getByPlaceholder(/Mindestens 6|At least 6/).fill('demo123456').catch(() => {});
+      await tag({ en: 'Create user · assign role (4-tier RBAC)', de: 'Benutzer anlegen · Rolle zuweisen (4-Stufen-RBAC)' }, 3000);
+      await clickIf(page.getByRole('button', { name: 'Erstellen', exact: true }), 1500);
+    }
+    await nav(page, '/admin/identity-providers/new');
+    if (await page.locator('#idp-name, [data-testid="run-dry-run-btn"]').first().isVisible({ timeout: 3000 }).catch(() => false)) {
+      await page.locator('#idp-name').fill('Demo Azure AD').catch(() => {});
+      await page.locator('#idp-issuer-url').fill('https://login.microsoftonline.com/demo/v2.0').catch(() => {});
+      await page.locator('#idp-client-id').fill('demo-client-id').catch(() => {});
+      await tag({ en: 'SSO: Save gated behind a passing dry-run', de: 'SSO: Speichern erst nach bestandenem Dry-Run' }, 3500);
+      await clickIf(page.getByTestId('run-dry-run-btn'), 2500);
+    }
+    await nav(page, '/admin/emergency-bypass');
+    await tag({ en: 'Emergency SSO bypass — time-boxed & audited', de: 'Notfall-SSO-Bypass — zeitlich begrenzt & auditiert' }, 3500);
+
     // === SCENE 10 — OUTRO ===
     await nav(page, '/dashboard');
     await showOverlay(page, 'big-title', t.outroLine1, 3500);
@@ -494,11 +793,11 @@ test.describe('Demo Video Recording', () => {
     await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
     await login(page);
 
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
     await injectOverlayStyles(page);
     await showOverlay(page, 'big-title', 'RoboScope', 2500);
 
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
     await injectOverlayStyles(page);
 
     for (const s of [
@@ -506,18 +805,18 @@ test.describe('Demo Video Recording', () => {
       { p: '/explorer', t: 'EDIT' }, { p: '/runs', t: 'EXECUTE' },
       { p: '/stats', t: 'ANALYZE' }, { p: '/environments', t: 'MANAGE' },
     ]) {
-      await page.goto(`${BASE}${s.p}`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}${s.p}`, { waitUntil: 'domcontentloaded' });
       await injectOverlayStyles(page);
       bg(page, 'big-title', s.t, 1800); await wait(page, 1800);
     }
 
-    await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/settings`, { waitUntil: 'domcontentloaded' });
     await injectOverlayStyles(page);
     await showOverlay(page, 'big-title', '15 KPIs', 1800);
     await showOverlay(page, 'big-title', 'AI-POWERED', 1800);
     await showOverlay(page, 'big-title', 'ENTERPRISE', 1800);
 
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
     await injectOverlayStyles(page);
     await showOverlay(page, 'big-title', 'RoboScope', 2500);
     await showOverlay(page, 'feature-tag-center', 'Open Source / github.com/viadee/roboscope', 3000);

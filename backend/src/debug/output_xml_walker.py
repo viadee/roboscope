@@ -118,32 +118,47 @@ def _scan_test_for_failing_keyword(
     )
 
 
+# RF 7.x emits control structures as their own elements, not <kw>. A
+# failing keyword nested inside FOR/IF/TRY/WHILE is reachable only by
+# descending through these containers (H3) — otherwise the walk returns
+# None and the debugger breakpoint falls back to the test header line.
+_FAILURE_CONTAINER_TAGS = frozenset(
+    {"kw", "for", "iter", "if", "branch", "try", "while", "group"}
+)
+
+
 def _walk_keyword_tree_for_failure(
     parent: _Element, default_source: str
 ) -> tuple[str, str, int] | None:
     """Depth-first walk: deepest FAILing keyword wins.
 
-    Returns ``(keyword_name, source, line)`` or ``None``.
+    Descends through control-structure containers (FOR/IF/TRY/WHILE/…) as
+    well as plain ``<kw>`` elements; only a ``<kw>`` leaf carries the
+    source/line we break on. Returns ``(keyword_name, source, line)`` or None.
     """
     deepest: tuple[str, str, int] | None = None
-    for kw in parent.findall("kw"):
-        status = kw.find("status")
+    for child in parent:
+        if child.tag not in _FAILURE_CONTAINER_TAGS:
+            continue
+        status = child.find("status")
         if status is None or status.get("status") != "FAIL":
             continue
-        # Recurse first; deeper failures shadow the outer kw.
-        nested = _walk_keyword_tree_for_failure(kw, default_source)
+        # Recurse first; deeper failures shadow the outer element.
+        nested = _walk_keyword_tree_for_failure(child, default_source)
         if nested is not None:
             deepest = nested
             continue
-        # Leaf: this is a failing keyword with no failing children —
-        # emit it if it carries source/line metadata.
-        source = kw.get("source") or default_source
-        line_str = kw.get("line")
+        # Only a <kw> leaf has the source/line metadata we break on; a
+        # control container with no failing <kw> child contributes nothing.
+        if child.tag != "kw":
+            continue
+        source = child.get("source") or default_source
+        line_str = child.get("line")
         if not source or not line_str:
             continue
         try:
             line = int(line_str)
         except ValueError:
             continue
-        deepest = (kw.get("name", ""), source, line)
+        deepest = (child.get("name", ""), source, line)
     return deepest

@@ -83,13 +83,16 @@ def start_run(
 
         result = dispatch_task(execute_test_run, run.id)
         run.task_id = result.id
-        db.flush()
+        db.commit()
         db.refresh(run)
     except TaskDispatchError as e:
         logger.error("Failed to dispatch run %d: %s", run.id, e)
+        # H3: commit the terminal ERROR state explicitly. The run was already
+        # committed as PENDING above; a flush-only here left it stranded in
+        # PENDING (no PENDING-reaper exists) if request teardown didn't commit.
         run.status = RunStatus.ERROR
         run.error_message = f"Task dispatch failed: {e}"
-        db.flush()
+        db.commit()
         db.refresh(run)
 
     return run
@@ -412,7 +415,9 @@ class HealReportOut(BaseModel):
 def get_run_heal_report(
     run_id: int,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    # H1: gate on the user's effective role on THIS run's repo, not just any
+    # authenticated user — heal data is repo-scoped (Phase-4 Team/Org model).
+    _current_user: User = Depends(require_effective_role_for_run(Role.VIEWER)),
 ) -> HealReportOut:
     """Story SH-2 — return the structured heal report for a run.
 
@@ -467,7 +472,10 @@ def apply_heal_patch(
     heal_index: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.EDITOR)),
+    # H1: heal-apply WRITES to .robot files in the run's repo — gate on the
+    # effective EDITOR role for that repo (mirrors cancel/retry), not a global
+    # role, so a global EDITOR without a grant on the repo can't write to it.
+    current_user: User = Depends(require_effective_role_for_run(Role.EDITOR)),
 ) -> HealPatchApplyResponse:
     """Story SH-4 — write a single confirmed heal swap into the .robot.
 
