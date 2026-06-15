@@ -318,7 +318,7 @@ echo     API: http://localhost:%PORT%/api/v1/docs
 echo     Default login: admin@roboscope.local / admin123
 echo.
 
-python -m uvicorn src.main:app --host 0.0.0.0 --port %PORT%
+python -m uvicorn src.main:app --host 0.0.0.0 --port %PORT% --no-use-colors
 "@ | Set-Content -Path (Join-Path $DIST "start-windows.bat") -Encoding ASCII
 
 @"
