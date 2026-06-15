@@ -101,8 +101,8 @@ const { t } = useI18n()
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(59, 125, 216, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(59, 125, 216, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(45, 99, 176, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45, 99, 176, 0.03) 1px, transparent 1px);
   background-size: 40px 40px;
   z-index: 0;
 }
@@ -132,7 +132,7 @@ const { t } = useI18n()
   height: 56px;
   width: auto;
   margin-bottom: 16px;
-  filter: drop-shadow(0 2px 8px rgba(59, 125, 216, 0.3));
+  filter: drop-shadow(0 2px 8px rgba(45, 99, 176, 0.3));
 }
 
 .hero-tagline {
@@ -167,13 +167,13 @@ const { t } = useI18n()
 }
 
 .feature-icon {
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   width: 32px;
   height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(59, 125, 216, 0.1);
+  background: rgba(45, 99, 176, 0.1);
   border-radius: 8px;
   flex-shrink: 0;
 }
@@ -258,7 +258,7 @@ const { t } = useI18n()
 .bg-circle-1 {
   width: 600px;
   height: 600px;
-  background: radial-gradient(circle, rgba(59, 125, 216, 0.07) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(45, 99, 176, 0.07) 0%, transparent 70%);
   top: -200px;
   right: -150px;
   animation: floatSlow 20s ease-in-out infinite;
@@ -276,7 +276,7 @@ const { t } = useI18n()
 .bg-circle-3 {
   width: 300px;
   height: 300px;
-  background: radial-gradient(circle, rgba(59, 125, 216, 0.04) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(45, 99, 176, 0.04) 0%, transparent 70%);
   top: 50%;
   left: 40%;
   transform: translate(-50%, -50%);

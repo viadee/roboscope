@@ -135,7 +135,7 @@ async function handleLogin() {
   justify-content: center;
   color: white;
   margin-bottom: 14px;
-  box-shadow: 0 4px 12px rgba(59, 125, 216, 0.3);
+  box-shadow: 0 4px 12px rgba(45, 99, 176, 0.3);
 }
 
 .login-header h2 {
@@ -160,7 +160,7 @@ async function handleLogin() {
 .login-card .form-input:focus {
   background: #ffffff;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(59, 125, 216, 0.12);
+  box-shadow: 0 0 0 3px rgba(45, 99, 176, 0.12);
   transform: translateY(-1px);
 }
 

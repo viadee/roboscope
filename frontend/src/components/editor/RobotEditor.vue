@@ -2517,7 +2517,7 @@ watch(() => props.content, (newContent) => {
   font-weight: 500; color: var(--color-text-muted); cursor: pointer;
   border-bottom: 2px solid transparent; transition: all 0.15s ease;
 }
-.tab-btn:hover { color: var(--color-text); background: rgba(59, 125, 216, 0.05); }
+.tab-btn:hover { color: var(--color-text); background: rgba(45, 99, 176, 0.05); }
 .tab-btn.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
 .tab-toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
 .tab-toolbar .icon-btn { background: none; border: 1px solid var(--color-border); border-radius: 4px; cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; color: var(--color-text-muted); }
@@ -2536,12 +2536,12 @@ watch(() => props.content, (newContent) => {
   cursor: pointer;
 }
 .heal-toggle-btn:hover {
-  border-color: var(--color-primary, #3B7DD8);
-  color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
+  color: var(--color-primary, #2D63B0);
 }
 .heal-toggle-btn--on {
-  background: var(--color-primary, #3B7DD8);
-  border-color: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
+  border-color: var(--color-primary, #2D63B0);
   color: #fff;
 }
 .heal-toggle-btn--on:hover {
@@ -2564,11 +2564,11 @@ watch(() => props.content, (newContent) => {
 .editor-section { background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px; overflow: visible; flex-shrink: 0; }
 .section-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--color-bg); border-bottom: 1px solid var(--color-border); cursor: pointer; user-select: none; }
 .section-header h3 { margin: 0; font-size: 14px; font-weight: 600; flex: 1; }
-.section-count { font-size: 11px; color: var(--color-text-muted); padding: 1px 8px; background: rgba(59, 125, 216, 0.1); border-radius: 8px; }
+.section-count { font-size: 11px; color: var(--color-text-muted); padding: 1px 8px; background: rgba(45, 99, 176, 0.1); border-radius: 8px; }
 
 /* Section accent colors */
-.section-settings > .section-header { border-left: 3px solid #3B7DD8; }
-.section-settings .section-count { background: rgba(59, 125, 216, 0.1); color: #1a5fb4; }
+.section-settings > .section-header { border-left: 3px solid #2D63B0; }
+.section-settings .section-count { background: rgba(45, 99, 176, 0.1); color: #1a5fb4; }
 .section-variables > .section-header { border-left: 3px solid #7c3aed; }
 .section-variables .section-count { background: rgba(124, 58, 237, 0.1); color: #7c3aed; }
 .section-testcases > .section-header { border-left: 3px solid #2e7d32; }
@@ -2600,7 +2600,7 @@ watch(() => props.content, (newContent) => {
 .item-card { border: 1px solid var(--color-border); border-radius: 8px; }
 .item-header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--color-bg); border-bottom: 1px solid var(--color-border); cursor: pointer; user-select: none; }
 .item-title { flex: 1; font-weight: 500; font-size: 13px; }
-.item-count { font-size: 11px; color: var(--color-text-muted); padding: 1px 8px; background: rgba(59, 125, 216, 0.1); border-radius: 8px; }
+.item-count { font-size: 11px; color: var(--color-text-muted); padding: 1px 8px; background: rgba(45, 99, 176, 0.1); border-radius: 8px; }
 .item-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .remove-btn { border: none; background: none; cursor: pointer; font-size: 14px; padding: 2px 4px; opacity: 0.5; transition: opacity 0.15s; }
 .remove-btn:hover { opacity: 1; }
@@ -2612,7 +2612,7 @@ watch(() => props.content, (newContent) => {
 .form-label { font-size: 12px; font-weight: 500; color: var(--color-text-muted); }
 .required { color: var(--color-danger); }
 .form-input { padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 6px; font-size: 13px; background: var(--color-bg-card); color: var(--color-text); transition: border-color 0.15s; }
-.form-input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(59, 125, 216, 0.15); }
+.form-input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(45, 99, 176, 0.15); }
 .form-textarea { resize: vertical; min-height: 40px; font-family: inherit; }
 
 /* Chips/Tags */

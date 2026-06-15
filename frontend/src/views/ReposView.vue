@@ -1049,10 +1049,10 @@ async function removeMember(member: ProjectMember) {
 }
 .branch-fallback-btn {
   padding: 10px 16px;
-  border: 2px solid var(--color-primary, #3B7DD8);
+  border: 2px solid var(--color-primary, #2D63B0);
   border-radius: 8px;
   background: #EBF4FF;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -1060,7 +1060,7 @@ async function removeMember(member: ProjectMember) {
   transition: background 0.15s;
 }
 .branch-fallback-btn:hover {
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: #fff;
 }
 
@@ -1092,14 +1092,14 @@ async function removeMember(member: ProjectMember) {
 }
 .repo-title-link:hover h3,
 .repo-title-link:focus-visible h3 {
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
 }
 .repo-title-link:hover p,
 .repo-title-link:focus-visible p {
   text-decoration: underline;
 }
 .repo-title-link:focus-visible {
-  outline: 2px solid var(--color-primary, #3B7DD8);
+  outline: 2px solid var(--color-primary, #2D63B0);
   outline-offset: 4px;
   border-radius: 4px;
 }
@@ -1152,15 +1152,15 @@ async function removeMember(member: ProjectMember) {
 }
 .info-tip:hover,
 .info-tip:focus {
-  color: var(--color-primary, #3B7DD8);
-  border-color: var(--color-primary, #3B7DD8);
-  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 14%, transparent);
+  color: var(--color-primary, #2D63B0);
+  border-color: var(--color-primary, #2D63B0);
+  background: color-mix(in srgb, var(--color-primary, #2D63B0) 14%, transparent);
   outline: none;
 }
 .info-tip[aria-expanded="true"] {
-  color: var(--color-primary, #3B7DD8);
-  border-color: var(--color-primary, #3B7DD8);
-  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 18%, transparent);
+  color: var(--color-primary, #2D63B0);
+  border-color: var(--color-primary, #2D63B0);
+  background: color-mix(in srgb, var(--color-primary, #2D63B0) 18%, transparent);
 }
 /* Click-popover that surfaces the help text. Pinned right of the
    icon, fixed max-width so long German strings wrap instead of
@@ -1286,12 +1286,12 @@ async function removeMember(member: ProjectMember) {
   height: 16px;
   margin-top: 4px;
   cursor: pointer;
-  accent-color: var(--color-primary, #3B7DD8);
+  accent-color: var(--color-primary, #2D63B0);
   flex-shrink: 0;
 }
 
 .card-selected {
-  outline: 2px solid var(--color-primary, #3B7DD8);
+  outline: 2px solid var(--color-primary, #2D63B0);
   outline-offset: -2px;
   background: rgba(60, 181, 161, 0.04);
 }

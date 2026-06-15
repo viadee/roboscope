@@ -555,7 +555,7 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
 <style scoped>
 .run-detail-panel {
   padding: 20px;
-  border-top: 2px solid var(--color-primary, #3B7DD8);
+  border-top: 2px solid var(--color-primary, #2D63B0);
   background: var(--color-bg-card, #ffffff);
 }
 
@@ -636,8 +636,8 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
 }
 
 .tab-btn.active {
-  color: var(--color-primary, #3B7DD8);
-  border-bottom-color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
+  border-bottom-color: var(--color-primary, #2D63B0);
 }
 
 .tab-content {
@@ -767,7 +767,7 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
 .analysis-card {
   margin-top: 16px;
   padding: 16px;
-  border-left: 4px solid var(--color-primary, #3B7DD8);
+  border-left: 4px solid var(--color-primary, #2D63B0);
   background: var(--color-bg, #f4f7fa);
   border-radius: var(--radius-sm, 6px);
 }
@@ -775,7 +775,7 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
 .analysis-header h4 {
   margin: 0 0 12px 0;
   font-size: 14px;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
 }
 
 .analysis-body { padding: 0; }

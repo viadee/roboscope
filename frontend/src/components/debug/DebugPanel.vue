@@ -313,7 +313,7 @@ function truncate(s: string, max = 200): string {
   gap: 14px;
   padding: 10px 14px;
   background: var(--color-primary-bg, #dbeafe);
-  border: 1px solid var(--color-primary, #3B7DD8);
+  border: 1px solid var(--color-primary, #2D63B0);
   border-radius: 8px;
 }
 .debug-panel__line-number {
@@ -334,7 +334,7 @@ function truncate(s: string, max = 200): string {
 .debug-panel__line-value {
   font-size: 32px;
   font-weight: 700;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   font-variant-numeric: tabular-nums;
 }
 .debug-panel__line-meta {

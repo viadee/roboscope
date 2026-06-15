@@ -193,16 +193,16 @@ const candidateTooltip = computed(() =>
 }
 .flow-node-keyword {
   background: #fff;
-  border: 2px solid var(--color-primary, #3B7DD8);
+  border: 2px solid var(--color-primary, #2D63B0);
 }
 /* Selected-node highlight — outline + tint so the active node
    stands out from the others. Mirrors the rule on inline
    comment / flow-control nodes inside FlowEditor.vue. */
 .flow-node--selected {
-  outline: 3px solid var(--color-primary, #3B7DD8);
+  outline: 3px solid var(--color-primary, #2D63B0);
   outline-offset: 2px;
-  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 10%, var(--color-bg-card, #fff));
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary, #3B7DD8) 18%, transparent),
+  background: color-mix(in srgb, var(--color-primary, #2D63B0) 10%, var(--color-bg-card, #fff));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary, #2D63B0) 18%, transparent),
               0 2px 6px rgba(0, 0, 0, 0.1);
 }
 .flow-node-header {
@@ -265,7 +265,7 @@ const candidateTooltip = computed(() =>
 .flow-drag-handle:active,
 .flow-drag-handle--armed {
   cursor: grabbing;
-  background: rgba(59, 125, 216, 0.15);
+  background: rgba(45, 99, 176, 0.15);
   opacity: 1;
 }
 .flow-node-args {
@@ -289,8 +289,8 @@ const candidateTooltip = computed(() =>
   gap: 4px;
 }
 .flow-arg--has-candidates {
-  background: rgba(59, 125, 216, 0.10);
-  border: 1px solid rgba(59, 125, 216, 0.30);
+  background: rgba(45, 99, 176, 0.10);
+  border: 1px solid rgba(45, 99, 176, 0.30);
   padding: 0 6px;
 }
 .flow-arg-dot {
@@ -312,7 +312,7 @@ const candidateTooltip = computed(() =>
   font-family: var(--font-mono, monospace);
   font-size: 9px;
   font-weight: 700;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   opacity: 0.85;
 }
 .flow-arg-value {
@@ -328,7 +328,7 @@ const candidateTooltip = computed(() =>
 }
 .flow-arg-count {
   font-size: 10px;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   font-weight: 600;
 }
 .flow-node-return {

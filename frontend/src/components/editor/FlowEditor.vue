@@ -3128,13 +3128,13 @@ function onDebugOverlayClose(): void {
   cursor: pointer;
 }
 .flow-libs-toggle:hover {
-  border-color: var(--color-primary, #3B7DD8);
-  color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
+  color: var(--color-primary, #2D63B0);
 }
 .flow-libs-toggle.active {
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: #fff;
-  border-color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
 }
 
 /* Library management panel — opens below the section bar. */
@@ -3161,7 +3161,7 @@ function onDebugOverlayClose(): void {
   padding: 2px 4px 2px 0;
   border: 1px solid var(--color-border, #e2e8f0);
   border-radius: 4px;
-  background: rgba(59, 125, 216, 0.08);
+  background: rgba(45, 99, 176, 0.08);
   font-size: 12px;
 }
 .flow-libraries__chip--resource {
@@ -3174,8 +3174,8 @@ function onDebugOverlayClose(): void {
   text-align: center;
   font-size: 10px;
   font-weight: 700;
-  color: var(--color-primary, #3B7DD8);
-  background: rgba(59, 125, 216, 0.15);
+  color: var(--color-primary, #2D63B0);
+  background: rgba(45, 99, 176, 0.15);
   border-right: 1px solid var(--color-border, #e2e8f0);
   border-radius: 4px 0 0 4px;
   padding: 2px 0;
@@ -3215,13 +3215,13 @@ function onDebugOverlayClose(): void {
 }
 .flow-libraries__input:focus {
   outline: none;
-  border-color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
 }
 .flow-libraries__add {
   padding: 4px 12px;
-  border: 1px solid var(--color-primary, #3B7DD8);
+  border: 1px solid var(--color-primary, #2D63B0);
   border-radius: 4px;
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: #fff;
   font-size: 12px;
   font-weight: 600;
@@ -3246,8 +3246,8 @@ function onDebugOverlayClose(): void {
   cursor: pointer;
 }
 .flow-libraries__suggestion:hover {
-  border-color: var(--color-primary, #3B7DD8);
-  color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
+  color: var(--color-primary, #2D63B0);
 }
 /* Variables + suite-settings rows (reuse the .flow-libraries container). */
 .flow-vars__rows {
@@ -3305,7 +3305,7 @@ function onDebugOverlayClose(): void {
 }
 .flow-node-template__badge {
   font-size: 10px; font-weight: 600; color: #fff;
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   border-radius: 6px; padding: 0 6px; line-height: 16px;
 }
 .flow-node-template__kw { font-family: var(--font-mono, monospace); font-size: 12px; }
@@ -3325,7 +3325,7 @@ function onDebugOverlayClose(): void {
 .flow-node-template__actions { display: flex; gap: 6px; margin-top: 6px; }
 .flow-node-template__actions button { padding: 2px 8px; }
 .flow-node-template__actions button:hover {
-  border-color: var(--color-primary, #3B7DD8); color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0); color: var(--color-primary, #2D63B0);
 }
 .flow-section-tab {
   padding: 7px 18px;
@@ -3338,9 +3338,9 @@ function onDebugOverlayClose(): void {
   cursor: pointer;
 }
 .flow-section-tab.active {
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: #fff;
-  border-color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
 }
 .flow-item-tabs {
   display: flex;
@@ -3368,8 +3368,8 @@ function onDebugOverlayClose(): void {
   font-weight: 500;
 }
 .flow-item-tab--add:hover {
-  border-color: var(--color-primary, #3B7DD8);
-  color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
+  color: var(--color-primary, #2D63B0);
 }
 
 .flow-empty {
@@ -3387,9 +3387,9 @@ function onDebugOverlayClose(): void {
 }
 .flow-empty__cta {
   padding: 0.4rem 0.9rem;
-  border: 1px solid var(--color-primary, #3B7DD8);
+  border: 1px solid var(--color-primary, #2D63B0);
   border-radius: 4px;
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: #fff;
   font-size: 0.85rem;
   cursor: pointer;
@@ -3399,7 +3399,7 @@ function onDebugOverlayClose(): void {
 }
 .flow-empty__cta--secondary {
   background: #fff;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
 }
 
 .flow-canvas-wrapper {
@@ -3466,7 +3466,7 @@ function onDebugOverlayClose(): void {
 }
 .flow-detail-resizer:hover::after,
 .flow-detail-panel--resizing .flow-detail-resizer::after {
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
 }
 .flow-detail-header {
   display: flex;
@@ -3479,7 +3479,7 @@ function onDebugOverlayClose(): void {
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
 }
 .flow-detail-actions {
   display: flex;
@@ -3508,13 +3508,13 @@ function onDebugOverlayClose(): void {
   background: #fee;
 }
 .flow-action-info {
-  color: var(--color-primary, #3B7DD8);
-  border-color: rgba(59, 125, 216, 0.4);
+  color: var(--color-primary, #2D63B0);
+  border-color: rgba(45, 99, 176, 0.4);
   font-style: italic;
   font-weight: 700;
 }
 .flow-action-info:hover {
-  background: rgba(59, 125, 216, 0.08);
+  background: rgba(45, 99, 176, 0.08);
 }
 .flow-detail-row {
   margin-bottom: 10px;
@@ -3538,7 +3538,7 @@ function onDebugOverlayClose(): void {
   box-sizing: border-box;
 }
 .flow-input:focus {
-  border-color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
 }
 .flow-textarea {
   font-family: var(--font-sans, sans-serif);
@@ -3574,9 +3574,9 @@ function onDebugOverlayClose(): void {
 }
 .flow-btn-add {
   font-size: 11px;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   background: none;
-  border: 1px dashed var(--color-primary, #3B7DD8);
+  border: 1px dashed var(--color-primary, #2D63B0);
   border-radius: 4px;
   padding: 3px 8px;
   cursor: pointer;
@@ -3608,7 +3608,7 @@ function onDebugOverlayClose(): void {
   user-select: none;
 }
 .flow-arg-type-icon {
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   font-weight: 700;
   font-size: 9px;
   font-family: var(--font-mono, monospace);
@@ -3625,7 +3625,7 @@ function onDebugOverlayClose(): void {
   height: 18px;
   flex-shrink: 0;
   cursor: pointer;
-  accent-color: var(--color-primary, #3B7DD8);
+  accent-color: var(--color-primary, #2D63B0);
 }
 /* Story EDITOR-VAR-1 — toggle between typed control and plain text.
    Lets the user enter a Robot Framework variable reference on a slot
@@ -3643,9 +3643,9 @@ function onDebugOverlayClose(): void {
   flex-shrink: 0;
 }
 .flow-input-toggle:hover {
-  background: rgba(59, 125, 216, 0.10);
-  color: var(--color-primary, #3B7DD8);
-  border-color: var(--color-primary, #3B7DD8);
+  background: rgba(45, 99, 176, 0.10);
+  color: var(--color-primary, #2D63B0);
+  border-color: var(--color-primary, #2D63B0);
 }
 /* Story EDITOR-9 — named-arg picker popover */
 .flow-add-arg-wrap {
@@ -3748,9 +3748,9 @@ function onDebugOverlayClose(): void {
 .flow-add-arg-custom-add {
   flex: 0 0 auto;
   padding: 4px 10px;
-  border: 1px solid var(--color-primary, #3B7DD8);
+  border: 1px solid var(--color-primary, #2D63B0);
   border-radius: 4px;
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: #fff;
   font-size: 12px;
   cursor: pointer;
@@ -3830,8 +3830,8 @@ function onDebugOverlayClose(): void {
   transition: border-color 0.15s, background 0.15s;
 }
 .flow-node-doc-meta:hover {
-  border-color: var(--color-primary, #3B7DD8);
-  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 6%, var(--color-bg-card, #fff));
+  border-color: var(--color-primary, #2D63B0);
+  background: color-mix(in srgb, var(--color-primary, #2D63B0) 6%, var(--color-bg-card, #fff));
 }
 .flow-node-doc-meta__body {
   flex: 1;
@@ -3884,10 +3884,10 @@ function onDebugOverlayClose(): void {
   font-style: italic;
 }
 .flow-node-doc-meta.flow-node--selected {
-  outline: 3px solid var(--color-primary, #3B7DD8);
+  outline: 3px solid var(--color-primary, #2D63B0);
   outline-offset: 2px;
-  border-color: var(--color-primary, #3B7DD8);
-  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 10%, var(--color-bg-card, #fff));
+  border-color: var(--color-primary, #2D63B0);
+  background: color-mix(in srgb, var(--color-primary, #2D63B0) 10%, var(--color-bg-card, #fff));
 }
 
 /* RETURN node — distinct from BREAK / CONTINUE because it carries
@@ -3949,10 +3949,10 @@ function onDebugOverlayClose(): void {
 .flow-node-comment.flow-node--selected,
 .flow-node-flowctrl.flow-node--selected,
 .flow-node-return-block.flow-node--selected {
-  outline: 3px solid var(--color-primary, #3B7DD8);
+  outline: 3px solid var(--color-primary, #2D63B0);
   outline-offset: 2px;
-  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 10%, var(--color-bg-card, #fff));
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary, #3B7DD8) 18%, transparent);
+  background: color-mix(in srgb, var(--color-primary, #2D63B0) 10%, var(--color-bg-card, #fff));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary, #2D63B0) 18%, transparent);
 }
 
 /* Drag handle on nodes */
@@ -3986,13 +3986,13 @@ function onDebugOverlayClose(): void {
 .flow-drop-line {
   flex: 1;
   height: 3px;
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   border-radius: 2px;
 }
 .flow-drop-dot {
   width: 10px;
   height: 10px;
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -4011,9 +4011,9 @@ function onDebugOverlayClose(): void {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: var(--color-on-dark, #ffffff);
-  border: 1px solid var(--color-primary, #3B7DD8);
+  border: 1px solid var(--color-primary, #2D63B0);
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
@@ -4022,7 +4022,7 @@ function onDebugOverlayClose(): void {
 }
 .flow-debug-step-btn:hover { filter: brightness(1.05); }
 .flow-debug-step-btn:focus-visible {
-  outline: 2px solid var(--color-primary, #3B7DD8);
+  outline: 2px solid var(--color-primary, #2D63B0);
   outline-offset: 2px;
 }
 .flow-debug-action-error {
