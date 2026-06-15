@@ -7,7 +7,8 @@
 
 import type { Node, Edge } from '@vue-flow/core'
 import type { RecordedCommand, RecordedFlow, SelectorCandidate } from '@/types/recorder.types'
-import { parseArgSignature, type ParsedArg } from '@/utils/robotKeywordSignatures'
+import { parseArgSignature, splitBddPrefix, type ParsedArg } from '@/utils/robotKeywordSignatures'
+import { collectEnvVarRefs, type EnvVarRef } from '@/utils/robotEnvVars'
 import { effectiveSelectorForCandidate, renderSelector } from '@/utils/effectiveSelector'
 
 // Map of lowercase-keyword-name → raw libdoc args; produced by
@@ -75,6 +76,8 @@ export interface RobotTestCase {
   timeout: string
   template: string
   steps: RobotStep[]
+  // Story FE-TPL — data-driven test rows (cells = args for the template kw).
+  templateRows?: string[][]
 }
 
 export interface RobotKeywordDef {
@@ -123,6 +126,18 @@ export interface FlowNodeData {
    * labels and plain text inputs.
    */
   argSpecs: ParsedArg[] | null
+  /**
+   * Story FE-BDD — when a keyword step's name carries a Gherkin/BDD prefix
+   * (Given/When/Then/And/But), this holds `{ prefix, rest }` so the node can
+   * render a prefix badge. Null for non-BDD or non-keyword steps.
+   */
+  bdd?: { prefix: string; rest: string } | null
+  /**
+   * Story FE-ENV — `%{NAME}` / `%{NAME=default}` environment-variable
+   * references found in this step's args/condition/loop values. Empty when
+   * none. Drives the node's `%{}` indicator.
+   */
+  envRefs?: EnvVarRef[]
 }
 
 // --- Sidecar matching (Story EDITOR-1) ---
@@ -580,6 +595,12 @@ export function stepsToFlow(
         stepIndex: i,
         recording: matchStepToCommand(steps, sidecar, i),
         argSpecs: resolveArgSpecs(step, signatures),
+        bdd: (step.type === 'keyword' || step.type === 'assignment')
+          ? splitBddPrefix(step.keyword)
+          : null,
+        envRefs: collectEnvVarRefs([
+          ...step.args, step.condition, ...step.loopValues,
+        ]),
       } as FlowNodeData,
     })
 
@@ -712,6 +733,30 @@ export function testCaseToFlow(
 ): { nodes: Node[]; edges: Edge[] } {
   const out = stepsToFlow(tc.steps, tc.name, `tc${index}`, 'testcase', index, sidecar, signatures)
   appendSettingMetaNodes(out.nodes, out.edges, `tc${index}`, tc, 'testcase', index, TC_SETTING_KINDS)
+  // Story FE-TPL — a data-driven test renders its rows as a single
+  // template-table node between Start and End (its steps are empty).
+  if (tc.templateRows && tc.templateRows.length > 0) {
+    const prefix = `tc${index}`
+    const startNode = out.nodes.find((n) => n.id === `${prefix}-start`)
+    const tableId = `${prefix}-template-table`
+    out.nodes.push({
+      id: tableId,
+      type: 'template-table',
+      position: { x: NODE_X, y: (startNode?.position.y ?? 0) + START_END_HEIGHT + NODE_GAP },
+      data: {
+        templateKeyword: tc.template,
+        templateRows: tc.templateRows,
+        section: 'testcase',
+        sectionIndex: index,
+      },
+    })
+    // Re-route Start → table → End (drop the direct start→end edge).
+    const endId = `${prefix}-end`
+    const direct = out.edges.findIndex((e) => e.source === `${prefix}-start` && e.target === endId)
+    if (direct >= 0) out.edges.splice(direct, 1)
+    out.edges.push({ id: `${prefix}-e-start-table`, source: `${prefix}-start`, target: tableId })
+    out.edges.push({ id: `${prefix}-e-table-end`, source: tableId, target: endId })
+  }
   return out
 }
 

@@ -49,7 +49,7 @@ from src.debug.schemas import (
     InstallPrereqResponse,
     StartDebugSessionRequest,
 )
-from src.debug.session_manager import session_manager
+from src.debug.session_manager import DuplicateDebugSessionError, session_manager
 from src.environments.models import Environment
 from src.environments.venv_utils import get_python_path
 from src.execution.models import ExecutionRun
@@ -166,11 +166,15 @@ def _validate_step_invocation(
     # so this is a reasonable boundary.
     try:
         repo_root = Path(repo.local_path).resolve()
-        if not str(file_path.resolve()).startswith(str(repo_root)):
+        # M1: containment via relative_to, not startswith — a string prefix
+        # check lets a sibling dir (/data/repo-secrets vs /data/repo) pass.
+        try:
+            file_path.resolve().relative_to(repo_root)
+        except ValueError:
             raise HTTPException(
                 status_code=422,
                 detail="File is not inside the repository",
-            )
+            ) from None
     except OSError as e:
         raise HTTPException(
             status_code=422,
@@ -419,6 +423,20 @@ async def _start_from_run(
             test_name=test_name,
             env_python_path=env_python,
         )
+    except DuplicateDebugSessionError:
+        # H4: a concurrent start won the race — return the same 409 as the
+        # find_by_user_run pre-check above, no second subprocess spawned.
+        existing = session_manager.find_by_user_run(user.id, run.id)
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "A debug session for this run already exists",
+                "session_id": existing.session_id if existing else None,
+                "robot_file": existing.robot_file if existing else None,
+                "breakpoint_line": existing.breakpoint_line if existing else None,
+                "test_name": existing.test_name if existing else None,
+            },
+        ) from None
     except Exception as e:  # noqa: BLE001
         logger.exception("debug session start failed")
         raise HTTPException(

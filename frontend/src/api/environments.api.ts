@@ -118,3 +118,31 @@ export async function createVariable(envId: number, data: { key: string; value: 
   const response = await apiClient.post<EnvironmentVariable>(`/environments/${envId}/variables`, data)
   return response.data
 }
+
+// Keyword discovery (libdoc-per-environment) — offline-first source for the
+// Flow Editor palette; works without the optional rf-mcp live server.
+
+export interface EnvKeyword {
+  name: string
+  library: string
+  args: string[]
+  shortdoc: string
+}
+
+export interface EnvKeywordCacheResponse {
+  status: 'ready' | 'building' | 'error'
+  source_hash: string
+  updated_at: string | null
+  keywords: EnvKeyword[]
+}
+
+export async function getEnvironmentKeywords(
+  envId: number,
+  refresh = false,
+): Promise<EnvKeywordCacheResponse> {
+  const response = await apiClient.get<EnvKeywordCacheResponse>(
+    `/environments/${envId}/keywords`,
+    { params: { refresh } },
+  )
+  return response.data
+}

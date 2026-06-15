@@ -34,6 +34,18 @@ from src.debug.schemas import (
 
 logger = logging.getLogger("roboscope.debug.session_manager")
 
+
+class DuplicateDebugSessionError(Exception):
+    """Raised by `start` when a session for the same (user, run) already
+    exists. H4: the dedup check runs INSIDE the manager lock so two
+    concurrent starts (double-click) can't both spawn a robotcode subprocess
+    (the router's pre-check alone was racy and leaked the first subprocess)."""
+
+    def __init__(self, existing_session_id: str):
+        self.existing_session_id = existing_session_id
+        super().__init__(f"debug session already exists: {existing_session_id}")
+
+
 IDLE_TIMEOUT_SECONDS = 300  # 5 min — heuristic, see module docstring.
 TERMINATED_GRACE_SECONDS = 30  # DAP terminated → subprocess wait → kill
 SUBPROCESS_KILL_TIMEOUT_SECONDS = 5
@@ -194,13 +206,19 @@ class DebugSessionManager:
     ) -> _ActiveSession:
         """Spawn a session, wire its event pump + idle timer.
 
-        Caller MUST first call :meth:`find_by_user_run` to honour the
-        409-dedup rule from AC6 — this method will overwrite the
-        existing record without checking. The router does the lookup
-        before issuing the audit event so we keep dedup logic at the
-        boundary.
+        Raises :class:`DuplicateDebugSessionError` if a session for the same
+        ``(user_id, run_id)`` already exists — the check is atomic under the
+        manager lock (H4), so it is safe even when two requests race past the
+        router's `find_by_user_run` fast-path. The router still calls
+        `find_by_user_run` first for the audit-event/early-return path.
         """
         async with self._lock:
+            # H4: atomic dedup — under the lock, before spawning, so a
+            # concurrent start for the same (user, run) can't create a second
+            # session + orphan subprocess. The router's find_by_user_run
+            # pre-check is a fast-path; this is the authoritative guard.
+            if run_id is not None and (user_id, run_id) in self._by_user_run:
+                raise DuplicateDebugSessionError(self._by_user_run[(user_id, run_id)])
             session_id = uuid.uuid4().hex
             record = _ActiveSession(
                 session_id=session_id,

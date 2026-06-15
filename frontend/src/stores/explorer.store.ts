@@ -1,7 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as explorerApi from '@/api/explorer.api'
+import type { ProjectKeyword } from '@/api/explorer.api'
 import { searchKeywords, invalidateKeywordCache } from '@/api/ai.api'
+import { getEnvironmentKeywords } from '@/api/environments.api'
+import { useReposStore } from '@/stores/repos.store'
+import { useEnvironmentsStore } from '@/stores/environments.store'
 import type { FileContent, SearchResult, TestCaseInfo, TreeNode } from '@/types/domain.types'
 
 export interface CachedKeyword {
@@ -24,6 +28,15 @@ export const useExplorerStore = defineStore('explorer', () => {
   const keywords = ref<CachedKeyword[]>([])
   const keywordsLoading = ref(false)
   const keywordsLoaded = ref(false)
+  // User-defined keywords parsed from the repo's own .robot/.resource files.
+  // Shared here (rather than owned by KeywordPalette) so useKeywordSignatures
+  // can give them precedence over library/BuiltIn keywords — RF resolves
+  // project/resource keywords ABOVE library keywords on a name collision.
+  const projectKeywords = ref<ProjectKeyword[]>([])
+
+  function setProjectKeywords(kws: ProjectKeyword[]) {
+    projectKeywords.value = kws
+  }
 
   async function fetchTree(repoId: number, path: string = '') {
     loading.value = true
@@ -105,12 +118,49 @@ export const useExplorerStore = defineStore('explorer', () => {
     searchResults.value = []
   }
 
-  /** Preload all available keywords for the current repo's environment. */
+  /** Resolve the environment a repo runs in: its own `environment_id`, else
+   *  the default environment. Returns null when nothing is resolvable (stores
+   *  not loaded yet) — caller then falls back to the rf-knowledge source. */
+  function resolveEnvironmentId(repoId: number): number | null {
+    try {
+      const repo = useReposStore().getRepo(repoId)
+      if (repo?.environment_id != null) return repo.environment_id
+      const def = useEnvironmentsStore().environments.find((e) => e.is_default)
+      return def?.id ?? null
+    } catch {
+      return null
+    }
+  }
+
+  /** Preload all available keywords for the current repo's environment.
+   *  Offline-first: prefer the libdoc-per-environment endpoint (works without
+   *  the optional rf-mcp server); fall back to the rf-knowledge search. */
   async function preloadKeywords(repoId: number) {
     if (keywordsLoading.value) return
     keywordsLoading.value = true
     keywordsLoaded.value = false
     try {
+      const envId = resolveEnvironmentId(repoId)
+      if (envId != null) {
+        try {
+          const res = await getEnvironmentKeywords(envId)
+          if (res.keywords && res.keywords.length > 0) {
+            keywords.value = res.keywords.map((k) => ({
+              name: k.name,
+              library: k.library,
+              doc: k.shortdoc || '',
+              doc_format: 'text',
+              args: k.args || [],
+            }))
+            keywordsLoaded.value = true
+            return
+          }
+          // status "building" with no cached keywords yet → fall through to
+          // rf-knowledge so the palette isn't empty; next open gets the cache.
+        } catch {
+          // endpoint unavailable → fall through to rf-knowledge
+        }
+      }
       const result = await searchKeywords('*', repoId)
       keywords.value = (result.results || []).map(r => ({
         name: r.name,
@@ -144,13 +194,14 @@ export const useExplorerStore = defineStore('explorer', () => {
     testCases.value = []
     keywords.value = []
     keywordsLoaded.value = false
+    projectKeywords.value = []
   }
 
   return {
     tree, selectedFile, searchResults, testCases, loading, currentRepoId,
-    keywords, keywordsLoading, keywordsLoaded,
+    keywords, keywordsLoading, keywordsLoaded, projectKeywords,
     fetchTree, openFile, searchInRepo, fetchTestCases, clearSelection, clearAll,
     saveFile, createFile, deleteFileAction, renameFileAction, openInEditorAction, openInFileBrowserAction,
-    preloadKeywords, refreshKeywords,
+    preloadKeywords, refreshKeywords, setProjectKeywords,
   }
 })

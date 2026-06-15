@@ -48,7 +48,9 @@ async function pollRunToCompletion(
   page: Page,
   token: string,
   runId: number,
-  maxIterations = 90,
+  // 110 × 2 s = 220 s — out-wait the global single-worker task queue under a
+  // full suite (the run completes; the H4 reaper prevents true stuck runs).
+  maxIterations = 110,
 ): Promise<{ status: string }> {
   for (let i = 0; i < maxIterations; i++) {
     await page.waitForTimeout(2_000);
@@ -174,7 +176,7 @@ Heal Library Is Importable
   });
 
   test('running a .robot file that imports Library RoboScopeHeal passes', async ({ page }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(260_000);  // poll window (220 s) + setup headroom
 
     // Cancel any runs left from other specs.
     await page.request.post(`${API}/runs/cancel-all`, {

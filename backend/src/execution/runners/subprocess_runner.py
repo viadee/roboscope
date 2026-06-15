@@ -59,8 +59,23 @@ class SubprocessRunner(AbstractRunner):
         listeners: list[str] | None = None,
     ) -> RunResult:
         """Execute Robot Framework tests via subprocess."""
-        self._cancelled = False
         start_time = time.time()
+
+        # C1: honor a cancel that arrived during prepare()/sync. The runner
+        # is registered for cancellation BEFORE prepare() runs, so a cancel
+        # during the (often slow) venv-create / pip-install / git-sync window
+        # sets `_cancelled` while `_process` is still None. We must NOT reset
+        # the flag here — the old `self._cancelled = False` erased that cancel
+        # and let the whole suite execute despite the run being CANCELLED.
+        if self._cancelled:
+            return RunResult(
+                success=False,
+                exit_code=-1,
+                output_dir=output_dir,
+                cancelled=True,
+                error_message="Run cancelled before execution started",
+                duration_seconds=time.time() - start_time,
+            )
 
         # Build robot command
         cmd = self._build_command(
@@ -88,17 +103,22 @@ class SubprocessRunner(AbstractRunner):
         last_activity = time.time()
         lock = threading.Lock()
 
-        # Resource limits: cap memory at 2 GB on Linux/macOS
+        # L1: cap heap (RLIMIT_DATA), NOT virtual address space (RLIMIT_AS).
+        # RLIMIT_AS counts mmap'd memory — Chromium/Node reserve >2 GB of
+        # *virtual* address space (not resident), so a 2 GB RLIMIT_AS made the
+        # headline Browser-library tests fail to even launch with an opaque
+        # allocation error. RLIMIT_DATA bounds the brk-based data segment and
+        # leaves the browser's mmap reservations alone.
         preexec = None
         if platform.system() != "Windows":
             import resource
 
             def _set_limits() -> None:
-                two_gb = 2 * 1024 * 1024 * 1024
+                four_gb = 4 * 1024 * 1024 * 1024
                 try:
-                    resource.setrlimit(resource.RLIMIT_AS, (two_gb, two_gb))
+                    resource.setrlimit(resource.RLIMIT_DATA, (four_gb, four_gb))
                 except (ValueError, OSError):
-                    pass  # best-effort; some systems don't support RLIMIT_AS
+                    pass  # best-effort; some systems don't support RLIMIT_DATA
 
             preexec = _set_limits
 
@@ -130,6 +150,21 @@ class SubprocessRunner(AbstractRunner):
             reader = threading.Thread(target=_read_stdout, daemon=True)
             reader.start()
 
+            # C2: drain stderr concurrently in its own thread. Reading stderr
+            # only AFTER process.wait() deadlocks any run that writes more than
+            # the OS pipe buffer (~64 KB) to stderr — common with deprecation
+            # warnings, Browser-library Node stderr, or stack-trace-heavy
+            # failures — because the child blocks on the full stderr pipe and
+            # never exits, which the poll loop then mis-reports as a hang.
+            def _read_stderr() -> None:
+                if self._process and self._process.stderr:
+                    for line in iter(self._process.stderr.readline, ""):
+                        with lock:
+                            stderr_lines.append(line)
+
+            stderr_reader = threading.Thread(target=_read_stderr, daemon=True)
+            stderr_reader.start()
+
             # Poll with total timeout + inactivity timeout
             INACTIVITY_TIMEOUT = 120
             deadline = start_time + timeout
@@ -145,13 +180,17 @@ class SubprocessRunner(AbstractRunner):
                 if idle > INACTIVITY_TIMEOUT and self._process.poll() is None:
                     self.cancel()
                     reader.join(timeout=10)
+                    stderr_reader.join(timeout=10)
                     duration = time.time() - start_time
+                    with lock:
+                        captured_err = "".join(stderr_lines)
                     return RunResult(
                         success=False,
                         exit_code=-1,
                         output_dir=output_dir,
+                        timed_out=True,
                         stdout="".join(stdout_lines),
-                        stderr="".join(stderr_lines),
+                        stderr=captured_err,
                         error_message=(
                             f"No output for {INACTIVITY_TIMEOUT} seconds — process appears"
                             " hung. This often happens when the Browser library cannot"
@@ -162,9 +201,9 @@ class SubprocessRunner(AbstractRunner):
 
             self._process.wait(timeout=30)
 
-            # Capture stderr
-            if self._process.stderr:
-                stderr_lines = self._process.stderr.readlines()
+            # stderr was drained concurrently by stderr_reader (C2); just
+            # wait for it to flush the last lines after the process exits.
+            stderr_reader.join(timeout=10)
 
             exit_code = self._process.returncode
             duration = time.time() - start_time
@@ -189,12 +228,15 @@ class SubprocessRunner(AbstractRunner):
         except subprocess.TimeoutExpired:
             self.cancel()
             duration = time.time() - start_time
+            with lock:
+                captured_err = "".join(stderr_lines)
             return RunResult(
                 success=False,
                 exit_code=-1,
                 output_dir=output_dir,
+                timed_out=True,
                 stdout="".join(stdout_lines),
-                stderr="".join(stderr_lines),
+                stderr=captured_err,
                 error_message=f"Timeout after {timeout} seconds",
                 duration_seconds=duration,
             )

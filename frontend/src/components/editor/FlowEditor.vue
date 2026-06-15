@@ -23,6 +23,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useDebugStore } from '@/stores/debug.store'
 import { extractErrorDetail } from '@/utils/errors'
+import { collectEnvVarRefs } from '@/utils/robotEnvVars'
 import { type RecordedFlow, type SelectorCandidate, type SelectorStrategy } from '@/types/recorder.types'
 import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
 import {
@@ -262,6 +263,183 @@ function removeLibrary(idx: number): void {
   emit('libraries-changed')
 }
 
+// --- Variables management (*** Variables ***) ---
+//
+// `form.variables` carries `{ name: '${X}', value: '…' }` entries (a `name`
+// of '#' is a comment line and is hidden here). The Flow Editor lets the user
+// add / edit / remove suite variables inline — the biggest previously-missing
+// piece (you could loop over `${items}` but never define it without leaving
+// the Flow tab). Mutations write straight to `form.variables`; RobotEditor's
+// form watcher re-emits the `.robot` text. Edits commit on blur/Enter (not a
+// continuous v-model into the form) to match the libraries-panel discipline.
+
+const variablesPanelOpen = ref(false)
+const newVarName = ref('')
+const newVarValue = ref('')
+
+interface VariableEntry { idx: number; name: string; value: string }
+
+const variableEntries = computed<VariableEntry[]>(() => {
+  const out: VariableEntry[] = []
+  props.form.variables.forEach((v, idx) => {
+    if (v.name !== '#') out.push({ idx, name: v.name, value: v.value })
+  })
+  return out
+})
+
+/** Normalise a raw variable name to a RF sigil form. Bare `NAME` becomes
+ *  `${NAME}`; an explicit `${}`/`@{}`/`&{}` is kept as-is. */
+function normaliseVarName(raw: string): string {
+  const n = raw.trim()
+  if (!n) return n
+  if (/^[$@&]\{.*\}$/.test(n)) return n
+  return `\${${n}}`
+}
+
+// Code-review hardening (AC-B3 / FE-TPL AC5) — the toolbar panels and the
+// template-table cells mutate `props.form` directly, which fires the deep form
+// watcher. That watcher resets `activeItemIndex` to 0 and clears `selectedNode`
+// UNLESS `suppressFitView` is set. Flag it before any such mutation so editing
+// a variable / suite setting / template cell never yanks the canvas back to the
+// first test case or tears down the selection.
+function keepActiveItemOnRebuild(): void {
+  suppressFitView = true
+}
+
+function addVariable(): void {
+  const name = normaliseVarName(newVarName.value)
+  if (!name) return
+  const exists = props.form.variables.some(
+    (v) => v.name.toLowerCase() === name.toLowerCase(),
+  )
+  if (!exists) {
+    keepActiveItemOnRebuild()
+    props.form.variables.push({ name, value: newVarValue.value.trim() })
+  }
+  newVarName.value = ''
+  newVarValue.value = ''
+}
+
+function updateVariableName(idx: number, raw: string): void {
+  if (idx < 0 || idx >= props.form.variables.length) return
+  const name = normaliseVarName(raw)
+  if (name) { keepActiveItemOnRebuild(); props.form.variables[idx].name = name }
+}
+
+function updateVariableValue(idx: number, value: string): void {
+  if (idx < 0 || idx >= props.form.variables.length) return
+  keepActiveItemOnRebuild()
+  props.form.variables[idx].value = value
+}
+
+function removeVariable(idx: number): void {
+  if (idx < 0 || idx >= props.form.variables.length) return
+  keepActiveItemOnRebuild()
+  props.form.variables.splice(idx, 1)
+}
+
+// --- Story FE-TPL: [Template] data-row table editing ---
+// All edits write straight to the test case's `templateRows` by index; the
+// form watcher rebuilds the graph (the cell input already committed on blur).
+function templateRowsFor(sectionIndex: number): string[][] {
+  const tc = props.form.testCases[sectionIndex]
+  if (!tc) return []
+  if (!tc.templateRows) tc.templateRows = []
+  return tc.templateRows
+}
+
+function updateTemplateCell(sectionIndex: number, row: number, col: number, value: string): void {
+  const rows = templateRowsFor(sectionIndex)
+  if (row < 0 || row >= rows.length) return
+  keepActiveItemOnRebuild()
+  while (rows[row].length <= col) rows[row].push('')
+  rows[row][col] = value
+}
+
+function addTemplateRow(sectionIndex: number): void {
+  const rows = templateRowsFor(sectionIndex)
+  const cols = rows.length ? Math.max(...rows.map((r) => r.length)) : 1
+  rows.push(Array.from({ length: cols }, () => ''))
+  rebuildAndReselect(`tc${sectionIndex}-template-table`)
+}
+
+function removeTemplateRow(sectionIndex: number, row: number): void {
+  const rows = templateRowsFor(sectionIndex)
+  if (row >= 0 && row < rows.length) rows.splice(row, 1)
+  rebuildAndReselect(`tc${sectionIndex}-template-table`)
+}
+
+function addTemplateColumn(sectionIndex: number): void {
+  for (const r of templateRowsFor(sectionIndex)) r.push('')
+  rebuildAndReselect(`tc${sectionIndex}-template-table`)
+}
+
+// Story FE-ENV — read-only summary of %{ENV} references used by the active
+// test case / keyword. Informational only; OS env vars aren't edited here.
+const activeEnvVarRefs = computed(() => {
+  const item = activeSection.value === 'testcases'
+    ? props.form.testCases[activeItemIndex.value]
+    : props.form.keywords[activeItemIndex.value]
+  if (!item) return []
+  const texts: string[] = []
+  for (const s of item.steps) {
+    texts.push(...s.args, s.condition, ...s.loopValues)
+  }
+  return collectEnvVarRefs(texts)
+})
+
+// --- Suite-level settings (Suite Setup/Teardown, Force/Default Tags, Doc) ---
+//
+// These live in `form.settings` as `{ key, value, args }` rows. Library /
+// Resource imports get their own panel above; this one covers the remaining
+// suite-wide settings so the whole `*** Settings ***` section is editable in
+// the Flow tab and the "settings = side panels" model is finally complete.
+
+const suiteSettingsPanelOpen = ref(false)
+
+const SUITE_SETTING_KEYS = [
+  'Documentation', 'Metadata', 'Suite Setup', 'Suite Teardown',
+  'Test Setup', 'Test Teardown', 'Force Tags', 'Default Tags', 'Test Timeout',
+] as const
+
+interface SuiteSettingEntry { idx: number; key: string; value: string }
+
+const suiteSettingEntries = computed<SuiteSettingEntry[]>(() => {
+  const out: SuiteSettingEntry[] = []
+  props.form.settings.forEach((s, idx) => {
+    const k = s.key.toLowerCase()
+    if (k === 'library' || k === 'resource' || k === 'variables' || k === '#') return
+    out.push({ idx, key: s.key, value: s.value })
+  })
+  return out
+})
+
+/** Suite-setting keys not yet present — offered as quick-add chips. */
+const availableSuiteSettingKeys = computed<string[]>(() => {
+  const present = new Set(
+    props.form.settings.map((s) => s.key.toLowerCase()),
+  )
+  return SUITE_SETTING_KEYS.filter((k) => !present.has(k.toLowerCase()))
+})
+
+function addSuiteSetting(key: string): void {
+  if (props.form.settings.some((s) => s.key.toLowerCase() === key.toLowerCase())) return
+  keepActiveItemOnRebuild()
+  props.form.settings.push({ key, value: '', args: [] })
+}
+
+function updateSuiteSettingValue(idx: number, value: string): void {
+  if (idx < 0 || idx >= props.form.settings.length) return
+  keepActiveItemOnRebuild()
+  props.form.settings[idx].value = value
+}
+
+function removeSuiteSetting(idx: number): void {
+  if (idx < 0 || idx >= props.form.settings.length) return
+  keepActiveItemOnRebuild()
+  props.form.settings.splice(idx, 1)
+}
+
 /**
  * Emit `add-test-case` and, after the parent has pushed onto
  * `form.testCases`, switch to the test-cases section and select the
@@ -300,6 +478,9 @@ const selectedNodeData = computed<FlowNodeData | null>(() => {
   // missing `stepType` / `step` fields and crashing.
   if (selectedNode.value.type === 'setting-meta') return null
   if (selectedNode.value.type === 'start') return null
+  // Story FE-TPL — the data table node carries {templateKeyword, templateRows}
+  // not a step; the step detail panel would deref missing fields and crash.
+  if (selectedNode.value.type === 'template-table') return null
   return selectedNode.value.data as FlowNodeData
 })
 
@@ -1110,16 +1291,14 @@ function isBoolChecked(index: number): boolean {
   return readBoolValue(def ?? '')
 }
 
-function addArg() {
-  if (!selectedNodeData.value) return
-  selectedNodeData.value.step.args.push('')
-  updateStepFromNode(props.form, selectedNodeData.value)
-  rebuildAndReselect()
-}
-
 // --- Story EDITOR-9: named-parameter picker on "+ Add argument" -------
 
 const addArgPickerOpen = ref(false)
+// Story EDITOR-9b — free-form "custom value" the user types into the picker
+// (a raw cell: a bare value like `5s`/`${VAR}`, or a `name=value` named arg —
+// incl. **kwargs). Replaces the old "append an empty slot" behaviour, which
+// silently became "the next positional parameter".
+const customArgValue = ref('')
 
 interface AddArgOption {
   name: string
@@ -1182,6 +1361,7 @@ const addArgOptions = computed<AddArgOption[]>(() => {
 // We Teleport the popover to <body> and pin it to the trigger button
 // via getBoundingClientRect() so it floats over the canvas instead.
 const addArgTriggerRef = ref<HTMLElement | null>(null)
+const addArgPopoverRef = ref<HTMLElement | null>(null)
 const addArgPickerStyle = ref<{ top: string; left: string; minWidth: string }>({
   top: '0px',
   left: '0px',
@@ -1192,10 +1372,25 @@ function recomputeAddArgPickerPosition() {
   const trigger = addArgTriggerRef.value
   if (!trigger) return
   const rect = trigger.getBoundingClientRect()
+  // Clamp to the viewport so the popover (and its custom-value input/Add
+  // button) never overflows the right edge off-screen on a narrow window —
+  // the detail panel sits at the right, so the trigger is often close to it.
+  const width = Math.max(rect.width, 200)
+  const maxLeft = Math.max(8, window.innerWidth - width - 8)
+  // Vertical: open below the trigger, but flip ABOVE when the popover would
+  // overflow the bottom edge (the trigger sits low in the tall detail panel,
+  // so on a short window "below" lands off-screen). Falls back to a clamped
+  // top when neither fully fits (the popover scrolls — max-height: 240px).
+  const ph = addArgPopoverRef.value?.offsetHeight || 240
+  let top = rect.bottom + 4
+  if (top + ph + 8 > window.innerHeight) {
+    const above = rect.top - ph - 4
+    top = above >= 8 ? above : Math.max(8, window.innerHeight - ph - 8)
+  }
   addArgPickerStyle.value = {
-    top: `${rect.bottom + 4}px`,
-    left: `${rect.left}px`,
-    minWidth: `${Math.max(rect.width, 200)}px`,
+    top: `${top}px`,
+    left: `${Math.min(rect.left, maxLeft)}px`,
+    minWidth: `${width}px`,
   }
 }
 
@@ -1229,8 +1424,18 @@ function pickAddArg(opt: AddArgOption) {
   addArgPickerOpen.value = false
 }
 
-function pickCustomArg() {
-  addArg()
+/** Push the user-typed custom value verbatim. If it's `name=value` matching a
+ *  signature param it renders as that named arg; otherwise it's a bare
+ *  positional/extra value — either way the user controls exactly what lands,
+ *  so there's no "silently became the next parameter" surprise. */
+function confirmCustomArg() {
+  if (!selectedNodeData.value) return
+  const value = customArgValue.value.trim()
+  if (!value) return
+  selectedNodeData.value.step.args.push(value)
+  updateStepFromNode(props.form, selectedNodeData.value)
+  rebuildAndReselect()
+  customArgValue.value = ''
   addArgPickerOpen.value = false
 }
 
@@ -1271,7 +1476,7 @@ function unbindAddArgDocClick() {
 }
 watch(addArgPickerOpen, (open) => {
   if (open) bindAddArgDocClick()
-  else unbindAddArgDocClick()
+  else { unbindAddArgDocClick(); customArgValue.value = '' }
 })
 onUnmounted(unbindAddArgDocClick)
 function removeArg(index: number) {
@@ -1900,6 +2105,26 @@ function onDebugOverlayClose(): void {
         📚 {{ t('flowEditor.libraries') }} ({{ libraryEntries.length }})
         <span aria-hidden="true">{{ librariesPanelOpen ? '▴' : '▾' }}</span>
       </button>
+      <button
+        type="button"
+        :class="['flow-libs-toggle', { active: variablesPanelOpen }]"
+        :title="t('flowEditor.variablesTitle')"
+        data-testid="flow-variables-toggle"
+        @click="variablesPanelOpen = !variablesPanelOpen"
+      >
+        📦 {{ t('flowEditor.variables') }} ({{ variableEntries.length }})
+        <span aria-hidden="true">{{ variablesPanelOpen ? '▴' : '▾' }}</span>
+      </button>
+      <button
+        type="button"
+        :class="['flow-libs-toggle', { active: suiteSettingsPanelOpen }]"
+        :title="t('flowEditor.suiteSettingsTitle')"
+        data-testid="flow-suite-settings-toggle"
+        @click="suiteSettingsPanelOpen = !suiteSettingsPanelOpen"
+      >
+        ⚙️ {{ t('flowEditor.suiteSettings') }} ({{ suiteSettingEntries.length }})
+        <span aria-hidden="true">{{ suiteSettingsPanelOpen ? '▴' : '▾' }}</span>
+      </button>
     </div>
 
     <!-- Library management panel (toggled by the section-bar
@@ -1957,6 +2182,133 @@ function onDebugOverlayClose(): void {
           class="flow-libraries__suggestion"
           @click="addLibrary(suggestion)"
         >{{ suggestion }}</button>
+      </div>
+    </div>
+
+    <!-- *** Variables *** panel — define / edit / remove suite variables
+         inline. Edits commit on blur/Enter (change event), never a
+         continuous v-model into the form. -->
+    <div v-if="variablesPanelOpen" class="flow-libraries" data-testid="flow-variables-panel">
+      <div class="flow-vars__rows">
+        <span v-if="variableEntries.length === 0" class="flow-libraries__empty">
+          {{ t('flowEditor.variablesNone') }}
+        </span>
+        <div
+          v-for="entry in variableEntries"
+          :key="entry.idx"
+          class="flow-vars__row"
+        >
+          <input
+            class="flow-vars__name"
+            :value="entry.name"
+            spellcheck="false"
+            autocomplete="off"
+            data-testid="flow-variable-name"
+            @change="updateVariableName(entry.idx, ($event.target as HTMLInputElement).value)"
+          />
+          <input
+            class="flow-vars__value"
+            :value="entry.value"
+            spellcheck="false"
+            autocomplete="off"
+            data-testid="flow-variable-value"
+            @change="updateVariableValue(entry.idx, ($event.target as HTMLInputElement).value)"
+          />
+          <button
+            type="button"
+            class="flow-libraries__chip-remove"
+            :title="t('flowEditor.variableRemoveTitle', { name: entry.name })"
+            data-testid="flow-variable-remove"
+            @click="removeVariable(entry.idx)"
+          >×</button>
+        </div>
+      </div>
+      <div class="flow-libraries__input-row">
+        <input
+          v-model="newVarName"
+          type="text"
+          class="flow-vars__name"
+          :placeholder="t('flowEditor.variableNamePlaceholder')"
+          autocomplete="off"
+          spellcheck="false"
+          data-testid="flow-variable-new-name"
+          @keydown.enter.prevent="addVariable"
+        />
+        <input
+          v-model="newVarValue"
+          type="text"
+          class="flow-vars__value"
+          :placeholder="t('flowEditor.variableValuePlaceholder')"
+          autocomplete="off"
+          spellcheck="false"
+          data-testid="flow-variable-new-value"
+          @keydown.enter.prevent="addVariable"
+        />
+        <button
+          type="button"
+          class="flow-libraries__add"
+          :disabled="!newVarName.trim()"
+          data-testid="flow-variable-add"
+          @click="addVariable"
+        >+ {{ t('flowEditor.variableAdd') }}</button>
+      </div>
+      <!-- Story FE-ENV — read-only summary of %{ENV} refs used here. -->
+      <div
+        v-if="activeEnvVarRefs.length"
+        class="flow-vars__envrefs"
+        data-testid="flow-env-vars"
+      >
+        <span class="flow-vars__envrefs-title">{{ t('flowEditor.envVarsUsed') }}</span>
+        <span
+          v-for="ref in activeEnvVarRefs"
+          :key="ref.name"
+          class="flow-libraries__chip"
+          data-testid="flow-env-var"
+        >
+          <span class="flow-libraries__chip-name">%{{ '{' }}{{ ref.name }}{{ ref.default !== null ? '=' + ref.default : '' }}{{ '}' }}</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Suite-settings panel — Suite Setup/Teardown, Force/Default Tags,
+         Documentation, Metadata, … the rest of *** Settings ***. -->
+    <div v-if="suiteSettingsPanelOpen" class="flow-libraries" data-testid="flow-suite-settings-panel">
+      <div class="flow-vars__rows">
+        <span v-if="suiteSettingEntries.length === 0" class="flow-libraries__empty">
+          {{ t('flowEditor.suiteSettingsNone') }}
+        </span>
+        <div
+          v-for="entry in suiteSettingEntries"
+          :key="entry.idx"
+          class="flow-vars__row"
+        >
+          <span class="flow-vars__name flow-vars__name--readonly">{{ entry.key }}</span>
+          <input
+            class="flow-vars__value"
+            :value="entry.value"
+            spellcheck="false"
+            autocomplete="off"
+            data-testid="flow-suite-setting-value"
+            @change="updateSuiteSettingValue(entry.idx, ($event.target as HTMLInputElement).value)"
+          />
+          <button
+            type="button"
+            class="flow-libraries__chip-remove"
+            :title="t('flowEditor.suiteSettingRemoveTitle', { name: entry.key })"
+            data-testid="flow-suite-setting-remove"
+            @click="removeSuiteSetting(entry.idx)"
+          >×</button>
+        </div>
+      </div>
+      <div v-if="availableSuiteSettingKeys.length" class="flow-libraries__suggestions">
+        <button
+          v-for="key in availableSuiteSettingKeys"
+          :key="key"
+          type="button"
+          class="flow-libraries__suggestion"
+          data-testid="flow-suite-setting-add"
+          @click="addSuiteSetting(key)"
+        >+ {{ key }}</button>
       </div>
     </div>
 
@@ -2067,6 +2419,57 @@ function onDebugOverlayClose(): void {
                 @dragstart.stop="onNodeDragHandleStart($event, nodeProps.id)"
               >&#x2630;</div>
               <span>{{ nodeProps.data.label }}</span>
+            </div>
+          </template>
+          <!-- Story FE-TPL — data-driven [Template] table. -->
+          <template #node-template-table="nodeProps">
+            <div class="flow-node-template" data-testid="flow-template-table">
+              <VueFlowHandle type="target" :position="HandlePosition.Top" />
+              <div class="flow-node-template__head">
+                <span class="flow-node-template__badge">[Template]</span>
+                <span class="flow-node-template__kw">{{ nodeProps.data.templateKeyword || '—' }}</span>
+              </div>
+              <table class="flow-node-template__table">
+                <tbody>
+                  <tr v-for="(row, r) in nodeProps.data.templateRows" :key="r">
+                    <td v-for="(cell, c) in row" :key="c">
+                      <input
+                        class="flow-node-template__cell"
+                        :value="cell"
+                        spellcheck="false"
+                        data-testid="flow-template-cell"
+                        @mousedown.stop
+                        @change="updateTemplateCell(nodeProps.data.sectionIndex, r, c, ($event.target as HTMLInputElement).value)"
+                      />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        class="flow-node-template__rm"
+                        data-testid="flow-template-remove-row"
+                        :title="t('flowEditor.templateRemoveRow')"
+                        @mousedown.stop
+                        @click.stop="removeTemplateRow(nodeProps.data.sectionIndex, r)"
+                      >×</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="flow-node-template__actions">
+                <button
+                  type="button"
+                  data-testid="flow-template-add-row"
+                  @mousedown.stop
+                  @click.stop="addTemplateRow(nodeProps.data.sectionIndex)"
+                >+ {{ t('flowEditor.templateAddRow') }}</button>
+                <button
+                  type="button"
+                  data-testid="flow-template-add-col"
+                  @mousedown.stop
+                  @click.stop="addTemplateColumn(nodeProps.data.sectionIndex)"
+                >+ {{ t('flowEditor.templateAddColumn') }}</button>
+              </div>
+              <VueFlowHandle type="source" :position="HandlePosition.Bottom" />
             </div>
           </template>
           <template #node-flow-control="nodeProps">
@@ -2434,6 +2837,7 @@ function onDebugOverlayClose(): void {
             <Teleport to="body">
             <div
               v-if="addArgPickerOpen"
+              ref="addArgPopoverRef"
               class="flow-add-arg-popover"
               role="listbox"
               data-testid="add-arg-popover"
@@ -2458,14 +2862,31 @@ function onDebugOverlayClose(): void {
                   {{ t('flowEditor.addArgPicker.namedHint') }}
                 </span>
               </button>
-              <button
-                type="button"
-                class="flow-add-arg-option flow-add-arg-option--custom"
-                data-testid="add-arg-custom"
-                @click="pickCustomArg"
-              >
-                {{ t('flowEditor.addArgPicker.custom') }}
-              </button>
+              <!-- Story EDITOR-9b — free-form custom value: type a bare value
+                   or `name=value`; pushed verbatim (no "next parameter" guess). -->
+              <div class="flow-add-arg-custom" data-testid="add-arg-custom">
+                <span class="flow-add-arg-custom-label">{{ t('flowEditor.addArgPicker.customLabel') }}</span>
+                <div class="flow-add-arg-custom-row">
+                  <input
+                    v-model="customArgValue"
+                    type="text"
+                    class="flow-add-arg-custom-input"
+                    :placeholder="t('flowEditor.addArgPicker.customPlaceholder')"
+                    autocomplete="off"
+                    spellcheck="false"
+                    data-testid="add-arg-custom-input"
+                    @keydown.enter.prevent="confirmCustomArg"
+                    @keydown.stop
+                  />
+                  <button
+                    type="button"
+                    class="flow-add-arg-custom-add"
+                    :disabled="!customArgValue.trim()"
+                    data-testid="add-arg-custom-add"
+                    @click="confirmCustomArg"
+                  >{{ t('flowEditor.addArgPicker.customAdd') }}</button>
+                </div>
+              </div>
             </div>
             </Teleport>
           </div>
@@ -2827,6 +3248,84 @@ function onDebugOverlayClose(): void {
 .flow-libraries__suggestion:hover {
   border-color: var(--color-primary, #3B7DD8);
   color: var(--color-primary, #3B7DD8);
+}
+/* Variables + suite-settings rows (reuse the .flow-libraries container). */
+.flow-vars__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.flow-vars__row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.flow-vars__name,
+.flow-vars__value {
+  padding: 4px 8px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+}
+.flow-vars__name { width: 200px; flex: 0 0 auto; }
+.flow-vars__value { flex: 1 1 auto; min-width: 0; }
+.flow-vars__name--readonly {
+  display: inline-flex;
+  align-items: center;
+  background: var(--color-bg-subtle, #f1f5f9);
+  color: var(--color-text-secondary, #555);
+  white-space: nowrap;
+}
+.flow-vars__envrefs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border, #e2e8f0);
+}
+.flow-vars__envrefs-title {
+  font-size: 11px;
+  color: var(--color-text-secondary, #555);
+}
+/* Story FE-TPL — data-driven template table node. */
+.flow-node-template {
+  background: #fff;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-width: 220px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.flow-node-template__head {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+}
+.flow-node-template__badge {
+  font-size: 10px; font-weight: 600; color: #fff;
+  background: var(--color-primary, #3B7DD8);
+  border-radius: 6px; padding: 0 6px; line-height: 16px;
+}
+.flow-node-template__kw { font-family: var(--font-mono, monospace); font-size: 12px; }
+.flow-node-template__table { border-collapse: collapse; }
+.flow-node-template__cell {
+  width: 84px; padding: 2px 4px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 3px; font-size: 11px; font-family: var(--font-mono, monospace);
+}
+.flow-node-template__rm,
+.flow-node-template__actions button {
+  border: 1px solid var(--color-border, #e2e8f0);
+  background: transparent; border-radius: 4px;
+  font-size: 11px; cursor: pointer; color: var(--color-text-secondary, #555);
+}
+.flow-node-template__rm { padding: 0 6px; }
+.flow-node-template__actions { display: flex; gap: 6px; margin-top: 6px; }
+.flow-node-template__actions button { padding: 2px 8px; }
+.flow-node-template__actions button:hover {
+  border-color: var(--color-primary, #3B7DD8); color: var(--color-primary, #3B7DD8);
 }
 .flow-section-tab {
   padding: 7px 18px;
@@ -3221,6 +3720,42 @@ function onDebugOverlayClose(): void {
   font-family: var(--font-sans, sans-serif);
   font-size: 11px;
 }
+/* Story EDITOR-9b — free-form custom-value input in the add-arg popover. */
+.flow-add-arg-custom {
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  margin-top: 2px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.flow-add-arg-custom-label {
+  font-size: 10px;
+  color: var(--color-text-muted, #5A6380);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.flow-add-arg-custom-row { display: flex; gap: 6px; }
+.flow-add-arg-custom-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+}
+.flow-add-arg-custom-add {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border: 1px solid var(--color-primary, #3B7DD8);
+  border-radius: 4px;
+  background: var(--color-primary, #3B7DD8);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.flow-add-arg-custom-add:disabled { opacity: 0.5; cursor: not-allowed; }
 .flow-add-arg-empty {
   padding: 6px 10px;
   font-size: 11px;

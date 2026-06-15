@@ -84,8 +84,20 @@ class DockerRunner(AbstractRunner):
         reachable from inside the test container. Mounting the listener
         file + propagating it is tracked as follow-up FLAKY-3.
         """
-        self._cancelled = False
         start_time = time.time()
+
+        # C1: honor a cancel that arrived during prepare()/sync (runner is
+        # registered before prepare runs). Do NOT reset `_cancelled` here —
+        # resetting it erased the cancel and ran the container anyway.
+        if self._cancelled:
+            return RunResult(
+                success=False,
+                exit_code=-1,
+                output_dir=output_dir,
+                cancelled=True,
+                error_message="Run cancelled before execution started",
+                duration_seconds=time.time() - start_time,
+            )
         client = self._get_client()
 
         if listeners:
@@ -112,6 +124,7 @@ class DockerRunner(AbstractRunner):
         if variables:
             env_vars.update({f"ROBOT_{k}": str(v) for k, v in variables.items()})
 
+        stdout_lines: list[str] = []
         try:
             # Create and start container
             self._container = client.containers.run(
@@ -129,16 +142,30 @@ class DockerRunner(AbstractRunner):
                 cpu_quota=200000,  # 2 CPUs
             )
 
-            # Stream logs
-            stdout_lines: list[str] = []
+            # Stream logs. M3: decode INCREMENTALLY and split on real line
+            # boundaries — decoding each raw chunk independently corrupts
+            # multibyte UTF-8 (accented DE/FR/ES test names) when a character
+            # straddles a chunk boundary, and emits partial lines to on_output.
+            import codecs
+
+            decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+            line_buf = ""
             for log_chunk in self._container.logs(stream=True, follow=True):
                 if self._cancelled:
                     break
-                line = log_chunk.decode("utf-8", errors="replace")
-                stdout_lines.append(line)
-                if on_output:
-                    for sub_line in line.splitlines():
-                        on_output(sub_line)
+                text = decoder.decode(log_chunk)
+                if not text:
+                    continue
+                stdout_lines.append(text)
+                line_buf += text
+                while "\n" in line_buf:
+                    complete, line_buf = line_buf.split("\n", 1)
+                    if on_output:
+                        on_output(complete)
+            # Flush any trailing partial line + decoder state at stream end.
+            line_buf += decoder.decode(b"", final=True)
+            if line_buf and on_output:
+                on_output(line_buf)
 
             # Wait for completion
             result = self._container.wait(timeout=timeout)
@@ -163,13 +190,34 @@ class DockerRunner(AbstractRunner):
 
         except Exception as e:
             duration = time.time() - start_time
+            # H1/H2: docker's wait(timeout=) / log-stream read timeout raises a
+            # Timeout-named exception but does NOT stop the container. Detect it
+            # by exception type (not message), best-effort stop the container so
+            # we don't leak compute, and flag the result as a timeout.
+            timed_out = self._is_timeout_error(e)
+            if timed_out:
+                try:
+                    self.cancel()
+                except Exception:
+                    logger.warning("failed to stop timed-out container", exc_info=True)
             return RunResult(
                 success=False,
                 exit_code=-1,
                 output_dir=output_dir,
-                error_message=str(e),
+                timed_out=timed_out,
+                stdout="".join(stdout_lines),
+                error_message=(
+                    f"Timeout after {timeout} seconds" if timed_out else str(e)
+                ),
                 duration_seconds=duration,
             )
+
+    @staticmethod
+    def _is_timeout_error(exc: Exception) -> bool:
+        """True for docker/requests read/connect timeouts. Type-name based
+        (not message-sniffing) — docker-py surfaces `requests` Timeout
+        subclasses whose class names end in 'Timeout'."""
+        return type(exc).__name__ in {"ReadTimeout", "Timeout", "ConnectTimeout"}
 
     def cancel(self) -> None:
         """Stop the running container."""

@@ -57,3 +57,30 @@ class EnvironmentVariable(Base):
     key: Mapped[str] = mapped_column(String(255))
     value: Mapped[str] = mapped_column(Text)
     is_secret: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class EnvironmentKeywordCache(Base):
+    """Cached `robot.libdoc` introspection of an environment's installed
+    keyword libraries (Story: Flow Editor — libdoc-per-environment discovery).
+
+    Lets the Flow Editor's keyword palette show keywords from BOTH standard
+    and foreign libraries offline-first, without depending on the optional
+    rf-mcp live server. One row per environment.
+
+    ``source_hash`` is a digest of the venv's installed (name, version) set;
+    when it drifts (a package was added/upgraded) the cache is stale and gets
+    re-introspected. ``keywords_json`` is the serialized keyword list.
+    """
+
+    __tablename__ = "environment_keyword_cache"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    environment_id: Mapped[int] = mapped_column(
+        ForeignKey("environments.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    source_hash: Mapped[str] = mapped_column(String(64), default="")
+    # "ready" | "building" | "error"
+    status: Mapped[str] = mapped_column(String(20), default="ready")
+    error: Mapped[str | None] = mapped_column(Text, default=None)
+    keywords_json: Mapped[str] = mapped_column(Text, default="[]")
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)

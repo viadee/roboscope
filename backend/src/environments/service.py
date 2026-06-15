@@ -11,7 +11,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.config import settings
-from src.environments.models import Environment, EnvironmentPackage, EnvironmentVariable
+from src.environments.models import (
+    Environment,
+    EnvironmentKeywordCache,
+    EnvironmentPackage,
+    EnvironmentVariable,
+)
 from src.environments.schemas import EnvCreate, EnvUpdate, EnvVarCreate, PackageCreate
 
 logger = logging.getLogger("roboscope.environments")
@@ -706,6 +711,76 @@ def docker_pip_list(docker_image: str) -> list[dict]:
         logger.warning("docker pip list failed for %s: %s", docker_image, e)
 
     return []
+
+
+# --- Keyword cache (libdoc-per-environment discovery) ---
+
+def get_keyword_cache(db: Session, env_id: int) -> EnvironmentKeywordCache | None:
+    """Return the cached keyword-introspection row for an environment, if any."""
+    return db.execute(
+        select(EnvironmentKeywordCache).where(
+            EnvironmentKeywordCache.environment_id == env_id
+        )
+    ).scalar_one_or_none()
+
+
+def keyword_cache_is_fresh(
+    db: Session, env: Environment, cache: EnvironmentKeywordCache | None
+) -> bool:
+    """A cache is fresh when it is ready and no package change has happened since
+    it was built.
+
+    Uses the environment's `packages_changed_at` timestamp (already bumped
+    whenever a package is installed/removed/upgraded) rather than shelling out
+    to `uv pip list` on every read — that subprocess defeated the cache on the
+    hot palette-load path. The libdoc digest is still recomputed off the hot
+    path inside `rebuild_keyword_cache`."""
+    if cache is None or cache.status != "ready" or cache.updated_at is None:
+        return False
+    changed = env.packages_changed_at
+    if changed is None:
+        return True  # packages never changed since the cache was built
+    # Normalize tzinfo (SQLite returns naive; in-session values may be aware).
+    built = cache.updated_at.replace(tzinfo=None)
+    changed = changed.replace(tzinfo=None)
+    return built >= changed
+
+
+def rebuild_keyword_cache(db: Session, env_id: int) -> EnvironmentKeywordCache | None:
+    """Introspect the environment's venv via libdoc and persist the result.
+
+    Synchronous — intended to run inside the background task. Returns the
+    updated cache row (or None if the environment vanished)."""
+    from datetime import UTC, datetime
+
+    from src.environments.keyword_introspection import (
+        compute_packages_hash,
+        introspect_keywords,
+    )
+
+    env = get_environment(db, env_id)
+    if env is None:
+        return None
+
+    cache = get_keyword_cache(db, env_id)
+    if cache is None:
+        cache = EnvironmentKeywordCache(environment_id=env_id)
+        db.add(cache)
+
+    try:
+        keywords = introspect_keywords(env.venv_path)
+        cache.keywords_json = json.dumps(keywords)
+        cache.source_hash = compute_packages_hash(env.venv_path)
+        cache.status = "ready"
+        cache.error = None
+    except Exception as e:  # never let introspection crash the worker
+        logger.warning("keyword introspection failed for env %s: %s", env_id, e)
+        cache.status = "error"
+        cache.error = str(e)[:500]
+    cache.updated_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(cache)
+    return cache
 
 
 def pip_list_installed(venv_path: str | None) -> list[dict]:

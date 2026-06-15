@@ -42,9 +42,14 @@ class TestAssetTokenUnit:
 
     def test_rejects_tampered_signature(self):
         t = mint_asset_token(report_id=7)
-        # Flip the last char (it's base64url; perturb it to a different
-        # b64url char — guaranteed to break the signature).
-        bad = t[:-1] + ("Z" if t[-1] != "Z" else "Y")
+        # Perturb a char near the START of the token, not the last one: the
+        # final base64url char carries "don't care" low bits (3-byte → 4-char
+        # alignment), so flipping it sometimes decodes to the SAME bytes and
+        # the HMAC still verifies — that aliasing made this test flaky
+        # (passed on one Python leg, failed on another). The first char's bits
+        # are fully significant, so flipping it always changes the decoded
+        # signature/payload.
+        bad = ("Z" if t[0] != "Z" else "Y") + t[1:]
         assert verify_asset_token(bad, report_id=7) is False
 
     def test_rejects_tampered_payload(self):

@@ -10,6 +10,25 @@
  * Covers: BuiltIn, String, Collections, DateTime, OperatingSystem, Process, XML
  */
 
+// Story FE-BDD — Gherkin/BDD prefixes are pure RF syntactic sugar:
+// `Given user logs in` calls the keyword `user logs in` (unless a keyword
+// named with the prefix exists verbatim). Recognising them lets the Flow
+// editor badge BDD steps and resolve signatures against the stripped name.
+const _BDD_PREFIX_RE = /^(Given|When|Then|And|But)\s+(.+)$/i
+
+/**
+ * Split a leading BDD prefix off a keyword name. Returns `{ prefix, rest }`
+ * (prefix in its canonical Title-case, `rest` the remaining keyword text), or
+ * `null` when the name has no BDD prefix. The match needs whitespace after the
+ * prefix, so a keyword literally named `Given` (no trailing word) is NOT split.
+ */
+export function splitBddPrefix(name: string): { prefix: string; rest: string } | null {
+  const m = _BDD_PREFIX_RE.exec((name ?? '').trim())
+  if (!m) return null
+  const prefix = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase()
+  return { prefix, rest: m[2].trim() }
+}
+
 /**
  * Find the index of the `=` that separates `name[: type]` from `default`
  * at the top scope of `body`. Returns -1 when there is no default.
@@ -374,6 +393,19 @@ export function getArgLabel(
   return fallback()
 }
 
+/**
+ * Story FE-KWSRC — BOOTSTRAP-ONLY signature map.
+ *
+ * This is the lowest-precedence fallback, used only BEFORE an environment has
+ * been introspected via `robot.libdoc` (the libdoc-per-environment endpoint is
+ * the universal source). Resolution order in `useKeywordSignatures` is:
+ *   project keywords  >  libdoc(env)  >  THIS bootstrap.
+ *
+ * INVARIANT — keep this STANDARD-LIBRARY-ONLY (BuiltIn, Collections, String,
+ * DateTime, OperatingSystem, Process, XML). Do NOT add third-party libraries
+ * (Browser, SeleniumLibrary, …): those come from libdoc, which never ages.
+ * Pinned by `RfKeywordSignaturesBootstrap.spec.ts`. "Shrink, don't grow."
+ */
 export const RF_KEYWORD_SIGNATURES = new Map<string, string[]>([
   // =====================================================================
   // BuiltIn Library
@@ -697,3 +729,10 @@ export const RF_KEYWORD_SIGNATURES = new Map<string, string[]>([
   ['set elements tag', ['source', 'tag', 'xpath=.']],
   ['set elements text', ['source', 'text=None', 'tail=None', 'xpath=.']],
 ])
+
+/**
+ * Story FE-KWSRC — explicit bootstrap alias. Prefer this name at new call
+ * sites to make the bootstrap-only role obvious; `RF_KEYWORD_SIGNATURES` is
+ * kept as the historical name so existing imports don't churn.
+ */
+export const RF_BOOTSTRAP_SIGNATURES = RF_KEYWORD_SIGNATURES

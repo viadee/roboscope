@@ -420,10 +420,27 @@ def run_analyze(job_id: int) -> None:
 
 
 def _strip_code_fences(content: str) -> str:
-    """Strip markdown code fences from LLM output if present."""
-    lines = content.strip().splitlines()
-    if lines and lines[0].startswith("```"):
-        lines = lines[1:]
-    if lines and lines[-1].strip() == "```":
-        lines = lines[:-1]
-    return "\n".join(lines)
+    """Extract the fenced code block from LLM output, tolerating prose around
+    it. C2: the old version only stripped a fence on the FIRST line and a
+    closing fence on the LAST line independently — so a model reply like
+    "Here is your file:\\n```robot\\n...\\n```" kept the prose + the dangling
+    opening fence (the closing one got stripped), producing an unparsable
+    .robot. Now: if a ``` fence exists, return only the text between the first
+    opening fence and the next closing fence (prose before/after dropped). No
+    fence → return the trimmed content unchanged.
+    """
+    text = content.strip()
+    lines = text.splitlines()
+    open_idx = next(
+        (i for i, ln in enumerate(lines) if ln.lstrip().startswith("```")), None
+    )
+    if open_idx is None:
+        return text
+    close_idx = next(
+        (j for j in range(open_idx + 1, len(lines)) if lines[j].strip().startswith("```")),
+        None,
+    )
+    if close_idx is None:
+        # Unbalanced (opening fence only) — drop the preamble + the fence line.
+        return "\n".join(lines[open_idx + 1:]).strip()
+    return "\n".join(lines[open_idx + 1:close_idx]).strip()

@@ -128,9 +128,12 @@ async function loadDynamicKeywords() {
       keywordArgsMap.value = argsMap
     }
 
-    // Also load project-specific keywords from .robot/.resource files
+    // Also load project-specific keywords from .robot/.resource files.
+    // Share them via the store so useKeywordSignatures can give them
+    // precedence over library/BuiltIn keywords (fixes the shadowing bug).
     const projKws = await getProjectKeywords(props.repoId).catch(() => [])
     projectKeywords.value = projKws
+    explorer.setProjectKeywords(projKws)
     for (const kw of projKws) {
       if (kw.arguments && kw.arguments.length > 0) {
         keywordArgsMap.value.set(kw.name, kw.arguments)

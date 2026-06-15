@@ -128,7 +128,21 @@ const candidateTooltip = computed(() =>
         @dragend="onHandleDragEnd"
       >&#x2630;</div>
       <span class="flow-node-icon">&#x2699;</span>
-      <span class="flow-node-label">{{ data.step.keyword || 'Keyword' }}</span>
+      <!-- Story FE-BDD — Gherkin prefix badge; the label then shows the
+           keyword without the prefix so BDD suites read as BDD. -->
+      <span
+        v-if="data.bdd"
+        class="flow-node-bdd-badge"
+        data-testid="bdd-badge"
+      >{{ data.bdd.prefix }}</span>
+      <span class="flow-node-label">{{ data.bdd ? data.bdd.rest : (data.step.keyword || 'Keyword') }}</span>
+      <!-- Story FE-ENV — environment-variable indicator. -->
+      <span
+        v-if="data.envRefs && data.envRefs.length"
+        class="flow-node-env-badge"
+        data-testid="env-badge"
+        :title="data.envRefs.map((r) => r.default !== null ? `%{${r.name}=${r.default}}` : `%{${r.name}}`).join('\n')"
+      >%{}</span>
     </div>
     <div v-if="data.step.args.length" class="flow-node-args">
       <span
@@ -205,6 +219,33 @@ const candidateTooltip = computed(() =>
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Story FE-BDD — Gherkin prefix badge. */
+.flow-node-bdd-badge {
+  flex: 0 0 auto;
+  margin-right: 4px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--color-accent, #D4883E);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  line-height: 16px;
+}
+/* Story FE-ENV — environment-variable indicator. */
+.flow-node-env-badge {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--color-navy, #1A2D50);
+  color: #fff;
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  line-height: 16px;
+  cursor: help;
 }
 .flow-drag-handle {
   cursor: grab;

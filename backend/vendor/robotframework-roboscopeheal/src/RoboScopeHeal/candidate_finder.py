@@ -249,8 +249,18 @@ def _sidecar_candidates(failed_selector: str, sidecar_path: Path) -> list[HealCa
             if strategy in _LEGACY_DROPPED_STRATEGIES:
                 continue
             quality = c.get("quality_score")
-            conf = float(quality) if isinstance(quality, (int, float)) else \
-                _STRATEGY_BASE_CONFIDENCE.get(strategy, 0.5)
+            if isinstance(quality, (int, float)):
+                # C1: recorder sidecars store quality_score on a 0–100 scale,
+                # but the heal confidence gate (pick_best_candidate threshold
+                # 0.7 mutating / 0.5 readonly) works in 0–1. Without this
+                # normalisation EVERY sidecar candidate (e.g. 60) compares as
+                # 60.0 >= 0.7 and bypasses the threshold — defeating the core
+                # "budgets + confidence thresholds gate every swap" invariant
+                # exactly on recorded tests. `> 1` tolerates a sidecar already
+                # written on the 0–1 scale.
+                conf = float(quality) / 100.0 if quality > 1 else float(quality)
+            else:
+                conf = _STRATEGY_BASE_CONFIDENCE.get(strategy, 0.5)
             out.append(
                 HealCandidate(
                     value=value,
@@ -295,11 +305,15 @@ def _split_iframe_wrap(selector: str) -> tuple[str, str]:
     s = selector.strip()
     prefix_parts: list[str] = []
     while s.startswith("iframe["):
-        sep = s.find(" >>> ")
-        if sep < 0:
+        # M5: tolerate spacing variants around the `>>>` frame separator
+        # (` >>> `, `>>>`, ` >>>`). The old fixed ` >>> ` find missed any
+        # other spacing, leaving the whole selector as `inner` so iframe
+        # sidecar/fingerprint lookups silently failed to fire.
+        m = re.search(r"\s*>>>\s*", s)
+        if m is None:
             break
-        prefix_parts.append(s[: sep + len(" >>> ")])
-        s = s[sep + len(" >>> "):]
+        prefix_parts.append(s[: m.end()])  # keep the original separator text
+        s = s[m.end():]
     return ("".join(prefix_parts), s)
 
 

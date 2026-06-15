@@ -84,6 +84,25 @@ for dep in data['project']['dependencies']:
 " > "$DIST/requirements.txt"
 echo "    Requirements: $(wc -l < "$DIST/requirements.txt" | tr -d ' ') packages"
 
+# Story HEAL-VENDORED — `robotframework-roboscopeheal>=0.2` is in the
+# extracted requirements but is NOT on PyPI yet. The online install
+# (which goes straight to PyPI) would 404 on it. Build the wheel from
+# the vendored source tree and ship a tiny wheels/ directory alongside
+# requirements.txt so the install command can resolve roboscopeheal
+# locally via --find-links, while everything else still comes from PyPI.
+RFHEAL_VENDOR="$ROOT/backend/vendor/robotframework-roboscopeheal"
+if [ -d "$RFHEAL_VENDOR" ]; then
+  echo "==> Building robotframework-roboscopeheal wheel from vendor..."
+  mkdir -p "$DIST/wheels"
+  python3 -m pip install --quiet --upgrade build 2>/dev/null || true
+  (cd "$RFHEAL_VENDOR" \
+   && python3 -m build --wheel --outdir "$DIST/wheels" 2>&1 \
+   | grep -iE "built|error|warn" || true)
+  echo "    Wheel: $(ls "$DIST/wheels"/*.whl 2>/dev/null | head -1)"
+else
+  echo "    WARN: $RFHEAL_VENDOR missing — heal library won't ship with this online bundle." >&2
+fi
+
 # ── 5. Create .env template ──────────────────────────────────
 cat > "$DIST/.env.example" << 'ENVEOF'
 # RoboScope Configuration
@@ -134,8 +153,14 @@ fi
 # Create virtual environment with uv
 uv venv .venv
 
-# Install dependencies from PyPI
-uv pip install --python .venv/bin/python -r requirements.txt
+# Install dependencies. PyPI for everything except the vendored
+# robotframework-roboscopeheal wheel that ships in wheels/ — uv resolves
+# the local wheel via --find-links and the rest from the public index.
+if [ -d wheels ]; then
+  uv pip install --python .venv/bin/python --find-links wheels -r requirements.txt
+else
+  uv pip install --python .venv/bin/python -r requirements.txt
+fi
 
 # Copy default config if not exists
 [ -f .env ] || cp .env.example .env
@@ -318,7 +343,7 @@ echo     API: http://localhost:%PORT%/api/v1/docs
 echo     Default login: admin@roboscope.local / admin123
 echo.
 
-python -m uvicorn src.main:app --host 0.0.0.0 --port %PORT%
+python -m uvicorn src.main:app --host 0.0.0.0 --port %PORT% --no-use-colors
 BATEOF
 
 # ── 9b. Create Windows stop script ──────────────────────────
