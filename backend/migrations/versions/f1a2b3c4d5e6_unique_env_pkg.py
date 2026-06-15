@@ -4,7 +4,7 @@ Removes duplicate rows (keeping the highest-id record per pair) and then
 adds a unique constraint so the MultipleResultsFound 500 error cannot recur.
 
 Revision ID: f1a2b3c4d5e6
-Revises: b4d2e1a9c3f7
+Revises: d5e8b2c1f7a3
 Create Date: 2026-06-12 08:00:00.000000
 """
 from typing import Sequence, Union
@@ -14,7 +14,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "f1a2b3c4d5e6"
-down_revision: Union[str, None] = "b4d2e1a9c3f7"
+down_revision: Union[str, None] = "d5e8b2c1f7a3"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
