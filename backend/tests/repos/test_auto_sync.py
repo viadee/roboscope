@@ -8,7 +8,7 @@ scheduler is just APScheduler triggering the same `sync_repo` task.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -54,11 +54,6 @@ def _commit_all(repo: Repo, message: str, *, name: str, email: str) -> None:
         GIT_COMMITTER_EMAIL=email,
     )
     repo.git.commit("-m", message)
-
-
-@contextmanager
-def _reuse_session(db_session: Session):
-    yield db_session
 
 
 def _seed_remote_clone(clone: Path, bare_remote: Path) -> None:
@@ -229,7 +224,7 @@ class TestAutoSyncTask:
             last_synced_at=None,
         )
 
-        with patch("src.repos.tasks.get_sync_session", lambda: _reuse_session(db_session)):
+        with patch("src.repos.tasks.get_sync_session", lambda: nullcontext(db_session)):
             result = sync_repo(repo.id)
 
         assert result["status"] == "error"
@@ -263,7 +258,7 @@ class TestAutoSyncTask:
             return Result()
 
         with (
-            patch("src.repos.tasks.get_sync_session", lambda: _reuse_session(db_session)),
+            patch("src.repos.tasks.get_sync_session", lambda: nullcontext(db_session)),
             patch("src.repos.tasks.dispatch_task", fake_dispatch_task),
         ):
             result = auto_sync_due_repos()
@@ -282,7 +277,7 @@ class TestAutoSyncTask:
         # Must NOT raise — APScheduler would otherwise log ERROR and
         # potentially suspend the job. Story AC requires graceful skip.
         with (
-            patch("src.repos.tasks.get_sync_session", lambda: _reuse_session(db_session)),
+            patch("src.repos.tasks.get_sync_session", lambda: nullcontext(db_session)),
             patch("src.repos.tasks.dispatch_task", boom),
         ):
             result = auto_sync_due_repos()
@@ -329,7 +324,7 @@ class TestAutoSyncTask:
         )
         db_session.commit()
 
-        with patch("src.repos.tasks.get_sync_session", lambda: _reuse_session(db_session)):
+        with patch("src.repos.tasks.get_sync_session", lambda: nullcontext(db_session)):
             result = auto_sync_due_repos()
 
         assert result["recovered"] == 1
@@ -351,7 +346,7 @@ class TestAutoSyncTask:
             auto_sync=False,
         )
 
-        with patch("src.repos.tasks.get_sync_session", lambda: _reuse_session(db_session)):
+        with patch("src.repos.tasks.get_sync_session", lambda: nullcontext(db_session)):
             result = auto_sync_due_repos()
 
         assert result["recovered"] == 0
