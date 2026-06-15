@@ -20,9 +20,9 @@ dependencies = [
     "pydantic-settings>=2.6.0",
     "PyJWT>=2.9.0",
     "bcrypt>=4.2.0",
-    "python-multipart>=0.0.12",
+    "python-multipart>=0.0.27",
     "httpx>=0.28.0",
-    "gitpython>=3.1.43",
+    "gitpython>=3.1.50",
     "robotframework>=7.1",
     "websockets>=14.1",
     "apscheduler>=3.10.4",
@@ -53,7 +53,7 @@ dependencies = [
     # rf-mcp out-of-process over HTTP and never imports fastmcp. See issue #35.
     "fastmcp>=3.2.4,<4",
     "playwright>=1.49.0",
-    "authlib>=1.6.10",
+    "authlib>=1.6.12",
     "reportlab>=4.4.10",
     # XXE / billion-laughs hardening for any XML coming from
     # subprocess output (output.xml is built from user-authored .robot

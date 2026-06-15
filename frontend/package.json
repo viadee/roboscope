@@ -39,7 +39,8 @@
   "overrides": {
     "minimatch": ">=10.2.1",
     "editorconfig": ">=2.0.0",
-    "picomatch": ">=4.0.4"
+    "picomatch": ">=4.0.4",
+    "esbuild": ">=0.28.1"
   },
   "devDependencies": {
     "@tsconfig/node20": "^20.1.0",
