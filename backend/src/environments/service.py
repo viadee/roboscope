@@ -179,7 +179,29 @@ def list_packages(db: Session, env_id: int) -> list[EnvironmentPackage]:
 
 
 def add_package(db: Session, env_id: int, data: PackageCreate) -> EnvironmentPackage:
-    """Add a package to an environment."""
+    """Add a package to an environment.
+
+    If the package already exists (e.g. from a previous failed install),
+    the existing record is reset to 'pending' so it can be retried without
+    creating a duplicate row — which would cause MultipleResultsFound errors
+    in subsequent retry/upgrade queries.
+    """
+    existing = db.execute(
+        select(EnvironmentPackage).where(
+            EnvironmentPackage.environment_id == env_id,
+            EnvironmentPackage.package_name == data.package_name,
+        )
+    ).scalars().first()
+
+    if existing is not None:
+        existing.version = data.version
+        existing.install_status = "pending"
+        existing.install_error = None
+        existing.installed_version = None
+        db.flush()
+        db.refresh(existing)
+        return existing
+
     pkg = EnvironmentPackage(
         environment_id=env_id,
         package_name=data.package_name,
@@ -193,16 +215,17 @@ def add_package(db: Session, env_id: int, data: PackageCreate) -> EnvironmentPac
 
 def remove_package(db: Session, env_id: int, package_name: str) -> None:
     """Remove a package from an environment."""
-    result = db.execute(
+    # Use .all() defensively: the unique constraint guarantees at most one row,
+    # but pre-migration databases may still have duplicates that need cleaning up.
+    pkgs = db.execute(
         select(EnvironmentPackage).where(
             EnvironmentPackage.environment_id == env_id,
             EnvironmentPackage.package_name == package_name,
         )
-    )
-    pkg = result.scalar_one_or_none()
-    if pkg:
+    ).scalars().all()
+    for pkg in pkgs:
         db.delete(pkg)
-        db.flush()
+    db.flush()
 
 
 # --- Variables ---

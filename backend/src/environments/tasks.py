@@ -408,7 +408,7 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
                 EnvironmentPackage.environment_id == env_id,
                 EnvironmentPackage.package_name == package_name,
             )
-        ).scalar_one_or_none()
+        ).scalars().first()
 
         if pkg:
             pkg.install_status = "installing"
@@ -542,7 +542,7 @@ def _upgrade_package_inner(env_id: int, package_name: str) -> dict:
                 EnvironmentPackage.environment_id == env_id,
                 EnvironmentPackage.package_name == package_name,
             )
-        ).scalar_one_or_none()
+        ).scalars().first()
 
         if pkg:
             pkg.install_status = "installing"
