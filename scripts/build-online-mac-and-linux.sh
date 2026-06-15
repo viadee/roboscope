@@ -287,8 +287,15 @@ if %errorlevel% neq 0 (
 :: Create virtual environment with uv
 uv venv .venv
 
-:: Install dependencies from PyPI
-uv pip install --python .venv\Scripts\python.exe -r requirements.txt
+:: Install dependencies. PyPI for everything except the vendored
+:: robotframework-roboscopeheal wheel that ships in wheels\ — uv resolves
+:: the local wheel via --find-links and the rest from the public index.
+:: Without --find-links the install 404s on roboscopeheal (not on PyPI).
+if exist wheels\ (
+    uv pip install --python .venv\Scripts\python.exe --find-links wheels -r requirements.txt
+) else (
+    uv pip install --python .venv\Scripts\python.exe -r requirements.txt
+)
 
 if not exist .env copy .env.example .env
 
