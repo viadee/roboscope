@@ -1382,6 +1382,9 @@ export default {
     },
     addArgPicker: {
       custom: 'Custom value …',
+      customLabel: 'Custom value',
+      customPlaceholder: 'value or name=value',
+      customAdd: 'Add',
       noUnused: 'All parameters already added.',
       namedHint: 'named',
     },

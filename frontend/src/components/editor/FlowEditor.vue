@@ -1291,16 +1291,14 @@ function isBoolChecked(index: number): boolean {
   return readBoolValue(def ?? '')
 }
 
-function addArg() {
-  if (!selectedNodeData.value) return
-  selectedNodeData.value.step.args.push('')
-  updateStepFromNode(props.form, selectedNodeData.value)
-  rebuildAndReselect()
-}
-
 // --- Story EDITOR-9: named-parameter picker on "+ Add argument" -------
 
 const addArgPickerOpen = ref(false)
+// Story EDITOR-9b — free-form "custom value" the user types into the picker
+// (a raw cell: a bare value like `5s`/`${VAR}`, or a `name=value` named arg —
+// incl. **kwargs). Replaces the old "append an empty slot" behaviour, which
+// silently became "the next positional parameter".
+const customArgValue = ref('')
 
 interface AddArgOption {
   name: string
@@ -1363,6 +1361,7 @@ const addArgOptions = computed<AddArgOption[]>(() => {
 // We Teleport the popover to <body> and pin it to the trigger button
 // via getBoundingClientRect() so it floats over the canvas instead.
 const addArgTriggerRef = ref<HTMLElement | null>(null)
+const addArgPopoverRef = ref<HTMLElement | null>(null)
 const addArgPickerStyle = ref<{ top: string; left: string; minWidth: string }>({
   top: '0px',
   left: '0px',
@@ -1373,10 +1372,25 @@ function recomputeAddArgPickerPosition() {
   const trigger = addArgTriggerRef.value
   if (!trigger) return
   const rect = trigger.getBoundingClientRect()
+  // Clamp to the viewport so the popover (and its custom-value input/Add
+  // button) never overflows the right edge off-screen on a narrow window —
+  // the detail panel sits at the right, so the trigger is often close to it.
+  const width = Math.max(rect.width, 200)
+  const maxLeft = Math.max(8, window.innerWidth - width - 8)
+  // Vertical: open below the trigger, but flip ABOVE when the popover would
+  // overflow the bottom edge (the trigger sits low in the tall detail panel,
+  // so on a short window "below" lands off-screen). Falls back to a clamped
+  // top when neither fully fits (the popover scrolls — max-height: 240px).
+  const ph = addArgPopoverRef.value?.offsetHeight || 240
+  let top = rect.bottom + 4
+  if (top + ph + 8 > window.innerHeight) {
+    const above = rect.top - ph - 4
+    top = above >= 8 ? above : Math.max(8, window.innerHeight - ph - 8)
+  }
   addArgPickerStyle.value = {
-    top: `${rect.bottom + 4}px`,
-    left: `${rect.left}px`,
-    minWidth: `${Math.max(rect.width, 200)}px`,
+    top: `${top}px`,
+    left: `${Math.min(rect.left, maxLeft)}px`,
+    minWidth: `${width}px`,
   }
 }
 
@@ -1410,8 +1424,18 @@ function pickAddArg(opt: AddArgOption) {
   addArgPickerOpen.value = false
 }
 
-function pickCustomArg() {
-  addArg()
+/** Push the user-typed custom value verbatim. If it's `name=value` matching a
+ *  signature param it renders as that named arg; otherwise it's a bare
+ *  positional/extra value — either way the user controls exactly what lands,
+ *  so there's no "silently became the next parameter" surprise. */
+function confirmCustomArg() {
+  if (!selectedNodeData.value) return
+  const value = customArgValue.value.trim()
+  if (!value) return
+  selectedNodeData.value.step.args.push(value)
+  updateStepFromNode(props.form, selectedNodeData.value)
+  rebuildAndReselect()
+  customArgValue.value = ''
   addArgPickerOpen.value = false
 }
 
@@ -1452,7 +1476,7 @@ function unbindAddArgDocClick() {
 }
 watch(addArgPickerOpen, (open) => {
   if (open) bindAddArgDocClick()
-  else unbindAddArgDocClick()
+  else { unbindAddArgDocClick(); customArgValue.value = '' }
 })
 onUnmounted(unbindAddArgDocClick)
 function removeArg(index: number) {
@@ -2813,6 +2837,7 @@ function onDebugOverlayClose(): void {
             <Teleport to="body">
             <div
               v-if="addArgPickerOpen"
+              ref="addArgPopoverRef"
               class="flow-add-arg-popover"
               role="listbox"
               data-testid="add-arg-popover"
@@ -2837,14 +2862,31 @@ function onDebugOverlayClose(): void {
                   {{ t('flowEditor.addArgPicker.namedHint') }}
                 </span>
               </button>
-              <button
-                type="button"
-                class="flow-add-arg-option flow-add-arg-option--custom"
-                data-testid="add-arg-custom"
-                @click="pickCustomArg"
-              >
-                {{ t('flowEditor.addArgPicker.custom') }}
-              </button>
+              <!-- Story EDITOR-9b — free-form custom value: type a bare value
+                   or `name=value`; pushed verbatim (no "next parameter" guess). -->
+              <div class="flow-add-arg-custom" data-testid="add-arg-custom">
+                <span class="flow-add-arg-custom-label">{{ t('flowEditor.addArgPicker.customLabel') }}</span>
+                <div class="flow-add-arg-custom-row">
+                  <input
+                    v-model="customArgValue"
+                    type="text"
+                    class="flow-add-arg-custom-input"
+                    :placeholder="t('flowEditor.addArgPicker.customPlaceholder')"
+                    autocomplete="off"
+                    spellcheck="false"
+                    data-testid="add-arg-custom-input"
+                    @keydown.enter.prevent="confirmCustomArg"
+                    @keydown.stop
+                  />
+                  <button
+                    type="button"
+                    class="flow-add-arg-custom-add"
+                    :disabled="!customArgValue.trim()"
+                    data-testid="add-arg-custom-add"
+                    @click="confirmCustomArg"
+                  >{{ t('flowEditor.addArgPicker.customAdd') }}</button>
+                </div>
+              </div>
             </div>
             </Teleport>
           </div>
@@ -3678,6 +3720,42 @@ function onDebugOverlayClose(): void {
   font-family: var(--font-sans, sans-serif);
   font-size: 11px;
 }
+/* Story EDITOR-9b — free-form custom-value input in the add-arg popover. */
+.flow-add-arg-custom {
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  margin-top: 2px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.flow-add-arg-custom-label {
+  font-size: 10px;
+  color: var(--color-text-muted, #5A6380);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.flow-add-arg-custom-row { display: flex; gap: 6px; }
+.flow-add-arg-custom-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+}
+.flow-add-arg-custom-add {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border: 1px solid var(--color-primary, #3B7DD8);
+  border-radius: 4px;
+  background: var(--color-primary, #3B7DD8);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.flow-add-arg-custom-add:disabled { opacity: 0.5; cursor: not-allowed; }
 .flow-add-arg-empty {
   padding: 6px 10px;
   font-size: 11px;

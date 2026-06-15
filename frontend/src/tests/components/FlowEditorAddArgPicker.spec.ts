@@ -61,6 +61,33 @@ describe('specForSlot (Story EDITOR-9)', () => {
   })
 })
 
+describe('custom-value add (Story EDITOR-9b) — pushed verbatim', () => {
+  // Mirror of FlowEditor.vue::confirmCustomArg — the user types the exact cell;
+  // it is trimmed and pushed as-is (no "next positional" inference).
+  function confirmCustomArg(args: string[], typed: string): string[] {
+    const value = typed.trim()
+    if (!value) return args
+    return [...args, value]
+  }
+
+  it('appends a bare value as a positional/extra cell', () => {
+    expect(confirmCustomArg(['1+1'], '${TIMEOUT}')).toEqual(['1+1', '${TIMEOUT}'])
+  })
+
+  it('appends a name=value that then resolves to its named spec, not the next positional', () => {
+    const args = confirmCustomArg(['1+1'], 'namespace=${vars}')
+    expect(args).toEqual(['1+1', 'namespace=${vars}'])
+    // The pushed cell is recognised as the NAMED param, regardless of index.
+    const r = specForSlot(args, evaluateSpecs, 1)
+    expect(r?.spec.name).toBe('namespace')
+    expect(r?.viaName).toBe(true)
+  })
+
+  it('ignores an empty / whitespace-only entry', () => {
+    expect(confirmCustomArg(['1+1'], '   ')).toEqual(['1+1'])
+  })
+})
+
 /** Mirror of FlowEditor.vue's `addArgOptions` filter logic. */
 function addArgOptions(args: string[], specs: ParsedArg[]) {
   const specNames = new Set(specs.map((s) => s.name))
