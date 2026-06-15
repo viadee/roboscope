@@ -1,54 +1,18 @@
 # RoboScope — Claude Code Project Guide
 
-Web-based Robot Framework test management tool: Git integration, GUI execution, report analysis, environments, container runtime, AI-assisted spec/test generation, Chrome recorder.
+Web-based Robot Framework test management (Git, GUI execution, reports, environments, container runtime, AI spec/test generation, Chrome recorder). FastAPI backend · Vue 3 + TS frontend · Playwright e2e. Structure, deps, commands, routes and config are discoverable from the repo (`Makefile`, `pyproject.toml`, `package.json`, `backend/src/*/router.py`, `src/config.py`) — this file only holds what you CAN'T read off the code.
 
-## Architecture (high level)
+## Conventions (non-obvious only)
 
-```
-backend/   FastAPI (Python 3.12+) — ~5800 LOC, domain-driven modules
-frontend/  Vue 3 + TS + Vite + Pinia — ~5500 LOC, 12 views, 10 stores
-e2e/       Playwright — ~1400 LOC, 13 specs, 217 tests green
-extension/ Chrome Recorder (Apache-2.0 since RECORDER-LICENSE; HTTP only)
-docker/    Dockerfiles (backend, frontend, playwright)
-_bmad/     BMAD Method v6 install (bmm + core)
-```
-
-Backend modules under `backend/src/`: `auth`, `repos`, `explorer`, `execution`, `environments`, `reports`, `stats`, `ai`, `recording`, `settings`, `plugins`, `websocket`, `api/v1`, plus `task_executor.py`, `encryption.py`, `database.py`, `main.py`.
-
-## Tech stack
-
-- **Backend**: FastAPI · SQLAlchemy 2.0 sync · Pydantic v2 · GitPython · Docker SDK · APScheduler (retention) · PyJWT · bcrypt · Fernet
-- **Package mgmt**: [uv](https://docs.astral.sh/uv/) for all venv/pip ops (see `environments/venv_utils.py`). Never call `pip`/`python -m venv` directly.
-- **Frontend**: Vue 3.5 · Pinia · Vue Router 4 · Axios · Chart.js · CodeMirror 6 · Vue Flow · js-yaml · vue-i18n v10
-- **DB**: SQLite (dev) / PostgreSQL (prod) via `DATABASE_URL`
-- **Tests**: pytest (~555) · Vitest · Playwright (217, take-screenshots skipped in CI)
-- **No Redis/Celery**: background tasks run via in-process `ThreadPoolExecutor(max_workers=1)` — `task_executor.dispatch_task()`
-
-## Commands
-
-```bash
-make install           # deps
-make dev               # backend :8000 + frontend :5173
-make backend | frontend
-make test              # backend + frontend
-make test-backend[-cov] | test-frontend[-cov] | test-e2e
-make lint | format | typecheck
-make docker-dev | docker-up | docker-down | docker-logs
-make db-migrate msg="..." | db-upgrade | db-downgrade
-```
-
-Manual backend: `cd backend && .venv/bin/python -m uvicorn src.main:app --reload --port 8000`
-Single E2E spec: `cd e2e && npx playwright test tests/<name>.spec.ts`
-
-Swagger: `http://localhost:8000/api/v1/docs`
-
-## RBAC
-
-`VIEWER (0) < RUNNER (1) < EDITOR (2) < ADMIN (3)` — `backend/src/auth/constants.py`. API tokens (`rbs_…`, SHA256-hashed) are accepted alongside JWT. Seed admin: `admin@roboscope.local` / `admin123`.
+- **Offline-only**: no CDN / Google Fonts / external imports; all assets bundled locally. Backend AND frontend.
+- **Background work**: in-process `ThreadPoolExecutor(max_workers=1)` via `task_executor.dispatch_task()` — no Redis/Celery. (See the bg-thread gotchas below.)
+- **CSS vars** centralized in `frontend/src/assets/styles/main.css`. Brand: `--color-primary:#3B7DD8`, `--color-accent:#D4883E`, `--color-navy:#1A2D50`.
+- **i18n**: every user-facing string needs EN/DE/FR/ES entries. ZH (中文) is a 5th locale that deep-merges over EN (English fallback for the long tail), so it doesn't strictly need a hand entry — but the four above do.
+- **Commits**: Conventional Commits, PR-based.
+- Seed admin: `admin@roboscope.local` / `admin123`. API tokens `rbs_…` (SHA256-hashed) work alongside JWT.
 
 ## Critical patterns & gotchas
 
-- **Offline-only**: no CDN/Google Fonts/external imports. All assets bundled locally. Applies to backend AND frontend.
 - **`db.commit()` before `dispatch_task()`**: background thread uses a separate sync session and won't see uncommitted data.
 - **FK model imports in `tasks.py`**: every task module must `import src.auth.models  # noqa: F401` etc., or FK resolution fails.
 - **WebSocket broadcast from bg thread**: never `asyncio.run()`. Use `asyncio.run_coroutine_threadsafe(coro, _event_loop)` where `_event_loop` is captured in `main.py` lifespan. Helpers: `_broadcast_run_status()` (execution), `_broadcast_analysis_status()` (stats).
@@ -61,272 +25,30 @@ Swagger: `http://localhost:8000/api/v1/docs`
 - **Axios 401 interceptor** (`frontend/src/api/client.ts`): never call `window.location.href = '/login'` unconditionally — always gate on `window.location.pathname !== '/login'` to avoid the loop above.
 - **SSE connection state must flip on `open`, not on first message**: `RecordingLiveView` initially only transitioned `streamState` from `connecting → live` inside the `command` handler. Sessions where the user didn't interact with the recorded page kept the UI on "Verbinde…" indefinitely even though the stream was healthy, which also kept the Stop-and-Save button disabled (it was gated on `commands.length`). Fix: add an `open` listener that sets `streamState = 'live'`, and gate the Stop-and-Save button on `saving` only (never require captured commands — the user must always be able to abort). Regression caught during live recorder-v2 testing 2026-04-22.
 - **Auto-fixing test code requires the SH-2 opt-in contract**: the runtime self-healing library `src/recording/heal/` lives behind explicit keyword opt-in — users write `Heal Click` to consent, `Click` is untouched. Three invariants any future "auto-fix test code" feature must honour: (1) **explicit per-keyword opt-in** (no monkey-patching the Browser library globally), (2) **never mutate `.robot` on disk at runtime** (heals are suggestions, the diff surfaces in the run panel for manual review + accept), (3) **suspect-heal classification** — a heal whose test ultimately failed must not offer a "Copy patch" affordance. The `no-heal` Robot tag is the per-test escape hatch; budgets + confidence thresholds gate every swap. Breaking any of these invariants reopens the silent-wrong-click failure mode.
-- **Backend-launched Playwright is not remote-friendly**: `v2_recorder_task.py` opens Chromium *on the backend host* with `headless=False`. On a headless Linux server (typical team deployment) that fails or opens a window on the server's desktop — the user's browser sees the SSE stream but no viewable session. Any new "backend opens a browser" feature (Story W.* successors, a future pooled-browser service, anything using Playwright headed mode) MUST consult `GET /api/v1/recordings/sessions/capabilities` and hide / disable itself when `web_playwright_viable=false`. The launcher already does this since Story DEPLOY-1. The viability check reads `ROBOSCOPE_HEADED_BROWSER` (override) and then `$DISPLAY` / `$WAYLAND_DISPLAY` on Linux. Chrome Extension path is the remote-friendly alternative — it posts from the user's browser to the backend endpoints in `/api/v1/recordings/{id}/*`.
-- **JS `new Date(naiveIso)` parses as LOCAL time, not UTC**: SQLAlchemy on SQLite drops `tzinfo` on round-trip, so the API ships `2026-04-29T07:58:04` (no `Z`, no offset). `new Date(thatString)` then reads it as local time, putting a sync that just happened ~UTC-offset hours in the past — manifests as "vor 2 Std." right after a sync. Two layers protect against this: (1) backend `src/utc_response.py::UtcJSONResponse` is wired as `default_response_class` and post-processes outgoing JSON to append `Z` to naive ISO datetimes; (2) frontend `src/utils/formatDate.ts::parseBackendDate(s)` normalises any naive ISO it sees back to UTC before constructing a `Date`. Always use `parseBackendDate` (not `new Date`) when computing `now − apiField`. The integration test in `backend/tests/repos/test_router.py::test_get_existing_datetimes_carry_z_suffix` fires if anything route-level bypasses the response class.
-- **FlowEditor node `step` arrays MUST be deep-cloned from form**: `flowConverter.ts::stepsToFlow` does `step: cloneStep(step)` (NOT `{ ...step }`). The detail-panel inputs use `v-model="selectedNodeData.step.args[i]"`; if `args` were a shared reference with `props.form`, every keystroke would fire RobotEditor's `watch(() => form.testCases, … { deep: true })` and reset `selectedNode = null`, tearing down the panel mid-edit. The form is updated only on blur via `updateStepFromNode`'s `Object.assign`. Pinned by `FlowEditorStepIsolation.spec.ts`. If you add a new array field to `RobotStep`, extend `cloneStep()` or you reopen the bug.
-- **Recorded `New Page` MUST emit `wait_until=domcontentloaded`**: Playwright's default `wait_until="load"` waits for every ad/tracker subresource. On real-world pages (`heise.de` etc.) the `load` event routinely never fires within the Browser-library 10s context timeout, even though the page is visually loaded and interactive. `domcontentloaded` is the right level for recorded flows — the page is parsed, any subsequent Click / Type Text / Scroll To Element finds its target. Both emitters (`recording/generator.py`, `recording/robot_emit.py`) write the explicit `wait_until=` and the regression assertions in `test_generator.py` / `test_robot_emit.py` pin it. Run 32 reproduced exactly this bug.
-- **Recorded `${HEADLESS}` reference REQUIRES the `*** Variables ***` definition**: `robot_emit.py` writes `New Browser    chromium    headless=${HEADLESS}` so users can flip head/headless without editing the test body. It MUST also emit a `*** Variables ***` block with `${HEADLESS}    false` (default `false` — recorded tests come from clicking through a real page, so headed-by-default matches user intent). Without the definition, RF refuses to start with `Variable '${HEADLESS}' not found.`. If you add another `${VAR}` reference to the bootstrap, add the corresponding definition in the same place.
-- **Bool checkbox in FlowEditor MUST preserve the `name=` prefix**: `selectedNodeData.step.args[i]` may be `force=True` (named-arg form). A naive `args[i] = writeBoolValue(checked)` overwrites with bare `True`, which on re-render makes `specForSlot` fall back to a different positional spec — the checkbox vanishes mid-edit and a text input takes its place. `_NAMED_ARG_RE` strips the prefix in both `isBoolChecked` and `onBoolToggle`; signature defaults are consulted via `specForSlot(...).spec.defaultValue` for empty value-half slots like `force=`. The user-facing `{}` toggle in the detail panel is the escape hatch from the typed control to a free-text input (e.g. for `${HEADLESS}` on a bool slot).
-- **Setting-meta side-note inputs use a draft buffer, never v-model into the form**: same root cause as the cloneStep bullet above. The `[Documentation]` / `[Tags]` / `[Setup]` etc. side notes (`flow/flowConverter.ts::appendSettingMetaNodes`, type `setting-meta`) open a kind-aware detail panel whose textarea / input v-models into a local `settingDraft` ref in `FlowEditor.vue`, NOT into `props.form.testCases[i].documentation` directly. A dependency-keyed watcher reseeds the draft when the user clicks a different side note; `commitSettingDraft()` writes the buffered value back on blur, going through `rebuildAndReselect()` which sets `suppressFitView` so the deep watcher doesn't tear `selectedNode` down across the rebuild. Pinned by `FlowEditorSectionSwitch.spec.ts` + 2 e2e specs in `flow-editor-settings.spec.ts`. If you add another setting kind, add it to the `SettingKind` union, `TC_KINDS` / `KW_KINDS`, `KIND_LABELS`, plus the `settingTarget` / `settingDraft` get/commit branches AND the i18n `flowEditor.settingMeta.<kind>.{label,placeholder,hint,addTitle,removeTitle}` keys in EN/DE/FR/ES.
-- **Setting-meta side notes need ≥96px stacking pitch + height-clamped CSS**: `appendSettingMetaNodes` stacks side notes vertically at `META_PITCH = 96`. The CSS on `.flow-node-doc-meta` enforces `width: 240px`, `max-height: 76px`, `overflow: hidden`, plus `-webkit-line-clamp: 2` on `__text` (and 1 for non-doc kinds). If you bump `META_PITCH` lower without also tightening the line-clamp, a long [Documentation] preview can overflow into the [Tags] node below. The 96/76/2 numbers are tuned together — keep them in sync.
-- **Recorder capture script MUST use `composedPath()[0]`, not `ev.target`**: events fired inside an open shadow root surface with `ev.target` retargeted to the *host* in the light DOM. `recording/capture_script.py::realTarget(ev)` returns `ev.composedPath()[0]` (falling back to `ev.target` for closed roots). Every event handler (click, dblclick, change, keydown, dragstart, drop) goes through `realTarget`. The ancestor walk also crosses shadow boundaries via `crossShadow(el)`: when `parentElement` is null, jump to `getRootNode().host` if the root is a `ShadowRoot`. Each ancestor carries an `is_shadow_host` flag that the synthesis layer reads to emit a `host >> inner` chained Playwright locator (selector_synthesis.py::`_shadow_chain`). Pinned by `test_capture_script.py::TestShadowDomAwareness` + `test_selector_synthesis.py::TestShadowDom`. If you add a new event listener, route it through `realTarget` or shadow-DOM clicks fire on the wrong element.
-- **Recorder selector synthesis MUST emit a parent-context CSS variant**: `selector_synthesis.py::_css` emits not only `tag.classes` but also `<ancestor#id|testid> tag.classes` whenever a stable ancestor exists. A bare `button.submit-btn` matching every submit on the page is the most common Playwright strict-mode failure source at replay; pinning the nearest stable-id ancestor (quality_score `+10` over the bare class chain) cuts those misfires by orders of magnitude. The `_with_nth_match` rewrite in `selector_verification.py` is the *last-resort* fallback (penalty `-15`) when no parent context exists. Pinned by `test_selector_synthesis.py::TestParentContextCss`.
-- **`.robot` parse/serialize is ONE pure module — `frontend/src/components/editor/robotTextIO.ts`**: `RobotEditor.vue` no longer carries its own parser; it delegates to `parseRobotText()` / `serializeRobotForm()`. This is the single source of truth for the round-trip contract, so new RF-syntax handling goes HERE (not re-implemented in a component). Contract: parse→serialize is RF-EQUIVALENT, not byte-identical (cell separators normalize to 4 spaces, tabs→spaces, blank body lines drop — documented), but never CORRUPTS: inline comments (incl. on control lines), `...` continuation, escapes (`\#`, `\ `), `${}`/`@{}`/`&{}`/`%{}`, and `[Template]` data rows all survive. Escape helpers: `escapeRfToken`/`unescapeRfToken` (leading `#`), `escapeRfCell`/`unescapeRfCell` (template cells: leading `#` + internal 2+-space runs as `\ `). Golden-corpus + edge-case tests in `FlowEditorRoundTrip*.spec.ts`. Two parallel `RobotForm`/`RobotStep` type decls still exist (`robotTextIO.ts` AND `flow/flowConverter.ts`) — a new field (e.g. `templateRows`) must be added to BOTH or vue-tsc breaks. (Known tech debt: unify them.)
-- **FlowEditor deep form-watcher RESETS the active item + selection unless `suppressFitView` is set**: `watch([() => props.form, activeSection], …, { deep: true })` runs `activeItemIndex.value = 0; selectedNode.value = null` on EVERY nested `props.form` mutation. Any handler that mutates `props.form.*` directly (Variables panel, suite-settings panel, `[Template]` table cells) MUST call `keepActiveItemOnRebuild()` (sets `suppressFitView`) or `rebuildAndReselect()` first — otherwise editing a variable while on test case #2 yanks the canvas back to #1. This shipped past unit+e2e once because fixtures had a SINGLE test case (reset-to-0 was invisible) — **flow-editor e2e fixtures must seed ≥2 test cases**. Pinned by `flow-editor-file-settings.spec.ts` ("does NOT reset the active test case").
-- **`[Template]` data-driven rows are modeled as `RobotTestCase.templateRows: string[][]`, NOT keyword steps**: a templated test's body rows are argument-sets, rendered as a single `template-table` flow node (Start→table→End). The parser look-ahead (`templateSettingAhead`) requires a NON-EMPTY `[Template]` value before routing rows to data mode (an empty `[Template]` would otherwise demote rows to steps on reload). A body row whose first cell is a control marker (FOR/IF/…) stays a step. `selectedNodeData` returns null for `template-table` nodes (else the step detail-panel derefs missing fields and crashes).
-- **Keyword discovery is libdoc-per-environment, offline-first — NOT rf-mcp-dependent**: `GET /environments/{id}/keywords` runs `python -m robot.libdoc` in the env's own venv over BuiltIn + installed RF libs, caches into `EnvironmentKeywordCache` (one row/env), returns `ready`/`building`. Cache freshness compares the env's `packages_changed_at` against the cache `updated_at` — do NOT shell out to `uv pip list` on the read path (that defeats the cache). On miss/stale it dispatches `introspect_keywords_task` (commit-before-dispatch) with a 120s in-flight guard so polls don't spawn duplicate builds. Frontend palette (`explorer.store.preloadKeywords`) prefers this endpoint, falls back to rf-knowledge. Keyword signature resolution order mirrors RF: **project keywords > libdoc(env) > static bootstrap** (`useKeywordSignatures.ts`); the static `RF_KEYWORD_SIGNATURES` map is BOOTSTRAP-ONLY (standard libs, never third-party — pinned).
-- **i18n is now EN/DE/FR/ES + ZH (中文)**: `zh.ts` deep-merges Chinese overrides over the English base so every key resolves (translated keys + English fallback for the long tail); `fallbackLocale` for zh is `['en','de']`. New user-facing strings still need EN/DE/FR/ES entries (zh inherits via fallback). Pinned by `ZhLocaleParity.spec.ts`.
+- **Backend-launched Playwright is not remote-friendly**: `v2_recorder_task.py` opens Chromium *on the backend host* with `headless=False`. On a headless Linux server (typical team deployment) that fails or opens a window on the server's desktop — the user's browser sees the SSE stream but no viewable session. Any new "backend opens a browser" feature MUST consult `GET /api/v1/recordings/sessions/capabilities` and hide / disable itself when `web_playwright_viable=false`. The launcher already does this since Story DEPLOY-1. The viability check reads `ROBOSCOPE_HEADED_BROWSER` (override) then `$DISPLAY` / `$WAYLAND_DISPLAY` on Linux. Chrome Extension path is the remote-friendly alternative — it posts from the user's browser to `/api/v1/recordings/{id}/*`.
+- **JS `new Date(naiveIso)` parses as LOCAL time, not UTC**: SQLAlchemy on SQLite drops `tzinfo` on round-trip, so the API ships `2026-04-29T07:58:04` (no `Z`). `new Date(thatString)` reads it as local time, putting a just-happened sync ~UTC-offset hours in the past ("vor 2 Std." right after a sync). Two layers protect: (1) backend `src/utc_response.py::UtcJSONResponse` (wired as `default_response_class`) appends `Z` to naive ISO datetimes; (2) frontend `src/utils/formatDate.ts::parseBackendDate(s)` normalises naive ISO to UTC before `new Date`. Always use `parseBackendDate` (not `new Date`) when computing `now − apiField`. Pinned by `backend/tests/repos/test_router.py::test_get_existing_datetimes_carry_z_suffix`.
+- **FlowEditor node `step` arrays MUST be deep-cloned from form**: `flowConverter.ts::stepsToFlow` does `step: cloneStep(step)` (NOT `{ ...step }`). The detail-panel inputs use `v-model="selectedNodeData.step.args[i]"`; if `args` were a shared reference with `props.form`, every keystroke would fire RobotEditor's `watch(() => form.testCases, … { deep: true })` and reset `selectedNode = null`, tearing down the panel mid-edit. The form updates only on blur via `updateStepFromNode`'s `Object.assign`. Pinned by `FlowEditorStepIsolation.spec.ts`. If you add a new array field to `RobotStep`, extend `cloneStep()` or you reopen the bug.
+- **Recorded `New Page` MUST emit `wait_until=domcontentloaded`**: Playwright's default `wait_until="load"` waits for every ad/tracker subresource; on real-world pages (`heise.de` etc.) `load` routinely never fires within the Browser-library 10s timeout even though the page is interactive. `domcontentloaded` is the right level for recorded flows. Both emitters (`recording/generator.py`, `recording/robot_emit.py`) write the explicit `wait_until=`; pinned in `test_generator.py` / `test_robot_emit.py`.
+- **Recorded `${HEADLESS}` reference REQUIRES the `*** Variables ***` definition**: `robot_emit.py` writes `New Browser    chromium    headless=${HEADLESS}` plus a `*** Variables ***` block with `${HEADLESS}    false` (headed-by-default matches recorder intent). Without the definition RF refuses to start (`Variable '${HEADLESS}' not found.`). Add the definition alongside any new `${VAR}` you introduce in the bootstrap.
+- **Bool checkbox in FlowEditor MUST preserve the `name=` prefix**: `selectedNodeData.step.args[i]` may be `force=True` (named-arg form). A naive `args[i] = writeBoolValue(checked)` overwrites with bare `True`, which on re-render makes `specForSlot` fall back to a different positional spec — the checkbox vanishes mid-edit. `_NAMED_ARG_RE` strips the prefix in both `isBoolChecked` and `onBoolToggle`; signature defaults come from `specForSlot(...).spec.defaultValue` for empty value-half slots like `force=`. The `{}` toggle in the detail panel is the escape hatch to a free-text input (e.g. `${HEADLESS}` on a bool slot).
+- **`.robot` parse/serialize is ONE pure module — `frontend/src/components/editor/robotTextIO.ts`**: `RobotEditor.vue` delegates to `parseRobotText()` / `serializeRobotForm()` — the single source of truth for the round-trip contract; new RF-syntax handling goes HERE, not re-implemented in a component. Contract: parse→serialize is RF-EQUIVALENT, not byte-identical (separators normalize to 4 spaces, tabs→spaces, blank body lines drop — documented), but never CORRUPTS: inline comments (incl. on control lines), `...` continuation, escapes (`\#`, `\ `), `${}`/`@{}`/`&{}`/`%{}`, and `[Template]` data rows all survive. Escape helpers: `escapeRfToken`/`unescapeRfToken` (leading `#`), `escapeRfCell`/`unescapeRfCell` (template cells: leading `#` + internal 2+-space runs as `\ `). Pinned by `FlowEditorRoundTrip*.spec.ts`. Two parallel `RobotForm`/`RobotStep` type decls exist (`robotTextIO.ts` AND `flow/flowConverter.ts`) — a new field (e.g. `templateRows`) must be added to BOTH or vue-tsc breaks. (Tech debt: unify.)
+- **FlowEditor deep form-watcher RESETS the active item + selection unless `suppressFitView` is set**: `watch([() => props.form, activeSection], …, { deep: true })` runs `activeItemIndex.value = 0; selectedNode.value = null` on EVERY nested `props.form` mutation. Any handler that mutates `props.form.*` directly (Variables panel, suite-settings panel, `[Template]` table cells) MUST call `keepActiveItemOnRebuild()` (sets `suppressFitView`) or `rebuildAndReselect()` first — else editing a variable while on test case #2 yanks the canvas back to #1. Shipped past unit+e2e once because fixtures had a SINGLE test case (reset-to-0 was invisible) — **flow-editor e2e fixtures must seed ≥2 test cases**. Pinned by `flow-editor-file-settings.spec.ts`.
+- **Setting-meta side-note inputs use a draft buffer, never v-model into the form**: same root cause. The `[Documentation]`/`[Tags]`/`[Setup]` side notes (`flowConverter.ts::appendSettingMetaNodes`, type `setting-meta`) v-model into a local `settingDraft` ref in `FlowEditor.vue`, NOT into `props.form` directly; `commitSettingDraft()` writes back on blur via `rebuildAndReselect()` (sets `suppressFitView`). Pinned by `FlowEditorSectionSwitch.spec.ts` + `flow-editor-settings.spec.ts`. A new setting kind needs: `SettingKind` union, `TC_KINDS`/`KW_KINDS`, `KIND_LABELS`, the `settingTarget`/`settingDraft` get/commit branches, AND `flowEditor.settingMeta.<kind>.*` i18n keys in EN/DE/FR/ES. Stacking: `META_PITCH = 96` with `.flow-node-doc-meta` height-clamped (240px / 76px / line-clamp 2) — keep those numbers in sync.
+- **`[Template]` data rows are `RobotTestCase.templateRows: string[][]`, NOT keyword steps**: a templated test's body rows are argument-sets, rendered as a single `template-table` flow node (Start→table→End). The parser look-ahead (`templateSettingAhead`) requires a NON-EMPTY `[Template]` value before routing rows to data mode (empty `[Template]` would demote rows to steps on reload). A body row whose first cell is a control marker (FOR/IF/…) stays a step. `selectedNodeData` returns null for `template-table` nodes (else the step detail-panel derefs missing fields and crashes).
+- **Keyword discovery is libdoc-per-environment, offline-first — NOT rf-mcp-dependent**: `GET /environments/{id}/keywords` runs `python -m robot.libdoc` in the env's own venv over BuiltIn + installed RF libs, caches into `EnvironmentKeywordCache` (one row/env). Freshness compares the env's `packages_changed_at` against the cache `updated_at` — do NOT shell out to `uv pip list` on the read path (defeats the cache). On miss/stale it dispatches `introspect_keywords_task` (commit-before-dispatch) with a 120s in-flight guard so polls don't spawn duplicate builds. Frontend palette (`explorer.store.preloadKeywords`) prefers this, falls back to rf-knowledge. Signature resolution order mirrors RF: **project keywords > libdoc(env) > static bootstrap** (`useKeywordSignatures.ts`); the static `RF_KEYWORD_SIGNATURES` map is BOOTSTRAP-ONLY (standard libs, never third-party — pinned).
+- **Recorder capture script MUST use `composedPath()[0]`, not `ev.target`**: events inside an open shadow root surface with `ev.target` retargeted to the *host*. `recording/capture_script.py::realTarget(ev)` returns `ev.composedPath()[0]` (falls back to `ev.target` for closed roots); every handler (click, dblclick, change, keydown, dragstart, drop) routes through it. The ancestor walk crosses shadow boundaries via `crossShadow(el)` (jump to `getRootNode().host` when `parentElement` is null); each ancestor's `is_shadow_host` flag makes synthesis emit a `host >> inner` chained locator (`selector_synthesis.py::_shadow_chain`). Pinned by `test_capture_script.py::TestShadowDomAwareness`. New event listeners must route through `realTarget`.
+- **Recorder selector synthesis MUST emit a parent-context CSS variant**: `selector_synthesis.py::_css` emits `<ancestor#id|testid> tag.classes` whenever a stable ancestor exists, not just `tag.classes`. A bare `button.submit-btn` matching every submit is the top Playwright strict-mode failure source at replay; pinning the nearest stable-id ancestor (quality_score `+10`) cuts misfires by orders of magnitude. `_with_nth_match` (`selector_verification.py`) is the last-resort fallback (penalty `-15`). Pinned by `test_selector_synthesis.py::TestParentContextCss`.
 
-## Key API prefixes (`/api/v1/…`)
+## Release
 
-`/auth` · `/repos` · `/explorer/{repo_id}` · `/runs` + `/schedules` · `/environments` · `/reports` · `/stats` (+ `/stats/analysis`) · `/settings` · `/ai` · `/recordings` · `/webhooks` (tokens, hooks, inbound git) · `/audit`
+`.github/workflows/build.yml` is the only pipeline that builds distributions. **Landmine: it triggers on `push: branches:[main]` and `workflow_dispatch` only — a tag push does NOT trigger it** (so tag after the main-push build finishes, then `gh release create/upload` from that run's artifacts; they expire in 7 days). Full publish procedure + failure modes live in the canonical playbook: `.claude/skills/release-publish/SKILL.md`.
 
-## Config (essentials)
+## Roadmap (open phases — not in code)
 
-| Env | Default | Purpose |
-|-----|---------|---------|
-| `DATABASE_URL` | `sqlite:///./roboscope.db` | DB |
-| `SECRET_KEY` | dev-key (warns at startup) | JWT + Fernet |
-| `RUNNER_TYPE` | `auto` | subprocess/docker/auto |
-| `DOCKER_AVAILABLE` | `false` | enable docker runner |
-| `DEFAULT_TIMEOUT_SECONDS` | `3600` | per run |
-| `WORKSPACE_DIR` / `REPORTS_DIR` / `VENVS_DIR` | `~/.roboscope/…` | storage |
-| `UV_PATH` | `""` | override uv binary |
-
-## Coding conventions
-
-- Python 3.12+, Ruff line-length 100, mypy strict, sync SQLAlchemy.
-- TypeScript strict, Vue 3 `<script setup>`, Pinia stores.
-- CSS vars centralized in `frontend/src/assets/styles/main.css`. Brand: `--color-primary:#3B7DD8`, `--color-accent:#D4883E`, `--color-navy:#1A2D50`.
-- i18n complete in EN/DE/FR/ES (app + in-app docs). Every user-facing string must have those 4 locale entries; ZH (中文) is a 5th locale that deep-merges over EN (translated keys + English fallback), so new strings don't strictly require a hand zh entry but DO require all four of EN/DE/FR/ES.
-- Conventional commits; PR-based.
-
-## Release pipeline
-
-`.github/workflows/build.yml` is the only CI pipeline that builds distributions.
-
-- **Triggers**: `push: branches: [main]` and `workflow_dispatch` only. **Tag pushes do NOT trigger it** — this is the surprise that bit us during the 0.9.0 readiness check.
-- **Jobs**:
-  - `test-unit` — Python 3.12 + 3.13 matrix; runs `pytest` (backend) and `vitest` (frontend, on the 3.12 leg only).
-  - `build-offline` — matrix `[linux, macos-arm64, macos-x86_64]` → uploads `roboscope_offline_<platform>.zip` workflow artifacts.
-  - `build-offline-windows` — runs on `windows-latest` (PowerShell `build-windows.ps1` + `test-install-windows.ps1`) → uploads `roboscope_offline_windows.zip`.
-  - `build-online` → uploads `roboscope.zip` (lightweight online variant).
-- **What CI does NOT do** (still part of the manual `release-publish` flow):
-  - Doesn't tag releases.
-  - Doesn't create a GitHub Release.
-  - Doesn't attach the built ZIPs to a Release — they live in workflow artifacts with `retention-days: 7`. After 7 days they're gone unless someone downloaded them or the run was re-triggered.
-- **Implication for `release-publish`**: after merging the release branch into `main`, the workflow runs automatically on the resulting push. Wait for it to finish, then `gh release create v<x.y.z>` + `gh release upload v<x.y.z> <zip>` for each platform — pulling the ZIPs from the just-completed workflow run is the easiest source. A future hardening pass could add a tag-trigger that auto-creates the Release and attaches the artifacts, but it's not wired today.
-
-### release-publish checklist (manual steps until tag-trigger lands)
-
-The skill at `.claude/skills/release-publish/SKILL.md` is the canonical playbook; this section is the operational TL;DR with all the gotchas we discovered during 0.9.0.
-
-**Pre-merge gates** (everything below must be done on the `release-<x.y.z>` branch first):
-
-1. Backend `pytest` green (or only `-m integration` deselected) — full run takes ~70 min, covers ~1980 tests.
-2. Frontend `vitest run` green + `vue-tsc --noEmit` clean + `npm run build` succeeds.
-3. E2E `flow-editor-settings.spec.ts` + `explorer.spec.ts` green at minimum (ideally the whole `e2e/tests/` suite, take-screenshots/take-demo-video are skipped in CI).
-4. CHANGELOG entry for the new version exists at the top under `[Unreleased]` becoming `[<x.y.z>] — <date>`.
-5. Version bumped in `backend/pyproject.toml` AND `frontend/package.json` (single source for the version is split across the two stacks).
-6. SECURITY.md updated if any new third-party advisory landed during the cycle.
-7. `git fetch origin main && git merge origin/main` on the release branch — resolve the version-bump style conflicts (CHANGELOG, CLAUDE.md, backend/pyproject.toml, frontend/package.json + lock) so `release-publish` doesn't have to.
-
-**Publish steps**:
-
-1. `git checkout main && git merge --no-ff release-<x.y.z>` then `git push origin main`. The push triggers `build.yml`.
-2. Watch the CI run — `rtk gh run list --workflow build.yml --branch main -L 1` then `rtk gh run watch <id>` for the latest. All four jobs (`test-unit` matrix, `build-offline`, `build-offline-windows`, `build-online`) must succeed.
-3. `git tag v<x.y.z> && git push origin v<x.y.z>`. **The tag push does NOT re-trigger the pipeline**, so this is purely metadata for `gh release create`.
-4. `gh release create v<x.y.z> --notes-file <(awk '/^## \[<x.y.z>\]/,/^## \[/ { if (/^## \[/ && !/<x.y.z>/) exit; print }' CHANGELOG.md)` — extracts the version's CHANGELOG section as the release body. Sanity-check the output before creating.
-5. Download the 5 ZIPs from the workflow run (`rtk gh run download <run-id> -D /tmp/release-<x.y.z>`) — they expire in 7 days, so this is the time-pressure step.
-6. Upload them: `gh release upload v<x.y.z> /tmp/release-<x.y.z>/roboscope-offline-<platform>/roboscope_offline_<platform>.zip` for each of `linux`, `macos-arm64`, `macos-x86_64`, `windows`, plus `roboscope.zip` from the online artifact.
-7. Verify the GitHub Release page shows all 5 attached ZIPs + the CHANGELOG section as body. That's the user-facing release.
-8. Bump `[Unreleased]` back into the CHANGELOG on `main` for the next cycle (PR or direct push depending on branch protection).
-
-**Common failure modes and fixes**:
-
-- **CI fails on `test-unit`**: most likely a stale test from a refactor — see the Playwright-fix-E rfbrowser test alignment we did for 0.9.0 as the template (assert what the generator emits today, not the historical artifact).
-- **Merge conflicts on `main`**: nearly always CHANGELOG.md (entries for the same version chained from a prior backport branch) or `frontend/package-lock.json` (regenerate locally with `npm install --package-lock-only`, don't try to hand-merge it).
-- **Workflow artifacts expired before upload**: re-run `build.yml` via `gh workflow run build.yml --ref main`. It rebuilds against the same commit so the binaries match the tag.
-- **`gh release upload` complains "release not found"**: the tag exists locally but wasn't pushed yet — `git push origin v<x.y.z>` first.
-
-## Milestone: Enterprise-Readiness (current)
-
-Done: Phase 1 CI/CD (API tokens, webhooks, git-trigger) · Phase 2 Audit/Compliance (audit log, retention, secrets encryption) · Phase 3 Visual Flow Editor (Vue Flow).
-
-Open:
-- **Phase 4 — Auth**: OAuth2/SSO (Azure AD, Google, GitHub); SAML 2.0; Team/Org model with inherited roles.
-- **Phase 5 — Scale/Reporting**: CSV/JSON/PDF export; distributed execution (N workers, remote agents, K8s runner plugin); Prometheus `/metrics`.
+- **Phase 4 — Auth**: OAuth2/SSO (Azure AD, Google, GitHub), SAML 2.0, Team/Org model with inherited roles. (Much already shipped — see `_bmad-output/implementation-artifacts/`.)
+- **Phase 5 — Scale/Reporting**: CSV/JSON/PDF export; distributed execution (N workers, K8s runner); Prometheus `/metrics`.
 - **Phase 6 — Quality**: saved run templates; Jira plugin; Helm chart.
-- **Polish**: general UI refinements (loaders, error/empty states).
 
-Known open issues: a11y gaps (broad — keyboard nav, ARIA labels, focus traps in modals); long-tail of ~15 `: any` annotations remain (down from ~65), all on data-shaping paths — WebSocket message bodies (2), YAML output builders in `SpecEditor.vue` (8), inline arrow params in chart-data expressions in `StatsView.vue` (4), and one `events: any[]` on a legacy recorder API surface. Zero `as any` casts. The previous ~50 `catch (e: any)` idioms were eliminated by the shared `extractErrorDetail` / `extractErrorStatus` helpers in `frontend/src/utils/errors.ts` — every catch binding is now `: unknown` or uses inline `e instanceof Error` narrowing.
+## BMAD
 
-Already addressed (kept for history so future audits don't re-discover them): `/reports/{id}/assets/` requires `?at=<HMAC token>` OR JWT (REPORT-1 + SECURITY-3); upload-size limits stream-checked at 500MB with Content-Length pre-check (ROBUSTNESS-1); JWT-in-URL replaced by short-lived asset tokens (SECURITY-3); docs lazy-loaded per locale + lazy route (PERF-1); JSON logging via `pythonjsonlogger.JsonFormatter` in `main.py`; deep `/health` check (DB SELECT 1 + 503 on outage, regression-tested); backend datetime UTC normalization (`UtcJSONResponse` + frontend `parseBackendDate`); XXE hardening on `output.xml` parsing (`defusedxml`); Windows shell-injection in Open-In-Editor (`os.startfile` instead of `cmd /c start` with shell=True); Docker client consolidation (REFACTOR-1 — single `src/docker_client.py`); default-credentials probe is banner-only (force-change walked back per user feedback).
-
-Test gaps (highest risk): SubprocessRunner / DockerRunner, `execute_test_run()`, AI LLM client + encryption, WebSocket manager, TaskExecutor, several AI + Report router endpoints.
-
-## BMAD integration
-
-BMAD Method v6 (`bmm` + `core`) installed at `_bmad/`. 41 skills registered in `.claude/skills/bmad-*`. Output folder: `_bmad-output/`.
-
-Recommended agents for RoboScope work:
-
-| Agent / Skill | When to invoke |
-|---|---|
-| **bmad-agent-architect** (Winston) | Phase 4 (SSO/SAML/Teams) and Phase 5 (distributed exec, K8s) solution design |
-| **bmad-agent-pm** (John) | Turning open roadmap items into PRDs (`bmad-create-prd`, `bmad-edit-prd`) |
-| **bmad-agent-dev** (Amelia) / `bmad-dev-story` | Implementing a story spec file end-to-end |
-| **bmad-quick-dev** | Small fixes from the "known open issues" list |
-| **bmad-agent-analyst** (Mary) | Requirements discovery for Team/Multi-tenancy and Jira integration |
-| **bmad-agent-ux-designer** (Sally) / `bmad-create-ux-design` | UI polish phase, empty/error states, mobile responsiveness |
-| **bmad-agent-tech-writer** (Paige) | Keeping in-app docs (EN/DE/FR/ES) and README aligned with new features |
-| **bmad-create-architecture** | Before Phase 4/5 kickoff |
-| **bmad-create-epics-and-stories** | Decomposing Phase 4/5/6 into sprint-ready stories |
-| **bmad-create-story** / **bmad-sprint-planning** / **bmad-sprint-status** | Per-story and per-sprint workflow |
-| **bmad-check-implementation-readiness** | Gate before starting a phase |
-| **bmad-code-review** / **bmad-review-adversarial-general** / **bmad-review-edge-case-hunter** | Pre-merge review; adversarial pass on security items (asset auth, upload limits) |
-| **bmad-qa-generate-e2e-tests** | Close test gaps (SubprocessRunner, WebSocket, AI endpoints) |
-| **bmad-retrospective** | After each phase ships |
-| **bmad-document-project** | Refresh brownfield context once Phase 4 lands |
-| **bmad-help** | When unsure which skill fits |
-
-Typical flow for a new phase: `bmad-agent-pm` → `bmad-create-prd` → `bmad-agent-architect` → `bmad-create-architecture` → `bmad-create-epics-and-stories` → `bmad-check-implementation-readiness` → `bmad-create-story` → `bmad-dev-story` → `bmad-qa-generate-e2e-tests` → `bmad-code-review` → `bmad-retrospective`.
-
-<!-- rtk-instructions v2 -->
-# RTK (Rust Token Killer) - Token-Optimized Commands
-
-## Golden Rule
-
-**Always prefix commands with `rtk`**. If RTK has a dedicated filter, it uses it. If not, it passes through unchanged. This means RTK is always safe to use.
-
-**Important**: Even in command chains with `&&`, use `rtk`:
-```bash
-# ❌ Wrong
-git add . && git commit -m "msg" && git push
-
-# ✅ Correct
-rtk git add . && rtk git commit -m "msg" && rtk git push
-```
-
-## RTK Commands by Workflow
-
-### Build & Compile (80-90% savings)
-```bash
-rtk cargo build         # Cargo build output
-rtk cargo check         # Cargo check output
-rtk cargo clippy        # Clippy warnings grouped by file (80%)
-rtk tsc                 # TypeScript errors grouped by file/code (83%)
-rtk lint                # ESLint/Biome violations grouped (84%)
-rtk prettier --check    # Files needing format only (70%)
-rtk next build          # Next.js build with route metrics (87%)
-```
-
-### Test (60-99% savings)
-```bash
-rtk cargo test          # Cargo test failures only (90%)
-rtk go test             # Go test failures only (90%)
-rtk jest                # Jest failures only (99.5%)
-rtk vitest              # Vitest failures only (99.5%)
-rtk playwright test     # Playwright failures only (94%)
-rtk pytest              # Python test failures only (90%)
-rtk rake test           # Ruby test failures only (90%)
-rtk rspec               # RSpec test failures only (60%)
-rtk test <cmd>          # Generic test wrapper - failures only
-```
-
-### Git (59-80% savings)
-```bash
-rtk git status          # Compact status
-rtk git log             # Compact log (works with all git flags)
-rtk git diff            # Compact diff (80%)
-rtk git show            # Compact show (80%)
-rtk git add             # Ultra-compact confirmations (59%)
-rtk git commit          # Ultra-compact confirmations (59%)
-rtk git push            # Ultra-compact confirmations
-rtk git pull            # Ultra-compact confirmations
-rtk git branch          # Compact branch list
-rtk git fetch           # Compact fetch
-rtk git stash           # Compact stash
-rtk git worktree        # Compact worktree
-```
-
-Note: Git passthrough works for ALL subcommands, even those not explicitly listed.
-
-### GitHub (26-87% savings)
-```bash
-rtk gh pr view <num>    # Compact PR view (87%)
-rtk gh pr checks        # Compact PR checks (79%)
-rtk gh run list         # Compact workflow runs (82%)
-rtk gh issue list       # Compact issue list (80%)
-rtk gh api              # Compact API responses (26%)
-```
-
-### JavaScript/TypeScript Tooling (70-90% savings)
-```bash
-rtk pnpm list           # Compact dependency tree (70%)
-rtk pnpm outdated       # Compact outdated packages (80%)
-rtk pnpm install        # Compact install output (90%)
-rtk npm run <script>    # Compact npm script output
-rtk npx <cmd>           # Compact npx command output
-rtk prisma              # Prisma without ASCII art (88%)
-```
-
-### Files & Search (60-75% savings)
-```bash
-rtk ls <path>           # Tree format, compact (65%)
-rtk read <file>         # Code reading with filtering (60%)
-rtk grep <pattern>      # Search grouped by file (75%)
-rtk find <pattern>      # Find grouped by directory (70%)
-```
-
-### Analysis & Debug (70-90% savings)
-```bash
-rtk err <cmd>           # Filter errors only from any command
-rtk log <file>          # Deduplicated logs with counts
-rtk json <file>         # JSON structure without values
-rtk deps                # Dependency overview
-rtk env                 # Environment variables compact
-rtk summary <cmd>       # Smart summary of command output
-rtk diff                # Ultra-compact diffs
-```
-
-### Infrastructure (85% savings)
-```bash
-rtk docker ps           # Compact container list
-rtk docker images       # Compact image list
-rtk docker logs <c>     # Deduplicated logs
-rtk kubectl get         # Compact resource list
-rtk kubectl logs        # Deduplicated pod logs
-```
-
-### Network (65-70% savings)
-```bash
-rtk curl <url>          # Compact HTTP responses (70%)
-rtk wget <url>          # Compact download output (65%)
-```
-
-### Meta Commands
-```bash
-rtk gain                # View token savings statistics
-rtk gain --history      # View command history with savings
-rtk discover            # Analyze Claude Code sessions for missed RTK usage
-rtk proxy <cmd>         # Run command without filtering (for debugging)
-rtk init                # Add RTK instructions to CLAUDE.md
-rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
-```
-
-## Token Savings Overview
-
-| Category | Commands | Typical Savings |
-|----------|----------|-----------------|
-| Tests | vitest, playwright, cargo test | 90-99% |
-| Build | next, tsc, lint, prettier | 70-87% |
-| Git | status, log, diff, add, commit | 59-80% |
-| GitHub | gh pr, gh run, gh issue | 26-87% |
-| Package Managers | pnpm, npm, npx | 70-90% |
-| Files | ls, read, grep, find | 60-75% |
-| Infrastructure | docker, kubectl | 85% |
-| Network | curl, wget | 65-70% |
-
-Overall average: **60-90% token reduction** on common development operations.
-<!-- /rtk-instructions -->
+BMAD Method v6 (`bmm` + `core`) at `_bmad/`; skills under `.claude/skills/bmad-*`, output in `_bmad-output/`. Run `/bmad-help` to orient on the workflow and which skill fits. Typical new-phase flow: PRD → architecture → epics/stories → dev-story → qa/e2e → code-review → retrospective.
