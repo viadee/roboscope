@@ -29,6 +29,13 @@
   days without executions keep their width and show a faint baseline instead of
   collapsing the gap, so the time axis is continuous and evenly spaced.
 
+### Internationalization
+
+- **Complete Simplified Chinese (中文)** translation — every section of the UI
+  is now translated. Previously only high-traffic sections were covered and the
+  rest fell back to English; zh still deep-merges over en so future keys resolve
+  until translated.
+
 ### Security & CI
 
 - Bumped **fastmcp to >=3.2.4,<4** and cleared all remaining open Dependabot
