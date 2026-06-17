@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-17
+
+### Flow Editor — control-structure authoring
+
+- Added **EXCEPT** and **FINALLY** palette items, and adding a **TRY** now
+  scaffolds `TRY → EXCEPT → END` so the block is valid Robot Framework the
+  moment it is added (a bare `TRY … END` is a syntax error and could not be
+  completed through the UI before). New E2E coverage builds IF/ELSE and
+  TRY/EXCEPT through the Flow Editor and asserts they land cleanly in the
+  Code tab, on disk after Save, and across a reload.
+
+### AI failure analysis — localized output + one-click fixes
+
+- The analysis now runs in the **frontend's current language** (EN/DE/FR/ES/ZH);
+  prose is translated while code, keywords, and patches stay verbatim.
+- Suggested unified-diff patches can now be **applied automatically** with one
+  click. The backend applies them context-first and refuses (HTTP 422) when the
+  hunks no longer match the file, so a stale patch can never corrupt a test.
+- The analysis is **scoped to its execution/report** — it no longer lingers
+  when switching to a different run, and is discarded on leave.
+
+### Statistics
+
+- The **success-rate-over-time** chart now renders one slot per calendar day:
+  days without executions keep their width and show a faint baseline instead of
+  collapsing the gap, so the time axis is continuous and evenly spaced.
+
+### Security & CI
+
+- Bumped **fastmcp to >=3.2.4,<4** and cleared all remaining open Dependabot
+  advisories (closes #35).
+- Added a **Windows online-install smoke gate** to the Phase 4 release gates (#49).
+
 ### Self-healing library distribution model
 
 - **`robotframework-roboscopeheal` now visible + installable from
