@@ -382,6 +382,20 @@ if %FOUND%==0 (
 )
 BATEOF
 
+# ── 9c. Normalise .bat files to CRLF ─────────────────────────
+# The heredocs above write LF line endings (this script runs on
+# Linux/macOS), but cmd.exe mis-parses LF-only batch files: it loses the
+# first token of each line, runs `::` comments as commands, and never
+# reaches `uv venv` — so the install silently produces no .venv. Windows
+# batch files MUST be CRLF. (The offline build's PowerShell Set-Content
+# already emits CRLF; only this bash-generated bundle needed the fix.)
+# awk is portable across GNU/BSD; `\r\n` in printf is honoured everywhere.
+echo "==> Normalising .bat files to CRLF (cmd.exe requirement)..."
+for bat in install-windows.bat start-windows.bat stop-windows.bat; do
+  f="$DIST/$bat"
+  awk '{ sub(/\r$/, ""); printf "%s\r\n", $0 }' "$f" > "$f.crlf" && mv "$f.crlf" "$f"
+done
+
 # ── 10. Create ZIP ───────────────────────────────────────────
 echo ""
 echo "==> Creating ZIP archive..."

@@ -132,3 +132,93 @@ jobs:
           SECRET_KEY: ci-test-secret-key-do-not-use-in-production
       - name: Frontend unit tests
         run: cd frontend && npm run test:unit -- --run
+
+  # Gate 6 + 7 — the online distribution ships a generated
+  # install-windows.bat plus a vendored robotframework-roboscopeheal
+  # wheel in wheels/ (the package is NOT on PyPI). A bug where the
+  # Windows installer omitted `--find-links wheels` shipped to main
+  # undetected because no CI ever executed that .bat (build.yml's
+  # online build runs on Ubuntu; test-install-windows.ps1 only covers
+  # the OFFLINE bundle). These two jobs close that gap: build the
+  # online dist exactly as release CI does (Linux), then run the real
+  # install-windows.bat on a Windows host and assert roboheal resolves
+  # and the server boots.
+  online-dist-build:
+    name: Gate 6 — Online dist build (artifact for Windows install)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build online distribution
+        run: bash scripts/build-online-mac-and-linux.sh
+      - name: Upload online dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: roboscope-online-gate
+          path: dist/roboscope.zip
+          retention-days: 1
+
+  online-install-windows:
+    name: Gate 7 — Windows online install smoke (roboheal resolves + boot)
+    runs-on: windows-latest
+    needs: [online-dist-build]
+    steps:
+      - name: Download online dist
+        uses: actions/download-artifact@v4
+        with:
+          name: roboscope-online-gate
+          path: dist-artifact
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Pre-install uv so install-windows.bat's `where uv` succeeds and
+      # uses it directly — stabilises the gate (we are testing roboheal
+      # wheel resolution, not uv's own bootstrap installer).
+      - uses: astral-sh/setup-uv@v5
+      - name: Extract online dist
+        shell: pwsh
+        run: Expand-Archive -Path dist-artifact/roboscope.zip -DestinationPath extracted -Force
+      # Run the REAL generated installer. Online install hits PyPI for
+      # everything except the vendored roboheal wheel, which must resolve
+      # from the bundled wheels/ via --find-links (the line this gate pins).
+      - name: Run install-windows.bat (real online install)
+        shell: cmd
+        run: |
+          cd extracted\roboscope
+          call install-windows.bat
+      - name: Assert roboheal resolved + server boots
+        shell: pwsh
+        working-directory: extracted/roboscope
+        env:
+          SECRET_KEY: ci-test-secret-key-not-for-production
+        run: |
+          $py = ".\.venv\Scripts\python.exe"
+          if (-not (Test-Path $py)) { throw "venv python missing — install-windows.bat failed" }
+          # The vendored heal wheel must have installed from wheels/.
+          # ImportError here is exactly the roboheal-404 regression.
+          & $py -c "import RoboScopeHeal; print('roboheal import OK')"
+          if ($LASTEXITCODE -ne 0) { throw "robotframework-roboscopeheal did not install" }
+          # Boot smoke: the app must come up and answer /health.
+          $proc = Start-Process -FilePath $py `
+            -ArgumentList "-m","uvicorn","src.main:app","--host","127.0.0.1","--port","8145" `
+            -PassThru -NoNewWindow
+          try {
+            $healthy = $false
+            for ($i = 0; $i -lt 30; $i++) {
+              try {
+                Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8145/health -TimeoutSec 2 | Out-Null
+                $healthy = $true; break
+              } catch { Start-Sleep -Seconds 1 }
+            }
+            if (-not $healthy) { throw "server did not become healthy within 30s" }
+            Write-Host "Server healthy — online Windows install smoke passed"
+          } finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          }
