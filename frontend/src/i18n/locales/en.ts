@@ -628,8 +628,12 @@ export default {
       reanalyze: 'Re-analyze',
       patches: {
         heading: 'Suggested patches',
-        hint: 'Unified-diff patches extracted from the AI analysis. Review, copy, and apply manually in your editor.',
+        hint: 'Unified-diff patches extracted from the AI analysis. Review the diff, then apply it automatically or copy it for manual editing.',
         copy: 'Copy patch',
+        apply: 'Fix automatically',
+        applying: 'Applying…',
+        applied: 'Applied ✓',
+        applyError: 'Could not apply automatically — the file changed since the analysis. Copy the patch and apply it manually.',
       },
     },
     missingLibraries: {
@@ -689,6 +693,7 @@ export default {
     lastStatus: 'Last Status',
     noFlaky: 'No flaky tests detected. Great!',
     runsTooltip: '{total} runs',
+    noRunsDay: 'No executions',
     quarantine: {
       column: 'Quarantine',
       quarantined: 'Quarantined',

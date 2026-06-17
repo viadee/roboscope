@@ -628,8 +628,12 @@ export default {
       reanalyze: 'Erneut analysieren',
       patches: {
         heading: 'Patch-Vorschläge',
-        hint: 'Unified-Diff-Patches, die aus der KI-Analyse extrahiert wurden. Prüfen, kopieren und manuell im Editor anwenden.',
+        hint: 'Unified-Diff-Patches aus der KI-Analyse. Prüfe den Diff und wende ihn automatisch an oder kopiere ihn zur manuellen Bearbeitung.',
         copy: 'Patch kopieren',
+        apply: 'Automatisch beheben',
+        applying: 'Wird angewendet…',
+        applied: 'Angewendet ✓',
+        applyError: 'Konnte nicht automatisch angewendet werden — die Datei hat sich seit der Analyse geändert. Patch kopieren und manuell anwenden.',
       },
     },
     missingLibraries: {
@@ -689,6 +693,7 @@ export default {
     lastStatus: 'Letzter Status',
     noFlaky: 'Keine flaky Tests erkannt. Gut so!',
     runsTooltip: '{total} Runs',
+    noRunsDay: 'Keine Ausführungen',
     quarantine: {
       column: 'Quarantäne',
       quarantined: 'In Quarantäne',

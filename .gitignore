@@ -69,3 +69,7 @@ _bmad/
 .tracemind/
 backend/results/
 tmp.txt
+
+# Local-only RoboScope presentation deck (bundles commercially-licensed DIN Next
+# fonts + viadee-internal brand SVGs — must NOT be published to the public repo)
+presentation/

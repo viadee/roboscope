@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed, ref } from 'vue'
+import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useReportsStore } from '@/stores/reports.store'
@@ -11,6 +11,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import ReportXmlView from '@/components/report/ReportXmlView.vue'
 import RunDiagnosticBanner from '@/components/reports/RunDiagnosticBanner.vue'
+import AnalysisPatches from '@/components/ai/AnalysisPatches.vue'
 import { formatDuration } from '@/utils/formatDuration'
 import { renderMarkdown } from '@/utils/renderMarkdown'
 import { extractErrorDetail } from '@/utils/errors'
@@ -18,7 +19,7 @@ import { extractErrorDetail } from '@/utils/errors'
 const route = useRoute()
 const reports = useReportsStore()
 const aiStore = useAiStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const reportId = computed(() => Number(route.params.id))
 const activeTab = ref<'summary' | 'html'>('summary')
@@ -33,8 +34,22 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  aiStore.stopAnalysisPolling()
+  aiStore.clearAnalysis()
   if (htmlReportUrl.value) URL.revokeObjectURL(htmlReportUrl.value)
+})
+
+// Navigating between report routes reuses this component instance, so a
+// param change must reload the report AND discard the previous report's
+// analysis (otherwise it lingers against the newly-opened one).
+watch(reportId, (id, prev) => {
+  if (id === prev) return
+  aiStore.clearAnalysis()
+  analysisError.value = ''
+  if (id) {
+    reports.fetchReport(id)
+    fetchMissingLibraries()
+    loadHtmlReport()
+  }
 })
 
 const failedTests = computed(() =>
@@ -128,25 +143,24 @@ const allInstalled = computed(() =>
 
 const analysisError = ref('')
 
+// Scope the shared store analysis to THIS report. The store holds a single
+// `analysisJob`; the guard stops an analysis generated for another report
+// (e.g. before navigating here) from rendering against this one.
+const analysis = computed(() =>
+  aiStore.analysisJob && aiStore.analysisJob.report_id === reportId.value
+    ? aiStore.analysisJob
+    : null,
+)
+
 async function startAnalysis() {
   analysisError.value = ''
   try {
-    await aiStore.analyzeFailures(reportId.value)
+    await aiStore.analyzeFailures(reportId.value, undefined, locale.value)
   } catch (e: unknown) {
     analysisError.value = extractErrorDetail(e, 'Analysis failed')
   }
 }
 
-// Story AI-2 — copy a suggested unified-diff patch to the clipboard.
-async function copyPatch(unifiedDiff: string) {
-  try {
-    await navigator.clipboard.writeText(unifiedDiff)
-  } catch {
-    // Clipboard API may be blocked (HTTP on non-localhost, iframe
-    // policies). The patch body is visible inline, so silent no-op
-    // beats spamming an error toast.
-  }
-}
 
 </script>
 
@@ -345,54 +359,31 @@ async function copyPatch(unifiedDiff: string) {
             </div>
 
             <!-- Loading state -->
-            <div v-else-if="aiStore.analysisJob && (aiStore.analysisJob.status === 'pending' || aiStore.analysisJob.status === 'running')" class="analysis-loading">
+            <div v-else-if="analysis && (analysis.status === 'pending' || analysis.status === 'running')" class="analysis-loading">
               <BaseSpinner />
               <p class="text-muted">{{ t('reportDetail.analysis.analyzing') }}</p>
             </div>
 
             <!-- Failed job -->
-            <div v-else-if="aiStore.analysisJob && aiStore.analysisJob.status === 'failed'" class="analysis-error">
-              <p class="text-danger"><strong>{{ t('reportDetail.analysis.failed') }}:</strong> {{ aiStore.analysisJob.error_message }}</p>
+            <div v-else-if="analysis && analysis.status === 'failed'" class="analysis-error">
+              <p class="text-danger"><strong>{{ t('reportDetail.analysis.failed') }}:</strong> {{ analysis.error_message }}</p>
               <BaseButton variant="secondary" size="sm" @click="startAnalysis">{{ t('common.retry') }}</BaseButton>
             </div>
 
             <!-- Result state -->
-            <div v-else-if="aiStore.analysisJob && aiStore.analysisJob.status === 'completed' && aiStore.analysisJob.result_preview" class="analysis-result">
-              <div class="analysis-content" v-html="renderMarkdown(aiStore.analysisJob.result_preview)"></div>
+            <div v-else-if="analysis && analysis.status === 'completed' && analysis.result_preview" class="analysis-result">
+              <div class="analysis-content" v-html="renderMarkdown(analysis.result_preview)"></div>
 
-              <!-- Story AI-2 — suggested patches pulled out of the markdown response. -->
-              <section
-                v-if="aiStore.analysisJob.suggested_patches && aiStore.analysisJob.suggested_patches.length"
-                class="analysis-patches"
-              >
-                <h4 class="analysis-patches__heading">
-                  🩹 {{ t('reportDetail.analysis.patches.heading') }}
-                </h4>
-                <p class="analysis-patches__hint">
-                  {{ t('reportDetail.analysis.patches.hint') }}
-                </p>
-                <div
-                  v-for="(patch, idx) in aiStore.analysisJob.suggested_patches"
-                  :key="`${patch.file_path}-${idx}`"
-                  class="analysis-patch"
-                >
-                  <div class="analysis-patch__head">
-                    <code class="analysis-patch__file">{{ patch.file_path }}</code>
-                    <button
-                      type="button"
-                      class="analysis-patch__copy"
-                      @click="copyPatch(patch.unified_diff)"
-                    >
-                      {{ t('reportDetail.analysis.patches.copy') }}
-                    </button>
-                  </div>
-                  <pre class="analysis-patch__diff"><code>{{ patch.unified_diff }}</code></pre>
-                </div>
-              </section>
+              <!-- Story AI-2 — suggested patches with copy + auto-apply. -->
+              <AnalysisPatches
+                v-if="analysis.suggested_patches && analysis.suggested_patches.length"
+                :patches="analysis.suggested_patches"
+                :repository-id="analysis.repository_id"
+              />
 
               <div class="analysis-footer">
-                <span v-if="aiStore.analysisJob.token_usage" class="text-muted text-sm">
-                  {{ t('reportDetail.analysis.tokensUsed', { tokens: aiStore.analysisJob.token_usage }) }}
+                <span v-if="analysis.token_usage" class="text-muted text-sm">
+                  {{ t('reportDetail.analysis.tokensUsed', { tokens: analysis.token_usage }) }}
                 </span>
                 <BaseButton variant="ghost" size="sm" @click="startAnalysis">{{ t('reportDetail.analysis.reanalyze') }}</BaseButton>
               </div>

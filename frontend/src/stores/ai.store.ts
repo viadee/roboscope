@@ -108,12 +108,13 @@ export const useAiStore = defineStore('ai', () => {
 
   // --- Analysis ---
 
-  async function analyzeFailures(reportId: number, providerId?: number) {
+  async function analyzeFailures(reportId: number, providerId?: number, language?: string) {
     loading.value = true
     try {
       const job = await aiApi.analyzeFailures({
         report_id: reportId,
         provider_id: providerId,
+        language,
       })
       analysisJob.value = job
       startAnalysisPolling(job.id)
@@ -167,6 +168,23 @@ export const useAiStore = defineStore('ai', () => {
       clearInterval(analysisPollInterval.value)
       analysisPollInterval.value = null
     }
+  }
+
+  /** Drop the current analysis and stop polling. Call this when leaving or
+   *  switching the execution/report being viewed so a stale analysis from a
+   *  previously-opened run can never bleed into a different one. The store
+   *  holds a single `analysisJob`, so consumers also guard their display by
+   *  `report_id` (see `analyzeFailures`); this just frees it and halts the
+   *  background poll. */
+  function clearAnalysis() {
+    stopAnalysisPolling()
+    analysisJob.value = null
+  }
+
+  /** Apply one suggested unified-diff patch to a repo file. Throws (422) if
+   *  the patch no longer matches the file on disk. */
+  async function applyPatch(repositoryId: number, filePath: string, unifiedDiff: string) {
+    return await aiApi.applyPatch(repositoryId, filePath, unifiedDiff)
   }
 
   // --- Validation & Drift ---
@@ -311,6 +329,8 @@ export const useAiStore = defineStore('ai', () => {
     stopPolling,
     startAnalysisPolling,
     stopAnalysisPolling,
+    clearAnalysis,
+    applyPatch,
     validateSpec,
     fetchDrift,
     fetchRfKnowledgeStatus,

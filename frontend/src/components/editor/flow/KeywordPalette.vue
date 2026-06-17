@@ -318,6 +318,8 @@ const categories: PaletteCategory[] = [
       { label: 'FOR Loop', type: 'for' },
       { label: 'WHILE Loop', type: 'while' },
       { label: 'TRY / EXCEPT', type: 'try' },
+      { label: 'EXCEPT', type: 'except' },
+      { label: 'FINALLY', type: 'finally' },
       { label: 'VAR', type: 'var' },
       { label: 'RETURN', type: 'return' },
       { label: 'BREAK', type: 'break' },

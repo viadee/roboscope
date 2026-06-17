@@ -19,7 +19,7 @@ _Critical rules and patterns AI agents must follow when implementing code in thi
 
 ### Do-Not-Upgrade Pins (each one is load-bearing)
 
-- **`fastmcp <3`** — hard cap from `rf-mcp` compatibility. Bumping breaks the AI module's MCP client.
+- **`fastmcp >=3.2.4,<4`** — security floor + major guard. Pulled in transitively via `rf-mcp` (≥0.31.2, which runs on fastmcp 3.x). `>=3.2.4` closes 3 fastmcp 2.x CVEs and skips the 3.0.0–3.2.3 auth-header-leak window (issue #35); `<4` keeps an untested fastmcp 4.0 out of fresh-resolution builds (CI/Docker/offline bundle install from `pyproject.toml`, not `uv.lock`) while still allowing every 3.x security update. RoboScope never imports `fastmcp` directly — it talks to `rf-mcp` as an out-of-process HTTP server (`src/ai/rf_mcp_manager.py`), so the protocol boundary, not the fastmcp API, is what matters. Do NOT re-pin to `<3` (re-opens the CVEs).
 - **`vue-i18n ^10`** — v11 rewrote the message compiler. Reserved chars (`@ | { }`) must be escaped (`admin{'@'}roboscope.local`). Dev build is lenient; **prod bundle fails silently** — component renders blank. Always test prod build for i18n changes.
 - **`pinia ^2`, `vue-router ^4`, `vue ^3.5`** — not upgraded to pinia 3 / vue-router 5 / vue 3.6 until explicit decision; treat as pinned.
 - **`typescript ~5.5`** — locked on minor; `vue-tsc` + Vite plugin compat. Do not bump to 5.6+.
