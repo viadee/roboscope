@@ -109,6 +109,9 @@ export interface AiReverseRequest {
 export interface AiAnalyzeRequest {
   report_id: number
   provider_id?: number | null
+  /** Frontend i18n locale (de/en/fr/es/zh) so the analysis prose comes back
+   *  in the user's current UI language. */
+  language?: string | null
 }
 
 export interface AiValidateSpecRequest {

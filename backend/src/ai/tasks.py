@@ -19,6 +19,7 @@ from src.ai.prompts import (
     build_analyze_user_prompt,
     build_reverse_user_prompt,
     enrich_generate_prompt,
+    language_directive,
 )
 from src.database import get_sync_session
 from src.repos.models import Repository
@@ -328,8 +329,12 @@ async def _gather_analysis_knowledge(failed_tests: list[dict]) -> list[dict]:
     return keyword_docs
 
 
-def run_analyze(job_id: int) -> None:
-    """Background task: analyze test failures in a report."""
+def run_analyze(job_id: int, language: str | None = None) -> None:
+    """Background task: analyze test failures in a report.
+
+    ``language`` is the frontend i18n locale (de/en/fr/es/zh); the analysis
+    prose is produced in that language while code/patches stay verbatim.
+    """
     with get_sync_session() as session:
         job = session.execute(select(AiJob).where(AiJob.id == job_id)).scalar_one_or_none()
         if not job:
@@ -401,7 +406,8 @@ def run_analyze(job_id: int) -> None:
                     + docs_text
                 )
 
-            result = call_llm(provider, SYSTEM_PROMPT_ANALYZE, user_prompt)
+            system_prompt = SYSTEM_PROMPT_ANALYZE + language_directive(language)
+            result = call_llm(provider, system_prompt, user_prompt)
 
             job.result_preview = result.content
             job.token_usage = result.tokens_used

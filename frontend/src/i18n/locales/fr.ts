@@ -628,8 +628,12 @@ export default {
       reanalyze: 'Réanalyser',
       patches: {
         heading: 'Patchs suggérés',
-        hint: "Patches au format unified-diff extraits de l'analyse IA. Vérifiez, copiez et appliquez manuellement dans votre éditeur.",
+        hint: "Patches au format unified-diff extraits de l'analyse IA. Vérifiez le diff, puis appliquez-le automatiquement ou copiez-le pour une édition manuelle.",
         copy: 'Copier le patch',
+        apply: 'Corriger automatiquement',
+        applying: 'Application…',
+        applied: 'Appliqué ✓',
+        applyError: "Impossible d'appliquer automatiquement — le fichier a changé depuis l'analyse. Copiez le patch et appliquez-le manuellement.",
       },
     },
     missingLibraries: {
@@ -689,6 +693,7 @@ export default {
     lastStatus: 'Dernier statut',
     noFlaky: 'Aucun test instable détecté. Parfait !',
     runsTooltip: '{total} runs',
+    noRunsDay: 'Aucune exécution',
     quarantine: {
       column: 'Quarantaine',
       quarantined: 'En quarantaine',

@@ -48,6 +48,7 @@ import {
   NODE_X,
   type RobotForm,
   type RobotStep,
+  type StepType,
   type RobotTestCase,
   type RobotKeywordDef,
   type FlowNodeData,
@@ -1540,6 +1541,32 @@ function removeReturnValue(index: number) {
 
 // --- Add node from palette ---
 
+/** A fully-formed blank step of `type` with every field initialised —
+ *  the canonical empty RobotStep shape used when scaffolding control
+ *  blocks (END / EXCEPT). Keeping it in one place stops the three
+ *  insertion paths (palette add, insert-before, drag-drop) from
+ *  drifting out of sync. */
+function makeBlankStep(type: StepType): RobotStep {
+  return {
+    type, keyword: '', args: [], returnVars: [],
+    condition: '', loopVar: '', loopFlavor: '', loopValues: [],
+    exceptPattern: '', exceptVar: '', varScope: '', comment: '',
+  }
+}
+
+/** Trailing steps a freshly-added block starter needs to be VALID
+ *  Robot Framework out of the box. IF/FOR/WHILE just need a matching
+ *  END. TRY is special: a bare `TRY ... END` is a SYNTAX ERROR in RF
+ *  — a TRY must have at least one EXCEPT / ELSE / FINALLY. So we
+ *  scaffold `TRY → EXCEPT → END` (catch-all EXCEPT), which mirrors
+ *  what a user means by "add a try/except" and leaves the block
+ *  runnable immediately. Returns [] for non-block steps. */
+function blockTrailingSteps(type: StepType): RobotStep[] {
+  if (type === 'try') return [makeBlankStep('except'), makeBlankStep('end')]
+  if (type === 'if' || type === 'for' || type === 'while') return [makeBlankStep('end')]
+  return []
+}
+
 function addNodeFromPalette(step: RobotStep, library?: string) {
   // Auto-import: when the keyword came from a library that isn't in
   // form.settings yet, prepend a `Library    X` row so RF can
@@ -1563,14 +1590,7 @@ function addNodeFromPalette(step: RobotStep, library?: string) {
   const insertAt = selectedNodeData.value
     ? selectedNodeData.value.stepIndex + 1
     : list.length
-  list.splice(insertAt, 0, step)
-  if (['if', 'for', 'while', 'try'].includes(step.type)) {
-    list.splice(insertAt + 1, 0, {
-      type: 'end', keyword: '', args: [], returnVars: [],
-      condition: '', loopVar: '', loopFlavor: '', loopValues: [],
-      exceptPattern: '', exceptVar: '', varScope: '', comment: '',
-    })
-  }
+  list.splice(insertAt, 0, step, ...blockTrailingSteps(step.type))
   // Move selection to the freshly-inserted node so the user can
   // edit args / chain another insert without a second click.
   rebuildAndReselect(stepNodeIdAt(insertAt))
@@ -1629,14 +1649,7 @@ function insertStepBefore(step: RobotStep) {
   const steps = getActiveSteps()
   if (!steps) return
   const idx = selectedNodeData.value.stepIndex
-  steps.splice(idx, 0, step)
-  if (['if', 'for', 'while', 'try'].includes(step.type)) {
-    steps.splice(idx + 1, 0, {
-      type: 'end', keyword: '', args: [], returnVars: [],
-      condition: '', loopVar: '', loopFlavor: '', loopValues: [],
-      exceptPattern: '', exceptVar: '', varScope: '', comment: '',
-    })
-  }
+  steps.splice(idx, 0, step, ...blockTrailingSteps(step.type))
   buildGraph()
 }
 
@@ -1749,14 +1762,7 @@ function insertStepAt(step: RobotStep, index: number) {
     counted++
     realIndex++
   }
-  list.splice(realIndex, 0, step)
-  if (['if', 'for', 'while', 'try'].includes(step.type)) {
-    list.splice(realIndex + 1, 0, {
-      type: 'end', keyword: '', args: [], returnVars: [],
-      condition: '', loopVar: '', loopFlavor: '', loopValues: [],
-      exceptPattern: '', exceptVar: '', varScope: '', comment: '',
-    })
-  }
+  list.splice(realIndex, 0, step, ...blockTrailingSteps(step.type))
   suppressFitView = true
   buildGraph()
 }

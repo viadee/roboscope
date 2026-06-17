@@ -79,6 +79,23 @@ class AnalyzeRequest(BaseModel):
 
     report_id: int
     provider_id: int | None = None  # None = use default provider
+    language: str | None = None  # frontend i18n locale (de/en/fr/es/zh); None = English
+
+
+class ApplyPatchRequest(BaseModel):
+    """Apply one AI-suggested unified-diff patch to a repository file."""
+
+    repository_id: int
+    file_path: str
+    unified_diff: str
+
+
+class ApplyPatchResponse(BaseModel):
+    """Result of applying a suggested patch."""
+
+    status: str  # "applied"
+    file_path: str
+    line_count: int
 
 
 class JobAcceptRequest(BaseModel):

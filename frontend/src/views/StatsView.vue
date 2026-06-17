@@ -12,6 +12,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import { formatDuration, formatPercent } from '@/utils/formatDuration'
 import { parseBackendDate } from '@/utils/formatDate'
+import { fillDailySuccessRate } from '@/utils/chartGaps'
 import type { AnalysisReport, KpiMeta } from '@/types/domain.types'
 
 const stats = useStatsStore()
@@ -115,8 +116,14 @@ const trendsDesc = computed(() => [...stats.trends].slice().reverse())
  * last label drifted right of the last bar by however much
  * whitespace the bars left unfilled.
  */
+// One chart slot per calendar day between the first and last data point.
+// Days without executions get a `point: null` slot so they occupy the same
+// width but render no bar — a continuous, evenly-spaced time axis instead of
+// bars-with-runs jammed side by side.
+const chartDays = computed(() => fillDailySuccessRate(stats.successRate))
+
 const chartXLabels = computed<{ idx: number; text: string }[]>(() => {
-  const pts = stats.successRate
+  const pts = chartDays.value
   if (pts.length === 0) return []
   if (pts.length === 1) return [{ idx: 0, text: formatShortDate(pts[0].date) }]
   if (pts.length === 2) return pts.map((p, i) => ({ idx: i, text: formatShortDate(p.date) }))
@@ -362,26 +369,32 @@ function formatDate(d: string | null) {
                   <div class="chart-gridline" style="bottom: 25%"></div>
                   <div class="chart-gridline" style="bottom: 0%"></div>
                 </div>
-                <!-- Bars -->
+                <!-- Bars: one slot per calendar day. Days without
+                     executions render a bar-less placeholder so the gap
+                     keeps its width instead of collapsing. -->
                 <div class="mini-chart">
                   <div
-                    v-for="(point, i) in stats.successRate"
-                    :key="i"
+                    v-for="(day, i) in chartDays"
+                    :key="day.date"
                     class="chart-bar"
-                    :style="{ height: `${point.success_rate}%` }"
-                    :class="point.success_rate >= 80 ? 'bar-success' : 'bar-danger'"
-                    :title="`${point.date}: ${formatPercent(point.success_rate)} (${t('stats.runsTooltip', { total: point.total_runs })})`"
+                    :style="day.point ? { height: `${day.point.success_rate}%` } : undefined"
+                    :class="day.point
+                      ? (day.point.success_rate >= 80 ? 'bar-success' : 'bar-danger')
+                      : 'bar-empty'"
+                    :title="day.point
+                      ? `${day.point.date}: ${formatPercent(day.point.success_rate)} (${t('stats.runsTooltip', { total: day.point.total_runs })})`
+                      : `${day.date}: ${t('stats.noRunsDay')}`"
                   ></div>
                 </div>
-                <!-- X-axis: one slot per bar (same flex layout +
+                <!-- X-axis: one slot per day (same flex layout +
                      max-width as `.chart-bar`) so visible labels sit
                      directly under their bars. Empty slots preserve
                      the alignment when only a subset of bars carry
                      text. -->
                 <div class="chart-x-axis">
                   <span
-                    v-for="(_, i) in stats.successRate"
-                    :key="i"
+                    v-for="(day, i) in chartDays"
+                    :key="day.date"
                     class="chart-x-slot"
                   >{{ labelForBar(i) }}</span>
                 </div>
@@ -1204,6 +1217,15 @@ function formatDate(d: string | null) {
 .bar-success:hover { opacity: 1; }
 .bar-danger { background: var(--color-danger); opacity: 0.7; }
 .bar-danger:hover { opacity: 1; }
+/* Day with no executions: keeps its slot width (so the time axis stays
+   evenly spaced) but shows only a faint baseline tick instead of a bar. */
+.bar-empty {
+  height: 3px;
+  background: var(--color-border);
+  opacity: 0.6;
+  cursor: default;
+}
+.bar-empty:hover { opacity: 1; }
 
 .chart-x-axis {
   /* Same flex layout as `.mini-chart` so the slots align with bars
