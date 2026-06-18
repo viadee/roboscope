@@ -120,7 +120,9 @@ def get_project_keywords(
     _current_user: User = Depends(get_current_user),
 ):
     """List all user-defined keywords from .robot/.resource files in the repo."""
-    repo = _get_repo(db, repo_id)
+    repo = get_repository(db, repo_id)
+    if repo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
     from src.explorer.service import parse_robot_keywords_in_repo
     return parse_robot_keywords_in_repo(repo.local_path)
 

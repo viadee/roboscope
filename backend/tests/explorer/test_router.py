@@ -503,3 +503,27 @@ class TestOpenInFileBrowser:
         assert data["missing_count"] == sum(1 for l in libs if l["status"] == "missing")
         assert data["installed_count"] == sum(1 for l in libs if l["status"] == "installed")
         assert data["builtin_count"] == sum(1 for l in libs if l["status"] == "builtin")
+
+
+class TestProjectKeywords:
+    """GET /explorer/{repo_id}/keywords — RES-1 regression (endpoint 500'd on a
+    NameError for _get_repo before the fix, so resource keywords never loaded)."""
+
+    def test_lists_resource_keywords(self, client, admin_user, repo_with_files):
+        resp = client.get(
+            f"/api/v1/explorer/{repo_with_files.id}/keywords",
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 200
+        kws = resp.json()
+        names = {k["name"] for k in kws}
+        assert "My Keyword" in names
+        entry = next(k for k in kws if k["name"] == "My Keyword")
+        assert entry["file_path"] == "resources/common.resource"
+
+    def test_unknown_repo_404(self, client, admin_user):
+        resp = client.get(
+            "/api/v1/explorer/999999/keywords",
+            headers=auth_header(admin_user),
+        )
+        assert resp.status_code == 404

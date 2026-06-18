@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useExplorerStore } from '@/stores/explorer.store'
 import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
 import { getProjectKeywords, type ProjectKeyword } from '@/api/explorer.api'
+import { resourceImportPath } from './resourcePath'
 import type { StepType, RobotStep } from './flowConverter'
 
 // Story TYPE-2: discriminated union for the palette categories.
@@ -198,6 +199,29 @@ function libraryHintFor(catName: string): string | undefined {
   if (catName === 'BuiltIn' || catName === 'Control') return undefined
   if (catName.startsWith('Project: ')) return undefined
   return catName
+}
+
+// RES — keyword name → source file path (repo-relative) for project keywords.
+const projectKeywordSource = computed(() => {
+  const m = new Map<string, string>()
+  for (const kw of projectKeywords.value) m.set(kw.name, kw.file_path)
+  return m
+})
+
+/** Auto-import hint passed as the `add-node` `library` arg. For a Library
+ *  category it's the library name; for a Project keyword sourced from another
+ *  file it's the open-file-relative `.resource`/`.robot` path (so FlowEditor's
+ *  addLibrary creates the matching `Resource` import). Same-file project
+ *  keywords and BuiltIn return undefined (no import). */
+function importHintFor(catName: string, keyword: string): string | undefined {
+  if (catName.startsWith('Project: ')) {
+    const src = projectKeywordSource.value.get(keyword)
+    if (src && src !== props.filePath) {
+      return resourceImportPath(props.filePath || '', src)
+    }
+    return undefined
+  }
+  return libraryHintFor(catName)
 }
 
 function selectKeyword(name: string, type?: StepType, library?: string) {
@@ -571,9 +595,9 @@ function onControlDragStart(event: DragEvent, type: StepType) {
                 ? t('flowEditor.keywordNotImportedHint', { library: cat.name })
                 : undefined"
               draggable="true"
-              @dragstart="onDragStart($event, kw, libraryHintFor(cat.name))"
-              @click="selectKeyword(kw, undefined, libraryHintFor(cat.name))"
-              @dblclick="addKeywordNode(kw, libraryHintFor(cat.name))"
+              @dragstart="onDragStart($event, kw, importHintFor(cat.name, kw))"
+              @click="selectKeyword(kw, undefined, importHintFor(cat.name, kw))"
+              @dblclick="addKeywordNode(kw, importHintFor(cat.name, kw))"
             >
               <span class="palette-icon">&#x2699;</span>
               <div class="palette-item-content">
