@@ -349,6 +349,36 @@ const en: DocsContent = [
         tip: 'Always click "Save N changes" before "Sync" — pulling first can overwrite or refuse with a merge error if you have local edits.'
       },
       {
+        id: 'branch-switching',
+        title: 'Branch Switching &amp; Auto-Sync',
+        content: `
+<h4>Branch switching</h4>
+<p>
+  Every Git project card shows a <strong>branch dropdown</strong> that lets you
+  switch between the available branches. Select a different branch to check it
+  out — useful for testing feature branches or comparing results across branches.
+</p>
+<h4>Auto-Sync checkbox</h4>
+<p>
+  The <strong>Auto-Sync</strong> checkbox on each project card controls whether
+  the repository is synced automatically before test runs. Enable it for CI/CD
+  flows where you always want to test the latest code.
+</p>
+<h4>Pre-run sync</h4>
+<p>
+  Enable <strong>Pre-run sync</strong> on a repository when every run must use
+  the very latest commit. RoboScope performs a synchronous <code>git pull</code>
+  right before the runner starts, with a 60&nbsp;s timeout. It is off by default
+  and adds a few seconds per run; it combines with Auto-Sync — enable either,
+  both, or neither.
+</p>
+<p>
+  If the pull fails (network, conflict, timeout), the run still starts with the
+  state on disk; the error is logged and the next Auto-Sync retries.
+</p>`,
+        tip: 'Pre-run sync guarantees the latest commit per run; Auto-Sync keeps the checkout fresh in the background. Use Pre-run sync for CI-critical suites where staleness would be a real bug.'
+      },
+      {
         id: 'library-check',
         title: 'Library Check (Package Manager)',
         content: `
@@ -2170,6 +2200,37 @@ Login Works
   password form</strong> once SSO is fully rolled out.
 </p>`,
         tip: 'Always run the Dry-Run probe before saving and before rolling out to users. The check catches 90% of misconfigurations (wrong issuer, missing scope, unreachable JWKS) without affecting end users.'
+      },
+      {
+        id: 'feature-governance',
+        title: 'Feature Governance (locking down package management)',
+        content: `
+<p>
+  On a shared or remote install where Python environments are administered
+  centrally, you can disable <strong>package management</strong> so end users
+  cannot install, uninstall, upgrade packages, build Docker images, or run
+  <code>rfbrowser init</code> against the managed environment.
+</p>
+<h4>How to disable it</h4>
+<ul>
+  <li><strong>From the UI</strong> &mdash; under <strong>Settings &gt; General &gt; features</strong>, set <code>features.packageManagement</code> to <em>No</em>.</li>
+  <li><strong>From the deployment</strong> (hard lock) &mdash; set the environment variable <code>ROBOSCOPE_FEATURE_PACKAGE_MANAGEMENT=false</code> on the server. This wins over the in-app toggle and shows it as 🔒 locked (non-editable). Changing an environment variable takes effect on the next restart.</li>
+</ul>
+<p>
+  Resolution precedence is <strong>environment variable &rarr; database setting &rarr; default (enabled)</strong>.
+</p>
+<h4>What changes when it's off</h4>
+<ul>
+  <li>The Environments page hides install / uninstall / upgrade / build controls and shows a read-only notice; the installed-package list stays visible.</li>
+  <li>The corresponding API endpoints are refused server-side (HTTP 403) &mdash; the lock cannot be bypassed via the API, and the block is recorded in the Audit Log.</li>
+</ul>
+<h4>Role floor</h4>
+<p>
+  When package management is left <em>on</em>, you can still raise the minimum
+  role required for each operation under the <code>features.packageManagement.role.*</code>
+  settings (default <strong>Editor</strong>).
+</p>`,
+        tip: 'Use the environment-variable lock (not just the in-app toggle) on installs where end users should never touch environments — it can’t be changed from inside the app.'
       }
     ]
   },
@@ -2509,6 +2570,43 @@ Login Works
   across sessions. All UI labels, buttons, and messages adapt to the selected
   language. This documentation is written in English, German, French, and
   Spanish; when the interface is set to Chinese, the docs fall back to English.
+</p>`
+      },
+      {
+        id: 'api-access',
+        title: 'API Access',
+        content: `
+<p>
+  RoboScope exposes a full REST API under <code>/api/v1/</code>. Everything the
+  interface does is available programmatically.
+</p>
+<h4>Authentication</h4>
+<p>
+  The API uses JWT bearer tokens. Request a token from the login endpoint:
+</p>
+<p>
+  <code>POST /api/v1/auth/login</code> with <code>{"email": "...", "password": "..."}</code>
+</p>
+<p>
+  Send the returned token as an <code>Authorization: Bearer &lt;token&gt;</code>
+  header on every request.
+</p>
+<h4>Key endpoints</h4>
+<table>
+  <thead>
+    <tr><th>Endpoint</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>GET /api/v1/repos</code></td><td>List all repositories</td></tr>
+    <tr><td><code>POST /api/v1/runs</code></td><td>Start a new run</td></tr>
+    <tr><td><code>GET /api/v1/reports</code></td><td>List reports</td></tr>
+    <tr><td><code>GET /api/v1/stats/kpis</code></td><td>Fetch KPI data</td></tr>
+  </tbody>
+</table>
+<p>
+  The full API documentation with all endpoints, parameters, and response
+  formats is available in the interactive <strong>Swagger UI</strong> at
+  <code>/api/v1/docs</code>.
 </p>`
       }
     ]

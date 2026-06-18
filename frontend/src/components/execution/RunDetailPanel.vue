@@ -198,6 +198,7 @@ onUnmounted(() => {
 // --- AI Failure Analysis ---
 
 const analysisError = ref('')
+const verbosity = ref<'concise' | 'standard' | 'detailed'>('standard')
 
 // Scope the shared store analysis to THIS run's report. The store holds a
 // single `analysisJob`; without this guard an analysis produced for another
@@ -212,7 +213,7 @@ async function startAnalysis() {
   if (!reportId.value) return
   analysisError.value = ''
   try {
-    await aiStore.analyzeFailures(reportId.value, undefined, locale.value)
+    await aiStore.analyzeFailures(reportId.value, undefined, locale.value, verbosity.value)
   } catch (e: unknown) {
     analysisError.value = extractErrorDetail(e, 'Analysis failed')
   }
@@ -515,6 +516,14 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
 
               <!-- Initial state — show button -->
               <div v-else class="analysis-initial">
+                <label class="analysis-verbosity">
+                  {{ t('reportDetail.analysis.verbosity.label') }}
+                  <select v-model="verbosity" class="form-select" style="width: 150px; display: inline-block">
+                    <option value="concise">{{ t('reportDetail.analysis.verbosity.concise') }}</option>
+                    <option value="standard">{{ t('reportDetail.analysis.verbosity.standard') }}</option>
+                    <option value="detailed">{{ t('reportDetail.analysis.verbosity.detailed') }}</option>
+                  </select>
+                </label>
                 <BaseButton variant="primary" size="sm" @click="startAnalysis">
                   {{ t('reportDetail.analysis.analyzeButton') }}
                 </BaseButton>

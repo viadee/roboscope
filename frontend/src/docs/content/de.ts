@@ -2101,6 +2101,25 @@ Login Works
   versteckt werden, sobald SSO vollständig ausgerollt ist.
 </p>`,
         tip: 'Führen Sie die Dry-Run-Probe immer vor dem Speichern und vor dem Rollout an Endnutzer aus. Sie fängt 90&nbsp;% aller Fehlkonfigurationen (falscher Issuer, fehlender Scope, nicht erreichbarer JWKS) ab, ohne Endnutzer zu beeinträchtigen.'
+      },
+      {
+        id: 'feature-governance',
+        title: 'Feature-Governance (Paketverwaltung sperren)',
+        content: `<p>Bei einer gemeinsam genutzten oder entfernten Installation, bei der die Python-Umgebungen zentral verwaltet werden, können Sie die <strong>Paketverwaltung</strong> deaktivieren, sodass Endnutzer in der verwalteten Umgebung keine Pakete installieren, deinstallieren oder aktualisieren, keine Docker-Images bauen und kein <code>rfbrowser init</code> ausführen können.</p>
+<h4>So deaktivieren Sie die Funktion</h4>
+<ul>
+  <li><strong>Über die Oberfläche</strong> &mdash; setzen Sie unter <strong>Einstellungen &gt; Allgemein &gt; features</strong> die Option <code>features.packageManagement</code> auf <em>Nein</em>.</li>
+  <li><strong>Über das Deployment</strong> (harte Sperre) &mdash; setzen Sie die Umgebungsvariable <code>ROBOSCOPE_FEATURE_PACKAGE_MANAGEMENT=false</code> auf dem Server. Diese hat Vorrang vor dem In-App-Schalter und zeigt ihn als 🔒 gesperrt (nicht editierbar) an. Eine Änderung der Umgebungsvariable wird beim nächsten Neustart wirksam.</li>
+</ul>
+<p>Die Auflösungsreihenfolge ist <strong>Umgebungsvariable &rarr; Datenbank-Einstellung &rarr; Standard (aktiviert)</strong>.</p>
+<h4>Was sich ändert, wenn die Funktion deaktiviert ist</h4>
+<ul>
+  <li>Die Umgebungsseite blendet die Steuerelemente zum Installieren / Deinstallieren / Aktualisieren / Bauen aus und zeigt einen schreibgeschützten Hinweis; die Liste der installierten Pakete bleibt sichtbar.</li>
+  <li>Die zugehörigen API-Endpunkte werden serverseitig abgewiesen (HTTP 403) &mdash; die Sperre lässt sich nicht über die API umgehen, und die Blockierung wird im Audit-Log protokolliert.</li>
+</ul>
+<h4>Mindest-Rolle</h4>
+<p>Wenn die Paketverwaltung <em>aktiviert</em> bleibt, können Sie unter den Einstellungen <code>features.packageManagement.role.*</code> weiterhin die für jede Operation erforderliche Mindest-Rolle anheben (Standard <strong>Editor</strong>).</p>`,
+        tip: 'Verwenden Sie die Sperre über die Umgebungsvariable (nicht nur den In-App-Schalter) bei Installationen, bei denen Endnutzer Umgebungen niemals anfassen sollen &mdash; sie lässt sich nicht aus der Anwendung heraus ändern.'
       }
     ]
   },
@@ -2392,6 +2411,35 @@ Login Works
   Die vollst\u00E4ndige API-Dokumentation mit allen Endpunkten, Parametern und
   Antwortformaten finden Sie in der interaktiven
   <strong>Swagger UI</strong> unter <code>/api/v1/docs</code>.
+</p>`
+      },
+      {
+        id: 'i18n',
+        title: 'Sprachunterst&uuml;tzung',
+        content: `
+<p>
+  RoboScope unterst&uuml;tzt mehrere Oberfl&auml;chensprachen:
+</p>
+<table>
+  <thead>
+    <tr><th>Code</th><th>Sprache</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>en</code></td><td>English (Englisch)</td></tr>
+    <tr><td><code>de</code></td><td>Deutsch</td></tr>
+    <tr><td><code>fr</code></td><td>Fran&ccedil;ais (Franz&ouml;sisch)</td></tr>
+    <tr><td><code>es</code></td><td>Espa&ntilde;ol (Spanisch)</td></tr>
+    <tr><td><code>zh</code></td><td>&#20013;&#25991; (Vereinfachtes Chinesisch)</td></tr>
+  </tbody>
+</table>
+<p>
+  Zum Wechseln der Sprache nutzen Sie den <strong>Sprachauswähler</strong> in der
+  Kopfzeile der Anwendung. Die gew&auml;hlte Sprache wird im Local Storage Ihres
+  Browsers gespeichert und bleibt &uuml;ber Sitzungen hinweg erhalten. Alle
+  Beschriftungen, Schaltfl&auml;chen und Meldungen passen sich der gew&auml;hlten
+  Sprache an. Diese Dokumentation ist in Englisch, Deutsch, Franz&ouml;sisch und
+  Spanisch verfasst; ist die Oberfl&auml;che auf Chinesisch eingestellt, wird die
+  Dokumentation auf Englisch angezeigt.
 </p>`
       }
     ]

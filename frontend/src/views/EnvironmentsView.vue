@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
+import { useFeatureFlags } from '@/composables/useFeatureFlags'
 import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
 import * as envsApi from '@/api/environments.api'
 import type { EnvironmentPackage } from '@/types/domain.types'
@@ -14,6 +15,12 @@ import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 const envs = useEnvironmentsStore()
 const toast = useToast()
 const { t } = useI18n()
+
+// Epic GOV — when package management is disabled for this deployment, all
+// mutating controls are hidden and a read-only notice is shown. The server
+// also enforces (403); this is the matching UX.
+const { isEnabled } = useFeatureFlags()
+const pkgMgmt = computed(() => isEnabled('packageManagement'))
 
 const showAddDialog = ref(false)
 const defaultEnvName = () => {
@@ -352,7 +359,10 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
           <div class="detail-section">
             <div class="section-header">
               <h4>{{ t('environments.packages') }}</h4>
-              <BaseButton size="sm" @click="openInstallDialog(env.id)">{{ t('environments.installPkg') }}</BaseButton>
+              <BaseButton v-if="pkgMgmt" size="sm" @click="openInstallDialog(env.id)">{{ t('environments.installPkg') }}</BaseButton>
+            </div>
+            <div v-if="!pkgMgmt" class="pkg-managed-notice">
+              🔒 {{ t('environments.managedByAdmin') }}
             </div>
             <div v-if="envs.packages[env.id]?.length" class="pkg-list">
               <div v-for="pkg in envs.packages[env.id]" :key="pkg.id" class="pkg-item">
@@ -376,7 +386,7 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
                     ⚠️ {{ t('environments.rfbrowserInitNeeded') }}
                   </span>
                 </div>
-                <div class="pkg-actions">
+                <div v-if="pkgMgmt" class="pkg-actions">
                   <BaseButton v-if="pkg.rfbrowser_status === 'needed'" variant="secondary" size="sm" @click="triggerRfbrowserInit(env.id)">
                     {{ t('environments.rfbrowserInit') }}
                   </BaseButton>
@@ -490,7 +500,7 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
               </div>
             </details>
 
-            <div class="docker-build-action">
+            <div v-if="pkgMgmt" class="docker-build-action">
               <BaseButton
                 size="sm"
                 :loading="env.docker_build_status === 'building'"
@@ -714,6 +724,16 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
 .pkg-list {
   display: flex;
   flex-direction: column;
+}
+
+.pkg-managed-notice {
+  margin: 4px 0 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  background: var(--color-bg, #F4F7FA);
+  border: 1px dashed var(--color-border, #cbd5e1);
+  border-radius: 6px;
 }
 
 .pkg-item {
