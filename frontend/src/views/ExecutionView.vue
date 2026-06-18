@@ -119,6 +119,8 @@ const runForm = ref({
   branch: 'main',
   runner_type: 'subprocess',
   timeout_seconds: 3600,
+  tags_include: '',
+  tags_exclude: '',
 })
 const starting = ref(false)
 const rebuildDocker = ref(false)
@@ -657,6 +659,15 @@ function isTerminal(status: string): boolean {
           <div class="form-group">
             <label class="form-label">{{ t('execution.runDialog.timeout') }}</label>
             <input v-model.number="runForm.timeout_seconds" type="number" class="form-input" min="30" max="86400" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ t('execution.runDialog.tagsInclude') }}</label>
+            <input v-model="runForm.tags_include" class="form-input" :placeholder="t('execution.runDialog.tagsPlaceholder')" />
+            <span class="text-muted text-sm">{{ t('execution.runDialog.tagsHint') }}</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ t('execution.runDialog.tagsExclude') }}</label>
+            <input v-model="runForm.tags_exclude" class="form-input" :placeholder="t('execution.runDialog.tagsPlaceholder')" />
           </div>
         </div>
 
