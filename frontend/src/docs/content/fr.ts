@@ -2443,6 +2443,28 @@ Login Works
   anglais, allemand, fran\u00E7ais et espagnol ; lorsque l\u2019interface est r\u00E9gl\u00E9e sur le chinois,
   la documentation se rabat sur l\u2019anglais.
 </p>`
+      },
+      {
+        id: 'api-access',
+        title: 'Acc\u00e8s \u00e0 l\u2019API',
+        content: `
+<p>RoboScope expose une API REST compl\u00e8te sous <code>/api/v1/</code>. Tout ce que fait l\u2019interface est disponible de mani\u00e8re programmatique.</p>
+<h4>Authentification</h4>
+<p>L\u2019API utilise des jetons bearer JWT. Demandez un jeton aupr\u00e8s du point de terminaison de connexion\u00a0:</p>
+<p><code>POST /api/v1/auth/login</code> avec <code>{"email": "...", "password": "..."}</code></p>
+<p>Envoyez le jeton retourn\u00e9 dans un en-t\u00eate <code>Authorization: Bearer &lt;token&gt;</code> \u00e0 chaque requ\u00eate.</p>
+<h4>Points de terminaison principaux</h4>
+<table>
+  <thead><tr><th>Point de terminaison</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /api/v1/repos</code></td><td>Lister tous les d\u00e9p\u00f4ts</td></tr>
+    <tr><td><code>POST /api/v1/runs</code></td><td>D\u00e9marrer une nouvelle ex\u00e9cution</td></tr>
+    <tr><td><code>GET /api/v1/reports</code></td><td>Lister les rapports</td></tr>
+    <tr><td><code>GET /api/v1/stats/kpis</code></td><td>R\u00e9cup\u00e9rer les donn\u00e9es KPI</td></tr>
+  </tbody>
+</table>
+<p>La documentation compl\u00e8te de l\u2019API, avec tous les points de terminaison, param\u00e8tres et formats de r\u00e9ponse, est disponible dans l\u2019interface interactive <strong>Swagger UI</strong> \u00e0 l\u2019adresse <code>/api/v1/docs</code>.</p>`,
+        tip: 'L\u2019interface Swagger UI \u00e0 /api/v1/docs est la r\u00e9f\u00e9rence en direct\u00a0: chaque point de terminaison, param\u00e8tre et sch\u00e9ma, g\u00e9n\u00e9r\u00e9 \u00e0 partir du serveur en cours d\u2019ex\u00e9cution.'
       }
     ]
   },

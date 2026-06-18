@@ -2490,6 +2490,28 @@ Login Works
   franc\u00E9s y espa\u00F1ol; cuando la interfaz est\u00E1 en chino, la documentaci\u00F3n
   recurre al ingl\u00E9s.
 </p>`
+      },
+      {
+        id: 'api-access',
+        title: 'Acceso a la API',
+        content: `
+<p>RoboScope expone una API REST completa bajo <code>/api/v1/</code>. Todo lo que hace la interfaz est\u00E1 disponible de forma program\u00E1tica.</p>
+<h4>Autenticaci\u00F3n</h4>
+<p>La API utiliza tokens bearer JWT. Solicite un token desde el endpoint de inicio de sesi\u00F3n:</p>
+<p><code>POST /api/v1/auth/login</code> con <code>{"email": "...", "password": "..."}</code></p>
+<p>Env\u00EDe el token devuelto como una cabecera <code>Authorization: Bearer &lt;token&gt;</code> en cada solicitud.</p>
+<h4>Endpoints principales</h4>
+<table>
+  <thead><tr><th>Endpoint</th><th>Descripci\u00F3n</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /api/v1/repos</code></td><td>Listar todos los repositorios</td></tr>
+    <tr><td><code>POST /api/v1/runs</code></td><td>Iniciar una nueva ejecuci\u00F3n</td></tr>
+    <tr><td><code>GET /api/v1/reports</code></td><td>Listar informes</td></tr>
+    <tr><td><code>GET /api/v1/stats/kpis</code></td><td>Obtener datos de KPI</td></tr>
+  </tbody>
+</table>
+<p>La documentaci\u00F3n completa de la API con todos los endpoints, par\u00E1metros y formatos de respuesta est\u00E1 disponible en la <strong>Swagger UI</strong> interactiva en <code>/api/v1/docs</code>.</p>`,
+        tip: 'La Swagger UI en /api/v1/docs es la referencia en vivo: cada endpoint, par\u00E1metro y esquema, generado a partir del servidor en ejecuci\u00F3n.'
       }
     ]
   },

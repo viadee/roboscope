@@ -62,4 +62,20 @@ describe('release gate — language & docs consistency', () => {
       expect(sectionIds(d), `'${code}' docs top-level sections drifted from en`).toEqual(reference)
     }
   })
+
+  it('en/fr/es share identical subsection ids per section', () => {
+    // EN/FR/ES are authored in lockstep, so their subsection trees must match
+    // exactly — this catches a subsection added to one but not the others.
+    // German (de) is intentionally NOT included: its docs use an independent
+    // subsection structure + id scheme (different granularity, e.g. a combined
+    // sync section, a DE-only API page), so it is pinned at top-level only
+    // (the test above). Enforcing de subsection parity would force artificial
+    // content changes.
+    const subTree = (d: typeof enDocs) =>
+      Object.fromEntries(d.map((s) => [s.id, s.subsections.map((ss) => ss.id).sort()]))
+    const ref = subTree(enDocs)
+    for (const [code, d] of Object.entries({ fr: frDocs, es: esDocs })) {
+      expect(subTree(d), `'${code}' docs subsections drifted from en`).toEqual(ref)
+    }
+  })
 })
