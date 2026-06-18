@@ -108,13 +108,19 @@ export const useAiStore = defineStore('ai', () => {
 
   // --- Analysis ---
 
-  async function analyzeFailures(reportId: number, providerId?: number, language?: string) {
+  async function analyzeFailures(
+    reportId: number,
+    providerId?: number,
+    language?: string,
+    verbosity?: string,
+  ) {
     loading.value = true
     try {
       const job = await aiApi.analyzeFailures({
         report_id: reportId,
         provider_id: providerId,
         language,
+        verbosity,
       })
       analysisJob.value = job
       startAnalysisPolling(job.id)

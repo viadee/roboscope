@@ -654,6 +654,7 @@ const overrides: Dict = {
     analysis: {
       title: 'AI 失败分析',
       analyzeButton: '分析失败',
+      verbosity: { label: '详细程度', concise: '简洁', standard: '标准', detailed: '详细' },
       noProvider: '请在设置中配置 AI 提供方以启用失败分析。',
       analyzing: '正在分析测试失败… 此过程可能需要 10-30 秒。',
       failed: '分析失败',
@@ -1113,6 +1114,7 @@ const overrides: Dict = {
     providerNamePlaceholder: '例如 My OpenAI、Local Llama',
     leaveBlankKeep: '留空以保留当前值',
     ollamaHint: 'Ollama 在本地运行 — 无需 API 密钥。请确保 Ollama 正在你的机器上运行（默认：http://localhost:11434）。使用任何你已拉取的模型，例如 "ollama pull mistral"。',
+    litellmHint: 'LiteLLM 是兼容 OpenAI 的网关。将 Base URL 设为你的网关地址（例如 http://litellm.internal:4000），并填写网关提供的模型名称。API 密钥为你的网关密钥（若网关无需密钥则留空）。',
     ollamaNoKey: 'Ollama 不需要',
     ollamaModelHint: '输入你的模型名称，例如 mistral:latest',
     confirmDeleteProvider: '删除提供商“{name}”？',

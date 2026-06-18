@@ -265,7 +265,7 @@ def analyze_failures(
     db.commit()
 
     try:
-        dispatch_task(run_analyze, job.id, data.language)
+        dispatch_task(run_analyze, job.id, data.language, data.verbosity)
     except TaskDispatchError as e:
         job.status = "failed"
         job.error_message = str(e)

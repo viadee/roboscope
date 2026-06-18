@@ -172,6 +172,27 @@ def language_directive(locale: str | None) -> str:
     )
 
 
+def verbosity_directive(verbosity: str | None) -> str:
+    """A system-prompt suffix tuning analysis length. `standard`/None → "".
+
+    Composes with `language_directive`; code/keywords/patches are unaffected.
+    """
+    if verbosity == "concise":
+        return (
+            "\n\n## Length\n"
+            "Be concise: a 2-3 sentence executive summary and only the highest-"
+            "priority root cause(s) and fix(es). Skip exhaustive per-test detail. "
+            "Still include a unified-diff patch when you are confident."
+        )
+    if verbosity == "detailed":
+        return (
+            "\n\n## Length\n"
+            "Be thorough: per-failure root-cause analysis, cross-failure patterns, "
+            "step-by-step fixes, and prioritized actions."
+        )
+    return ""  # standard / unknown / None → model's default
+
+
 def build_analyze_user_prompt(
     report_summary: dict,
     failed_tests: list[dict],

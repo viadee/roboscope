@@ -467,7 +467,7 @@ export interface LibraryCheckResponse {
 
 // --- AI Generation types ---
 
-export type AiProviderType = 'openai' | 'anthropic' | 'openrouter' | 'ollama'
+export type AiProviderType = 'openai' | 'anthropic' | 'openrouter' | 'ollama' | 'litellm'
 export type AiJobStatus = 'pending' | 'running' | 'completed' | 'failed'
 export type AiJobType = 'generate' | 'reverse' | 'analyze'
 

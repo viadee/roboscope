@@ -43,6 +43,11 @@ def _call_openai_compatible(
     import httpx
 
     base_url = provider.api_base_url
+    if not base_url and provider.provider_type == "litellm":
+        raise ValueError(
+            "LiteLLM provider requires a Base URL (the gateway endpoint, "
+            "e.g. http://litellm.internal:4000)."
+        )
     if not base_url:
         if provider.provider_type == "openrouter":
             base_url = "https://openrouter.ai/api/v1"

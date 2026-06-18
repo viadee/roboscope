@@ -622,6 +622,7 @@ export default {
     analysis: {
       title: 'AI Failure Analysis',
       analyzeButton: 'Analyze Failures',
+      verbosity: { label: 'Detail level', concise: 'Concise', standard: 'Standard', detailed: 'Detailed' },
       noProvider: 'Configure an AI provider in Settings to enable failure analysis.',
       analyzing: 'Analyzing test failures... This may take 10-30 seconds.',
       failed: 'Analysis failed',
@@ -1126,6 +1127,7 @@ export default {
     providerNamePlaceholder: 'e.g. My OpenAI, Local Llama',
     leaveBlankKeep: 'leave blank to keep current',
     ollamaHint: 'Ollama runs locally — no API key required. Make sure Ollama is running on your machine (default: http://localhost:11434). Use any model you have pulled, e.g. "ollama pull mistral".',
+    litellmHint: 'LiteLLM is an OpenAI-compatible gateway. Set the Base URL to your gateway endpoint (e.g. http://litellm.internal:4000) and enter the model name your gateway exposes. The API key is your gateway key (leave blank if the gateway needs none).',
     ollamaNoKey: 'not needed for Ollama',
     ollamaModelHint: 'Enter your model name, e.g. mistral:latest',
     confirmDeleteProvider: 'Delete provider "{name}"?',

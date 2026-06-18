@@ -622,6 +622,7 @@ export default {
     analysis: {
       title: 'KI-Fehleranalyse',
       analyzeButton: 'Fehler analysieren',
+      verbosity: { label: 'Detailgrad', concise: 'Knapp', standard: 'Standard', detailed: 'Ausführlich' },
       noProvider: 'Konfigurieren Sie einen KI-Anbieter in den Einstellungen, um die Fehleranalyse zu aktivieren.',
       analyzing: 'Testfehler werden analysiert... Dies kann 10-30 Sekunden dauern.',
       failed: 'Analyse fehlgeschlagen',
@@ -1126,6 +1127,7 @@ export default {
     providerNamePlaceholder: 'z.B. Mein OpenAI, Lokales Llama',
     leaveBlankKeep: 'leer lassen, um aktuellen beizubehalten',
     ollamaHint: 'Ollama läuft lokal — kein API-Key erforderlich. Stelle sicher, dass Ollama auf deinem Rechner läuft (Standard: http://localhost:11434). Verwende jedes Modell, das du heruntergeladen hast, z.B. "ollama pull mistral".',
+    litellmHint: 'LiteLLM ist ein OpenAI-kompatibles Gateway. Trage als Base URL den Gateway-Endpunkt ein (z.B. http://litellm.internal:4000) und gib den Modellnamen an, den dein Gateway bereitstellt. Der API-Key ist dein Gateway-Key (leer lassen, wenn das Gateway keinen benötigt).',
     ollamaNoKey: 'nicht nötig für Ollama',
     ollamaModelHint: 'Modellname eingeben, z.B. mistral:latest',
     confirmDeleteProvider: 'Anbieter "{name}" löschen?',

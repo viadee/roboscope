@@ -142,6 +142,7 @@ const allInstalled = computed(() =>
 // --- AI Failure Analysis ---
 
 const analysisError = ref('')
+const verbosity = ref<'concise' | 'standard' | 'detailed'>('standard')
 
 // Scope the shared store analysis to THIS report. The store holds a single
 // `analysisJob`; the guard stops an analysis generated for another report
@@ -155,7 +156,7 @@ const analysis = computed(() =>
 async function startAnalysis() {
   analysisError.value = ''
   try {
-    await aiStore.analyzeFailures(reportId.value, undefined, locale.value)
+    await aiStore.analyzeFailures(reportId.value, undefined, locale.value, verbosity.value)
   } catch (e: unknown) {
     analysisError.value = extractErrorDetail(e, 'Analysis failed')
   }
@@ -391,6 +392,14 @@ async function startAnalysis() {
 
             <!-- Initial state — show button -->
             <div v-else class="analysis-initial">
+              <label class="analysis-verbosity">
+                {{ t('reportDetail.analysis.verbosity.label') }}
+                <select v-model="verbosity" class="form-select" style="width: 160px; display: inline-block">
+                  <option value="concise">{{ t('reportDetail.analysis.verbosity.concise') }}</option>
+                  <option value="standard">{{ t('reportDetail.analysis.verbosity.standard') }}</option>
+                  <option value="detailed">{{ t('reportDetail.analysis.verbosity.detailed') }}</option>
+                </select>
+              </label>
               <BaseButton variant="primary" @click="startAnalysis">
                 {{ t('reportDetail.analysis.analyzeButton') }}
               </BaseButton>

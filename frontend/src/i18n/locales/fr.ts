@@ -622,6 +622,7 @@ export default {
     analysis: {
       title: 'Analyse IA des erreurs',
       analyzeButton: 'Analyser les erreurs',
+      verbosity: { label: 'Niveau de détail', concise: 'Concis', standard: 'Standard', detailed: 'Détaillé' },
       noProvider: "Configurez un fournisseur IA dans les Paramètres pour activer l'analyse des erreurs.",
       analyzing: "Analyse des erreurs de test en cours... Cela peut prendre 10 à 30 secondes.",
       failed: "L'analyse a échoué",
@@ -1126,6 +1127,7 @@ export default {
     providerNamePlaceholder: 'ex. Mon OpenAI, Llama local',
     leaveBlankKeep: 'laisser vide pour conserver l\'actuel',
     ollamaHint: 'Ollama s\'exécute localement — aucune clé API requise. Assurez-vous qu\'Ollama est en cours d\'exécution sur votre machine (par défaut : http://localhost:11434). Utilisez n\'importe quel modèle que vous avez téléchargé, par ex. "ollama pull mistral".',
+    litellmHint: 'LiteLLM est une passerelle compatible OpenAI. Indiquez comme Base URL le point d\'accès de votre passerelle (p. ex. http://litellm.internal:4000) et saisissez le nom du modèle exposé par votre passerelle. La clé API est celle de votre passerelle (laissez vide si elle n\'en exige pas).',
     ollamaNoKey: 'pas nécessaire pour Ollama',
     ollamaModelHint: 'Entrez le nom du modèle, ex. mistral:latest',
     confirmDeleteProvider: 'Supprimer le fournisseur « {name} » ?',

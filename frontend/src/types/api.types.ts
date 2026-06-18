@@ -72,7 +72,7 @@ export interface SettingUpdateRequest {
 
 export interface AiProviderCreateRequest {
   name: string
-  provider_type: 'openai' | 'anthropic' | 'openrouter' | 'ollama'
+  provider_type: 'openai' | 'anthropic' | 'openrouter' | 'ollama' | 'litellm'
   api_base_url?: string | null
   api_key?: string | null
   model_name: string
@@ -112,6 +112,8 @@ export interface AiAnalyzeRequest {
   /** Frontend i18n locale (de/en/fr/es/zh) so the analysis prose comes back
    *  in the user's current UI language. */
   language?: string | null
+  /** Analysis length: concise | standard | detailed. */
+  verbosity?: string | null
 }
 
 export interface AiValidateSpecRequest {
