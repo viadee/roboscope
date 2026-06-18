@@ -13,6 +13,7 @@ import {
   bucketOf,
   parseStoredFilter,
   parseStoredSort,
+  resourceFileStems,
   SOPHISTICATED_MIN_STEPS,
   type CatLike,
   type PaletteFilter,
@@ -102,6 +103,24 @@ describe('sortLibraries (D5)', () => {
     const out = sortLibraries(libs, 'importedFirst', usage).map((l) => l.name)
     expect(out.indexOf('AppiumLibrary')).toBe(out.length - 1) // the only example → last
     expect(out.slice(0, 2).sort()).toEqual(['Browser', 'Collections'])
+  })
+})
+
+describe('resourceFileStems (dedupe vs rf-knowledge library attribution)', () => {
+  it('maps file paths to lower-cased stems (strips dir + extension)', () => {
+    const s = resourceFileStems(['resources/login.resource', 'tests/Sub/Common.robot'])
+    expect(s).toEqual(new Set(['login', 'common']))
+  })
+  it('lets the rf-knowledge "library" group (file stem) be matched & dropped', () => {
+    // rf_knowledge.py attributes a repo keyword to library = f.stem, so
+    // login.resource keywords arrive under a library named "login".
+    const stems = resourceFileStems(['resources/login.resource'])
+    expect(stems.has('login')).toBe(true)
+    expect(stems.has('browser')).toBe(false) // real libs are untouched
+  })
+  it('handles bare filenames and empty input', () => {
+    expect(resourceFileStems(['common.resource'])).toEqual(new Set(['common']))
+    expect(resourceFileStems([])).toEqual(new Set())
   })
 })
 
