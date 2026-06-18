@@ -208,7 +208,7 @@ const fr: DocsContent = [
   (palette de l\u2019\u00E9diteur de flux, s\u00E9lecteur de l\u2019enregistreur, mots-cl\u00E9s
   d\u2019auto-r\u00E9paration, taux de r\u00E9paration des Stats, auto-sync des d\u00E9p\u00F4ts, panneau
   D\u00E9tails d\u2019ex\u00E9cution, \u2026) \u2014 pas des astuces g\u00E9n\u00E9riques sur Robot Framework.
-  Le texte des astuces est disponible dans les quatre locales (EN/DE/FR/ES).
+  Le texte des astuces est disponible dans les cinq locales d’interface (EN/DE/FR/ES/ZH).
 </p>`
       }
     ]
@@ -519,9 +519,35 @@ const fr: DocsContent = [
 </p>
 <ul>
   <li><strong>Rechercher</strong> &mdash; Filtrer les mots-cl\u00E9s par nom gr\u00E2ce \u00E0 la bo\u00EEte de recherche.</li>
-  <li><strong>Cliquer pour ajouter</strong> &mdash; Cliquez sur un mot-cl\u00E9 pour l\u2019ajouter comme nouveau n\u0153ud.</li>
+  <li><strong>Cliquer pour ajouter</strong> &mdash; Cliquez sur un mot-cl\u00E9 pour le s\u00E9lectionner (une barre \u00AB&nbsp;Ajouter&nbsp;\u00BB appara\u00EEt en haut de la palette), puis cliquez sur <strong>+</strong> pour l\u2019ins\u00E9rer apr\u00E8s le n\u0153ud actuellement s\u00E9lectionn\u00E9.</li>
   <li><strong>Glisser-d\u00E9poser</strong> &mdash; Faites glisser un mot-cl\u00E9 depuis la palette sur le canevas pour le positionner pr\u00E9cis\u00E9ment.</li>
 </ul>
+<h4>Structures de contr\u00F4le (IF/ELSE, TRY/EXCEPT, boucles)</h4>
+<p>
+  La cat\u00E9gorie <strong>Control</strong> de la palette permet de construire le flux de
+  contr\u00F4le Robot Framework sans \u00E9crire de code. Ajoutez un \u00E9l\u00E9ment de la m\u00EAme mani\u00E8re
+  qu\u2019un mot-cl\u00E9 (s\u00E9lectionner &rarr; <strong>+</strong>, ou le glisser sur le canevas) :
+</p>
+<ul>
+  <li><strong>IF / ELSE</strong>, <strong>FOR Loop</strong>, <strong>WHILE Loop</strong>
+      et <strong>TRY / EXCEPT</strong> ins\u00E8rent chacun un bloc complet et valide avec
+      son <code>END</code> correspondant en une seule \u00E9tape. Un <code>TRY</code> est
+      structur\u00E9 en <code>TRY &rarr; EXCEPT &rarr; END</code> pour \u00EAtre imm\u00E9diatement
+      ex\u00E9cutable (un <code>TRY&hellip;END</code> nu est une erreur de syntaxe dans
+      Robot Framework).</li>
+  <li>Pour \u00E9tendre un bloc, s\u00E9lectionnez le n\u0153ud \u00E0 partir duquel vous voulez cr\u00E9er une
+      branche et ajoutez <strong>ELSE IF</strong>, <strong>ELSE</strong>,
+      <strong>EXCEPT</strong> ou <strong>FINALLY</strong> &mdash; la nouvelle clause est
+      ins\u00E9r\u00E9e sur place, \u00E0 l\u2019int\u00E9rieur du bloc.</li>
+  <li><strong>VAR</strong>, <strong>RETURN</strong>, <strong>BREAK</strong> et
+      <strong>CONTINUE</strong> sont \u00E9galement disponibles.</li>
+</ul>
+<p>
+  S\u00E9lectionnez un n\u0153ud <code>EXCEPT</code> pour modifier son motif d\u2019erreur et sa
+  variable de capture (<code>AS \${error}</code>) dans le panneau de d\u00E9tails. Basculez
+  vers l\u2019onglet Code \u00E0 tout moment pour voir le texte <code>.robot</code> g\u00E9n\u00E9r\u00E9
+  &mdash; la structure et ses marqueurs <code>END</code> font un aller-retour fid\u00E8le.
+</p>
 <h4>Synchronisation</h4>
 <p>
   Les trois onglets de l\u2019\u00E9diteur (Visual Editor, Code, Flow) partagent le m\u00EAme mod\u00E8le de donn\u00E9es
@@ -1157,6 +1183,35 @@ Recording 21
   <li><strong>Termin\u00E9e</strong> &mdash; Le r\u00E9sultat est affich\u00E9 avec un compteur de tokens
       et un bouton pour relancer l\u2019analyse.</li>
 </ul>
+<h4>Langue de sortie</h4>
+<p>
+  L\u2019analyse est g\u00E9n\u00E9r\u00E9e dans la <strong>langue actuellement s\u00E9lectionn\u00E9e dans
+  l\u2019interface</strong> (EN/DE/FR/ES/ZH) &mdash; le texte, les titres et le r\u00E9sum\u00E9
+  sont localis\u00E9s, tandis que le code, les mots-cl\u00E9s Robot Framework, les chemins de
+  fichiers et les correctifs sugg\u00E9r\u00E9s restent verbatim afin de demeurer valides.
+</p>
+<h4>Correctifs sugg\u00E9r\u00E9s &amp; correction en un clic</h4>
+<p>
+  Lorsqu\u2019un correctif est suffisamment concret, l\u2019analyse le pr\u00E9sente sous forme de
+  <strong>patch</strong> au format diff unifi\u00E9 sous le texte, en indiquant le fichier
+  concern\u00E9. Pour chaque patch, vous pouvez\u00A0:
+</p>
+<ul>
+  <li><strong>Corriger automatiquement</strong> &mdash; applique le patch directement
+      au fichier dans le d\u00E9p\u00F4t. La modification est appliqu\u00E9e <em>en priorit\u00E9 par le
+      contexte</em> (les num\u00E9ros de ligne du diff sont indicatifs) et est
+      <strong>refus\u00E9e</strong> si les lignes environnantes ne correspondent plus au
+      fichier actuel &mdash; ainsi un patch obsol\u00E8te ne peut jamais corrompre
+      silencieusement un test. V\u00E9rifiez d\u2019abord le diff\u00A0; l\u2019application est une
+      action explicite, en un clic.</li>
+  <li><strong>Copier le patch</strong> &mdash; copie le diff unifi\u00E9 dans le
+      presse-papiers pour une application manuelle dans votre \u00E9diteur.</li>
+</ul>
+<p>
+  L\u2019analyse est limit\u00E9e \u00E0 l\u2019ex\u00E9cution pour laquelle elle a \u00E9t\u00E9 g\u00E9n\u00E9r\u00E9e\u00A0: ouvrir une
+  autre ex\u00E9cution affiche l\u2019analyse propre \u00E0 cette ex\u00E9cution (ou aucune pour l\u2019instant),
+  jamais un r\u00E9sultat obsol\u00E8te d\u2019une ex\u00E9cution consult\u00E9e pr\u00E9c\u00E9demment.
+</p>
 <p>
   L\u2019analyse s\u2019ex\u00E9cute en t\u00E2che de fond et ne bloque pas les autres op\u00E9rations.
   Chaque analyse est un appel LLM ind\u00E9pendant &mdash; une r\u00E9analyse peut produire
@@ -1241,11 +1296,15 @@ Recording 21
 </ul>
 <h4>Taux de r\u00E9ussite dans le temps</h4>
 <p>
-  Un graphique en ligne montre le taux de r\u00E9ussite quotidien pour la p\u00E9riode s\u00E9lectionn\u00E9e.
-  L\u2019axe X repr\u00E9sente les dates et l\u2019axe Y le pourcentage (0&ndash;100\u00A0%). Ce graphique
-  permet de rep\u00E9rer facilement les r\u00E9gressions ou les am\u00E9liorations au fil du temps.
-  Le graphique est aliment\u00E9 par <strong>Chart.js</strong> et prend en charge les infobulles
-  au survol pour les valeurs exactes.
+  Un diagramme \u00E0 barres montre le taux de r\u00E9ussite quotidien pour la p\u00E9riode
+  s\u00E9lectionn\u00E9e. L\u2019axe X repr\u00E9sente les dates et l\u2019axe Y le pourcentage
+  (0&ndash;100\u00A0%)\u00A0; survolez une barre pour obtenir la valeur exacte et le nombre
+  d\u2019ex\u00E9cutions. L\u2019axe est une chronologie continue\u00A0: chaque jour calendaire de
+  l\u2019intervalle re\u00E7oit la m\u00EAme largeur d\u2019emplacement, et les jours
+  <strong>sans ex\u00E9cution</strong> s\u2019affichent comme un espace vide (une ligne de
+  base discr\u00E8te, sans barre) au lieu d\u2019\u00EAtre compress\u00E9s &mdash; ainsi l\u2019espacement
+  entre les barres refl\u00E8te le temps r\u00E9ellement \u00E9coul\u00E9 et permet de rep\u00E9rer
+  facilement les r\u00E9gressions ou les am\u00E9liorations.
 </p>`,
         tip: 'Une tendance \u00E0 la baisse du taux de r\u00E9ussite indique souvent des modifications de code introduisant des \u00E9checs. Examinez les dates sp\u00E9cifiques des baisses.'
       },
@@ -2354,13 +2413,16 @@ Login Works
     <tr><td><code>de</code></td><td>Deutsch (Allemand)</td></tr>
     <tr><td><code>fr</code></td><td>Fran\u00E7ais</td></tr>
     <tr><td><code>es</code></td><td>Espa\u00F1ol (Espagnol)</td></tr>
+    <tr><td><code>zh</code></td><td>&#20013;&#25991; (chinois simplifi\u00E9)</td></tr>
   </tbody>
 </table>
 <p>
   Pour changer de langue, utilisez le <strong>s\u00E9lecteur de langue</strong> dans l\u2019en-t\u00EAte
   de l\u2019application. La langue s\u00E9lectionn\u00E9e est enregistr\u00E9e dans le stockage local de
-  votre navigateur et persiste entre les sessions. Tous les libell\u00E9s, boutons, messages
-  de l\u2019interface ainsi que cette documentation s\u2019adaptent \u00E0 la langue s\u00E9lectionn\u00E9e.
+  votre navigateur et persiste entre les sessions. Tous les libell\u00E9s, boutons et messages
+  de l\u2019interface s\u2019adaptent \u00E0 la langue s\u00E9lectionn\u00E9e. Cette documentation est r\u00E9dig\u00E9e en
+  anglais, allemand, fran\u00E7ais et espagnol ; lorsque l\u2019interface est r\u00E9gl\u00E9e sur le chinois,
+  la documentation se rabat sur l\u2019anglais.
 </p>`
       }
     ]

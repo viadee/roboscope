@@ -1562,7 +1562,7 @@ export default {
     },
     langSwitcher: {
       title: 'Selector de idioma',
-      description: 'RoboScope soporta 4 idiomas: alemán, inglés, francés y español. ¡Cambie en cualquier momento!',
+      description: 'RoboScope soporta 5 idiomas: alemán, inglés, francés, español y chino. ¡Cambie en cualquier momento!',
     },
     dashboard: {
       title: 'Tarjetas de navegación',

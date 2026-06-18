@@ -1547,7 +1547,7 @@ const overrides: Dict = {
     },
     langSwitcher: {
       title: '语言切换器',
-      description: 'RoboScope 支持 4 种语言：德语、英语、法语和西班牙语。随时切换！',
+      description: 'RoboScope 支持 5 种语言：德语、英语、法语、西班牙语和中文。随时切换！',
     },
     dashboard: {
       title: '导航卡片',

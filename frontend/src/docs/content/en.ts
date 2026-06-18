@@ -201,7 +201,7 @@ const en: DocsContent = [
   Tips focus on RoboScope features specifically (Flow Editor palette, Recorder
   selector picker, Self-Healing keywords, Stats heal-rate, Repos auto-sync,
   Run-Detail panel, …) — not generic Robot Framework tips. The tip text is
-  available in all four locales (EN/DE/FR/ES).
+  available in all five UI locales (EN/DE/FR/ES/ZH).
 </p>`
       }
     ]
@@ -536,9 +536,34 @@ const en: DocsContent = [
 </p>
 <ul>
   <li><strong>Search</strong> &mdash; Filter keywords by name using the search box.</li>
-  <li><strong>Click to Add</strong> &mdash; Click a keyword to append it as a new node.</li>
+  <li><strong>Click to Add</strong> &mdash; Click a keyword to select it (an &ldquo;Add&rdquo; bar appears at the top of the palette), then click <strong>+</strong> to insert it after the currently-selected node.</li>
   <li><strong>Drag &amp; Drop</strong> &mdash; Drag a keyword from the palette onto the canvas to position it precisely.</li>
 </ul>
+<h4>Control Structures (IF/ELSE, TRY/EXCEPT, loops)</h4>
+<p>
+  The palette&rsquo;s <strong>Control</strong> category lets you build Robot
+  Framework control flow without writing code. Add an item the same way as a
+  keyword (select &rarr; <strong>+</strong>, or drag it onto the canvas):
+</p>
+<ul>
+  <li><strong>IF / ELSE</strong>, <strong>FOR Loop</strong>, <strong>WHILE Loop</strong>
+      and <strong>TRY / EXCEPT</strong> each insert a complete, valid block with
+      its matching <code>END</code> in one step. A <code>TRY</code> is scaffolded
+      as <code>TRY &rarr; EXCEPT &rarr; END</code> so it is runnable immediately
+      (a bare <code>TRY&hellip;END</code> is a syntax error in Robot Framework).</li>
+  <li>To extend a block, select the node you want to branch from and add
+      <strong>ELSE IF</strong>, <strong>ELSE</strong>, <strong>EXCEPT</strong> or
+      <strong>FINALLY</strong> &mdash; the new clause is inserted in place,
+      inside the block.</li>
+  <li><strong>VAR</strong>, <strong>RETURN</strong>, <strong>BREAK</strong> and
+      <strong>CONTINUE</strong> are available too.</li>
+</ul>
+<p>
+  Select an <code>EXCEPT</code> node to edit its error pattern and capture
+  variable (<code>AS \${error}</code>) in the detail panel. Switch to the Code
+  tab at any time to see the generated <code>.robot</code> text &mdash; the
+  structure and its <code>END</code> markers round-trip faithfully.
+</p>
 <h4>Synchronization</h4>
 <p>
   All three editor tabs (Visual Editor, Code, Flow) share the same underlying data model.
@@ -1151,6 +1176,34 @@ Recording 21
   <li><strong>Completed</strong> &mdash; The analysis result is rendered with a token usage
       counter and a Re-analyze button to run a fresh analysis.</li>
 </ul>
+<h4>Output Language</h4>
+<p>
+  The analysis is generated in the <strong>language currently selected in the
+  interface</strong> (EN/DE/FR/ES/ZH) &mdash; the prose, headings, and summary
+  are localized, while code, Robot Framework keywords, file paths, and the
+  suggested patches stay verbatim so they remain valid.
+</p>
+<h4>Suggested Patches &amp; One-Click Fix</h4>
+<p>
+  When a fix is concrete enough, the analysis surfaces it as a unified-diff
+  <strong>patch</strong> below the prose, showing the affected file. For each
+  patch you can:
+</p>
+<ul>
+  <li><strong>Fix automatically</strong> &mdash; applies the patch directly to
+      the file in the repository. The change is applied <em>context-first</em>
+      (the diff&rsquo;s line numbers are advisory), and is <strong>refused</strong>
+      if the surrounding lines no longer match the current file &mdash; so a
+      stale patch can never silently corrupt a test. Review the diff first; the
+      apply is an explicit, one-click action.</li>
+  <li><strong>Copy patch</strong> &mdash; copies the unified diff to the
+      clipboard for manual application in your editor.</li>
+</ul>
+<p>
+  The analysis is scoped to the execution it was generated for: opening a
+  different run shows that run&rsquo;s own analysis (or none yet), never a stale
+  result from a previously-viewed run.
+</p>
 <p>
   The analysis runs as a background job and does not block other operations.
   Each analysis is an independent LLM call &mdash; re-analyzing may produce
@@ -1232,10 +1285,13 @@ Recording 21
 </ul>
 <h4>Success Rate Over Time</h4>
 <p>
-  A line chart shows the daily success rate for the selected period. The X-axis
-  represents dates and the Y-axis shows the percentage (0&ndash;100%). This chart
-  makes it easy to spot regressions or improvements over time. The chart is powered
-  by <strong>Chart.js</strong> and supports hover tooltips for exact values.
+  A bar chart shows the daily success rate for the selected period. The X-axis
+  represents dates and the Y-axis shows the percentage (0&ndash;100%); hover any
+  bar for the exact value and run count. The axis is a continuous timeline:
+  every calendar day in the range gets the same slot width, and days with
+  <strong>no executions</strong> render as an empty gap (a faint baseline, no
+  bar) instead of being collapsed &mdash; so the spacing between bars reflects
+  real elapsed time and makes regressions or improvements easy to spot.
 </p>`,
         tip: 'A declining success rate trend often indicates new code changes introducing failures. Investigate the specific dates of drops.'
       },
@@ -2444,13 +2500,15 @@ Login Works
     <tr><td><code>de</code></td><td>Deutsch (German)</td></tr>
     <tr><td><code>fr</code></td><td>Fran&ccedil;ais (French)</td></tr>
     <tr><td><code>es</code></td><td>Espa&ntilde;ol (Spanish)</td></tr>
+    <tr><td><code>zh</code></td><td>&#20013;&#25991; (Simplified Chinese)</td></tr>
   </tbody>
 </table>
 <p>
   To switch languages, use the <strong>language selector</strong> in the application header.
   The selected language is saved to your browser&rsquo;s local storage and persists
-  across sessions. All UI labels, buttons, messages, and this documentation adapt
-  to the selected language.
+  across sessions. All UI labels, buttons, and messages adapt to the selected
+  language. This documentation is written in English, German, French, and
+  Spanish; when the interface is set to Chinese, the docs fall back to English.
 </p>`
       }
     ]

@@ -192,7 +192,7 @@ const de: DocsContent = [
   Die Tipps fokussieren sich auf RoboScope-Features (Flow Editor Palette,
   Recorder Selector Picker, Self-Healing Keywords, Stats Heal-Rate, Repos
   Auto-Sync, Run-Detail-Panel, \u2026) \u2014 keine generischen Robot-Framework-Tipps.
-  Texte sind in EN/DE/FR/ES verf\u00FCgbar.
+  Texte sind in allen f\u00FCnf UI-Sprachen (EN/DE/FR/ES/ZH) verf\u00FCgbar.
 </p>`
       }
     ]
@@ -512,9 +512,39 @@ const de: DocsContent = [
 </p>
 <ul>
   <li><strong>Suche</strong> &mdash; Keywords \u00FCber das Suchfeld nach Namen filtern.</li>
-  <li><strong>Klick zum Hinzuf\u00FCgen</strong> &mdash; Klicken Sie auf ein Keyword, um es als neuen Knoten anzuf\u00FCgen.</li>
+  <li><strong>Klick zum Ausw\u00E4hlen</strong> &mdash; Klicken Sie auf ein Keyword, um es auszuw\u00E4hlen (oben in der Palette erscheint eine \u201EHinzuf\u00FCgen\u201C-Leiste), dann klicken Sie auf <strong>+</strong>, um es nach dem aktuell ausgew\u00E4hlten Knoten einzuf\u00FCgen.</li>
   <li><strong>Drag &amp; Drop</strong> &mdash; Ziehen Sie ein Keyword aus der Palette auf die Canvas, um es pr\u00E4zise zu platzieren.</li>
 </ul>
+<h4>Kontrollstrukturen (IF/ELSE, TRY/EXCEPT, Schleifen)</h4>
+<p>
+  Die Kategorie <strong>Control</strong> der Palette erm\u00F6glicht es, Robot-
+  Framework-Kontrollfluss aufzubauen, ohne Code zu schreiben. F\u00FCgen Sie ein
+  Element auf dieselbe Weise wie ein Keyword hinzu (ausw\u00E4hlen &rarr;
+  <strong>+</strong> oder per Drag &amp; Drop auf die Canvas):
+</p>
+<ul>
+  <li><strong>IF / ELSE</strong>, <strong>FOR-Schleife</strong>,
+      <strong>WHILE-Schleife</strong> und <strong>TRY / EXCEPT</strong> f\u00FCgen
+      jeweils in einem Schritt einen vollst\u00E4ndigen, g\u00FCltigen Block mit
+      passendem <code>END</code> ein. Ein <code>TRY</code> wird als
+      <code>TRY &rarr; EXCEPT &rarr; END</code> ger\u00FCstet, sodass es sofort
+      lauff\u00E4hig ist (ein nacktes <code>TRY&hellip;END</code> ist in Robot
+      Framework ein Syntaxfehler).</li>
+  <li>Um einen Block zu erweitern, w\u00E4hlen Sie den Knoten aus, von dem aus Sie
+      verzweigen m\u00F6chten, und f\u00FCgen <strong>ELSE IF</strong>,
+      <strong>ELSE</strong>, <strong>EXCEPT</strong> oder
+      <strong>FINALLY</strong> hinzu &mdash; die neue Klausel wird an Ort und
+      Stelle, innerhalb des Blocks, eingef\u00FCgt.</li>
+  <li><strong>VAR</strong>, <strong>RETURN</strong>, <strong>BREAK</strong> und
+      <strong>CONTINUE</strong> sind ebenfalls verf\u00FCgbar.</li>
+</ul>
+<p>
+  W\u00E4hlen Sie einen <code>EXCEPT</code>-Knoten aus, um im Detail-Panel sein
+  Fehler-Muster und die Capture-Variable (<code>AS \${error}</code>) zu
+  bearbeiten. Wechseln Sie jederzeit zum Code-Tab, um den generierten
+  <code>.robot</code>-Text zu sehen &mdash; die Struktur und ihre
+  <code>END</code>-Marker bleiben beim Round-Trip originalgetreu erhalten.
+</p>
 <h4>Synchronisation</h4>
 <p>
   Alle drei Editor-Tabs (Visual Editor, Code, Flow) teilen sich dasselbe Datenmodell.
@@ -1133,6 +1163,36 @@ Recording 21
   <li><strong>Abgeschlossen</strong> &mdash; Das Analyseergebnis wird mit Token-Z\u00E4hler und einem
       Button zur erneuten Analyse dargestellt.</li>
 </ul>
+<h4>Ausgabesprache</h4>
+<p>
+  Die Analyse wird in der <strong>aktuell in der Oberfl\u00E4che gew\u00E4hlten
+  Sprache</strong> (EN/DE/FR/ES/ZH) erzeugt &mdash; Flie\u00DFtext, \u00DCberschriften
+  und Zusammenfassung werden lokalisiert, w\u00E4hrend Code, Robot-Framework-
+  Keywords, Dateipfade und die vorgeschlagenen Patches wortw\u00F6rtlich erhalten
+  bleiben, damit sie g\u00FCltig bleiben.
+</p>
+<h4>Vorgeschlagene Patches &amp; Ein-Klick-Korrektur</h4>
+<p>
+  Wenn eine Korrektur konkret genug ist, stellt die Analyse sie als
+  Unified-Diff-<strong>Patch</strong> unterhalb des Flie\u00DFtexts dar und zeigt
+  die betroffene Datei an. F\u00FCr jeden Patch k\u00F6nnen Sie:
+</p>
+<ul>
+  <li><strong>Automatisch beheben</strong> &mdash; wendet den Patch direkt auf
+      die Datei im Repository an. Die \u00C4nderung wird <em>kontextbasiert</em>
+      angewendet (die Zeilennummern des Diffs sind nur Richtwerte) und wird
+      <strong>abgelehnt</strong>, wenn die umgebenden Zeilen nicht mehr zur
+      aktuellen Datei passen &mdash; so kann ein veralteter Patch niemals
+      stillschweigend einen Test besch\u00E4digen. Pr\u00FCfen Sie zuerst das Diff; das
+      Anwenden ist eine explizite Ein-Klick-Aktion.</li>
+  <li><strong>Patch kopieren</strong> &mdash; kopiert das Unified-Diff in die
+      Zwischenablage zur manuellen Anwendung in Ihrem Editor.</li>
+</ul>
+<p>
+  Die Analyse ist auf die Ausf\u00FChrung beschr\u00E4nkt, f\u00FCr die sie erzeugt wurde:
+  Beim \u00D6ffnen eines anderen Runs wird dessen eigene Analyse angezeigt (oder
+  noch keine), niemals ein veraltetes Ergebnis eines zuvor betrachteten Runs.
+</p>
 <p>
   Die Analyse l\u00E4uft als Hintergrund-Job und blockiert keine anderen Operationen.
   Jede Analyse ist ein unabh\u00E4ngiger LLM-Aufruf &mdash; eine erneute Analyse kann
@@ -1210,9 +1270,15 @@ Recording 21
 </ul>
 <h4>Erfolgsquote \u00FCber Zeit</h4>
 <p>
-  Ein Liniendiagramm zeigt die Entwicklung der Erfolgsquote \u00FCber den
-  gew\u00E4hlten Zeitraum. So l\u00E4sst sich auf einen Blick erkennen, ob die
-  Testqualit\u00E4t steigt oder f\u00E4llt.
+  Ein Balkendiagramm zeigt die t\u00E4gliche Erfolgsquote f\u00FCr den gew\u00E4hlten
+  Zeitraum. Die X-Achse stellt die Daten dar, die Y-Achse den Prozentsatz
+  (0\u2013100\u202F%); per Hover \u00FCber einen Balken erscheint der exakte Wert und die
+  Anzahl der Runs. Die Achse ist eine durchgehende Zeitleiste: jeder
+  Kalendertag im Zeitraum erh\u00E4lt dieselbe Slot-Breite, und Tage ohne
+  Ausf\u00FChrungen werden als leere L\u00FCcke (eine schwache Grundlinie, kein
+  Balken) dargestellt statt zusammengefasst zu werden \u2014 so spiegelt der
+  Abstand zwischen den Balken die tats\u00E4chlich verstrichene Zeit wider und
+  macht Regressionen oder Verbesserungen leicht erkennbar.
 </p>`
       },
       {
