@@ -84,6 +84,12 @@ test.describe('Flow Editor — custom-resource UX (D1–D6)', () => {
     // D1 — the pinned "Your resources" section header is present.
     await expect(palette.locator('[data-testid="palette-resources-label"]')).toBeVisible({ timeout: 8_000 });
 
+    // Dedupe regression — the rf-knowledge search path returns repo keywords
+    // under a "library" named after the file stem ("login.resource" -> "login").
+    // Those must NOT also appear as a separate library category below; they live
+    // only in "Your resources". Assert no category is named after the stem.
+    await expect(palette.locator('.category-name', { hasText: /^login$/i })).toHaveCount(0);
+
     // D5 / D6 — sort + filter controls live in the palette header.
     await expect(palette.locator('[data-testid="palette-sort-btn"]')).toBeVisible();
     await expect(palette.locator('[data-testid="palette-filter-btn"]')).toBeVisible();

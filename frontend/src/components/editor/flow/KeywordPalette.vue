@@ -16,6 +16,7 @@ import {
   applyFilter,
   hiddenCount,
   sortLibraries,
+  resourceFileStems,
   type CatLike,
 } from './paletteView'
 import type { StepType, RobotStep } from './flowConverter'
@@ -375,7 +376,14 @@ const resourceCategories = computed<KeywordCategory[]>(() => {
 const libraryCategories = computed<KeywordCategory[]>(() => {
   const libCats: KeywordCategory[] = []
   const dynamicLibNames = new Set<string>()
+  // Dedupe: the rf-knowledge search path returns repo keywords under a
+  // "library" named after the source file stem (login.resource → "login").
+  // Those keywords already render in the pinned "Your resources" section, so
+  // skip the duplicate library group. (No-op on the env-libdoc path, which
+  // never introspects resource files.)
+  const resourceStems = resourceFileStems(projectKeywords.value.map(kw => kw.file_path))
   for (const [lib, keywords] of dynamicLibraries.value) {
+    if (resourceStems.has(lib.toLowerCase())) continue
     libCats.push({
       name: lib,
       keywords: keywords.map(kw => kw.name),

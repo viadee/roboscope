@@ -95,6 +95,26 @@ export function parseStoredSort(raw: string | null): PaletteSort | null {
   return raw === 'mostUsed' || raw === 'alpha' || raw === 'importedFirst' ? raw : null
 }
 
+/**
+ * Lower-cased stems (basename minus final extension) of the repo's project
+ * keyword files. The rf-knowledge search path attributes a repo keyword to a
+ * "library" equal to its source file stem (`backend/.../rf_knowledge.py`:
+ * `library = f.stem`), so `login.resource` keywords come back under a library
+ * group named `login`. The palette already renders those same keywords in the
+ * pinned "Your resources" section (grouped by `login.resource`), so the library
+ * group is a duplicate — this set lets the palette drop it. No-op on the
+ * env-libdoc path (which never introspects resource files).
+ */
+export function resourceFileStems(filePaths: string[]): Set<string> {
+  const stems = new Set<string>()
+  for (const p of filePaths) {
+    const base = (p.split('/').pop() || p).trim()
+    const stem = base.replace(/\.[^.]+$/, '')
+    if (stem) stems.add(stem.toLowerCase())
+  }
+  return stems
+}
+
 /** The minimal category shape these helpers reason about. */
 export interface CatLike {
   name: string
