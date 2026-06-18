@@ -2170,6 +2170,37 @@ Login Works
   password form</strong> once SSO is fully rolled out.
 </p>`,
         tip: 'Always run the Dry-Run probe before saving and before rolling out to users. The check catches 90% of misconfigurations (wrong issuer, missing scope, unreachable JWKS) without affecting end users.'
+      },
+      {
+        id: 'feature-governance',
+        title: 'Feature Governance (locking down package management)',
+        content: `
+<p>
+  On a shared or remote install where Python environments are administered
+  centrally, you can disable <strong>package management</strong> so end users
+  cannot install, uninstall, upgrade packages, build Docker images, or run
+  <code>rfbrowser init</code> against the managed environment.
+</p>
+<h4>How to disable it</h4>
+<ul>
+  <li><strong>From the UI</strong> &mdash; under <strong>Settings &gt; General &gt; features</strong>, set <code>features.packageManagement</code> to <em>No</em>.</li>
+  <li><strong>From the deployment</strong> (hard lock) &mdash; set the environment variable <code>ROBOSCOPE_FEATURE_PACKAGE_MANAGEMENT=false</code> on the server. This wins over the in-app toggle and shows it as 🔒 locked (non-editable). Changing an environment variable takes effect on the next restart.</li>
+</ul>
+<p>
+  Resolution precedence is <strong>environment variable &rarr; database setting &rarr; default (enabled)</strong>.
+</p>
+<h4>What changes when it's off</h4>
+<ul>
+  <li>The Environments page hides install / uninstall / upgrade / build controls and shows a read-only notice; the installed-package list stays visible.</li>
+  <li>The corresponding API endpoints are refused server-side (HTTP 403) &mdash; the lock cannot be bypassed via the API, and the block is recorded in the Audit Log.</li>
+</ul>
+<h4>Role floor</h4>
+<p>
+  When package management is left <em>on</em>, you can still raise the minimum
+  role required for each operation under the <code>features.packageManagement.role.*</code>
+  settings (default <strong>Editor</strong>).
+</p>`,
+        tip: 'Use the environment-variable lock (not just the in-app toggle) on installs where end users should never touch environments — it can’t be changed from inside the app.'
       }
     ]
   },

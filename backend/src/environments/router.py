@@ -11,6 +11,7 @@ from src.auth.constants import Role
 from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
 from src.database import get_db
+from src.governance.dependencies import require_package_op
 from src.environments.models import Environment, EnvironmentKeywordCache, EnvironmentPackage
 from src.environments.schemas import (
     EnvCreate,
@@ -98,7 +99,7 @@ DEFAULT_RF_PACKAGES = [
 @router.post("/setup-default", response_model=EnvResponse, status_code=status.HTTP_201_CREATED)
 def setup_default_environment(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.EDITOR)),
+    current_user: User = Depends(require_package_op("install")),
 ):
     """Create a default environment with essential Robot Framework libraries."""
     # Check if roboscope-default already exists
@@ -264,7 +265,7 @@ def get_dockerfile(
 def docker_build(
     env_id: int,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.EDITOR)),
+    _current_user: User = Depends(require_package_op("docker_build")),
 ):
     """Build a Docker image for this environment."""
     env = get_environment(db, env_id)
@@ -530,7 +531,7 @@ def install_package(
     env_id: int,
     data: PackageCreate,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.EDITOR)),
+    _current_user: User = Depends(require_package_op("install")),
 ):
     """Install a package in an environment."""
     env = get_environment(db, env_id)
@@ -573,7 +574,7 @@ def upgrade_package(
     env_id: int,
     package_name: str,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.EDITOR)),
+    _current_user: User = Depends(require_package_op("upgrade")),
 ):
     """Upgrade a package to its latest version."""
     env = get_environment(db, env_id)
@@ -613,7 +614,7 @@ def retry_package_install(
     env_id: int,
     package_name: str,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.EDITOR)),
+    _current_user: User = Depends(require_package_op("install")),
 ):
     """Retry a failed package installation."""
     env = get_environment(db, env_id)
@@ -651,7 +652,7 @@ def retry_package_install(
 def run_rfbrowser_init(
     env_id: int,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.EDITOR)),
+    _current_user: User = Depends(require_package_op("rfbrowser_init")),
 ):
     """Manually trigger 'rfbrowser init' for an environment."""
     env = get_environment(db, env_id)
@@ -695,7 +696,7 @@ def uninstall_package(
     env_id: int,
     package_name: str,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.EDITOR)),
+    _current_user: User = Depends(require_package_op("uninstall")),
 ):
     """Remove a package from an environment."""
     env = get_environment(db, env_id)

@@ -2140,6 +2140,25 @@ Login Works
   une fois le SSO entièrement déployé.
 </p>`,
         tip: 'Lancez toujours la sonde Dry-Run avant d’enregistrer et avant le déploiement aux utilisateurs. Elle détecte 90&nbsp;% des erreurs de configuration (mauvais émetteur, scope manquant, JWKS inaccessible) sans affecter les utilisateurs finaux.'
+      },
+      {
+        id: 'feature-governance',
+        title: 'Gouvernance des fonctionnalités (verrouillage de la gestion des paquets)',
+        content: `<p>Sur une installation partagée ou distante où les environnements Python sont administrés de manière centralisée, vous pouvez désactiver la <strong>gestion des paquets</strong> afin que les utilisateurs finaux ne puissent pas installer, désinstaller ou mettre à niveau des paquets, construire des images Docker, ni exécuter <code>rfbrowser init</code> sur l’environnement géré.</p>
+<h4>Comment la désactiver</h4>
+<ul>
+  <li><strong>Depuis l’interface</strong> — sous <strong>Paramètres &gt; Général &gt; features</strong>, réglez <code>features.packageManagement</code> sur <em>Non</em>.</li>
+  <li><strong>Depuis le déploiement</strong> (verrouillage strict) — définissez la variable d’environnement <code>ROBOSCOPE_FEATURE_PACKAGE_MANAGEMENT=false</code> sur le serveur. Elle l’emporte sur la bascule intégrée à l’application et l’affiche comme 🔒 verrouillée (non modifiable). La modification d’une variable d’environnement prend effet au prochain redémarrage.</li>
+</ul>
+<p>L’ordre de résolution est <strong>variable d’environnement &rarr; paramètre de la base de données &rarr; valeur par défaut (activé)</strong>.</p>
+<h4>Ce qui change lorsque c’est désactivé</h4>
+<ul>
+  <li>La page Environnements masque les contrôles d’installation / désinstallation / mise à niveau / construction et affiche un avis en lecture seule&nbsp;; la liste des paquets installés reste visible.</li>
+  <li>Les points de terminaison API correspondants sont refusés côté serveur (HTTP 403) — le verrouillage ne peut pas être contourné via l’API, et le blocage est consigné dans le journal d’audit.</li>
+</ul>
+<h4>Rôle minimum</h4>
+<p>Lorsque la gestion des paquets reste <em>activée</em>, vous pouvez tout de même relever le rôle minimum requis pour chaque opération sous les paramètres <code>features.packageManagement.role.*</code> (par défaut <strong>Éditeur</strong>).</p>`,
+        tip: 'Utilisez le verrouillage par variable d’environnement (et pas seulement la bascule intégrée à l’application) sur les installations où les utilisateurs finaux ne doivent jamais toucher aux environnements — il ne peut pas être modifié depuis l’application.'
       }
     ]
   },

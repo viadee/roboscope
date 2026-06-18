@@ -2180,6 +2180,26 @@ Login Works
   que el SSO esté completamente desplegado.
 </p>`,
         tip: 'Ejecute siempre la sonda Dry-Run antes de guardar y antes de desplegar a los usuarios. Detecta el 90&nbsp;% de los errores de configuración (emisor incorrecto, scope faltante, JWKS inaccesible) sin afectar a los usuarios finales.'
+      },
+      {
+        id: 'feature-governance',
+        title: 'Gobernanza de funciones (bloqueo de la gestión de paquetes)',
+        content: `
+<p>En una instalación compartida o remota donde los entornos de Python se administran de forma centralizada, puede desactivar la <strong>gestión de paquetes</strong> para que los usuarios finales no puedan instalar, desinstalar ni actualizar paquetes, crear imágenes de Docker ni ejecutar <code>rfbrowser init</code> sobre el entorno gestionado.</p>
+<h4>Cómo desactivarla</h4>
+<ul>
+  <li><strong>Desde la interfaz</strong> &mdash; en <strong>Ajustes &gt; General &gt; features</strong>, establezca <code>features.packageManagement</code> en <em>No</em>.</li>
+  <li><strong>Desde el despliegue</strong> (bloqueo permanente) &mdash; establezca la variable de entorno <code>ROBOSCOPE_FEATURE_PACKAGE_MANAGEMENT=false</code> en el servidor. Esta tiene prioridad sobre el conmutador de la aplicación y la muestra como 🔒 bloqueada (no editable). Cambiar una variable de entorno surte efecto en el siguiente reinicio.</li>
+</ul>
+<p>El orden de prioridad de resolución es <strong>variable de entorno &rarr; ajuste de la base de datos &rarr; valor predeterminado (habilitado)</strong>.</p>
+<h4>Qué cambia cuando está desactivada</h4>
+<ul>
+  <li>La página de Entornos oculta los controles de instalar / desinstalar / actualizar / crear y muestra un aviso de solo lectura; la lista de paquetes instalados permanece visible.</li>
+  <li>Los endpoints de API correspondientes se rechazan en el servidor (HTTP 403) &mdash; el bloqueo no puede eludirse a través de la API, y el bloqueo queda registrado en el Registro de auditoría.</li>
+</ul>
+<h4>Rol mínimo</h4>
+<p>Cuando la gestión de paquetes se deja <em>activada</em>, todavía puede elevar el rol mínimo requerido para cada operación en los ajustes <code>features.packageManagement.role.*</code> (valor predeterminado <strong>Editor</strong>).</p>`,
+        tip: 'Use el bloqueo mediante variable de entorno (no solo el conmutador de la aplicación) en instalaciones donde los usuarios finales nunca deban tocar los entornos &mdash; no puede modificarse desde dentro de la aplicación.'
       }
     ]
   },

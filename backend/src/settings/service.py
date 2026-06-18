@@ -28,6 +28,17 @@ DEFAULT_SETTINGS = [
     {"key": "deprovision_retention_days", "value": "90", "value_type": "int", "category": "auth", "description": "Days before deprovisioned-user cleanup."},
     {"key": "admin_contact_email", "value": "admin@roboscope.local", "value_type": "string", "category": "auth", "description": "Displayed on SSO outage screen as admin contact."},
     {"key": "hide_local_login_form", "value": "false", "value_type": "bool", "category": "auth", "description": "Hide the email/password login form when SSO is the only permitted login path."},
+    # Epic GOV — deployment governance feature flags (category "features").
+    # Default ON = today's behavior. An ENV override (ROBOSCOPE_FEATURE_<KEY>)
+    # wins over this DB value and locks the toggle in the UI.
+    {"key": "features.packageManagement", "value": "true", "value_type": "bool", "category": "features", "description": "Allow users to install/uninstall/upgrade packages, build Docker images, and run rfbrowser init. Turn off on managed/remote installs where environments are administered centrally."},
+    # GOV-4 — minimum role per package operation (only consulted when
+    # packageManagement is ON). Default "editor" preserves pre-GOV behavior.
+    {"key": "features.packageManagement.role.install", "value": "editor", "value_type": "string", "category": "features", "description": "Minimum role to install packages / set up the default environment."},
+    {"key": "features.packageManagement.role.uninstall", "value": "editor", "value_type": "string", "category": "features", "description": "Minimum role to uninstall packages."},
+    {"key": "features.packageManagement.role.upgrade", "value": "editor", "value_type": "string", "category": "features", "description": "Minimum role to upgrade packages."},
+    {"key": "features.packageManagement.role.docker_build", "value": "editor", "value_type": "string", "category": "features", "description": "Minimum role to build Docker images."},
+    {"key": "features.packageManagement.role.rfbrowser_init", "value": "editor", "value_type": "string", "category": "features", "description": "Minimum role to run rfbrowser init."},
 ]
 
 

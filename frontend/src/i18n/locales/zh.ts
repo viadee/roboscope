@@ -485,6 +485,7 @@ const overrides: Dict = {
     shippedWithRoboscopeTitle: '此库的某个版本与 RoboScope 捆绑提供，并会自动安装到每个新项目的虚拟环境中。点击"安装"将使用捆绑的副本。固定一个明确的版本可改为从 PyPI 安装（一旦发布）。',
     conflictInstalled: '已安装其他变体',
     noPackages: '未安装任何包。',
+    managedByAdmin: '包管理由您的管理员统一管理。包以只读方式显示。',
     showAllPip: '显示所有已安装的包（{count}）',
     variables: '变量',
     noVariables: '未定义任何变量。',
@@ -849,6 +850,7 @@ const overrides: Dict = {
   },
   settings: {
     title: '设置',
+    lockedByEnv: '通过环境变量设置 — 由服务器管理员统一管理。',
     general: '通用',
     users: '用户',
     userManagement: '用户管理',

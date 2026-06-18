@@ -453,6 +453,7 @@ export default {
     shippedWithRoboscopeTitle: 'Eine Version dieser Bibliothek liegt direkt bei RoboScope bei und wird in jedes neue Projekt-venv automatisch eingespielt. Klick auf „Installieren" verwendet die mitgelieferte Variante. Mit explizit gepinnter Version wird stattdessen PyPI verwendet (sobald dort verfügbar).',
     conflictInstalled: 'Andere Variante installiert',
     noPackages: 'Keine Packages installiert.',
+    managedByAdmin: 'Die Paketverwaltung wird von Ihrer Administration verwaltet. Pakete werden schreibgeschützt angezeigt.',
     showAllPip: 'Alle installierten Pakete anzeigen ({count})',
     variables: 'Variablen',
     noVariables: 'Keine Variablen definiert.',
@@ -817,6 +818,7 @@ export default {
   },
   settings: {
     title: 'Einstellungen',
+    lockedByEnv: 'Per Umgebungsvariable gesetzt — von der Server-Administration verwaltet.',
     general: 'Allgemein',
     users: 'Benutzer',
     userManagement: 'Benutzerverwaltung',
