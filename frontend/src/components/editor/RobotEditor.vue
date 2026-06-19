@@ -558,16 +558,15 @@ watch(() => [props.repoId, props.filePath] as const, refreshSidecar, { immediate
 // `keywords` array — so a single refresh call propagates to every
 // editor surface that consults keyword metadata.
 //
-// Triggers:
+// Triggers (only genuine invalidations — keyword data is repo-scoped, so a
+// plain file switch does NOT refresh; see the filePath watcher below):
 //   1. Library / Resource import was added or removed in FlowEditor's
 //      library panel — emitted via `libraries-changed`.
-//   2. `props.filePath` changed — different file may import a
-//      different library set, and the user has likely just saved
-//      changes that the backend should re-introspect.
-//   3. The user switches between testcases / sections inside the
-//      same file — implicitly handled because the keyword cache is
-//      repo-scoped, no extra fetch needed; FlowEditor's existing
-//      reactive bindings rebuild the canvas off the same store.
+//   2. A package was installed via the install dialog.
+//   3. A file save that may have changed imports — handled by ExplorerView's
+//      save handler calling `refreshKeywords`.
+// Switching between testcases / sections inside the same file needs no fetch;
+// FlowEditor's reactive bindings rebuild the canvas off the same store.
 const _explorerStore = useExplorerStore()
 const _reposStore = useReposStore()
 const _envsStore = useEnvironmentsStore()
@@ -780,15 +779,20 @@ async function onLibrariesChanged(addedLibrary?: string): Promise<void> {
   _openInstallDialog(addedLibrary)
 }
 
-// File-switch trigger: refresh once after the new path settles.
-// `immediate: false` so we don't double-fetch when the component
-// mounts (the parent ExplorerView already calls `preloadKeywords` on
-// repo open).
+// File-switch trigger: ENSURE the repo's keywords are loaded — NOT a
+// refresh. Keyword data is repo-scoped (the env's installed libraries and the
+// repo's project keywords don't change between files), so `preloadKeywords`
+// no-ops when this repo is already cached. This is what stops a plain file
+// switch from invalidating the backend libdoc cache + refetching the whole
+// keyword set (and re-showing the loading indicator) every time. Genuine
+// invalidation still happens via `onLibrariesChanged` / install / manual
+// refresh, which call `refreshKeywords`.
 watch(
   () => props.filePath,
   (newPath, oldPath) => {
     if (!newPath || newPath === oldPath) return
-    _refreshKeywordsIfPossible()
+    if (props.repoId == null) return
+    _explorerStore.preloadKeywords(props.repoId).catch(() => { /* non-critical */ })
   },
 )
 

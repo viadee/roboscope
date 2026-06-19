@@ -923,9 +923,16 @@ const flatNodes = computed(() => {
       </form>
     </div>
 
-    <!-- Keyword preloading progress bar -->
-    <div v-if="explorer.keywordsLoading" class="keyword-loading-bar">
-      <div class="keyword-loading-bar-inner"></div>
+    <!-- Keyword preloading indicator — deliberately subtle: a slim
+         indeterminate line + a small muted label. Repo-scoped caching means
+         this now only appears on first repo open, not on every file switch. -->
+    <div
+      v-if="explorer.keywordsLoading"
+      class="keyword-loading"
+      role="status"
+      :aria-label="t('explorer.loadingKeywords')"
+    >
+      <span class="keyword-loading-track"><span class="keyword-loading-fill"></span></span>
       <span class="keyword-loading-text">{{ t('explorer.loadingKeywords') }}</span>
     </div>
 
@@ -1786,23 +1793,31 @@ const flatNodes = computed(() => {
   height: 200px;
 }
 
-.keyword-loading-bar {
-  height: 28px;
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border, #e2e8f0);
-  border-radius: 6px;
-  margin-bottom: 8px;
-  position: relative;
-  overflow: hidden;
+/* Subtle keyword-loading indicator: a 2px indeterminate line + a small,
+   muted caption. No card/border/fill block — it should read as a quiet
+   background hint, not a banner. */
+.keyword-loading {
   display: flex;
   align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 0 2px;
 }
-.keyword-loading-bar-inner {
+.keyword-loading-track {
+  flex: 1;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--color-border, #e2e8f0);
+  position: relative;
+  overflow: hidden;
+}
+.keyword-loading-fill {
   position: absolute;
   left: 0; top: 0; bottom: 0;
   width: 30%;
   background: var(--color-primary, #3B7DD8);
-  opacity: 0.15;
+  opacity: 0.7;
+  border-radius: 2px;
   animation: keyword-loading-slide 1.5s ease-in-out infinite;
 }
 @keyframes keyword-loading-slide {
@@ -1810,10 +1825,12 @@ const flatNodes = computed(() => {
   100% { left: 100%; }
 }
 .keyword-loading-text {
-  position: relative;
-  z-index: 1;
-  padding: 0 12px;
-  font-size: 13px;
+  flex-shrink: 0;
+  font-size: 11px;
   color: var(--color-text-muted);
+  opacity: 0.8;
+}
+@media (prefers-reduced-motion: reduce) {
+  .keyword-loading-fill { animation: none; width: 100%; opacity: 0.3; }
 }
 </style>
