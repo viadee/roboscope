@@ -28,6 +28,15 @@ export const useExplorerStore = defineStore('explorer', () => {
   const keywords = ref<CachedKeyword[]>([])
   const keywordsLoading = ref(false)
   const keywordsLoaded = ref(false)
+  // Which repo the cached `keywords` belong to. Keyword data is repo-scoped
+  // (the env's installed libraries + the repo's project keywords don't change
+  // between files), so `preloadKeywords` can no-op when this already matches —
+  // a plain file switch must NOT refetch the whole repo keyword set.
+  const keywordsRepoId = ref<number | null>(null)
+  // Latest repo requested via preloadKeywords while a load was already in
+  // flight (non-reactive — internal scheduling only). Drained in the loader's
+  // `finally` so the newest repo always wins a fast switch.
+  let pendingKeywordsRepoId: number | null = null
   // User-defined keywords parsed from the repo's own .robot/.resource files.
   // Shared here (rather than owned by KeywordPalette) so useKeywordSignatures
   // can give them precedence over library/BuiltIn keywords — RF resolves
@@ -136,7 +145,15 @@ export const useExplorerStore = defineStore('explorer', () => {
    *  Offline-first: prefer the libdoc-per-environment endpoint (works without
    *  the optional rf-mcp server); fall back to the rf-knowledge search. */
   async function preloadKeywords(repoId: number) {
-    if (keywordsLoading.value) return
+    // Repo-scoped idempotency: already cached for THIS repo → nothing to do.
+    // Lets a file switch call this freely as an "ensure loaded" without ever
+    // triggering a redundant refetch (use `refreshKeywords` to force a reload).
+    if (keywordsLoaded.value && keywordsRepoId.value === repoId) return
+    // A load is already in flight. If it's for a DIFFERENT repo (fast repo
+    // switch mid-fetch), remember the latest wanted repo and re-run when the
+    // in-flight load finishes — otherwise the newer repo's load would be
+    // silently dropped and the palette would show the previous repo's keywords.
+    if (keywordsLoading.value) { pendingKeywordsRepoId = repoId; return }
     keywordsLoading.value = true
     keywordsLoaded.value = false
     try {
@@ -153,6 +170,7 @@ export const useExplorerStore = defineStore('explorer', () => {
               args: k.args || [],
             }))
             keywordsLoaded.value = true
+            keywordsRepoId.value = repoId
             return
           }
           // status "building" with no cached keywords yet → fall through to
@@ -170,11 +188,22 @@ export const useExplorerStore = defineStore('explorer', () => {
         args: r.args || [],
       }))
       keywordsLoaded.value = true
+      keywordsRepoId.value = repoId
     } catch {
-      // Non-critical — palette will just be empty
+      // Non-critical — palette will just be empty. Clear the anchor so it
+      // never advertises a repo whose keywords didn't actually load.
       keywords.value = []
+      keywordsRepoId.value = null
     } finally {
       keywordsLoading.value = false
+      // Service the most recent repo requested while we were loading.
+      if (pendingKeywordsRepoId !== null && pendingKeywordsRepoId !== keywordsRepoId.value) {
+        const next = pendingKeywordsRepoId
+        pendingKeywordsRepoId = null
+        void preloadKeywords(next)
+      } else {
+        pendingKeywordsRepoId = null
+      }
     }
   }
 
@@ -194,12 +223,13 @@ export const useExplorerStore = defineStore('explorer', () => {
     testCases.value = []
     keywords.value = []
     keywordsLoaded.value = false
+    keywordsRepoId.value = null
     projectKeywords.value = []
   }
 
   return {
     tree, selectedFile, searchResults, testCases, loading, currentRepoId,
-    keywords, keywordsLoading, keywordsLoaded, projectKeywords,
+    keywords, keywordsLoading, keywordsLoaded, keywordsRepoId, projectKeywords,
     fetchTree, openFile, searchInRepo, fetchTestCases, clearSelection, clearAll,
     saveFile, createFile, deleteFileAction, renameFileAction, openInEditorAction, openInFileBrowserAction,
     preloadKeywords, refreshKeywords, setProjectKeywords,
