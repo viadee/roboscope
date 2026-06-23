@@ -2,6 +2,63 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-19
+
+### Flow Editor — your repository keywords are first-class
+
+- A dedicated, top-pinned **"Your resources"** section groups the keywords from
+  your repo's `.robot`/`.resource` files (file glyph + relative-path subtitle),
+  separate from the library list; the imports panel now splits into distinct
+  **Resources** and **Libraries** lists.
+- Inserting a resource keyword shows a **localized import-confirmation toast**
+  (the auto-`Resource`-import is no longer silent) and **pre-fills the node's
+  required argument slots** from the keyword's `[Arguments]` signature.
+- Long keyword names get a **hover tooltip** (full name) and stay legible; a new
+  **sort control** (Most used / A–Z / Imported first) and a **"what's shown"
+  filter** with an *adaptive default* (hides not-installed example libraries for
+  repos that already have an environment and a non-trivial test file) let you
+  shape the palette. All choices persist.
+- Fixed a duplicate where a repo's resource keywords appeared both under
+  "Your resources" and again as a library group.
+
+### Explorer — quiet, repo-scoped keyword loading
+
+- Keyword data is now cached **per repository**: switching files no longer
+  re-invalidates and refetches the whole keyword set every time (it only
+  refreshes on real changes — imports added, package installs, saves).
+- The "Loading keywords…" indicator is now a **subtle slim line** instead of a
+  prominent bar, and only appears on first repo open.
+
+### Deployment governance (Epic GOV)
+
+- Operators can **lock down feature areas per deployment** — first up, package
+  management. Flags resolve **ENV > DB > default-on**; enforcement is
+  per-endpoint (a disabled feature returns **403 even for admins**) and audited.
+  A token-guarded `useFeatureFlags()` gates the UI; an env override locks the
+  matching Settings toggle.
+
+### Robot Framework execution config (Epic EXEC)
+
+- The **New Run dialog exposes Include/Exclude tags**, threaded to the existing
+  `robot --include/--exclude` runner.
+
+### AI provider & output (Epic AIX)
+
+- Added a **LiteLLM** provider type (gateway to many models) and a
+  **verbosity control** for AI failure analysis.
+
+### Security
+
+- Cleared **all open Dependabot advisories**: `cryptography` → 49.0.0,
+  `PyJWT` → 2.13.0, `starlette` → 1.3.1 (with `fastapi` → 0.137.2 and
+  `robotframework-roboview` → 1.0.0), and `dompurify` → 3.4.11
+  (GHSA-cmwh-pvxp-8882).
+
+### CI / Docs
+
+- New **i18n & docs consistency** gate keeps EN/FR/ES documentation subsections
+  in lockstep so a section can't ship in one language but not the others.
+
 ## [0.10.0] - 2026-06-17
 
 ### Flow Editor — control-structure authoring
