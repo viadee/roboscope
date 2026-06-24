@@ -1018,8 +1018,18 @@ Recording 21
   Ausführung gegen das Ergebnismodell — der richtige Hook, um <strong>Ergebnisse an Ihr
   Testmanagement zu übergeben</strong> oder einen eigenen Report zu erzeugen.</li>
 </ul>
+<h4>Live-Listener</h4>
+<p>
+  Ein <strong>Listener</strong> (z.&nbsp;B. <code>roboscope_live_progress</code>) erhält live,
+  ereignisweise Callbacks <em>während</em> der Ausführung (Start/Ende jedes Tests, Log-Meldungen),
+  statt das Modell einmalig zu verändern. Mit einem Listener streamen Sie Ergebnisse an ein
+  Dashboard oder Testmanagement, <em>während der Lauf fortschreitet</em> — im Gegensatz zum
+  Post-Run-Modifier, der einmal nach dem Lauf wirkt. Eigene Listener registrieren sich über
+  dasselbe Registry und dieselben Vertrauensstufen, laufen neben RoboScopes eingebauten Listenern
+  und ersetzen sie nie.
+</p>
 <h4>Drei Vertrauensstufen</h4>
-<p>RoboScope bietet Modifier nur aus einem geprüften Registry an, nie als frei getippten Klassenpfad:</p>
+<p>RoboScope bietet Modifier und Listener nur aus einem geprüften Registry an, nie als frei getippten Klassenpfad:</p>
 <ul>
   <li><strong>Integriert</strong> — von RoboScope mitgeliefert und geprüft. Für Editoren verfügbar.</li>
   <li><strong>Organisation</strong> — von Ihrem Betreiber per Backend-Konfiguration registriert

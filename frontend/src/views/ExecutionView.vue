@@ -292,8 +292,12 @@ async function doStartRun() {
       const prerebot = advancedModifiers.value
         .filter((m) => m.kind === 'prerebot')
         .map((m) => ({ key: m.key, args: m.args }))
+      const listeners = advancedModifiers.value
+        .filter((m) => m.kind === 'listener')
+        .map((m) => ({ key: m.key, args: m.args }))
       if (prerun.length) adv.prerun_modifiers = prerun
       if (prerebot.length) adv.prerebot_modifiers = prerebot
+      if (listeners.length) adv.listeners = listeners
       if (advancedPythonPaths.value.length) adv.python_paths = advancedPythonPaths.value
       if (advancedVariableFiles.value.length) adv.variable_files = advancedVariableFiles.value
       // EXEC.10: code-loading levers only ever populate post-consent in the UI;

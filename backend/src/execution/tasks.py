@@ -209,6 +209,21 @@ def _format_modifiers(entries: list) -> list[str] | None:
     return out or None
 
 
+def _merge_listeners(
+    system: list[str] | None, user: list[str] | None
+) -> list[str] | None:
+    """Merge system-injected listeners (e.g. the quarantine-skip listener) with
+    user/org listeners (EXEC.11). System listeners ALWAYS come first and are never
+    dropped/reordered; user listeners are appended, de-duplicated (a user entry
+    equal to an already-present spec is skipped so it can't double a system
+    listener's callbacks). Returns None when both are empty."""
+    merged: list[str] = []
+    for spec in (*(system or []), *(user or [])):
+        if spec not in merged:
+            merged.append(spec)
+    return merged or None
+
+
 def _get_env_config(session: Session, env_id: int | None) -> dict | None:
     """Load environment configuration."""
     if env_id is None:
@@ -378,6 +393,7 @@ def execute_test_run(run_id: int) -> dict:
             advanced_args: list[str] | None = None
             prerun_modifiers: list[str] | None = None
             prerebot_modifiers: list[str] | None = None
+            user_listeners: list[str] | None = None
             python_paths: list[str] | None = None
             variable_files: list[str] | None = None
             if run.advanced_config:
@@ -385,6 +401,7 @@ def execute_test_run(run_id: int) -> dict:
                 advanced_args = adv.get("args") or None
                 prerun_modifiers = _format_modifiers(adv.get("prerun_modifiers") or [])
                 prerebot_modifiers = _format_modifiers(adv.get("prerebot_modifiers") or [])
+                user_listeners = _format_modifiers(adv.get("listeners") or [])
                 python_paths = [
                     str(p).strip() for p in (adv.get("python_paths") or []) if str(p).strip()
                 ] or None
@@ -423,6 +440,13 @@ def execute_test_run(run_id: int) -> dict:
                     f"src.execution.runners.quarantine_listener."
                     f"QuarantineSkipListener:{snapshot_path}"
                 ]
+
+            # EXEC.11 — merge curated/org custom listeners AFTER the system
+            # listeners (the quarantine-skip listener built above). System-first
+            # + additive + de-duplicated: a user listener can never drop or
+            # reorder the system ones; they were already gated + audited at
+            # request time.
+            listeners = _merge_listeners(listeners, user_listeners)
 
             # Execute
             result = runner.execute(

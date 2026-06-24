@@ -1041,8 +1041,18 @@ Recording 21
   <em>después</em> contra el modelo de resultados — el punto adecuado para <strong>enviar
   resultados a su sistema de gestión de pruebas</strong> o generar un informe personalizado.</li>
 </ul>
+<h4>Listeners en vivo</h4>
+<p>
+  Un <strong>listener</strong> (p.&nbsp;ej. <code>roboscope_live_progress</code>) recibe
+  retrollamadas en vivo, por evento, <em>durante toda</em> la ejecución (inicio/fin de cada prueba,
+  mensajes de registro) en lugar de transformar el modelo una sola vez. Use un listener para
+  transmitir resultados a un panel o sistema de gestión de pruebas <em>a medida que avanza la
+  ejecución</em> — a diferencia de un modificador post-ejecución, que actúa una vez al terminar.
+  Los listeners personalizados se registran mediante el MISMO registro y niveles de confianza, se
+  ejecutan junto a los listeners integrados de RoboScope y nunca los reemplazan.
+</p>
 <h4>Tres niveles de confianza</h4>
-<p>RoboScope solo ofrece modificadores de un registro verificado, nunca una ruta de clase libre:</p>
+<p>RoboScope solo ofrece modificadores y listeners de un registro verificado, nunca una ruta de clase libre:</p>
 <ul>
   <li><strong>Integrado</strong> — incluido y verificado por RoboScope. Disponible para Editores.</li>
   <li><strong>Organización</strong> — registrado por su operador mediante la configuración del

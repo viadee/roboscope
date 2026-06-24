@@ -1016,8 +1016,18 @@ Recording 21
   <em>apr\u00E8s</em> contre le mod\u00E8le de r\u00E9sultats \u2014 le bon point d\u2019accroche pour <strong>pousser les
   r\u00E9sultats vers votre syst\u00E8me de gestion de tests</strong> ou produire un rapport personnalis\u00E9.</li>
 </ul>
+<h4>\u00C9couteurs en direct</h4>
+<p>
+  Un <strong>\u00E9couteur</strong> (p.&nbsp;ex. <code>roboscope_live_progress</code>) re\u00E7oit des
+  rappels en direct, par \u00E9v\u00E9nement, <em>tout au long</em> de l\u2019ex\u00E9cution (d\u00E9but/fin de chaque test,
+  messages de journal) au lieu de transformer le mod\u00E8le une seule fois. Utilisez un \u00E9couteur pour
+  diffuser les r\u00E9sultats vers un tableau de bord ou un syst\u00E8me de gestion de tests <em>au fur et \u00E0
+  mesure</em> \u2014 contrairement \u00E0 un modificateur post-ex\u00E9cution, qui agit une fois apr\u00E8s le test.
+  Les \u00E9couteurs personnalis\u00E9s s\u2019enregistrent via le M\u00CAME registre et les m\u00EAmes niveaux de
+  confiance, s\u2019ex\u00E9cutent aux c\u00F4t\u00E9s des \u00E9couteurs int\u00E9gr\u00E9s de RoboScope et ne les remplacent jamais.
+</p>
 <h4>Trois niveaux de confiance</h4>
-<p>RoboScope ne propose que des modificateurs d\u2019un registre v\u00E9rifi\u00E9, jamais un chemin de classe libre :</p>
+<p>RoboScope ne propose que des modificateurs et \u00E9couteurs d\u2019un registre v\u00E9rifi\u00E9, jamais un chemin de classe libre :</p>
 <ul>
   <li><strong>Int\u00E9gr\u00E9</strong> \u2014 fourni et v\u00E9rifi\u00E9 par RoboScope. Disponible pour les \u00C9diteurs.</li>
   <li><strong>Organisation</strong> \u2014 enregistr\u00E9 par votre exploitant via la configuration du

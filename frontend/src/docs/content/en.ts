@@ -1043,8 +1043,17 @@ Recording 21
   execution against the result model — the right hook to <strong>push results to your
   test-management system</strong> or emit a custom report as the run finishes.</li>
 </ul>
+<h4>Live listeners</h4>
+<p>
+  A <strong>listener</strong> (e.g. <code>roboscope_live_progress</code>) receives live, per-event
+  callbacks <em>throughout</em> execution (start/end of each test, log messages) rather than
+  transforming the model once. Use a listener to stream results to a dashboard or test-management
+  system <em>as the run progresses</em> — versus a post-run modifier, which acts once after the
+  run. Custom listeners register through the SAME registry and trust tiers, run alongside
+  RoboScope&rsquo;s built-in listeners, and never replace them.
+</p>
 <h4>Three trust tiers</h4>
-<p>RoboScope only offers modifiers from a vetted registry, never a free-typed class path:</p>
+<p>RoboScope only offers modifiers and listeners from a vetted registry, never a free-typed class path:</p>
 <ul>
   <li><strong>Built-in</strong> — shipped and vetted by RoboScope. Available to Editors.</li>
   <li><strong>Organization</strong> — registered by your operator via backend configuration

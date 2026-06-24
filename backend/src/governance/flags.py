@@ -36,6 +36,9 @@ FEATURE_FLAGS: dict[str, bool] = {
     # EXEC.10: repo-confined code-loading levers, ADMIN-only, default OFF.
     "executionPythonPath": False,
     "executionVariableFile": False,
+    # EXEC.11: runtime user-code listeners (curated listeners need no flag),
+    # ADMIN-only, default OFF.
+    "executionCustomListenerUserCode": False,
 }
 
 SETTINGS_CATEGORY = "features"

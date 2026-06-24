@@ -17,6 +17,8 @@ EXEC_FLAGS = (
     # EXEC.10 code-loading levers
     "executionPythonPath",
     "executionVariableFile",
+    # EXEC.11 custom-listener user code
+    "executionCustomListenerUserCode",
 )
 
 

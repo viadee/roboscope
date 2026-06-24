@@ -439,6 +439,7 @@ const overrides: Dict = {
       modifiers: {
         prerun: '运行前修改器',
         prerebot: '运行后修改器（结果）',
+        listener: '监听器',
         tier: { vendor: '内置', org: '组织' },
       },
       pythonPath: 'Python 路径 (--pythonpath)',

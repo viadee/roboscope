@@ -139,9 +139,9 @@ function modifiersOfKind(kind: string) {
       <span class="text-muted text-sm">{{ t('execution.advanced.argsHint') }}</span>
     </div>
 
-    <!-- EXEC.10: curated modifier pickers (only render a group with entries) -->
+    <!-- EXEC.10/11: curated modifier + listener pickers (render only non-empty groups) -->
     <div
-      v-for="kind in ['prerun', 'prerebot']"
+      v-for="kind in ['prerun', 'prerebot', 'listener']"
       :key="kind"
       v-show="modifiersOfKind(kind).length"
       class="form-group"

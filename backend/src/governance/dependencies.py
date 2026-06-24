@@ -126,9 +126,10 @@ def gate_advanced_execution(
     args = _as_list("args")
     prerun = _as_list("prerun_modifiers")
     prerebot = _as_list("prerebot_modifiers")
+    listeners = _as_list("listeners")  # EXEC.11 custom listeners
     python_paths = _as_list("python_paths")
     variable_files = _as_list("variable_files")
-    if not any((args, prerun, prerebot, python_paths, variable_files)):
+    if not any((args, prerun, prerebot, listeners, python_paths, variable_files)):
         return
 
     # 1. Advanced-section flag + EDITOR floor.
@@ -150,6 +151,19 @@ def gate_advanced_execution(
         if not _role_at_least(user, Role.ADMIN):
             _block(f"insufficient_role:preRunModifierUserCode:{user.role}", "insufficient_role")
 
+    # 2b. Custom listeners (EXEC.11): a non-curated class path is Tier-C user-code.
+    usercode_listeners = [
+        k for m in listeners if (k := _modifier_key(m)) and not is_curated_key(k)
+    ]
+    if usercode_listeners:
+        if not resolve_flag(db, "executionCustomListenerUserCode").value:
+            _block(
+                "feature_disabled:executionCustomListenerUserCode",
+                "feature_disabled:executionCustomListenerUserCode",
+            )
+        if not _role_at_least(user, Role.ADMIN):
+            _block(f"insufficient_role:customListenerUserCode:{user.role}", "insufficient_role")
+
     # 3. Repo-confined code-loading levers — each its own ADMIN-only flag.
     if python_paths:
         if not resolve_flag(db, "executionPythonPath").value:
@@ -163,17 +177,19 @@ def gate_advanced_execution(
             _block(f"insufficient_role:executionVariableFile:{user.role}", "insufficient_role")
 
     # 4. Input rejection (422) AFTER the 403 gates.
-    # 4a. Code-loading levers require explicit consent server-side (not just UI).
-    if (python_paths or variable_files) and advanced_config.get("code_load_consent") is not True:
+    # 4a. Code-loading levers + Tier-C listeners require explicit consent
+    # server-side (not just UI).
+    needs_consent = python_paths or variable_files or usercode_listeners
+    if needs_consent and advanced_config.get("code_load_consent") is not True:
         _block(
             "consent_required",
             "code-loading consent required",
             status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
 
-    # 4b. Validate modifier entries: well-formed, a curated key must match the
-    # list's kind, and an arg may not contain ':' (RF's modifier-spec separator).
-    for entries, kind in ((prerun, "prerun"), (prerebot, "prerebot")):
+    # 4b. Validate modifier + listener entries: well-formed, a curated key must
+    # match the list's kind, and an arg may not contain ':' (the spec separator).
+    for entries, kind in ((prerun, "prerun"), (prerebot, "prerebot"), (listeners, "listener")):
         for m in entries:
             if not isinstance(m, (dict, str)):
                 _block(
@@ -236,6 +252,10 @@ def gate_advanced_execution(
         zones_used.append("variablefile")
     if usercode_mods:
         zones_used.append("usercode_modifier")
+    if listeners:
+        zones_used.append("listener")
+    if usercode_listeners:
+        zones_used.append("usercode_listener")
 
     def _resolved_mods(entries: list) -> list[dict]:
         # Audit the actual class path + tier that will run, not just the key.
@@ -259,9 +279,11 @@ def gate_advanced_execution(
             "resolved_argv": resolved_args,
             "prerun_modifiers": _resolved_mods(prerun),
             "prerebot_modifiers": _resolved_mods(prerebot),
+            "listeners": _resolved_mods(listeners),
             "python_paths": confined_pp,
             "variable_files": confined_vf,
             "usercode_modifiers": usercode_mods,
+            "usercode_listeners": usercode_listeners,
             "code_load_consent": bool(advanced_config.get("code_load_consent")),
             "zones_used": zones_used,
             "blocked": False,

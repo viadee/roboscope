@@ -40,6 +40,16 @@ def test_get_available_modifiers_filters_by_kind():
     ]
 
 
+def test_vendor_listener_present():
+    # EXEC.11: the registry gains a listener kind + a vendor listener.
+    assert "listener" in registry.VALID_KINDS
+    entries = registry.get_available_modifiers("listener")
+    keys = {e.key for e in entries}
+    assert "roboscope_live_progress" in keys
+    entry = registry.get_modifier("roboscope_live_progress")
+    assert entry.kind == "listener" and entry.tier == "vendor"
+
+
 def test_public_dict_hides_class_path():
     pub = registry.load_registry()["roboscope_tag_stamp"].public_dict()
     assert "class_path" not in pub
@@ -87,6 +97,30 @@ def test_config_file_loads_valid_and_skips_bad(tmp_path, monkeypatch):
     # bad entries skipped, server still up
     assert "org_broken" not in reg
     assert "org_badkind" not in reg
+
+
+def test_listener_kind_requires_valid_api_version(tmp_path, monkeypatch):
+    # EXEC.11: a class registered as kind=listener must declare a v2/v3 RF
+    # listener API version, else it is skipped (a SuiteVisitor is not a listener).
+    cfg = _write_config(
+        tmp_path,
+        [
+            {  # valid listener (LiveProgressListener has ROBOT_LISTENER_API_VERSION=2)
+                "key": "org_live",
+                "class_path": "src.execution.modifiers.builtin.LiveProgressListener",
+                "kind": "listener",
+            },
+            {  # NOT a listener (TagStamper is a SuiteVisitor) → skipped
+                "key": "org_fake_listener",
+                "class_path": "src.execution.modifiers.builtin.TagStamper",
+                "kind": "listener",
+            },
+        ],
+    )
+    monkeypatch.setenv(registry.CONFIG_ENV_VAR, cfg)
+    reg = registry.load_registry(force=True)
+    assert "org_live" in reg
+    assert "org_fake_listener" not in reg
 
 
 def test_config_missing_file_is_ignored(tmp_path, monkeypatch):

@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 ENTRY_POINT_GROUP = "roboscope.modifiers"
 CONFIG_ENV_VAR = "ROBOSCOPE_MODIFIERS_CONFIG"
-VALID_KINDS = ("prerun", "prerebot")
+VALID_KINDS = ("prerun", "prerebot", "listener")
 
 
 @dataclass(frozen=True)
@@ -73,10 +73,33 @@ _VENDOR_ENTRIES: tuple[ModifierEntry, ...] = (
         description="Adds a fixed tag to every test in the run.",
         args_schema=({"name": "tag", "label": "Tag", "required": False},),
     ),
+    ModifierEntry(
+        key="roboscope_live_progress",
+        class_path="src.execution.modifiers.builtin.LiveProgressListener",
+        kind="listener",
+        label="Live progress",
+        tier="vendor",
+        description="Prints a compact PASS/FAIL line per test to the run output.",
+    ),
 )
 
 
 # --- Tier-B org loaders (operator-trusted, backend config only) -----------------
+
+_LISTENER_API_VERSIONS = {2, 3, "2", "3"}
+
+
+def _validate_listener_class(kind: str, cls: object) -> None:
+    """For a ``listener`` entry, require a valid RF Listener API version (v2/v3)
+    on the class so a non-listener can't be registered as one (EXEC.11). Raises
+    ValueError otherwise — the caller logs + skips."""
+    if kind != "listener":
+        return
+    version = getattr(cls, "ROBOT_LISTENER_API_VERSION", None)
+    if version not in _LISTENER_API_VERSIONS:
+        raise ValueError(
+            f"listener class {cls!r} has no valid ROBOT_LISTENER_API_VERSION (got {version!r})"
+        )
 
 
 def _load_entry_point_entries() -> list[ModifierEntry]:
@@ -98,6 +121,7 @@ def _load_entry_point_entries() -> list[ModifierEntry]:
             kind = getattr(cls, "roboscope_kind", "prerun")
             if kind not in VALID_KINDS:
                 raise ValueError(f"invalid roboscope_kind {kind!r}")
+            _validate_listener_class(kind, cls)
             out.append(
                 ModifierEntry(
                     key=ep.name,
@@ -165,7 +189,8 @@ def _load_config_entries() -> list[ModifierEntry]:
             kind = raw.get("kind", "prerun")
             if kind not in VALID_KINDS:
                 raise ValueError(f"invalid kind {kind!r}")
-            _import_class(class_path)  # validate importability; raises on failure
+            cls = _import_class(class_path)  # validate importability; raises on failure
+            _validate_listener_class(kind, cls)
             out.append(
                 ModifierEntry(
                     key=key,

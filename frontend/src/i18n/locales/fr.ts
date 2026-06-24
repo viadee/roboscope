@@ -407,6 +407,7 @@ export default {
       modifiers: {
         prerun: 'Modificateurs pré-exécution',
         prerebot: 'Modificateurs post-exécution (résultats)',
+        listener: 'Écouteurs',
         tier: { vendor: 'Intégré', org: 'Organisation' },
       },
       pythonPath: 'Chemin Python (--pythonpath)',

@@ -250,3 +250,62 @@ def test_non_list_advanced_field_is_422(db_session, monkeypatch):
     with pytest.raises(HTTPException) as exc:
         gate_advanced_execution(db_session, _FakeRequest(), user, {"args": "--randomize all"})
     assert exc.value.status_code == 422
+
+
+# --- EXEC.11: custom listeners ---------------------------------------------------
+
+
+def test_curated_listener_permitted_for_editor(db_session, monkeypatch):
+    # A curated (vendor) listener needs only executionAdvancedArgs + EDITOR.
+    monkeypatch.delenv("ROBOSCOPE_FEATURE_EXECUTION_ADVANCED_ARGS", raising=False)
+    _enable(db_session, "executionAdvancedArgs")
+    user = _user(db_session, role=Role.EDITOR)
+    gate_advanced_execution(
+        db_session, _FakeRequest(), user, {"listeners": [{"key": "roboscope_live_progress"}]}
+    )
+    rows = _audit_rows(db_session, "advanced_run")
+    assert len(rows) == 1
+    assert "listener" in json.loads(rows[0].detail)["zones_used"]
+
+
+def test_usercode_listener_requires_flag(db_session, monkeypatch):
+    monkeypatch.delenv("ROBOSCOPE_FEATURE_EXECUTION_ADVANCED_ARGS", raising=False)
+    _enable(db_session, "executionAdvancedArgs")
+    user = _user(db_session, role=Role.ADMIN)
+    with pytest.raises(HTTPException) as exc:
+        gate_advanced_execution(
+            db_session, _FakeRequest(), user, {"listeners": [{"key": "evil.pkg.Listener"}]}
+        )
+    assert exc.value.status_code == 403
+    assert any(
+        "feature_disabled:executionCustomListenerUserCode" in (r.detail or "")
+        for r in _audit_rows(db_session, "blocked")
+    )
+
+
+def test_usercode_listener_requires_consent(db_session, monkeypatch):
+    monkeypatch.delenv("ROBOSCOPE_FEATURE_EXECUTION_ADVANCED_ARGS", raising=False)
+    _enable(db_session, "executionAdvancedArgs")
+    _enable(db_session, "executionCustomListenerUserCode")
+    user = _user(db_session, role=Role.ADMIN)
+    with pytest.raises(HTTPException) as exc:
+        # flag on + ADMIN but no consent
+        gate_advanced_execution(
+            db_session, _FakeRequest(), user, {"listeners": [{"key": "evil.pkg.Listener"}]}
+        )
+    assert exc.value.status_code == 422
+    assert any("consent_required" in (r.detail or "") for r in _audit_rows(db_session, "blocked"))
+
+
+def test_listener_kind_mismatch_is_422(db_session, monkeypatch):
+    # A curated prerun modifier submitted in the listeners list → 422.
+    monkeypatch.delenv("ROBOSCOPE_FEATURE_EXECUTION_ADVANCED_ARGS", raising=False)
+    _enable(db_session, "executionAdvancedArgs")
+    user = _user(db_session, role=Role.EDITOR)
+    with pytest.raises(HTTPException) as exc:
+        gate_advanced_execution(
+            db_session, _FakeRequest(), user, {"listeners": [{"key": "roboscope_tag_stamp"}]}
+        )
+    assert exc.value.status_code == 422
+    blocked = _audit_rows(db_session, "blocked")
+    assert any("modifier_kind_mismatch" in (r.detail or "") for r in blocked)
