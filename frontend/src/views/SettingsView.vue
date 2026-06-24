@@ -21,7 +21,35 @@ import { extractErrorDetail } from '@/utils/errors'
 import * as webhooksApi from '@/api/webhooks.api'
 
 const toast = useToast()
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+// Localised descriptions for known settings (the DB stores an English
+// description; we prefer a translated one keyed by a stable id, falling back to
+// the DB string for any setting we haven't translated yet). camelCase ids avoid
+// vue-i18n dotted-path nesting collisions (e.g. packageManagement is both a flag
+// and a `.role.*` prefix).
+const SETTING_DESC_IDS: Record<string, string> = {
+  'features.packageManagement': 'packageManagement',
+  'features.packageManagement.role.install': 'roleInstall',
+  'features.packageManagement.role.uninstall': 'roleUninstall',
+  'features.packageManagement.role.upgrade': 'roleUpgrade',
+  'features.packageManagement.role.docker_build': 'roleDockerBuild',
+  'features.packageManagement.role.rfbrowser_init': 'roleRfbrowserInit',
+  'features.executionAdvancedArgs': 'execAdvancedArgs',
+  'features.executionPreRunModifierUserCode': 'execPreRunModifierUserCode',
+  'features.executionCustomListenerUserCode': 'execCustomListenerUserCode',
+  'features.executionPythonPath': 'execPythonPath',
+  'features.executionVariableFile': 'execVariableFile',
+  'features.executionDataDriver': 'execDataDriver',
+}
+function settingDescription(setting: { key: string; description?: string | null }): string {
+  const id = SETTING_DESC_IDS[setting.key]
+  if (id) {
+    const k = `settings.descriptions.${id}`
+    if (te(k)) return t(k)
+  }
+  return setting.description ?? ''
+}
 
 // Epic GOV — a `features.<flag>` setting whose flag is locked by an ENV
 // override is non-editable here (the backend ignores the DB value). Disable
@@ -556,7 +584,7 @@ function formatSize(bytes: number): string {
           <div v-for="setting in getSettingsByCategory(cat)" :key="setting.key" class="setting-row">
             <div class="setting-info">
               <strong>{{ setting.key }}</strong>
-              <span class="text-muted text-sm">{{ setting.description }}</span>
+              <span class="text-muted text-sm">{{ settingDescription(setting) }}</span>
             </div>
             <div class="setting-input">
               <select
