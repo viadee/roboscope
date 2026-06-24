@@ -29,6 +29,24 @@ const { t, te } = useI18n()
 // vue-i18n dotted-path nesting collisions (e.g. packageManagement is both a flag
 // and a `.role.*` prefix).
 const SETTING_DESC_IDS: Record<string, string> = {
+  default_runner: 'defaultRunner',
+  max_parallel_runs: 'maxParallelRuns',
+  default_timeout: 'defaultTimeout',
+  git_sync_interval: 'gitSyncInterval',
+  report_retention_days: 'reportRetentionDays',
+  log_retention_days: 'logRetentionDays',
+  log_level: 'logLevel',
+  enable_notifications: 'enableNotifications',
+  docker_default_image: 'dockerDefaultImage',
+  docker_memory_limit: 'dockerMemoryLimit',
+  rf_mcp_auto_start: 'rfMcpAutoStart',
+  rf_mcp_environment_id: 'rfMcpEnvironmentId',
+  rf_mcp_port: 'rfMcpPort',
+  sso_emergency_bypass: 'ssoEmergencyBypass',
+  sso_emergency_bypass_expires_at: 'ssoEmergencyBypassExpiresAt',
+  deprovision_retention_days: 'deprovisionRetentionDays',
+  admin_contact_email: 'adminContactEmail',
+  hide_local_login_form: 'hideLocalLoginForm',
   'features.packageManagement': 'packageManagement',
   'features.packageManagement.role.install': 'roleInstall',
   'features.packageManagement.role.uninstall': 'roleUninstall',
@@ -50,11 +68,15 @@ function settingDescription(setting: { key: string; description?: string | null 
   }
   return setting.description ?? ''
 }
+function settingCategory(cat: string): string {
+  const k = `settings.categories.${cat}`
+  return te(k) ? t(k) : cat
+}
 
 // Epic GOV — a `features.<flag>` setting whose flag is locked by an ENV
 // override is non-editable here (the backend ignores the DB value). Disable
 // the input and show a hint so an admin isn't misled into "saving" a no-op.
-const { isLocked } = useFeatureFlags()
+const { isLocked, refresh: refreshFeatureFlags } = useFeatureFlags()
 function settingLocked(key: string): boolean {
   const prefix = 'features.'
   return key.startsWith(prefix) && isLocked(key.slice(prefix.length))
@@ -428,6 +450,12 @@ async function saveSettings() {
   try {
     const updates = Object.entries(editedValues.value).map(([key, value]) => ({ key, value }))
     await settingsApi.updateSettings(updates)
+    // Refresh the cached feature flags so toggling e.g. executionAdvancedArgs
+    // takes effect immediately (the run dialog's Advanced section appears)
+    // without a hard page reload.
+    if (updates.some(u => u.key.startsWith('features.'))) {
+      await refreshFeatureFlags()
+    }
     toast.success(t('settings.toasts.saved'))
   } catch {
     toast.error(t('settings.toasts.saveError'))
@@ -578,7 +606,7 @@ function formatSize(bytes: number): string {
     <template v-else-if="activeTab === 'general'">
       <div v-for="cat in categories" :key="cat" class="card mb-4">
         <div class="card-header">
-          <h3 style="text-transform: capitalize">{{ cat }}</h3>
+          <h3 style="text-transform: capitalize">{{ settingCategory(cat) }}</h3>
         </div>
         <div class="settings-list">
           <div v-for="setting in getSettingsByCategory(cat)" :key="setting.key" class="setting-row">
