@@ -1000,6 +1000,72 @@ Recording 21
         tip: 'Der Bereich „Erweitert“ bleibt ausgeblendet, solange sein Feature-Flag nicht aktiviert ist — RoboScope zeigt nie ein Bedienelement, das man nicht nutzen kann. Ein Administrator kann die Flags unter Einstellungen → Features umschalten.'
       },
       {
+        id: 'execution-modifiers',
+        title: 'Ausführungs-Modifier & Code-Lade-Hebel',
+        content: `
+<p>
+  Über einfache Argumente hinaus kann RoboScope <strong>Ausführungs-Modifier</strong> und zwei
+  repo-beschränkte Code-Lade-Hebel anwenden. Das sind <strong>kuratierte Kanäle</strong>, keine
+  Umgehung der Sicherheits-Deny-Liste: Das Freitext-Argumentfeld weist Code-Lade-Flags weiterhin
+  für alle ab, auch für Administratoren.
+</p>
+<h4>Modifier vor vs. nach der Ausführung</h4>
+<p>Ein Robot-Framework-Modifier ist eine Python-Klasse, die das Testmodell verändert:</p>
+<ul>
+  <li><strong>Pre-Run-Modifier</strong> (<code>--prerunmodifier</code>) laufen <em>vor</em> der
+  Ausführung gegen das Suite-/Testmodell — z.&nbsp;B. Tags hinzufügen, Tests umbenennen oder filtern.</li>
+  <li><strong>Post-Run-Modifier</strong> (<code>--prerebotmodifier</code>) laufen <em>nach</em> der
+  Ausführung gegen das Ergebnismodell — der richtige Hook, um <strong>Ergebnisse an Ihr
+  Testmanagement zu übergeben</strong> oder einen eigenen Report zu erzeugen.</li>
+</ul>
+<h4>Drei Vertrauensstufen</h4>
+<p>RoboScope bietet Modifier nur aus einem geprüften Registry an, nie als frei getippten Klassenpfad:</p>
+<ul>
+  <li><strong>Integriert</strong> — von RoboScope mitgeliefert und geprüft. Für Editoren verfügbar.</li>
+  <li><strong>Organisation</strong> — von Ihrem Betreiber per Backend-Konfiguration registriert
+  (siehe unten). Zur Deploy-Zeit vertraut, daher ebenfalls für Editoren verfügbar.</li>
+  <li><strong>Benutzercode</strong> — ein beliebiger Klassenpfad zur Laufzeit. Nur Admin, hinter
+  einem eigenen Feature-Flag und einer ausdrücklichen &bdquo;führt beliebigen Code aus&ldquo;-Zustimmung.</li>
+</ul>
+<h4>Eigene Modifier der Organisation registrieren (Betreiber)</h4>
+<p>
+  Ein Betreiber fügt eigene Modifier ausschließlich per <strong>Backend-Konfiguration</strong>
+  hinzu (nie über die UI), über einen der beiden Wege:
+</p>
+<ol>
+  <li><strong>Python-Entry-Point</strong> — ein Paket bereitstellen, das die
+  <code>roboscope.modifiers</code>-Entry-Point-Gruppe exponiert; in die Backend-Umgebung
+  installieren, dann registriert es sich beim Start selbst.</li>
+  <li><strong>Konfigurationsdatei</strong> — <code>ROBOSCOPE_MODIFIERS_CONFIG</code> auf eine
+  JSON/TOML-Datei mit Einträgen <code>{key, class_path, kind, label}</code> zeigen lassen.</li>
+</ol>
+<p>
+  Jede registrierte Klasse wird beim Start validiert; ein fehlerhafter Eintrag wird protokolliert
+  und übersprungen (nie ein Boot-Fehler). Beispiel-Eintrag für einen Ergebnisse&rarr;TMS-Sync:
+</p>
+<pre><code>{
+  "modifiers": [
+    {
+      "key": "tms_sync",
+      "class_path": "mycompany.roboscope.TmsSync",
+      "kind": "prerebot",
+      "label": "Ergebnisse an TMS senden"
+    }
+  ]
+}</code></pre>
+<p>Nach der Registrierung erscheint <em>Ergebnisse an TMS senden</em> im Post-Run-Picker des Ausführungsdialogs.</p>
+<h4>Repo-beschränkte Code-Lade-Hebel (Admin)</h4>
+<p>Zwei weitere, nur für Admins, jeweils hinter eigenem Feature-Flag und ausdrücklicher Zustimmung:</p>
+<ul>
+  <li><strong>Python-Pfad</strong> (<code>--pythonpath</code>) — ein repo-relatives Verzeichnis zum
+  Import-Pfad hinzufügen (z.&nbsp;B. für eine eigene Bibliothek).</li>
+  <li><strong>Variablendatei</strong> (<code>--variablefile</code>) — Variablen aus einer
+  Repository-Datei laden.</li>
+</ul>
+<p>Beide sind <strong>auf den Repository-Baum beschränkt</strong> — ein Pfad, der ihn verlässt, wird abgewiesen.</p>`,
+        tip: 'Modifier und die Code-Lade-Hebel greifen auf dem Docker-Runner möglicherweise nicht: In der Backend-Umgebung installierte Klassen sind im Test-Container nicht importierbar. Nutzen Sie dafür den Subprocess-Runner.'
+      },
+      {
         id: 'execution-status-table',
         title: 'Run-Status-Tabelle',
         content: `

@@ -136,6 +136,15 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("startup run reconciliation failed", exc_info=True)
 
+    # EXEC.10: warm the curated-modifier registry at boot so a broken org
+    # modifier (entry-point / ROBOSCOPE_MODIFIERS_CONFIG) surfaces in the startup
+    # logs immediately rather than on the first run-dialog open. Never fatal.
+    try:
+        from src.execution.modifiers import load_registry
+        load_registry(force=True)
+    except Exception:
+        logger.warning("startup modifier-registry load failed", exc_info=True)
+
     # Seed default admin user
     with SessionLocal() as session:
         from src.auth.service import ensure_admin_exists

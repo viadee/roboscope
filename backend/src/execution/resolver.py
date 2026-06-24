@@ -118,6 +118,14 @@ class ResolvedRunSpec:
     # never reachable through advanced_args (which denies --prerunmodifier).
     advanced_args: tuple[str, ...] = ()
     prerun_modifiers: tuple[str, ...] = ()
+    # EXEC.10: further typed channels that bypass the Z3 deny-list (which denies
+    # all of these raw flags) but are NEVER read from the freeform field.
+    # prerebot_modifiers run against the RESULT model after execution (the
+    # "update reports / TMS" hook). python_paths / variable_files are
+    # repo-confined at resolve time.
+    prerebot_modifiers: tuple[str, ...] = ()
+    python_paths: tuple[str, ...] = ()
+    variable_files: tuple[str, ...] = ()
     audit_payload: dict = field(default_factory=dict)
 
 
@@ -127,6 +135,31 @@ def _split_tags(value: str | Iterable[str] | None) -> tuple[str, ...]:
         return ()
     parts = value.split(",") if isinstance(value, str) else list(value)
     return tuple(t.strip() for t in parts if t and t.strip())
+
+
+def _confine_to_repo(raw: str, repo_root: str | None) -> str:
+    """Resolve a user-supplied file/dir path against the repo root and ensure it
+    stays inside it (EXEC.10 ``--pythonpath`` / ``--variablefile`` levers).
+
+    Returns the resolved absolute path. Raises :class:`AdvancedArgError` when the
+    path escapes the repo tree OR no repo context is available (fail closed). An
+    absolute ``raw`` inside the repo is accepted; one outside is rejected.
+    """
+    if not repo_root:
+        raise AdvancedArgError(
+            "a repository context is required to use file-based execution levers"
+        )
+    from pathlib import Path
+
+    root = Path(repo_root).resolve()
+    target = (root / raw).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError:
+        raise AdvancedArgError(
+            f"path '{raw}' escapes the repository tree and is not allowed"
+        ) from None
+    return str(target)
 
 
 def validate_advanced_args(args: Iterable[str] | None) -> tuple[str, ...]:
@@ -170,13 +203,20 @@ def resolve_run_spec(
     listeners: Iterable[str] | None = None,
     advanced_args: Iterable[str] | None = None,
     prerun_modifiers: Iterable[str] | None = None,
+    prerebot_modifiers: Iterable[str] | None = None,
+    python_paths: Iterable[str] | None = None,
+    variable_files: Iterable[str] | None = None,
+    repo_root: str | None = None,
 ) -> ResolvedRunSpec:
     """Validate and normalise run inputs into an immutable :class:`ResolvedRunSpec`.
 
     This is the single place validation happens; both runners build their argv
     from the returned spec. ``advanced_args`` is validated against the three-zone
-    policy (rejection is runner-independent). ``prerun_modifiers`` is the curated,
-    separately-gated channel and is emitted as ``--prerunmodifier`` (EXEC.7).
+    policy (rejection is runner-independent). ``prerun_modifiers`` /
+    ``prerebot_modifiers`` are the curated, separately-gated modifier channels
+    (EXEC.7/EXEC.10), emitted as ``--prerunmodifier`` / ``--prerebotmodifier``.
+    ``python_paths`` / ``variable_files`` are repo-confined here against
+    ``repo_root`` (EXEC.10) — a path escaping the tree raises ``AdvancedArgError``.
     """
     validated_args = validate_advanced_args(advanced_args)
 
@@ -187,6 +227,17 @@ def resolve_run_spec(
     )
     listeners_t = tuple(s.strip() for s in (listeners or []) if s and s.strip())
     modifiers_t = tuple(s.strip() for s in (prerun_modifiers or []) if s and s.strip())
+    prerebot_t = tuple(s.strip() for s in (prerebot_modifiers or []) if s and s.strip())
+    pythonpaths_t = tuple(
+        _confine_to_repo(str(p).strip(), repo_root)
+        for p in (python_paths or [])
+        if p and str(p).strip()
+    )
+    varfiles_t = tuple(
+        _confine_to_repo(str(p).strip(), repo_root)
+        for p in (variable_files or [])
+        if p and str(p).strip()
+    )
 
     spec = ResolvedRunSpec(
         target_path=target_path,
@@ -197,6 +248,9 @@ def resolve_run_spec(
         listeners=listeners_t,
         advanced_args=validated_args,
         prerun_modifiers=modifiers_t,
+        prerebot_modifiers=prerebot_t,
+        python_paths=pythonpaths_t,
+        variable_files=varfiles_t,
     )
     # Runner-independent flag portion — used for parity assertions and for the
     # audit trail (EXEC.3 will persist this on the AuditLog).
@@ -216,10 +270,16 @@ def robot_flag_args(spec: ResolvedRunSpec) -> list[str]:
         flags += ["--include", tag]
     for tag in spec.tags_exclude:
         flags += ["--exclude", tag]
+    for path in spec.python_paths:
+        flags += ["--pythonpath", path]
     for spec_str in spec.listeners:
         flags += ["--listener", spec_str]
     for modifier in spec.prerun_modifiers:
         flags += ["--prerunmodifier", modifier]
+    for modifier in spec.prerebot_modifiers:
+        flags += ["--prerebotmodifier", modifier]
+    for var_file in spec.variable_files:
+        flags += ["--variablefile", var_file]
     for key, value in spec.variables:
         flags += ["--variable", f"{key}:{value}"]
     # Validated freeform args (Z3) — emitted verbatim before the target path.

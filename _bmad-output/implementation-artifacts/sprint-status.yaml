@@ -38,7 +38,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-15
-last_updated: 2026-06-24T-exec-epic-code-review
+last_updated: 2026-06-24T-exec-10-implemented-reviewed
 project: roboscope
 project_key: NOKEY
 tracking_system: file-system
@@ -240,5 +240,5 @@ development_status:
   exec-7-prerunmodifier: done  # review: deny-list hardened (short aliases + --variablefile/--argumentfile + abbreviations). Curated default-path = deferred follow-up.
   exec-8-datadriver-spike: done  # feasibility note GO (CSV-first) — planning-artifacts/exec8-datadriver-spike.md
   exec-9-datadriver-feature: done  # robotframework-datadriver>=1.11,<2 added + uv.lock'd; offline import-gate (phase4-gates Windows install + in-repo test); runs as Library import (no runner change), flag-gated. 8 tests green.
-  exec-10-curated-org-modifiers-and-code-levers: backlog  # modifier registry w/ 3 trust tiers (vendor / org-deployed via entry-point+config / runtime user-code), pre+prerebot hooks (TMS/report sync), + repo-confined --pythonpath/--variablefile. Closes EXEC.7 gap; NEVER a Z3 deny-list bypass. Drafted inline in exec-epics.md 2026-06-24.
+  exec-10-curated-org-modifiers-and-code-levers: done  # modifier registry w/ 3 trust tiers (vendor / org-deployed via entry-point+config / runtime user-code), pre+prerebot hooks (TMS/report sync), + repo-confined --pythonpath/--variablefile. Closes EXEC.7 gap; NEVER a Z3 deny-list bypass. Drafted inline in exec-epics.md 2026-06-24.
   exec-11-custom-execution-listeners: backlog  # fast-follow to EXEC.10: extends the registry with kind:listener (live per-event hook, e.g. results→TMS streaming); same 3 trust tiers; coexists with system quarantine/heal listeners; free-typed --listener stays denied. Depends on EXEC.10. Drafted inline in exec-epics.md 2026-06-24.

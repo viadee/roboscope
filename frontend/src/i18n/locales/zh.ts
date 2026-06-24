@@ -436,6 +436,18 @@ const overrides: Dict = {
       args: '附加 robot 参数',
       argsPlaceholder: '--randomize all',
       argsHint: '以空格分隔。输出和加载代码的参数被禁止。',
+      modifiers: {
+        prerun: '运行前修改器',
+        prerebot: '运行后修改器（结果）',
+        tier: { vendor: '内置', org: '组织' },
+      },
+      pythonPath: 'Python 路径 (--pythonpath)',
+      pythonPathPlaceholder: 'libs/custom',
+      pythonPathHint: '每行一个相对于仓库的路径。仅限管理员；限制在仓库内。',
+      variableFile: '变量文件 (--variablefile)',
+      variableFilePlaceholder: 'vars/env.py',
+      variableFileHint: '每行一个相对于仓库的路径。仅限管理员；在执行环境中运行。',
+      codeLoadConsent: '我了解这会在执行环境中加载/运行代码。',
     },
     envPrompt: {
       title: '设置环境？',

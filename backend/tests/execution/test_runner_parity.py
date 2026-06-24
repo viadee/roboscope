@@ -56,6 +56,26 @@ def test_listener_parity_both_runners_emit_listener():
     assert subprocess_argv.count("--listener") == docker_argv.count("--listener") == 1
 
 
+def test_exec10_channels_parity(tmp_path):
+    # EXEC.10: prerebot modifier + repo-confined pythonpath/variablefile build
+    # identically across runners (builder-level parity).
+    (tmp_path / "libs").mkdir()
+    (tmp_path / "v.py").write_text("X = 1\n")
+    spec = resolve_run_spec(
+        target_path="suite.robot",
+        prerun_modifiers=["pkg.Pre"],
+        prerebot_modifiers=["pkg.Post:url"],
+        python_paths=["libs"],
+        variable_files=["v.py"],
+        repo_root=str(tmp_path),
+    )
+    sub = build_robot_argv(spec, python="/venv/bin/python", output_dir="/host/out")
+    dock = build_robot_argv(spec, python="python", output_dir="/output")
+    assert _flags_only(sub) == _flags_only(dock)
+    for flag in ("--prerunmodifier", "--prerebotmodifier", "--pythonpath", "--variablefile"):
+        assert sub.count(flag) == dock.count(flag) == 1
+
+
 def test_owned_output_flags_are_server_controlled():
     spec = _spec()
     argv = build_robot_argv(spec, python="python", output_dir="/output")

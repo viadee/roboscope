@@ -1025,6 +1025,72 @@ Recording 21
         tip: 'The Advanced section stays hidden unless its feature flag is enabled — RoboScope never shows a control you cannot use. An administrator can toggle the flags under Settings → Features.'
       },
       {
+        id: 'execution-modifiers',
+        title: 'Execution modifiers & code-loading levers',
+        content: `
+<p>
+  Beyond simple arguments, RoboScope can apply <strong>execution modifiers</strong> and a pair of
+  repo-confined code-loading levers. These are <strong>curated channels</strong>, not a way to
+  bypass the safety deny-list: the freeform args field still rejects code-loading flags for
+  everyone, including administrators.
+</p>
+<h4>Pre- vs. post-execution modifiers</h4>
+<p>A Robot Framework modifier is a Python class that transforms the test model:</p>
+<ul>
+  <li><strong>Pre-run modifiers</strong> (<code>--prerunmodifier</code>) run <em>before</em>
+  execution against the suite/test model — e.g. add tags, rename or filter tests.</li>
+  <li><strong>Post-run modifiers</strong> (<code>--prerebotmodifier</code>) run <em>after</em>
+  execution against the result model — the right hook to <strong>push results to your
+  test-management system</strong> or emit a custom report as the run finishes.</li>
+</ul>
+<h4>Three trust tiers</h4>
+<p>RoboScope only offers modifiers from a vetted registry, never a free-typed class path:</p>
+<ul>
+  <li><strong>Built-in</strong> — shipped and vetted by RoboScope. Available to Editors.</li>
+  <li><strong>Organization</strong> — registered by your operator via backend configuration
+  (below). Trusted at deploy time, so also available to Editors.</li>
+  <li><strong>User code</strong> — an arbitrary class path supplied at run time. Admin-only,
+  behind a dedicated feature flag and an explicit &ldquo;runs arbitrary code&rdquo; consent.</li>
+</ul>
+<h4>Registering your organization&rsquo;s modifiers (operators)</h4>
+<p>
+  An operator adds custom modifiers through <strong>backend configuration only</strong> (never the
+  UI), using either mechanism:
+</p>
+<ol>
+  <li><strong>Python entry-point</strong> — ship a package exposing the
+  <code>roboscope.modifiers</code> entry-point group; install it into the backend environment and
+  it self-registers on start-up.</li>
+  <li><strong>Config file</strong> — point <code>ROBOSCOPE_MODIFIERS_CONFIG</code> at a JSON/TOML
+  file listing entries <code>{key, class_path, kind, label}</code>.</li>
+</ol>
+<p>
+  Each registered class is validated at start-up; a broken entry is logged and skipped (never a
+  boot failure). Example config entry for a results&rarr;TMS sync:
+</p>
+<pre><code>{
+  "modifiers": [
+    {
+      "key": "tms_sync",
+      "class_path": "mycompany.roboscope.TmsSync",
+      "kind": "prerebot",
+      "label": "Push results to TMS"
+    }
+  ]
+}</code></pre>
+<p>Once registered, <em>Push results to TMS</em> appears in the run dialog&rsquo;s post-run picker.</p>
+<h4>Repo-confined code-loading levers (admin)</h4>
+<p>Two further admin-only levers, each behind its own feature flag and an explicit consent:</p>
+<ul>
+  <li><strong>Python path</strong> (<code>--pythonpath</code>) — add a repository-relative
+  directory to the import path (e.g. for a custom library).</li>
+  <li><strong>Variable file</strong> (<code>--variablefile</code>) — load variables from a
+  repository file.</li>
+</ul>
+<p>Both are <strong>confined to the repository tree</strong> — a path that escapes it is rejected.</p>`,
+        tip: 'Modifiers and the code-loading levers may not apply on the Docker runner: classes installed in the backend environment are not importable inside the test container. Use the subprocess runner for these.'
+      },
+      {
         id: 'run-status-table',
         title: 'Run Status Table',
         content: `

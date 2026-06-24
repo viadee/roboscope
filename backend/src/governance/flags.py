@@ -33,6 +33,9 @@ FEATURE_FLAGS: dict[str, bool] = {
     "executionAdvancedArgs": False,
     "executionPreRunModifierUserCode": False,
     "executionDataDriver": False,
+    # EXEC.10: repo-confined code-loading levers, ADMIN-only, default OFF.
+    "executionPythonPath": False,
+    "executionVariableFile": False,
 }
 
 SETTINGS_CATEGORY = "features"

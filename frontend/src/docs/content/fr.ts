@@ -997,6 +997,73 @@ Recording 21
         tip: 'La section \u00AB Avanc\u00E9 \u00BB reste masqu\u00E9e tant que son indicateur de fonctionnalit\u00E9 n\u2019est pas activ\u00E9 \u2014 RoboScope n\u2019affiche jamais un contr\u00F4le que vous ne pouvez pas utiliser. Un administrateur peut activer les indicateurs dans Param\u00E8tres \u2192 Fonctionnalit\u00E9s.'
       },
       {
+        id: 'execution-modifiers',
+        title: 'Modificateurs d\u2019ex\u00E9cution & leviers de chargement de code',
+        content: `
+<p>
+  Au-del\u00E0 des simples arguments, RoboScope peut appliquer des <strong>modificateurs
+  d\u2019ex\u00E9cution</strong> et deux leviers de chargement de code confin\u00E9s au d\u00E9p\u00F4t. Ce sont des
+  <strong>canaux cur\u00E9s</strong>, et non un moyen de contourner la liste de refus : le champ
+  d\u2019arguments libres rejette toujours les options de chargement de code pour tout le monde, y
+  compris les administrateurs.
+</p>
+<h4>Modificateurs pr\u00E9- vs post-ex\u00E9cution</h4>
+<p>Un modificateur Robot Framework est une classe Python qui transforme le mod\u00E8le de test :</p>
+<ul>
+  <li><strong>Modificateurs pr\u00E9-ex\u00E9cution</strong> (<code>--prerunmodifier</code>) s\u2019ex\u00E9cutent
+  <em>avant</em> contre le mod\u00E8le de suite/test \u2014 p.&nbsp;ex. ajouter des tags, renommer ou filtrer.</li>
+  <li><strong>Modificateurs post-ex\u00E9cution</strong> (<code>--prerebotmodifier</code>) s\u2019ex\u00E9cutent
+  <em>apr\u00E8s</em> contre le mod\u00E8le de r\u00E9sultats \u2014 le bon point d\u2019accroche pour <strong>pousser les
+  r\u00E9sultats vers votre syst\u00E8me de gestion de tests</strong> ou produire un rapport personnalis\u00E9.</li>
+</ul>
+<h4>Trois niveaux de confiance</h4>
+<p>RoboScope ne propose que des modificateurs d\u2019un registre v\u00E9rifi\u00E9, jamais un chemin de classe libre :</p>
+<ul>
+  <li><strong>Int\u00E9gr\u00E9</strong> \u2014 fourni et v\u00E9rifi\u00E9 par RoboScope. Disponible pour les \u00C9diteurs.</li>
+  <li><strong>Organisation</strong> \u2014 enregistr\u00E9 par votre exploitant via la configuration du
+  backend (ci-dessous). Approuv\u00E9 au d\u00E9ploiement, donc disponible pour les \u00C9diteurs.</li>
+  <li><strong>Code utilisateur</strong> \u2014 un chemin de classe arbitraire fourni \u00E0 l\u2019ex\u00E9cution.
+  Admin uniquement, derri\u00E8re un indicateur d\u00E9di\u00E9 et un consentement explicite.</li>
+</ul>
+<h4>Enregistrer les modificateurs de votre organisation (exploitants)</h4>
+<p>
+  Un exploitant ajoute des modificateurs uniquement via la <strong>configuration du backend</strong>
+  (jamais l\u2019interface), par l\u2019un des deux m\u00E9canismes :
+</p>
+<ol>
+  <li><strong>Point d\u2019entr\u00E9e Python</strong> \u2014 fournir un paquet exposant le groupe de points
+  d\u2019entr\u00E9e <code>roboscope.modifiers</code> ; l\u2019installer dans l\u2019environnement backend et il
+  s\u2019enregistre au d\u00E9marrage.</li>
+  <li><strong>Fichier de configuration</strong> \u2014 pointer <code>ROBOSCOPE_MODIFIERS_CONFIG</code>
+  vers un fichier JSON/TOML listant les entr\u00E9es <code>{key, class_path, kind, label}</code>.</li>
+</ol>
+<p>
+  Chaque classe enregistr\u00E9e est valid\u00E9e au d\u00E9marrage ; une entr\u00E9e d\u00E9fectueuse est journalis\u00E9e et
+  ignor\u00E9e (jamais un \u00E9chec de d\u00E9marrage). Exemple d\u2019entr\u00E9e pour une synchro r\u00E9sultats&rarr;TMS :
+</p>
+<pre><code>{
+  "modifiers": [
+    {
+      "key": "tms_sync",
+      "class_path": "mycompany.roboscope.TmsSync",
+      "kind": "prerebot",
+      "label": "Pousser les r\u00E9sultats vers le TMS"
+    }
+  ]
+}</code></pre>
+<p>Une fois enregistr\u00E9, l\u2019entr\u00E9e appara\u00EEt dans le s\u00E9lecteur post-ex\u00E9cution de la bo\u00EEte de dialogue.</p>
+<h4>Leviers de chargement de code confin\u00E9s au d\u00E9p\u00F4t (admin)</h4>
+<p>Deux autres leviers, admin uniquement, chacun derri\u00E8re son indicateur et un consentement explicite :</p>
+<ul>
+  <li><strong>Chemin Python</strong> (<code>--pythonpath</code>) \u2014 ajouter un r\u00E9pertoire relatif au
+  d\u00E9p\u00F4t au chemin d\u2019import (p.&nbsp;ex. pour une biblioth\u00E8que personnalis\u00E9e).</li>
+  <li><strong>Fichier de variables</strong> (<code>--variablefile</code>) \u2014 charger des variables
+  depuis un fichier du d\u00E9p\u00F4t.</li>
+</ul>
+<p>Les deux sont <strong>confin\u00E9s \u00E0 l\u2019arborescence du d\u00E9p\u00F4t</strong> \u2014 un chemin qui en sort est rejet\u00E9.</p>`,
+        tip: 'Les modificateurs et les leviers de chargement de code peuvent ne pas s\u2019appliquer sur le runner Docker : les classes install\u00E9es dans l\u2019environnement backend ne sont pas importables dans le conteneur de test. Utilisez le runner subprocess.'
+      },
+      {
         id: 'run-status-table',
         title: 'Tableau des statuts d\u2019ex\u00E9cution',
         content: `

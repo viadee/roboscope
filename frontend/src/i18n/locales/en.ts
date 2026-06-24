@@ -404,6 +404,18 @@ export default {
       args: 'Additional robot arguments',
       argsPlaceholder: '--randomize all',
       argsHint: 'Space-separated. Output and code-loading flags are blocked.',
+      modifiers: {
+        prerun: 'Pre-run modifiers',
+        prerebot: 'Post-run modifiers (results)',
+        tier: { vendor: 'Built-in', org: 'Organization' },
+      },
+      pythonPath: 'Python path (--pythonpath)',
+      pythonPathPlaceholder: 'libs/custom',
+      pythonPathHint: 'One repo-relative path per line. Admin-only; confined to the repository.',
+      variableFile: 'Variable file (--variablefile)',
+      variableFilePlaceholder: 'vars/env.py',
+      variableFileHint: 'One repo-relative path per line. Admin-only; runs in the execution environment.',
+      codeLoadConsent: 'I understand this loads/runs code in the execution environment.',
     },
     envPrompt: {
       title: 'Set up an environment?',

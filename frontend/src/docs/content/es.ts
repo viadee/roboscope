@@ -1022,6 +1022,73 @@ Recording 21
         tip: 'La sección «Avanzado» permanece oculta a menos que su indicador de función esté habilitado: RoboScope nunca muestra un control que no puede usar. Un administrador puede activar los indicadores en Ajustes → Funciones.'
       },
       {
+        id: 'execution-modifiers',
+        title: 'Modificadores de ejecución y palancas de carga de código',
+        content: `
+<p>
+  Más allá de los argumentos simples, RoboScope puede aplicar <strong>modificadores de
+  ejecución</strong> y dos palancas de carga de código confinadas al repositorio. Son
+  <strong>canales curados</strong>, no una forma de eludir la lista de bloqueo de seguridad: el
+  campo de argumentos libres sigue rechazando las opciones de carga de código para todos, incluidos
+  los administradores.
+</p>
+<h4>Modificadores pre- vs post-ejecución</h4>
+<p>Un modificador de Robot Framework es una clase de Python que transforma el modelo de pruebas:</p>
+<ul>
+  <li><strong>Modificadores pre-ejecución</strong> (<code>--prerunmodifier</code>) se ejecutan
+  <em>antes</em> contra el modelo de suite/prueba — p.&nbsp;ej. añadir etiquetas, renombrar o filtrar.</li>
+  <li><strong>Modificadores post-ejecución</strong> (<code>--prerebotmodifier</code>) se ejecutan
+  <em>después</em> contra el modelo de resultados — el punto adecuado para <strong>enviar
+  resultados a su sistema de gestión de pruebas</strong> o generar un informe personalizado.</li>
+</ul>
+<h4>Tres niveles de confianza</h4>
+<p>RoboScope solo ofrece modificadores de un registro verificado, nunca una ruta de clase libre:</p>
+<ul>
+  <li><strong>Integrado</strong> — incluido y verificado por RoboScope. Disponible para Editores.</li>
+  <li><strong>Organización</strong> — registrado por su operador mediante la configuración del
+  backend (abajo). Confiado en el despliegue, por lo que también está disponible para Editores.</li>
+  <li><strong>Código de usuario</strong> — una ruta de clase arbitraria proporcionada en tiempo de
+  ejecución. Solo admin, tras un indicador dedicado y un consentimiento explícito.</li>
+</ul>
+<h4>Registrar los modificadores de su organización (operadores)</h4>
+<p>
+  Un operador añade modificadores propios solo mediante la <strong>configuración del backend</strong>
+  (nunca la interfaz), por cualquiera de los dos mecanismos:
+</p>
+<ol>
+  <li><strong>Punto de entrada de Python</strong> — distribuir un paquete que exponga el grupo de
+  puntos de entrada <code>roboscope.modifiers</code>; instalarlo en el entorno del backend y se
+  registra al iniciar.</li>
+  <li><strong>Archivo de configuración</strong> — apuntar <code>ROBOSCOPE_MODIFIERS_CONFIG</code> a
+  un archivo JSON/TOML con entradas <code>{key, class_path, kind, label}</code>.</li>
+</ol>
+<p>
+  Cada clase registrada se valida al iniciar; una entrada defectuosa se registra y se omite (nunca
+  un fallo de arranque). Ejemplo de entrada para una sincronización resultados&rarr;TMS:
+</p>
+<pre><code>{
+  "modifiers": [
+    {
+      "key": "tms_sync",
+      "class_path": "mycompany.roboscope.TmsSync",
+      "kind": "prerebot",
+      "label": "Enviar resultados al TMS"
+    }
+  ]
+}</code></pre>
+<p>Una vez registrado, aparece en el selector post-ejecución del diálogo de ejecución.</p>
+<h4>Palancas de carga de código confinadas al repositorio (admin)</h4>
+<p>Otras dos palancas, solo admin, cada una tras su indicador y un consentimiento explícito:</p>
+<ul>
+  <li><strong>Ruta de Python</strong> (<code>--pythonpath</code>) — añadir un directorio relativo al
+  repositorio a la ruta de importación (p.&nbsp;ej. para una biblioteca propia).</li>
+  <li><strong>Archivo de variables</strong> (<code>--variablefile</code>) — cargar variables desde
+  un archivo del repositorio.</li>
+</ul>
+<p>Ambas están <strong>confinadas al árbol del repositorio</strong> — una ruta que se salga se rechaza.</p>`,
+        tip: 'Los modificadores y las palancas de carga de código pueden no aplicarse en el runner de Docker: las clases instaladas en el entorno del backend no son importables dentro del contenedor de pruebas. Use el runner de subproceso.'
+      },
+      {
         id: 'run-status-table',
         title: 'Tabla de estado de ejecuciones',
         content: `

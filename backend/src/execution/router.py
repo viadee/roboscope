@@ -16,6 +16,7 @@ from src.auth.dependencies import (
     require_role,
 )
 from src.auth.models import User
+from src.governance.dependencies import require_feature
 from src.database import get_db
 from src.rate_limit import limiter
 from src.task_executor import TaskDispatchError, dispatch_task
@@ -64,11 +65,20 @@ def start_run(
     current_user: User = Depends(require_role(Role.RUNNER)),
 ):
     """Start a new test execution run."""
-    # EXEC.3: gate + validate + audit advanced execution config before anything
-    # else. No-op unless advanced_config carries args/modifiers.
+    # EXEC.3/EXEC.10: gate + validate + audit advanced execution config before
+    # anything else. No-op unless advanced_config carries levers. The repo's
+    # local path is passed so file-based levers (--pythonpath/--variablefile) are
+    # repo-confined at request time (422 on escape), not only at execution.
     from src.governance.dependencies import gate_advanced_execution
+    from src.repos.models import Repository
 
-    gate_advanced_execution(db, request, current_user, data.advanced_config)
+    repo_root = None
+    if data.advanced_config:
+        repo = db.execute(
+            select(Repository).where(Repository.id == data.repository_id)
+        ).scalar_one_or_none()
+        repo_root = repo.local_path if repo else None
+    gate_advanced_execution(db, request, current_user, data.advanced_config, repo_root)
 
     # Override runner_type from environment's default if an environment is set
     if data.environment_id:
@@ -102,6 +112,22 @@ def start_run(
         db.refresh(run)
 
     return run
+
+
+@router.get("/modifiers")
+def list_modifiers(
+    kind: str | None = Query(default=None),
+    _current_user: User = Depends(get_current_user),
+    _feature: None = Depends(require_feature("executionAdvancedArgs")),
+):
+    """EXEC.10: curated execution modifiers (vendor + org) for the run-dialog
+    picker. Gated behind ``executionAdvancedArgs`` (no point enumerating org
+    modifiers — or triggering the registry import — when the feature is off).
+    Returns public entries only (no internal class paths); ``kind`` filters to
+    ``prerun`` / ``prerebot``."""
+    from src.execution.modifiers import get_available_modifiers
+
+    return [e.public_dict() for e in get_available_modifiers(kind)]
 
 
 @router.get("/runs", response_model=RunListResponse)

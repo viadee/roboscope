@@ -77,6 +77,9 @@ class DockerRunner(AbstractRunner):
         listeners: list[str] | None = None,
         advanced_args: list[str] | None = None,
         prerun_modifiers: list[str] | None = None,
+        prerebot_modifiers: list[str] | None = None,
+        python_paths: list[str] | None = None,
+        variable_files: list[str] | None = None,
     ) -> RunResult:
         """Execute Robot Framework tests in a Docker container.
 
@@ -86,6 +89,12 @@ class DockerRunner(AbstractRunner):
         host-side `src/execution/runners/` package, which isn't
         reachable from inside the test container. Mounting the listener
         file + propagating it is tracked as follow-up FLAKY-3.
+
+        EXEC.10: curated/org modifiers (`--prerunmodifier`/`--prerebotmodifier`)
+        carry the same in-container importability caveat — a modifier installed
+        in the backend venv is not importable inside the test image. They are
+        warned about + dropped from the Docker invocation (FLAKY-3), as is
+        `--variablefile` for a host path that isn't mounted in the container.
         """
         start_time = time.time()
 
@@ -110,18 +119,28 @@ class DockerRunner(AbstractRunner):
                 "(Story FLAKY-3 follow-up).",
                 len(listeners),
             )
+        if prerun_modifiers or prerebot_modifiers or python_paths or variable_files:
+            logger.warning(
+                "DockerRunner dropping curated/org modifiers + --pythonpath/"
+                "--variablefile levers — modules installed in the backend venv "
+                "and host paths are not reachable in-container (Story FLAKY-3). "
+                "Use the subprocess runner for these levers."
+            )
 
         # Ensure output directory exists
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-        # Build robot command
+        # Build robot command. The EXEC.10 levers are DROPPED here (not forwarded),
+        # mirroring the listener handling above — the builder remains capable of
+        # them (runner-parity asserts at the builder level), but a real Docker run
+        # cannot resolve them in-container.
         cmd = self._build_robot_command(
             target_path=target_path,
             variables=variables,
             tags_include=tags_include,
             tags_exclude=tags_exclude,
             advanced_args=advanced_args,
-            prerun_modifiers=prerun_modifiers,
+            repo_path=repo_path,
         )
 
         # Environment variables
@@ -254,6 +273,10 @@ class DockerRunner(AbstractRunner):
         listeners: list[str] | None = None,
         advanced_args: list[str] | None = None,
         prerun_modifiers: list[str] | None = None,
+        prerebot_modifiers: list[str] | None = None,
+        python_paths: list[str] | None = None,
+        variable_files: list[str] | None = None,
+        repo_path: str | None = None,
     ) -> str:
         """Build the robot command for Docker execution.
 
@@ -276,6 +299,10 @@ class DockerRunner(AbstractRunner):
             listeners=listeners,
             advanced_args=advanced_args,
             prerun_modifiers=prerun_modifiers,
+            prerebot_modifiers=prerebot_modifiers,
+            python_paths=python_paths,
+            variable_files=variable_files,
+            repo_root=repo_path,
         )
         argv = build_robot_argv(spec, python="python", output_dir="/output")
         return " ".join(argv)

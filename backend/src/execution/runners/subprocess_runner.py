@@ -60,6 +60,9 @@ class SubprocessRunner(AbstractRunner):
         listeners: list[str] | None = None,
         advanced_args: list[str] | None = None,
         prerun_modifiers: list[str] | None = None,
+        prerebot_modifiers: list[str] | None = None,
+        python_paths: list[str] | None = None,
+        variable_files: list[str] | None = None,
     ) -> RunResult:
         """Execute Robot Framework tests via subprocess."""
         start_time = time.time()
@@ -91,6 +94,9 @@ class SubprocessRunner(AbstractRunner):
             listeners=listeners,
             advanced_args=advanced_args,
             prerun_modifiers=prerun_modifiers,
+            prerebot_modifiers=prerebot_modifiers,
+            python_paths=python_paths,
+            variable_files=variable_files,
         )
 
         # Prepare environment
@@ -283,6 +289,9 @@ class SubprocessRunner(AbstractRunner):
         listeners: list[str] | None = None,
         advanced_args: list[str] | None = None,
         prerun_modifiers: list[str] | None = None,
+        prerebot_modifiers: list[str] | None = None,
+        python_paths: list[str] | None = None,
+        variable_files: list[str] | None = None,
     ) -> list[str]:
         """Build the robot command line.
 
@@ -301,5 +310,9 @@ class SubprocessRunner(AbstractRunner):
             listeners=listeners,
             advanced_args=advanced_args,
             prerun_modifiers=prerun_modifiers,
+            prerebot_modifiers=prerebot_modifiers,
+            python_paths=python_paths,
+            variable_files=variable_files,
+            repo_root=repo_path,
         )
         return build_robot_argv(spec, python=python, output_dir=output_dir)

@@ -14,6 +14,9 @@ EXEC_FLAGS = (
     "executionAdvancedArgs",
     "executionPreRunModifierUserCode",
     "executionDataDriver",
+    # EXEC.10 code-loading levers
+    "executionPythonPath",
+    "executionVariableFile",
 )
 
 

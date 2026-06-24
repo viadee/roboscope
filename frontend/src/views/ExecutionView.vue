@@ -130,8 +130,14 @@ const rebuildDocker = ref(false)
 // EXEC.3: advanced execution config (flag-gated). Kept as text; parsed on submit.
 const { isEnabled } = useFeatureFlags()
 const showAdvanced = computed(() => isEnabled('executionAdvancedArgs'))
+const showPythonPath = computed(() => isEnabled('executionPythonPath'))
+const showVariableFile = computed(() => isEnabled('executionVariableFile'))
 const advancedArgsText = ref('')
 const advancedVariablesText = ref('')
+// EXEC.10: curated modifier selections + repo-confined code-loading levers.
+const advancedModifiers = ref<Array<{ key: string; kind: string; args: string[] }>>([])
+const advancedPythonPaths = ref<string[]>([])
+const advancedVariableFiles = ref<string[]>([])
 // EXEC.4: tag discovery — distinct repo tags offered as a pick-list (datalist).
 const repoTags = ref<string[]>([])
 watch(() => runForm.value.repository_id, async (id) => {
@@ -277,8 +283,23 @@ async function doStartRun() {
     if (showAdvanced.value) {
       const variables = parseVariables(advancedVariablesText.value)
       if (variables) payload.variables = variables
+      const adv: Record<string, unknown> = {}
       const args = parseArgs(advancedArgsText.value)
-      if (args.length) payload.advanced_config = { args }
+      if (args.length) adv.args = args
+      const prerun = advancedModifiers.value
+        .filter((m) => m.kind === 'prerun')
+        .map((m) => ({ key: m.key, args: m.args }))
+      const prerebot = advancedModifiers.value
+        .filter((m) => m.kind === 'prerebot')
+        .map((m) => ({ key: m.key, args: m.args }))
+      if (prerun.length) adv.prerun_modifiers = prerun
+      if (prerebot.length) adv.prerebot_modifiers = prerebot
+      if (advancedPythonPaths.value.length) adv.python_paths = advancedPythonPaths.value
+      if (advancedVariableFiles.value.length) adv.variable_files = advancedVariableFiles.value
+      // EXEC.10: code-loading levers only ever populate post-consent in the UI;
+      // pass the explicit consent token the server now requires for them.
+      if (adv.python_paths || adv.variable_files) adv.code_load_consent = true
+      if (Object.keys(adv).length) payload.advanced_config = adv
     }
     const run = await execution.startRun(payload as typeof runForm.value)
     toast.success(t('execution.toasts.started'), t('execution.toasts.startedMsg', { id: run.id }))
@@ -286,6 +307,9 @@ async function doStartRun() {
     rebuildDocker.value = false
     advancedArgsText.value = ''
     advancedVariablesText.value = ''
+    advancedModifiers.value = []
+    advancedPythonPaths.value = []
+    advancedVariableFiles.value = []
   } catch (e: unknown) {
     toast.error(t('common.error'), extractErrorDetail(e, t('execution.toasts.startError')))
   } finally {
@@ -734,6 +758,11 @@ function isTerminal(status: string): boolean {
           v-if="showAdvanced"
           v-model:args-text="advancedArgsText"
           v-model:variables-text="advancedVariablesText"
+          :show-python-path="showPythonPath"
+          :show-variable-file="showVariableFile"
+          @update:modifiers="advancedModifiers = $event"
+          @update:python-paths="advancedPythonPaths = $event"
+          @update:variable-files="advancedVariableFiles = $event"
         />
 
         <!-- Docker image stale warning -->

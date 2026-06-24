@@ -82,6 +82,44 @@ def test_advanced_args_allow_safe_flags(token):
     assert token in spec.advanced_args
 
 
+def test_prerebot_modifier_emitted_as_flag():
+    # EXEC.10: post-execution modifier hook (result model).
+    spec = resolve_run_spec(target_path="s.robot", prerebot_modifiers=["pkg.Tms:url"])
+    flags = robot_flag_args(spec)
+    assert "--prerebotmodifier" in flags
+    assert flags[flags.index("--prerebotmodifier") + 1] == "pkg.Tms:url"
+
+
+def test_pythonpath_and_variablefile_repo_confined(tmp_path):
+    # EXEC.10: file-based levers are resolved + confined to the repo tree.
+    (tmp_path / "libs").mkdir()
+    (tmp_path / "vars.py").write_text("X = 1\n")
+    spec = resolve_run_spec(
+        target_path="s.robot",
+        python_paths=["libs"],
+        variable_files=["vars.py"],
+        repo_root=str(tmp_path),
+    )
+    flags = robot_flag_args(spec)
+    assert "--pythonpath" in flags and "--variablefile" in flags
+    # emitted as absolute, repo-confined paths
+    assert flags[flags.index("--pythonpath") + 1] == str((tmp_path / "libs").resolve())
+    assert flags[flags.index("--variablefile") + 1] == str((tmp_path / "vars.py").resolve())
+
+
+@pytest.mark.parametrize("escaping", ["../outside", "/etc/passwd", "libs/../../oops"])
+def test_pythonpath_escaping_repo_is_rejected(tmp_path, escaping):
+    with pytest.raises(AdvancedArgError):
+        resolve_run_spec(
+            target_path="s.robot", python_paths=[escaping], repo_root=str(tmp_path)
+        )
+
+
+def test_file_lever_without_repo_root_fails_closed():
+    with pytest.raises(AdvancedArgError):
+        resolve_run_spec(target_path="s.robot", variable_files=["vars.py"], repo_root=None)
+
+
 def test_parity_holds_with_advanced_config():
     spec = resolve_run_spec(
         target_path="s.robot",

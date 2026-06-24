@@ -404,6 +404,18 @@ export default {
       args: 'Argumentos robot adicionales',
       argsPlaceholder: '--randomize all',
       argsHint: 'Separados por espacios. Las banderas de salida y de carga de código están bloqueadas.',
+      modifiers: {
+        prerun: 'Modificadores pre-ejecución',
+        prerebot: 'Modificadores post-ejecución (resultados)',
+        tier: { vendor: 'Integrado', org: 'Organización' },
+      },
+      pythonPath: 'Ruta de Python (--pythonpath)',
+      pythonPathPlaceholder: 'libs/custom',
+      pythonPathHint: 'Una ruta relativa al repositorio por línea. Solo admin; confinada al repositorio.',
+      variableFile: 'Archivo de variables (--variablefile)',
+      variableFilePlaceholder: 'vars/env.py',
+      variableFileHint: 'Una ruta relativa al repositorio por línea. Solo admin; se ejecuta en el entorno.',
+      codeLoadConsent: 'Entiendo que esto carga/ejecuta código en el entorno de ejecución.',
     },
     envPrompt: {
       title: '¿Configurar un entorno?',

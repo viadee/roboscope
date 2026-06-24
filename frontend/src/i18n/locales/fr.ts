@@ -404,6 +404,18 @@ export default {
       args: 'Arguments robot supplémentaires',
       argsPlaceholder: '--randomize all',
       argsHint: 'Séparés par des espaces. Les drapeaux de sortie et de chargement de code sont bloqués.',
+      modifiers: {
+        prerun: 'Modificateurs pré-exécution',
+        prerebot: 'Modificateurs post-exécution (résultats)',
+        tier: { vendor: 'Intégré', org: 'Organisation' },
+      },
+      pythonPath: 'Chemin Python (--pythonpath)',
+      pythonPathPlaceholder: 'libs/custom',
+      pythonPathHint: 'Un chemin relatif au dépôt par ligne. Admin uniquement ; confiné au dépôt.',
+      variableFile: 'Fichier de variables (--variablefile)',
+      variableFilePlaceholder: 'vars/env.py',
+      variableFileHint: 'Un chemin relatif au dépôt par ligne. Admin uniquement ; exécuté dans l’environnement.',
+      codeLoadConsent: 'Je comprends que cela charge/exécute du code dans l’environnement d’exécution.',
     },
     envPrompt: {
       title: 'Configurer un environnement ?',

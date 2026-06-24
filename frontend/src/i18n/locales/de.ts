@@ -404,6 +404,18 @@ export default {
       args: 'Zusätzliche robot-Argumente',
       argsPlaceholder: '--randomize all',
       argsHint: 'Durch Leerzeichen getrennt. Ausgabe- und Code-Lade-Flags sind blockiert.',
+      modifiers: {
+        prerun: 'Pre-Run-Modifier',
+        prerebot: 'Post-Run-Modifier (Ergebnisse)',
+        tier: { vendor: 'Integriert', org: 'Organisation' },
+      },
+      pythonPath: 'Python-Pfad (--pythonpath)',
+      pythonPathPlaceholder: 'libs/custom',
+      pythonPathHint: 'Ein repo-relativer Pfad pro Zeile. Nur Admin; auf das Repository beschränkt.',
+      variableFile: 'Variablendatei (--variablefile)',
+      variableFilePlaceholder: 'vars/env.py',
+      variableFileHint: 'Ein repo-relativer Pfad pro Zeile. Nur Admin; läuft in der Ausführungsumgebung.',
+      codeLoadConsent: 'Mir ist bewusst, dass dies Code in der Ausführungsumgebung lädt/ausführt.',
     },
     envPrompt: {
       title: 'Umgebung einrichten?',
