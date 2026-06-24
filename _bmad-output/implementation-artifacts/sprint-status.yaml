@@ -226,7 +226,7 @@ development_status:
 
   # Epic EXEC — RF Execution Configuration (planning-artifacts/exec-epics.md)
   # Sequenced per exec-architecture.md; implement each via bmad-dev-story.
-  epic-exec: in-progress  # EXEC.1-9 done + verified; EXEC.10 (admin code-loading levers) drafted 2026-06-24 from code-review follow-up. See planning-artifacts/exec-epics.md
+  epic-exec: done  # EXEC.1-11 done + reviewed (EXEC.10/11 added via code-review follow-up 2026-06-24)
   # code-review 2026-06-24 (whole-epic): 8 patches applied + fixed, 4 deferred
   # (see deferred-work.md), 377 exec/gov/explorer tests green. EXEC.7 curated-
   # modifier default-path remains a DEFERRED AC gap (conservative ADMIN-only
