@@ -50,6 +50,8 @@ class AbstractRunner(ABC):
         timeout: int = 3600,
         on_output: Callable[[str], None] | None = None,
         listeners: list[str] | None = None,
+        advanced_args: list[str] | None = None,
+        prerun_modifiers: list[str] | None = None,
     ) -> RunResult:
         """Execute tests and return the result.
 

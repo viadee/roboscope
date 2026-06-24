@@ -388,6 +388,25 @@ export function serializeStep(step: RobotStep): string {
   return withTrailers(line)
 }
 
+// --- Init-file constraint (EXEC.6) ---
+
+/** True when the file is a suite initialization file (`__init__.robot`). */
+export function isInitFile(filePath: string | null | undefined): boolean {
+  return /(^|[\\/])__init__\.robot$/i.test(filePath ?? '')
+}
+
+/**
+ * RF forbids a `*** Test Cases ***` (or `*** Tasks ***`) section in an
+ * initialization file — the suite won't start. Returns true when `content`
+ * declares one. Used by the editor to block/warn before saving an
+ * `__init__.robot`.
+ */
+export function initFileHasTestCases(content: string): boolean {
+  return content
+    .split('\n')
+    .some((line) => /^\*{3}\s*(Test Cases?|Tasks?)\s*\*{0,3}/i.test(line.trim()))
+}
+
 // --- Main Parser ---
 const SECTION_HEADER_RE = /^\*{3}\s*(Settings?|Variables?|Test Cases?|Tasks?|Keywords?)\s*\*{0,3}/i
 

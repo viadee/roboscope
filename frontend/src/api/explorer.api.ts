@@ -27,6 +27,12 @@ export async function getTestCases(repoId: number): Promise<TestCaseInfo[]> {
   return response.data
 }
 
+// EXEC.4: distinct tags across the repo's suites, for the run-dialog tag picker.
+export async function getRepoTags(repoId: number): Promise<string[]> {
+  const response = await apiClient.get<string[]>(`/explorer/${repoId}/tags`)
+  return response.data
+}
+
 export async function createFile(repoId: number, path: string, content: string = ''): Promise<FileContent> {
   const response = await apiClient.post<FileContent>(`/explorer/${repoId}/file`, { path, content })
   return response.data

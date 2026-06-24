@@ -964,6 +964,64 @@ Recording 21
         tip: 'Si necesita ejecutar pruebas de m\u00FAltiples repositorios, p\u00F3ngalas en cola secuencialmente. Se ejecutar\u00E1n en orden.'
       },
       {
+        id: 'advanced-run-config',
+        title: 'Configuración de ejecución avanzada',
+        content: `
+<p>
+  Más allá del repositorio y la ruta de destino, el diálogo de ejecución ofrece
+  controles opcionales para definir <em>cómo</em> se ejecuta Robot Framework. Algunos
+  están disponibles para todos; las palancas más potentes se rigen por indicadores de
+  función que un administrador debe habilitar primero.
+</p>
+<h4>Incluir / excluir etiquetas mediante una lista de selección</h4>
+<p>
+  Use los campos <strong>Incluir etiquetas</strong> y <strong>Excluir etiquetas</strong>
+  para ejecutar solo un subconjunto de pruebas. RoboScope analiza las suites del
+  repositorio en busca de cada etiqueta declarada (<code>[Tags]</code>, <code>Test Tags</code>,
+  <code>Force Tags</code>, <code>Default Tags</code>, <code>Keyword Tags</code>) y las ofrece
+  como lista de selección, para que no tenga que recordar los nombres exactos. Aún puede
+  escribir libremente una etiqueta que todavía no se haya detectado.
+</p>
+<h4>Argumentos &amp; variables avanzados (habilitados por el administrador)</h4>
+<p>
+  Cuando un administrador habilita el indicador <code>executionAdvancedArgs</code>, aparece
+  una sección <strong>Avanzado</strong> para usuarios con rol <strong>Editor</strong> o
+  superior. Proporciona un editor de <strong>variables</strong> clave/valor (pasadas como
+  <code>--variable KEY:VALUE</code>) y un campo libre de <strong>argumentos de robot</strong>
+  para opciones adicionales seguras como <code>--randomize all</code>.
+</p>
+<p>
+  Por seguridad, RoboScope valida cada argumento antes de ejecutarlo. Las opciones que
+  controlan las ubicaciones de salida (<code>--outputdir</code>, <code>--log</code>,
+  <code>--report</code>, …) y cualquier cosa que pueda cargar o ejecutar código
+  (<code>--listener</code>, <code>--pythonpath</code>, <code>--variablefile</code>,
+  <code>--argumentfile</code>, <code>--prerunmodifier</code>, …) se rechazan, incluidos sus
+  alias cortos y abreviaturas. Los argumentos siempre se pasan como una lista, nunca a través
+  de un shell, y cada ejecución avanzada se registra en el registro de auditoría.
+</p>
+<h4>PreRunModifiers &amp; pruebas basadas en datos (habilitados por el administrador)</h4>
+<p>
+  Otras dos palancas se encuentran tras sus propios indicadores desactivados por defecto:
+  <code>executionPreRunModifierUserCode</code> (solo administrador — aplica código modificador
+  personalizado que da forma al modelo de la suite antes de la ejecución) y
+  <code>executionDataDriver</code> (genera casos de prueba en tiempo de ejecución a partir de
+  una fuente de datos CSV frente a una prueba <code>[Template]</code>). Ambos están
+  desactivados por defecto y pensados para usuarios avanzados.
+</p>
+<h4>Relacionado</h4>
+<ul>
+  <li><strong>Archivos de inicialización de suite</strong> — puede editar el
+  <code>__init__.robot</code> de una suite en el editor; RoboScope avisa si declara una
+  sección <code>*** Test Cases ***</code>, que Robot Framework prohíbe en un archivo de
+  inicialización. Consulte <em>Explorador</em>.</li>
+  <li><strong>Nombre largo &amp; id estructural</strong> — el nombre largo completo
+  <code>Suite.Sub.Test</code> y el id estructural (p.&nbsp;ej. <code>s1-t1</code>) de cada
+  prueba se muestran de solo lectura en la vista de detalle del informe. Consulte
+  <em>Informes</em>.</li>
+</ul>`,
+        tip: 'La sección «Avanzado» permanece oculta a menos que su indicador de función esté habilitado: RoboScope nunca muestra un control que no puede usar. Un administrador puede activar los indicadores en Ajustes → Funciones.'
+      },
+      {
         id: 'run-status-table',
         title: 'Tabla de estado de ejecuciones',
         content: `

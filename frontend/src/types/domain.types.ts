@@ -215,6 +215,8 @@ export interface TestResult {
   report_id: number
   suite_name: string
   test_name: string
+  // EXEC.4: RF long name (Suite.Sub.Test), computed read-only by the backend.
+  long_name?: string
   status: string
   duration_seconds: number
   error_message: string | null

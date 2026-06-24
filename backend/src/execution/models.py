@@ -55,6 +55,10 @@ class ExecutionRun(Base, TimestampMixin):
     tags_include: Mapped[str | None] = mapped_column(String(500), default=None)
     tags_exclude: Mapped[str | None] = mapped_column(String(500), default=None)
     variables: Mapped[str | None] = mapped_column(Text, default=None)  # JSON string
+    # EXEC.2: advanced robot execution config as a JSON string
+    # {"args": [...], "prerun_modifiers": [...]}. Nullable; only the resolver
+    # interprets it (EXEC.3+). Mirrors `variables` storage.
+    advanced_config: Mapped[str | None] = mapped_column(Text, default=None)  # JSON string
     parallel: Mapped[bool] = mapped_column(Boolean, default=False)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     max_retries: Mapped[int] = mapped_column(Integer, default=0)
@@ -84,6 +88,10 @@ class Schedule(Base, TimestampMixin):
     runner_type: Mapped[str] = mapped_column(String(20), default=RunnerType.SUBPROCESS)
     tags_include: Mapped[str | None] = mapped_column(String(500), default=None)
     tags_exclude: Mapped[str | None] = mapped_column(String(500), default=None)
+    # EXEC.2: bring Schedule to parity with ExecutionRun so recurring runs can
+    # carry variables + advanced config (previously Schedule had neither).
+    variables: Mapped[str | None] = mapped_column(Text, default=None)  # JSON string
+    advanced_config: Mapped[str | None] = mapped_column(Text, default=None)  # JSON string
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_run_at: Mapped[datetime | None] = mapped_column(default=None)
     next_run_at: Mapped[datetime | None] = mapped_column(default=None)

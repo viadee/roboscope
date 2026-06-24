@@ -396,6 +396,15 @@ export default {
       environment: 'Environment',
       noEnv: 'None (no environment)',
     },
+    advanced: {
+      title: 'Advanced',
+      variables: 'Variables',
+      variablesPlaceholder: 'BROWSER:chromium',
+      variablesHint: 'One KEY:VALUE per line (robot --variable).',
+      args: 'Additional robot arguments',
+      argsPlaceholder: '--randomize all',
+      argsHint: 'Space-separated. Output and code-loading flags are blocked.',
+    },
     envPrompt: {
       title: 'Set up an environment?',
       message: 'You don\'t have an environment yet. Would you like RoboScope to create a default environment with the essential Robot Framework libraries?',
@@ -1479,6 +1488,7 @@ export default {
     libraryAlreadyProvidedBody: '{library} is provided by "{provider}", which is already installed in the environment. The keyword cache may be stale — try restarting the rf-mcp server (Settings → AI → RF MCP) or wait a moment and switch back to this file to refresh.',
     tests: 'tests',
     keywordsCount: 'keywords',
+    initFileWarning: 'A suite init file (__init__.robot) cannot contain a Test Cases section.',
     parseError: 'Parse Error',
     expandAll: 'Expand All',
     collapseAll: 'Collapse All',

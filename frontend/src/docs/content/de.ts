@@ -940,6 +940,66 @@ Recording 21
         tip: 'Wenn Auto-Sync aktiviert ist, wird das Repository vor der Ausf\u00FChrung automatisch auf den neuesten Stand gebracht.'
       },
       {
+        id: 'execution-advanced-config',
+        title: 'Erweiterte Ausführungskonfiguration',
+        content: `
+<p>
+  Über Repository und Zielpfad hinaus bietet der Ausführungsdialog optionale
+  Einstellungen dafür, <em>wie</em> Robot Framework ausgeführt wird. Einige stehen
+  allen zur Verfügung; die mächtigeren Hebel sind durch Feature-Flags geschützt,
+  die zuerst von einer Administratorin oder einem Administrator aktiviert werden müssen.
+</p>
+<h4>Tags ein-/ausschließen per Auswahlliste</h4>
+<p>
+  Mit den Feldern <strong>Tags einschließen</strong> und <strong>Tags ausschließen</strong>
+  lässt sich nur eine Teilmenge der Tests ausführen. RoboScope durchsucht die Suites
+  des Repositorys nach allen deklarierten Tags (<code>[Tags]</code>,
+  <code>Test Tags</code>, <code>Force Tags</code>, <code>Default Tags</code>,
+  <code>Keyword Tags</code>) und bietet sie als Auswahlliste an, sodass man sich keine
+  Namen merken muss. Ein noch nicht erkannter Tag kann weiterhin frei eingetippt werden.
+</p>
+<h4>Erweiterte Argumente &amp; Variablen (durch Admin freigeschaltet)</h4>
+<p>
+  Aktiviert ein Administrator das Feature-Flag <code>executionAdvancedArgs</code>,
+  erscheint für Nutzer ab der Rolle <strong>Editor</strong> ein Bereich
+  <strong>Erweitert</strong>. Er bietet einen <strong>Variablen</strong>-Editor
+  (Schlüssel/Wert, übergeben als <code>--variable KEY:VALUE</code>) sowie ein
+  freies <strong>Robot-Argumente</strong>-Feld für unbedenkliche Zusatz-Flags wie
+  <code>--randomize all</code>.
+</p>
+<p>
+  Aus Sicherheitsgründen prüft RoboScope jedes Argument vor der Ausführung. Flags,
+  die Ausgabepfade steuern (<code>--outputdir</code>, <code>--log</code>,
+  <code>--report</code>, …) sowie alles, was Code laden oder ausführen kann
+  (<code>--listener</code>, <code>--pythonpath</code>, <code>--variablefile</code>,
+  <code>--argumentfile</code>, <code>--prerunmodifier</code>, …) werden abgelehnt —
+  einschließlich ihrer Kurzformen und Abkürzungen. Argumente werden immer als Liste
+  übergeben, niemals über eine Shell, und jede erweiterte Ausführung wird im
+  Audit-Log protokolliert.
+</p>
+<h4>PreRunModifier &amp; datengetriebene Tests (durch Admin freigeschaltet)</h4>
+<p>
+  Zwei weitere Hebel liegen hinter eigenen, standardmäßig deaktivierten Flags:
+  <code>executionPreRunModifierUserCode</code> (nur Admin — wendet eigenen
+  Modifier-Code an, der das Suite-Modell vor der Ausführung verändert) und
+  <code>executionDataDriver</code> (erzeugt Testfälle zur Laufzeit aus einer
+  CSV-Datenquelle gegen einen <code>[Template]</code>-Test). Beide sind
+  standardmäßig aus und für Power-User gedacht.
+</p>
+<h4>Verwandt</h4>
+<ul>
+  <li><strong>Suite-Init-Dateien</strong> — die <code>__init__.robot</code> einer
+  Suite kann im Editor bearbeitet werden; RoboScope warnt, wenn sie einen
+  <code>*** Test Cases ***</code>-Abschnitt deklariert, den Robot Framework in einer
+  Init-Datei verbietet. Siehe <em>Explorer</em>.</li>
+  <li><strong>Langname &amp; strukturelle Id</strong> — der vollständige
+  <code>Suite.Sub.Test</code>-Langname und die strukturelle Id (z.&nbsp;B.
+  <code>s1-t1</code>) jedes Tests werden schreibgeschützt in der Berichtsdetailansicht
+  angezeigt. Siehe <em>Berichte</em>.</li>
+</ul>`,
+        tip: 'Der Bereich „Erweitert“ bleibt ausgeblendet, solange sein Feature-Flag nicht aktiviert ist — RoboScope zeigt nie ein Bedienelement, das man nicht nutzen kann. Ein Administrator kann die Flags unter Einstellungen → Features umschalten.'
+      },
+      {
         id: 'execution-status-table',
         title: 'Run-Status-Tabelle',
         content: `

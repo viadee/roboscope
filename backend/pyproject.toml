@@ -53,6 +53,11 @@ dependencies = [
     # rf-mcp out-of-process over HTTP and never imports fastmcp. See issue #35.
     "fastmcp>=3.2.4,<4",
     "playwright>=1.49.0",
+    # EXEC.9 — DataDriver dynamic test generation (Listener v3). CSV-first; the
+    # XLS extra (openpyxl/xlrd) is intentionally deferred. On PyPI, so the
+    # offline build collects its wheel like any other dep; gated behind the
+    # executionDataDriver feature flag (default OFF). <2 pins out an untested major.
+    "robotframework-datadriver>=1.11,<2",
     "authlib>=1.6.12",
     "reportlab>=4.4.10",
     # XXE / billion-laughs hardening for any XML coming from

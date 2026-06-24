@@ -2369,6 +2369,7 @@ dependencies = [
     { name = "reportlab" },
     { name = "rf-mcp" },
     { name = "robotframework" },
+    { name = "robotframework-datadriver" },
     { name = "robotframework-roboscopeheal" },
     { name = "robotframework-roboview" },
     { name = "slowapi" },
@@ -2438,6 +2439,7 @@ requires-dist = [
     { name = "roboscope-backend", extras = ["all"], marker = "extra == 'dev'" },
     { name = "roboscope-backend", extras = ["postgres", "docker"], marker = "extra == 'all'" },
     { name = "robotframework", specifier = ">=7.1" },
+    { name = "robotframework-datadriver", specifier = ">=1.11,<2" },
     { name = "robotframework-roboscopeheal", editable = "vendor/robotframework-roboscopeheal" },
     { name = "robotframework-roboview", specifier = ">=0.0.4" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
@@ -2455,6 +2457,20 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/19/f3/ad51daf85d95848831601851598640f951a47a9f9de88039235cf58c5bb9/robotframework-7.4.2.tar.gz", hash = "sha256:1c934e7f43600de407860cd2bd2fdc41adad4a4a785d8b46b1ed485fdc0f6c9f", size = 654405, upload-time = "2026-03-03T16:28:54.899Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ef/35/fd2385b15f6d814f1801bcbd3d54b4c61a1bfc3a1a0fe023dc15551c5fe4/robotframework-7.4.2-py3-none-any.whl", hash = "sha256:6e80f84cdc997bdde2abb6b729ac3531457ecf6d2e41abfb87a541877ab367bf", size = 807056, upload-time = "2026-03-03T16:28:51.638Z" },
+]
+
+[[package]]
+name = "robotframework-datadriver"
+version = "1.11.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "docutils" },
+    { name = "pygments" },
+    { name = "robotframework" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6a/8c/44b57249ba22fd1bc97f654a1e2e26cd88b7c142d82f6242f00959d6c9ca/robotframework_datadriver-1.11.2.tar.gz", hash = "sha256:c75a3b8856e141331e65a22a6bed1a8263221ee6dad821d526f932918576fffd", size = 687752, upload-time = "2024-06-08T14:45:22.798Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4c/fd/2d79ab59a6ebc8f5f6d20598dcf27a74bd378e05bc55a3f324a6c3c272d8/robotframework_datadriver-1.11.2-py3-none-any.whl", hash = "sha256:bb59c81834e58b2e7fa6bafc8180b2d659d2a09d13ecb7c6232da281e23804aa", size = 53070, upload-time = "2024-06-08T14:45:19.475Z" },
 ]
 
 [[package]]

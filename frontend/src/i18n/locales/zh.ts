@@ -428,6 +428,15 @@ const overrides: Dict = {
       environment: '环境',
       noEnv: '无（不使用环境）',
     },
+    advanced: {
+      title: '高级',
+      variables: '变量',
+      variablesPlaceholder: 'BROWSER:chromium',
+      variablesHint: '每行一个 KEY:VALUE（robot --variable）。',
+      args: '附加 robot 参数',
+      argsPlaceholder: '--randomize all',
+      argsHint: '以空格分隔。输出和加载代码的参数被禁止。',
+    },
     envPrompt: {
       title: '设置环境？',
       message: '你还没有环境。是否希望 RoboScope 为你创建一个包含基本 Robot Framework 库的默认环境？',
@@ -1440,6 +1449,7 @@ const overrides: Dict = {
     libraryAlreadyProvidedBody: '{library} 由 "{provider}" 提供，且其已安装在环境中。关键字缓存可能已过时——请尝试重启 rf-mcp 服务器（设置 → AI → RF MCP），或稍候片刻并切回此文件以刷新。',
     tests: '测试',
     keywordsCount: '关键字',
+    initFileWarning: '套件初始化文件（__init__.robot）不能包含测试用例部分。',
     parseError: '解析错误',
     expandAll: '全部展开',
     collapseAll: '全部折叠',

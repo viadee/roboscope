@@ -17,6 +17,10 @@ class RunCreate(BaseModel):
     tags_include: str | None = None
     tags_exclude: str | None = None
     variables: dict | None = None
+    # EXEC.3: optional advanced execution config {"args": [...],
+    # "prerun_modifiers": [...]}. Gated + validated server-side (governed by the
+    # executionAdvancedArgs flag + EDITOR role + three-zone deny-list).
+    advanced_config: dict | None = None
     parallel: bool = False
     max_retries: int = Field(default=0, ge=0, le=5)
     timeout_seconds: int = Field(default=3600, ge=30, le=86400)

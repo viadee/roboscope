@@ -64,6 +64,12 @@ def start_run(
     current_user: User = Depends(require_role(Role.RUNNER)),
 ):
     """Start a new test execution run."""
+    # EXEC.3: gate + validate + audit advanced execution config before anything
+    # else. No-op unless advanced_config carries args/modifiers.
+    from src.governance.dependencies import gate_advanced_execution
+
+    gate_advanced_execution(db, request, current_user, data.advanced_config)
+
     # Override runner_type from environment's default if an environment is set
     if data.environment_id:
         from src.environments.models import Environment

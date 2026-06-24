@@ -253,7 +253,7 @@ async function startAnalysis() {
             </thead>
             <tbody>
               <tr v-for="test in failedTests" :key="test.id">
-                <td><router-link :to="{ path: '/test-history', query: { test: test.test_name, suite: test.suite_name } }" class="test-link"><strong>{{ test.test_name }}</strong></router-link></td>
+                <td><router-link :to="{ path: '/test-history', query: { test: test.test_name, suite: test.suite_name } }" class="test-link" :title="test.long_name || (test.suite_name ? test.suite_name + '.' + test.test_name : test.test_name)"><strong>{{ test.test_name }}</strong></router-link></td>
                 <td class="text-muted text-sm">{{ test.suite_name }}</td>
                 <td>{{ formatDuration(test.duration_seconds) }}</td>
                 <td class="text-sm error-cell">{{ test.error_message || '-' }}</td>
@@ -332,7 +332,7 @@ async function startAnalysis() {
             <tbody>
               <tr v-for="test in reports.activeReport.test_results" :key="test.id">
                 <td><BaseBadge :status="test.status" /></td>
-                <td><router-link :to="{ path: '/test-history', query: { test: test.test_name, suite: test.suite_name } }" class="test-link">{{ test.test_name }}</router-link></td>
+                <td><router-link :to="{ path: '/test-history', query: { test: test.test_name, suite: test.suite_name } }" class="test-link" :title="test.long_name || (test.suite_name ? test.suite_name + '.' + test.test_name : test.test_name)">{{ test.test_name }}</router-link></td>
                 <td class="text-muted text-sm">{{ test.suite_name }}</td>
                 <td>{{ formatDuration(test.duration_seconds) }}</td>
                 <td class="text-sm text-muted">{{ test.tags || '-' }}</td>

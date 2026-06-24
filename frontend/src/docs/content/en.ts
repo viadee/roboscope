@@ -969,6 +969,62 @@ Recording 21
         tip: 'If you need to run tests from multiple repositories, queue them sequentially. They will execute in order.'
       },
       {
+        id: 'advanced-run-config',
+        title: 'Advanced Run Configuration',
+        content: `
+<p>
+  Beyond repository and target path, the run dialog offers optional controls for
+  shaping <em>how</em> Robot Framework executes. Some are available to everyone;
+  the more powerful levers are governed by feature flags an administrator must
+  enable first.
+</p>
+<h4>Tag include / exclude with a pick-list</h4>
+<p>
+  Use the <strong>Include tags</strong> and <strong>Exclude tags</strong> fields to
+  run only a subset of tests. RoboScope scans your repository's suites for every
+  declared tag (<code>[Tags]</code>, <code>Test Tags</code>, <code>Force Tags</code>,
+  <code>Default Tags</code>, <code>Keyword Tags</code>) and offers them as a
+  pick-from-list, so you don't have to remember exact names. You can still
+  free-type a tag that hasn't been discovered yet.
+</p>
+<h4>Advanced args &amp; variables (admin-enabled)</h4>
+<p>
+  When an administrator enables the <code>executionAdvancedArgs</code> feature flag,
+  an <strong>Advanced</strong> section appears for <strong>Editor</strong>-or-higher
+  users. It provides a <strong>variables</strong> key/value editor (passed as
+  <code>--variable KEY:VALUE</code>) and a free-form <strong>robot arguments</strong>
+  field for safe extra flags such as <code>--randomize all</code>.
+</p>
+<p>
+  For safety, RoboScope validates every argument before it runs. Flags that control
+  output locations (<code>--outputdir</code>, <code>--log</code>, <code>--report</code>, …)
+  and anything that can load or execute code (<code>--listener</code>,
+  <code>--pythonpath</code>, <code>--variablefile</code>, <code>--argumentfile</code>,
+  <code>--prerunmodifier</code>, …) are rejected — including their short aliases and
+  abbreviations. Arguments are always passed as a list, never through a shell, and
+  every advanced run is recorded in the audit log.
+</p>
+<h4>PreRunModifiers &amp; data-driven tests (admin-enabled)</h4>
+<p>
+  Two further levers sit behind their own default-off flags:
+  <code>executionPreRunModifierUserCode</code> (admin-only — applies custom modifier
+  code that shapes the suite model before execution) and <code>executionDataDriver</code>
+  (generates test cases at runtime from a CSV data source against a <code>[Template]</code>
+  test). Both are off by default and intended for power users.
+</p>
+<h4>Related</h4>
+<ul>
+  <li><strong>Suite init files</strong> — you can author a suite's
+  <code>__init__.robot</code> in the editor; RoboScope warns if it declares a
+  <code>*** Test Cases ***</code> section, which Robot Framework forbids in an init
+  file. See <em>Explorer</em>.</li>
+  <li><strong>Long name &amp; structural id</strong> — each test's full
+  <code>Suite.Sub.Test</code> long name and structural id (e.g. <code>s1-t1</code>)
+  are shown read-only in the report detail view. See <em>Reports</em>.</li>
+</ul>`,
+        tip: 'The Advanced section stays hidden unless its feature flag is enabled — RoboScope never shows a control you cannot use. An administrator can toggle the flags under Settings → Features.'
+      },
+      {
         id: 'run-status-table',
         title: 'Run Status Table',
         content: `

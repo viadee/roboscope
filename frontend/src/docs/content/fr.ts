@@ -938,6 +938,65 @@ Recording 21
         tip: 'Si vous devez ex\u00E9cuter des tests de plusieurs d\u00E9p\u00F4ts, mettez-les en file d\u2019attente s\u00E9quentiellement. Ils s\u2019ex\u00E9cuteront dans l\u2019ordre.'
       },
       {
+        id: 'advanced-run-config',
+        title: 'Configuration d\u2019ex\u00E9cution avanc\u00E9e',
+        content: `
+<p>
+  Au-del\u00E0 du d\u00E9p\u00F4t et du chemin cible, la bo\u00EEte de dialogue d\u2019ex\u00E9cution propose des
+  contr\u00F4les optionnels pour d\u00E9terminer <em>comment</em> Robot Framework s\u2019ex\u00E9cute.
+  Certains sont accessibles \u00E0 tous ; les leviers les plus puissants sont r\u00E9gis par des
+  indicateurs de fonctionnalit\u00E9 qu\u2019un administrateur doit d\u2019abord activer.
+</p>
+<h4>Inclure / exclure des tags via une liste de choix</h4>
+<p>
+  Utilisez les champs <strong>Inclure les tags</strong> et <strong>Exclure les tags</strong>
+  pour n\u2019ex\u00E9cuter qu\u2019un sous-ensemble de tests. RoboScope analyse les suites du d\u00E9p\u00F4t
+  pour chaque tag d\u00E9clar\u00E9 (<code>[Tags]</code>, <code>Test Tags</code>, <code>Force Tags</code>,
+  <code>Default Tags</code>, <code>Keyword Tags</code>) et les propose sous forme de liste de
+  choix, vous \u00E9vitant de m\u00E9moriser les noms exacts. Vous pouvez toujours saisir librement un
+  tag non encore d\u00E9tect\u00E9.
+</p>
+<h4>Arguments &amp; variables avanc\u00E9s (activ\u00E9s par l\u2019administrateur)</h4>
+<p>
+  Lorsqu\u2019un administrateur active l\u2019indicateur <code>executionAdvancedArgs</code>, une
+  section <strong>Avanc\u00E9</strong> appara\u00EEt pour les utilisateurs ayant le r\u00F4le
+  <strong>\u00C9diteur</strong> ou sup\u00E9rieur. Elle fournit un \u00E9diteur de <strong>variables</strong>
+  cl\u00E9/valeur (transmises via <code>--variable KEY:VALUE</code>) et un champ libre
+  <strong>arguments robot</strong> pour des options suppl\u00E9mentaires s\u00FBres comme
+  <code>--randomize all</code>.
+</p>
+<p>
+  Par s\u00E9curit\u00E9, RoboScope valide chaque argument avant l\u2019ex\u00E9cution. Les options qui
+  contr\u00F4lent les emplacements de sortie (<code>--outputdir</code>, <code>--log</code>,
+  <code>--report</code>, \u2026) et tout ce qui peut charger ou ex\u00E9cuter du code
+  (<code>--listener</code>, <code>--pythonpath</code>, <code>--variablefile</code>,
+  <code>--argumentfile</code>, <code>--prerunmodifier</code>, \u2026) sont rejet\u00E9es \u2014 y compris
+  leurs alias courts et abr\u00E9viations. Les arguments sont toujours pass\u00E9s sous forme de liste,
+  jamais via un shell, et chaque ex\u00E9cution avanc\u00E9e est enregistr\u00E9e dans le journal d\u2019audit.
+</p>
+<h4>PreRunModifiers &amp; tests pilot\u00E9s par les donn\u00E9es (activ\u00E9s par l\u2019administrateur)</h4>
+<p>
+  Deux autres leviers reposent sur leurs propres indicateurs d\u00E9sactiv\u00E9s par d\u00E9faut :
+  <code>executionPreRunModifierUserCode</code> (r\u00E9serv\u00E9 \u00E0 l\u2019administrateur \u2014 applique du code
+  modificateur personnalis\u00E9 qui fa\u00E7onne le mod\u00E8le de suite avant l\u2019ex\u00E9cution) et
+  <code>executionDataDriver</code> (g\u00E9n\u00E8re des cas de test \u00E0 l\u2019ex\u00E9cution \u00E0 partir d\u2019une source
+  de donn\u00E9es CSV face \u00E0 un test <code>[Template]</code>). Les deux sont d\u00E9sactiv\u00E9s par d\u00E9faut et
+  destin\u00E9s aux utilisateurs avanc\u00E9s.
+</p>
+<h4>Voir aussi</h4>
+<ul>
+  <li><strong>Fichiers d\u2019initialisation de suite</strong> \u2014 vous pouvez \u00E9diter le
+  <code>__init__.robot</code> d\u2019une suite dans l\u2019\u00E9diteur ; RoboScope avertit s\u2019il d\u00E9clare une
+  section <code>*** Test Cases ***</code>, que Robot Framework interdit dans un fichier
+  d\u2019initialisation. Voir <em>Explorateur</em>.</li>
+  <li><strong>Nom long &amp; identifiant structurel</strong> \u2014 le nom long complet
+  <code>Suite.Sub.Test</code> et l\u2019identifiant structurel (p.&nbsp;ex. <code>s1-t1</code>) de
+  chaque test sont affich\u00E9s en lecture seule dans la vue d\u00E9taill\u00E9e du rapport. Voir
+  <em>Rapports</em>.</li>
+</ul>`,
+        tip: 'La section \u00AB Avanc\u00E9 \u00BB reste masqu\u00E9e tant que son indicateur de fonctionnalit\u00E9 n\u2019est pas activ\u00E9 \u2014 RoboScope n\u2019affiche jamais un contr\u00F4le que vous ne pouvez pas utiliser. Un administrateur peut activer les indicateurs dans Param\u00E8tres \u2192 Fonctionnalit\u00E9s.'
+      },
+      {
         id: 'run-status-table',
         title: 'Tableau des statuts d\u2019ex\u00E9cution',
         content: `

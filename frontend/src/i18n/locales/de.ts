@@ -396,6 +396,15 @@ export default {
       environment: 'Umgebung',
       noEnv: 'Keine (ohne Umgebung)',
     },
+    advanced: {
+      title: 'Erweitert',
+      variables: 'Variablen',
+      variablesPlaceholder: 'BROWSER:chromium',
+      variablesHint: 'Ein KEY:VALUE pro Zeile (robot --variable).',
+      args: 'Zusätzliche robot-Argumente',
+      argsPlaceholder: '--randomize all',
+      argsHint: 'Durch Leerzeichen getrennt. Ausgabe- und Code-Lade-Flags sind blockiert.',
+    },
     envPrompt: {
       title: 'Umgebung einrichten?',
       message: 'Du hast noch keine Umgebung. Soll RoboScope eine Standard-Umgebung mit den wichtigsten Robot Framework Libraries einrichten?',
@@ -1479,6 +1488,7 @@ export default {
     libraryAlreadyProvidedBody: '{library} wird durch "{provider}" bereitgestellt, das bereits im Environment installiert ist. Der Keyword-Cache ist eventuell veraltet — versuche den rf-mcp-Server neu zu starten (Einstellungen → AI → RF MCP) oder wechsle kurz die Datei und zurück, um die Palette zu refreshen.',
     tests: 'Tests',
     keywordsCount: 'Keywords',
+    initFileWarning: 'Eine Suite-Init-Datei (__init__.robot) darf keinen Test-Cases-Abschnitt enthalten.',
     parseError: 'Parsefehler',
     expandAll: 'Alle aufklappen',
     collapseAll: 'Alle zuklappen',

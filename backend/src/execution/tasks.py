@@ -338,6 +338,25 @@ def execute_test_run(run_id: int) -> dict:
             # Parse variables
             variables = json.loads(run.variables) if run.variables else None
 
+            # EXEC.3/EXEC.7 — apply persisted advanced execution config. Args
+            # were already validated + gated + audited at request time (the
+            # router's gate_advanced_execution); curated PreRunModifiers are
+            # formatted into `name:arg1:arg2` --prerunmodifier specs here.
+            advanced_args: list[str] | None = None
+            prerun_modifiers: list[str] | None = None
+            if run.advanced_config:
+                adv = json.loads(run.advanced_config)
+                advanced_args = adv.get("args") or None
+                mods = adv.get("prerun_modifiers") or []
+                formatted: list[str] = []
+                for m in mods:
+                    name = (m.get("name") or "").strip() if isinstance(m, dict) else str(m).strip()
+                    if not name:
+                        continue
+                    margs = m.get("args") or [] if isinstance(m, dict) else []
+                    formatted.append(":".join([name, *(str(a) for a in margs)]) if margs else name)
+                prerun_modifiers = formatted or None
+
             # Story FLAKY-2 — if this repo has quarantine entries, dump
             # them into a snapshot file and register the
             # QuarantineSkipListener so Robot Framework skips those
@@ -380,6 +399,8 @@ def execute_test_run(run_id: int) -> dict:
                 tags_exclude=run.tags_exclude,
                 timeout=run.timeout_seconds,
                 listeners=listeners,
+                advanced_args=advanced_args,
+                prerun_modifiers=prerun_modifiers,
             )
 
             # Re-read run status — it may have been set to CANCELLED while we were executing
