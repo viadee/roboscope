@@ -846,6 +846,12 @@ export default {
   settings: {
     title: 'Configuración',
     lockedByEnv: 'Definido mediante variable de entorno — gestionado por el administrador del servidor.',
+    unsaved: {
+      count: '{n} cambio sin guardar | {n} cambios sin guardar',
+      discard: 'Descartar',
+      rowHint: 'Cambio sin guardar',
+      leaveConfirm: 'Tiene cambios sin guardar. ¿Salir sin guardar?',
+    },
     categories: {
       execution: 'Ejecución',
       git: 'Git',

@@ -878,6 +878,12 @@ const overrides: Dict = {
   settings: {
     title: '设置',
     lockedByEnv: '通过环境变量设置 — 由服务器管理员统一管理。',
+    unsaved: {
+      count: '{n} 项未保存的更改',
+      discard: '放弃',
+      rowHint: '未保存的更改',
+      leaveConfirm: '您有未保存的更改。要不保存就离开吗？',
+    },
     categories: {
       execution: '执行',
       git: 'Git',

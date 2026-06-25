@@ -846,6 +846,12 @@ export default {
   settings: {
     title: 'Paramètres',
     lockedByEnv: 'Défini via une variable d’environnement — géré par l’administrateur du serveur.',
+    unsaved: {
+      count: '{n} modification non enregistrée | {n} modifications non enregistrées',
+      discard: 'Annuler',
+      rowHint: 'Modification non enregistrée',
+      leaveConfirm: 'Vous avez des modifications non enregistrées. Quitter sans enregistrer ?',
+    },
     categories: {
       execution: 'Exécution',
       git: 'Git',

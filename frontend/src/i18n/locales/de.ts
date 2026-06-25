@@ -846,6 +846,12 @@ export default {
   settings: {
     title: 'Einstellungen',
     lockedByEnv: 'Per Umgebungsvariable gesetzt — von der Server-Administration verwaltet.',
+    unsaved: {
+      count: '{n} ungespeicherte Änderung | {n} ungespeicherte Änderungen',
+      discard: 'Verwerfen',
+      rowHint: 'Ungespeicherte Änderung',
+      leaveConfirm: 'Es gibt ungespeicherte Änderungen. Ohne Speichern verlassen?',
+    },
     categories: {
       execution: 'Ausführung',
       git: 'Git',

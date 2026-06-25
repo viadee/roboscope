@@ -846,6 +846,12 @@ export default {
   settings: {
     title: 'Settings',
     lockedByEnv: 'Set via environment variable — managed by the server administrator.',
+    unsaved: {
+      count: '{n} unsaved change | {n} unsaved changes',
+      discard: 'Discard',
+      rowHint: 'Unsaved change',
+      leaveConfirm: 'You have unsaved changes. Leave without saving?',
+    },
     categories: {
       execution: 'Execution',
       git: 'Git',
