@@ -682,15 +682,21 @@ function formatSize(bytes: number): string {
 
       <!-- Sticky unsaved-changes bar: always in view regardless of scroll. -->
       <Transition name="dirtybar">
-        <div v-if="isDirty" class="dirty-bar">
-          <span class="dirty-bar-text">
+        <div v-if="isDirty" class="dirty-bar" data-testid="unsaved-bar">
+          <span class="dirty-bar-text" data-testid="unsaved-count">
             {{ t('settings.unsaved.count', { n: dirtyKeys.length }, dirtyKeys.length) }}
           </span>
           <div class="dirty-bar-actions">
-            <BaseButton variant="secondary" size="sm" :disabled="saving" @click="discardChanges">
+            <BaseButton
+              variant="secondary"
+              size="sm"
+              :disabled="saving"
+              data-testid="unsaved-discard"
+              @click="discardChanges"
+            >
               {{ t('settings.unsaved.discard') }}
             </BaseButton>
-            <BaseButton size="sm" :loading="saving" @click="saveSettings">
+            <BaseButton size="sm" :loading="saving" data-testid="unsaved-save" @click="saveSettings">
               {{ t('common.save') }}
             </BaseButton>
           </div>
