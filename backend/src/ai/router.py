@@ -20,6 +20,8 @@ from src.ai.schemas import (
     AiProviderResponse,
     AiProviderUpdate,
     AnalyzeRequest,
+    ApplyPatchRequest,
+    ApplyPatchResponse,
     DriftResponse,
     GenerateRequest,
     JobAcceptRequest,
@@ -263,13 +265,68 @@ def analyze_failures(
     db.commit()
 
     try:
-        dispatch_task(run_analyze, job.id)
+        dispatch_task(run_analyze, job.id, data.language, data.verbosity)
     except TaskDispatchError as e:
         job.status = "failed"
         job.error_message = str(e)
         db.commit()  # M1: persist terminal state, not just flush (job already committed)
 
     return _job_to_response(job)
+
+
+@router.post("/apply-patch", response_model=ApplyPatchResponse)
+def apply_patch(
+    data: ApplyPatchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Apply one AI-suggested unified-diff patch to a repository file.
+
+    This is the "fix it automatically" affordance behind the analysis: the
+    user has reviewed the diff inline and explicitly accepts it. We apply it
+    context-first (the LLM's line numbers are unreliable) and refuse with 422
+    if the hunks don't match the current file — so a stale or wrong patch
+    never silently corrupts the test. The change lands on disk in the repo
+    (reversible via Git) and is captured by the audit middleware.
+    """
+    from src.ai.patch_apply import PatchApplyError, apply_unified_diff
+    from src.explorer.service import read_file, write_file
+    from sqlalchemy import select as sa_select
+
+    repo = db.execute(
+        sa_select(Repository).where(Repository.id == data.repository_id)
+    ).scalar_one_or_none()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    try:
+        current = read_file(repo.local_path, data.file_path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found")
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Path traversal not allowed")
+    if current.content is None:
+        raise HTTPException(status_code=400, detail="Cannot patch a binary file")
+
+    try:
+        patched = apply_unified_diff(current.content, data.unified_diff)
+    except PatchApplyError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    try:
+        result = write_file(repo.local_path, data.file_path, patched)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found")
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Path traversal not allowed")
+
+    logger.info(
+        "Applied AI patch to %s in repo %d (user %d)",
+        data.file_path, data.repository_id, current_user.id,
+    )
+    return ApplyPatchResponse(
+        status="applied", file_path=data.file_path, line_count=result.line_count
+    )
 
 
 # ---------------------------------------------------------------------------

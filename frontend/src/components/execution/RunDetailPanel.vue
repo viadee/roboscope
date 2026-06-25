@@ -17,6 +17,7 @@ import ReportXmlView from '@/components/report/ReportXmlView.vue'
 import RunPendingActivity from '@/components/execution/RunPendingActivity.vue'
 import RunSelectorHealth from '@/components/execution/RunSelectorHealth.vue'
 import RunHealReport from '@/components/execution/RunHealReport.vue'
+import AnalysisPatches from '@/components/ai/AnalysisPatches.vue'
 import DebugPanel from '@/components/debug/DebugPanel.vue'
 import DebugPrereqDialog from '@/components/debug/DebugPrereqDialog.vue'
 import { formatDuration } from '@/utils/formatDuration'
@@ -31,7 +32,7 @@ const emit = defineEmits<{
   'view-output': [id: number]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const reports = useReportsStore()
 const aiStore = useAiStore()
 const envs = useEnvironmentsStore()
@@ -190,19 +191,29 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  aiStore.stopAnalysisPolling()
+  aiStore.clearAnalysis()
   if (htmlReportUrl.value) URL.revokeObjectURL(htmlReportUrl.value)
 })
 
 // --- AI Failure Analysis ---
 
 const analysisError = ref('')
+const verbosity = ref<'concise' | 'standard' | 'detailed'>('standard')
+
+// Scope the shared store analysis to THIS run's report. The store holds a
+// single `analysisJob`; without this guard an analysis produced for another
+// execution would render here after the user switched runs.
+const analysis = computed(() =>
+  aiStore.analysisJob && aiStore.analysisJob.report_id === reportId.value
+    ? aiStore.analysisJob
+    : null,
+)
 
 async function startAnalysis() {
   if (!reportId.value) return
   analysisError.value = ''
   try {
-    await aiStore.analyzeFailures(reportId.value)
+    await aiStore.analyzeFailures(reportId.value, undefined, locale.value, verbosity.value)
   } catch (e: unknown) {
     analysisError.value = extractErrorDetail(e, 'Analysis failed')
   }
@@ -212,6 +223,9 @@ watch(() => props.run.id, () => {
   reportId.value = null
   activeTab.value = 'summary'
   reports.activeReport = null
+  // Discard any analysis from the run we're leaving (and stop its poll).
+  analysisError.value = ''
+  aiStore.clearAnalysis()
   fetchReport()
 })
 
@@ -473,23 +487,28 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
               </div>
 
               <!-- Loading state -->
-              <div v-else-if="aiStore.analysisJob && (aiStore.analysisJob.status === 'pending' || aiStore.analysisJob.status === 'running')" class="analysis-loading">
+              <div v-else-if="analysis && (analysis.status === 'pending' || analysis.status === 'running')" class="analysis-loading">
                 <BaseSpinner />
                 <p class="text-muted">{{ t('reportDetail.analysis.analyzing') }}</p>
               </div>
 
               <!-- Failed job -->
-              <div v-else-if="aiStore.analysisJob && aiStore.analysisJob.status === 'failed'" class="analysis-error">
-                <p class="text-danger"><strong>{{ t('reportDetail.analysis.failed') }}:</strong> {{ aiStore.analysisJob.error_message }}</p>
+              <div v-else-if="analysis && analysis.status === 'failed'" class="analysis-error">
+                <p class="text-danger"><strong>{{ t('reportDetail.analysis.failed') }}:</strong> {{ analysis.error_message }}</p>
                 <BaseButton variant="secondary" size="sm" @click="startAnalysis">{{ t('common.retry') }}</BaseButton>
               </div>
 
               <!-- Result state -->
-              <div v-else-if="aiStore.analysisJob && aiStore.analysisJob.status === 'completed' && aiStore.analysisJob.result_preview" class="analysis-result">
-                <div class="analysis-content" v-html="renderMarkdown(aiStore.analysisJob.result_preview)"></div>
+              <div v-else-if="analysis && analysis.status === 'completed' && analysis.result_preview" class="analysis-result">
+                <div class="analysis-content" v-html="renderMarkdown(analysis.result_preview)"></div>
+                <AnalysisPatches
+                  v-if="analysis.suggested_patches && analysis.suggested_patches.length"
+                  :patches="analysis.suggested_patches"
+                  :repository-id="analysis.repository_id"
+                />
                 <div class="analysis-footer">
-                  <span v-if="aiStore.analysisJob.token_usage" class="text-muted text-sm">
-                    {{ t('reportDetail.analysis.tokensUsed', { tokens: aiStore.analysisJob.token_usage }) }}
+                  <span v-if="analysis.token_usage" class="text-muted text-sm">
+                    {{ t('reportDetail.analysis.tokensUsed', { tokens: analysis.token_usage }) }}
                   </span>
                   <BaseButton variant="ghost" size="sm" @click="startAnalysis">{{ t('reportDetail.analysis.reanalyze') }}</BaseButton>
                 </div>
@@ -497,6 +516,14 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
 
               <!-- Initial state — show button -->
               <div v-else class="analysis-initial">
+                <label class="analysis-verbosity">
+                  {{ t('reportDetail.analysis.verbosity.label') }}
+                  <select v-model="verbosity" class="form-select" style="width: 150px; display: inline-block">
+                    <option value="concise">{{ t('reportDetail.analysis.verbosity.concise') }}</option>
+                    <option value="standard">{{ t('reportDetail.analysis.verbosity.standard') }}</option>
+                    <option value="detailed">{{ t('reportDetail.analysis.verbosity.detailed') }}</option>
+                  </select>
+                </label>
                 <BaseButton variant="primary" size="sm" @click="startAnalysis">
                   {{ t('reportDetail.analysis.analyzeButton') }}
                 </BaseButton>

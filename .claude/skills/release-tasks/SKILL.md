@@ -46,9 +46,20 @@ Update `CHANGELOG.md` with all notable changes since the last release. List them
 
 If the project's functionality or usage has changed, update `README.md` to reflect those changes.
 
-## 8. Update the Frontend Documentation
+## 8. Update the Documentation (in-app, GitHub Pages, language coverage)
 
-If the project's functionality or usage has changed, update the in-app documentation under `frontend/src/docs/` to reflect those changes. The documentation is available in four languages (EN, DE, FR, ES) — update all affected languages.
+**This must be checked on every release** — stale docs ship silently.
+
+If the project's functionality or usage has changed:
+
+- **In-app docs** (`frontend/src/docs/content/{en,de,fr,es}.ts`): update every affected language for each shipped feature. Docs content is EN/DE/FR/ES only (there is no `zh` docs file — Chinese UI falls back to English docs).
+- **GitHub Pages** (`docs/` → published site): mirror the same updates so the public docs site matches the in-app docs.
+- **Language coverage**: if a UI locale was added/removed, update the language list in `tour.langSwitcher.description` (ALL `frontend/src/i18n/locales/*.ts`) and the "Language Support" table in the docs. The number stated in the prose must equal the number of shipped locales.
+
+What's auto-verified vs. manual:
+
+- **Auto (Gate 8 — i18n & docs consistency, `phase4-gates.yml`)**: every UI locale is structurally complete (en/de/fr/es/zh), the tour's stated language count matches the real locale count, and all four doc locales share the same top-level section ids. Specs: `frontend/src/tests/i18n/{locale-parity,ZhLocaleParity,language-and-docs-consistency}.spec.ts`.
+- **Manual (this step)**: that the doc *prose* actually describes the new features — a gate can't read intent. Walk each shipped feature and confirm it's documented in all four languages + GitHub Pages before tagging.
 
 ## 9. Build and Test Distribution ZIPs
 

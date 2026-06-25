@@ -33,6 +33,7 @@ const providerTypes = [
   { value: 'anthropic', label: 'Anthropic (Claude)' },
   { value: 'openrouter', label: 'OpenRouter' },
   { value: 'ollama', label: 'Ollama (Local)' },
+  { value: 'litellm', label: 'LiteLLM (Gateway)' },
 ]
 
 const providerModels: Record<string, string[]> = {
@@ -60,6 +61,7 @@ const providerModels: Record<string, string[]> = {
     'codellama', 'deepseek-coder-v2',
     'dolphin-mistral', 'dolphin-mistral:latest',
   ],
+  litellm: [], // freeform — the gateway decides which model names are valid
 }
 
 const defaultModels: Record<string, string> = {
@@ -67,6 +69,7 @@ const defaultModels: Record<string, string> = {
   anthropic: 'claude-sonnet-4-6',
   openrouter: 'anthropic/claude-sonnet-4-6',
   ollama: 'dolphin-mistral:latest',
+  litellm: '',
 }
 
 onMounted(async () => {
@@ -109,6 +112,7 @@ function openEditDialog(provider: AiProvider) {
 }
 
 const isOllama = computed(() => form.value.provider_type === 'ollama')
+const isLiteLLM = computed(() => form.value.provider_type === 'litellm')
 
 const baseUrlPlaceholder = computed(() =>
   isOllama.value ? 'http://localhost:11434' : 'https://...'
@@ -220,6 +224,7 @@ async function handleSetDefault(provider: AiProvider) {
     <BaseModal v-model="showAddDialog" :title="t('ai.addProvider')" size="md">
       <div v-if="error" class="alert alert-danger mb-4">{{ error }}</div>
       <p v-if="isOllama" class="hint-box mb-4">{{ t('ai.ollamaHint') }}</p>
+      <p v-if="isLiteLLM" class="hint-box mb-4">{{ t('ai.litellmHint') }}</p>
       <div class="form-grid">
         <div class="form-group">
           <label>{{ t('common.name') }}</label>
@@ -271,6 +276,7 @@ async function handleSetDefault(provider: AiProvider) {
     <BaseModal v-model="showEditDialog" :title="t('ai.editProvider')" size="md">
       <div v-if="error" class="alert alert-danger mb-4">{{ error }}</div>
       <p v-if="isOllama" class="hint-box mb-4">{{ t('ai.ollamaHint') }}</p>
+      <p v-if="isLiteLLM" class="hint-box mb-4">{{ t('ai.litellmHint') }}</p>
       <div class="form-grid">
         <div class="form-group">
           <label>{{ t('common.name') }}</label>

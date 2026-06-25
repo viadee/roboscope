@@ -6,6 +6,7 @@ import * as authApi from '@/api/auth.api'
 import * as auditApi from '@/api/audit.api'
 import type { AuditLogEntry, AuditFilters } from '@/api/audit.api'
 import { useToast } from '@/composables/useToast'
+import { useFeatureFlags } from '@/composables/useFeatureFlags'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
@@ -21,6 +22,15 @@ import * as webhooksApi from '@/api/webhooks.api'
 
 const toast = useToast()
 const { t } = useI18n()
+
+// Epic GOV — a `features.<flag>` setting whose flag is locked by an ENV
+// override is non-editable here (the backend ignores the DB value). Disable
+// the input and show a hint so an admin isn't misled into "saving" a no-op.
+const { isLocked } = useFeatureFlags()
+function settingLocked(key: string): boolean {
+  const prefix = 'features.'
+  return key.startsWith(prefix) && isLocked(key.slice(prefix.length))
+}
 const aiStore = useAiStore()
 const envStore = useEnvironmentsStore()
 const reposStore = useReposStore()
@@ -554,6 +564,7 @@ function formatSize(bytes: number): string {
                 v-model="editedValues[setting.key]"
                 class="form-select"
                 style="width: 120px"
+                :disabled="settingLocked(setting.key)"
               >
                 <option value="true">{{ t('common.yes') }}</option>
                 <option value="false">{{ t('common.no') }}</option>
@@ -563,7 +574,11 @@ function formatSize(bytes: number): string {
                 v-model="editedValues[setting.key]"
                 class="form-input"
                 style="width: 200px"
+                :disabled="settingLocked(setting.key)"
               />
+              <span v-if="settingLocked(setting.key)" class="text-muted text-sm" style="display:block">
+                🔒 {{ t('settings.lockedByEnv') }}
+              </span>
             </div>
           </div>
         </div>

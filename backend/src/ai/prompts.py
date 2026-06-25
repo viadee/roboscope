@@ -141,6 +141,58 @@ written explanation.
 """
 
 
+# Frontend i18n locales → human language names for the prompt directive.
+_LANGUAGE_NAMES = {
+    "de": "German (Deutsch)",
+    "en": "English",
+    "fr": "French (Français)",
+    "es": "Spanish (Español)",
+    "zh": "Chinese (中文)",
+}
+
+
+def language_directive(locale: str | None) -> str:
+    """A system-prompt suffix telling the model to answer in the user's UI
+    language. Returns "" for an unset/unknown locale (model stays in English).
+
+    Code stays in English: only prose is translated, so Robot Framework
+    keywords, paths, and the unified-diff patches remain valid.
+    """
+    if not locale:
+        return ""
+    name = _LANGUAGE_NAMES.get(locale.split("-")[0].lower())
+    if not name:
+        return ""
+    return (
+        "\n\n## Response Language\n"
+        f"Write your ENTIRE response — executive summary, analysis, headings, "
+        f"and prose — in {name}. Do NOT translate code: keep Robot Framework "
+        "keywords, variable names, file paths, and the unified-diff patch "
+        "blocks exactly as they are."
+    )
+
+
+def verbosity_directive(verbosity: str | None) -> str:
+    """A system-prompt suffix tuning analysis length. `standard`/None → "".
+
+    Composes with `language_directive`; code/keywords/patches are unaffected.
+    """
+    if verbosity == "concise":
+        return (
+            "\n\n## Length\n"
+            "Be concise: a 2-3 sentence executive summary and only the highest-"
+            "priority root cause(s) and fix(es). Skip exhaustive per-test detail. "
+            "Still include a unified-diff patch when you are confident."
+        )
+    if verbosity == "detailed":
+        return (
+            "\n\n## Length\n"
+            "Be thorough: per-failure root-cause analysis, cross-failure patterns, "
+            "step-by-step fixes, and prioritized actions."
+        )
+    return ""  # standard / unknown / None → model's default
+
+
 def build_analyze_user_prompt(
     report_summary: dict,
     failed_tests: list[dict],

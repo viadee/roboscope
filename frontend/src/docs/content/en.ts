@@ -201,7 +201,7 @@ const en: DocsContent = [
   Tips focus on RoboScope features specifically (Flow Editor palette, Recorder
   selector picker, Self-Healing keywords, Stats heal-rate, Repos auto-sync,
   Run-Detail panel, …) — not generic Robot Framework tips. The tip text is
-  available in all four locales (EN/DE/FR/ES).
+  available in all five UI locales (EN/DE/FR/ES/ZH).
 </p>`
       }
     ]
@@ -347,6 +347,36 @@ const en: DocsContent = [
   a freshly-pulled remote can&rsquo;t overwrite local edits.
 </p>`,
         tip: 'Always click "Save N changes" before "Sync" — pulling first can overwrite or refuse with a merge error if you have local edits.'
+      },
+      {
+        id: 'branch-switching',
+        title: 'Branch Switching &amp; Auto-Sync',
+        content: `
+<h4>Branch switching</h4>
+<p>
+  Every Git project card shows a <strong>branch dropdown</strong> that lets you
+  switch between the available branches. Select a different branch to check it
+  out — useful for testing feature branches or comparing results across branches.
+</p>
+<h4>Auto-Sync checkbox</h4>
+<p>
+  The <strong>Auto-Sync</strong> checkbox on each project card controls whether
+  the repository is synced automatically before test runs. Enable it for CI/CD
+  flows where you always want to test the latest code.
+</p>
+<h4>Pre-run sync</h4>
+<p>
+  Enable <strong>Pre-run sync</strong> on a repository when every run must use
+  the very latest commit. RoboScope performs a synchronous <code>git pull</code>
+  right before the runner starts, with a 60&nbsp;s timeout. It is off by default
+  and adds a few seconds per run; it combines with Auto-Sync — enable either,
+  both, or neither.
+</p>
+<p>
+  If the pull fails (network, conflict, timeout), the run still starts with the
+  state on disk; the error is logged and the next Auto-Sync retries.
+</p>`,
+        tip: 'Pre-run sync guarantees the latest commit per run; Auto-Sync keeps the checkout fresh in the background. Use Pre-run sync for CI-critical suites where staleness would be a real bug.'
       },
       {
         id: 'library-check',
@@ -536,9 +566,34 @@ const en: DocsContent = [
 </p>
 <ul>
   <li><strong>Search</strong> &mdash; Filter keywords by name using the search box.</li>
-  <li><strong>Click to Add</strong> &mdash; Click a keyword to append it as a new node.</li>
+  <li><strong>Click to Add</strong> &mdash; Click a keyword to select it (an &ldquo;Add&rdquo; bar appears at the top of the palette), then click <strong>+</strong> to insert it after the currently-selected node.</li>
   <li><strong>Drag &amp; Drop</strong> &mdash; Drag a keyword from the palette onto the canvas to position it precisely.</li>
 </ul>
+<h4>Control Structures (IF/ELSE, TRY/EXCEPT, loops)</h4>
+<p>
+  The palette&rsquo;s <strong>Control</strong> category lets you build Robot
+  Framework control flow without writing code. Add an item the same way as a
+  keyword (select &rarr; <strong>+</strong>, or drag it onto the canvas):
+</p>
+<ul>
+  <li><strong>IF / ELSE</strong>, <strong>FOR Loop</strong>, <strong>WHILE Loop</strong>
+      and <strong>TRY / EXCEPT</strong> each insert a complete, valid block with
+      its matching <code>END</code> in one step. A <code>TRY</code> is scaffolded
+      as <code>TRY &rarr; EXCEPT &rarr; END</code> so it is runnable immediately
+      (a bare <code>TRY&hellip;END</code> is a syntax error in Robot Framework).</li>
+  <li>To extend a block, select the node you want to branch from and add
+      <strong>ELSE IF</strong>, <strong>ELSE</strong>, <strong>EXCEPT</strong> or
+      <strong>FINALLY</strong> &mdash; the new clause is inserted in place,
+      inside the block.</li>
+  <li><strong>VAR</strong>, <strong>RETURN</strong>, <strong>BREAK</strong> and
+      <strong>CONTINUE</strong> are available too.</li>
+</ul>
+<p>
+  Select an <code>EXCEPT</code> node to edit its error pattern and capture
+  variable (<code>AS \${error}</code>) in the detail panel. Switch to the Code
+  tab at any time to see the generated <code>.robot</code> text &mdash; the
+  structure and its <code>END</code> markers round-trip faithfully.
+</p>
 <h4>Synchronization</h4>
 <p>
   All three editor tabs (Visual Editor, Code, Flow) share the same underlying data model.
@@ -1151,6 +1206,34 @@ Recording 21
   <li><strong>Completed</strong> &mdash; The analysis result is rendered with a token usage
       counter and a Re-analyze button to run a fresh analysis.</li>
 </ul>
+<h4>Output Language</h4>
+<p>
+  The analysis is generated in the <strong>language currently selected in the
+  interface</strong> (EN/DE/FR/ES/ZH) &mdash; the prose, headings, and summary
+  are localized, while code, Robot Framework keywords, file paths, and the
+  suggested patches stay verbatim so they remain valid.
+</p>
+<h4>Suggested Patches &amp; One-Click Fix</h4>
+<p>
+  When a fix is concrete enough, the analysis surfaces it as a unified-diff
+  <strong>patch</strong> below the prose, showing the affected file. For each
+  patch you can:
+</p>
+<ul>
+  <li><strong>Fix automatically</strong> &mdash; applies the patch directly to
+      the file in the repository. The change is applied <em>context-first</em>
+      (the diff&rsquo;s line numbers are advisory), and is <strong>refused</strong>
+      if the surrounding lines no longer match the current file &mdash; so a
+      stale patch can never silently corrupt a test. Review the diff first; the
+      apply is an explicit, one-click action.</li>
+  <li><strong>Copy patch</strong> &mdash; copies the unified diff to the
+      clipboard for manual application in your editor.</li>
+</ul>
+<p>
+  The analysis is scoped to the execution it was generated for: opening a
+  different run shows that run&rsquo;s own analysis (or none yet), never a stale
+  result from a previously-viewed run.
+</p>
 <p>
   The analysis runs as a background job and does not block other operations.
   Each analysis is an independent LLM call &mdash; re-analyzing may produce
@@ -1232,10 +1315,13 @@ Recording 21
 </ul>
 <h4>Success Rate Over Time</h4>
 <p>
-  A line chart shows the daily success rate for the selected period. The X-axis
-  represents dates and the Y-axis shows the percentage (0&ndash;100%). This chart
-  makes it easy to spot regressions or improvements over time. The chart is powered
-  by <strong>Chart.js</strong> and supports hover tooltips for exact values.
+  A bar chart shows the daily success rate for the selected period. The X-axis
+  represents dates and the Y-axis shows the percentage (0&ndash;100%); hover any
+  bar for the exact value and run count. The axis is a continuous timeline:
+  every calendar day in the range gets the same slot width, and days with
+  <strong>no executions</strong> render as an empty gap (a faint baseline, no
+  bar) instead of being collapsed &mdash; so the spacing between bars reflects
+  real elapsed time and makes regressions or improvements easy to spot.
 </p>`,
         tip: 'A declining success rate trend often indicates new code changes introducing failures. Investigate the specific dates of drops.'
       },
@@ -2114,6 +2200,37 @@ Login Works
   password form</strong> once SSO is fully rolled out.
 </p>`,
         tip: 'Always run the Dry-Run probe before saving and before rolling out to users. The check catches 90% of misconfigurations (wrong issuer, missing scope, unreachable JWKS) without affecting end users.'
+      },
+      {
+        id: 'feature-governance',
+        title: 'Feature Governance (locking down package management)',
+        content: `
+<p>
+  On a shared or remote install where Python environments are administered
+  centrally, you can disable <strong>package management</strong> so end users
+  cannot install, uninstall, upgrade packages, build Docker images, or run
+  <code>rfbrowser init</code> against the managed environment.
+</p>
+<h4>How to disable it</h4>
+<ul>
+  <li><strong>From the UI</strong> &mdash; under <strong>Settings &gt; General &gt; features</strong>, set <code>features.packageManagement</code> to <em>No</em>.</li>
+  <li><strong>From the deployment</strong> (hard lock) &mdash; set the environment variable <code>ROBOSCOPE_FEATURE_PACKAGE_MANAGEMENT=false</code> on the server. This wins over the in-app toggle and shows it as 🔒 locked (non-editable). Changing an environment variable takes effect on the next restart.</li>
+</ul>
+<p>
+  Resolution precedence is <strong>environment variable &rarr; database setting &rarr; default (enabled)</strong>.
+</p>
+<h4>What changes when it's off</h4>
+<ul>
+  <li>The Environments page hides install / uninstall / upgrade / build controls and shows a read-only notice; the installed-package list stays visible.</li>
+  <li>The corresponding API endpoints are refused server-side (HTTP 403) &mdash; the lock cannot be bypassed via the API, and the block is recorded in the Audit Log.</li>
+</ul>
+<h4>Role floor</h4>
+<p>
+  When package management is left <em>on</em>, you can still raise the minimum
+  role required for each operation under the <code>features.packageManagement.role.*</code>
+  settings (default <strong>Editor</strong>).
+</p>`,
+        tip: 'Use the environment-variable lock (not just the in-app toggle) on installs where end users should never touch environments — it can’t be changed from inside the app.'
       }
     ]
   },
@@ -2444,13 +2561,52 @@ Login Works
     <tr><td><code>de</code></td><td>Deutsch (German)</td></tr>
     <tr><td><code>fr</code></td><td>Fran&ccedil;ais (French)</td></tr>
     <tr><td><code>es</code></td><td>Espa&ntilde;ol (Spanish)</td></tr>
+    <tr><td><code>zh</code></td><td>&#20013;&#25991; (Simplified Chinese)</td></tr>
   </tbody>
 </table>
 <p>
   To switch languages, use the <strong>language selector</strong> in the application header.
   The selected language is saved to your browser&rsquo;s local storage and persists
-  across sessions. All UI labels, buttons, messages, and this documentation adapt
-  to the selected language.
+  across sessions. All UI labels, buttons, and messages adapt to the selected
+  language. This documentation is written in English, German, French, and
+  Spanish; when the interface is set to Chinese, the docs fall back to English.
+</p>`
+      },
+      {
+        id: 'api-access',
+        title: 'API Access',
+        content: `
+<p>
+  RoboScope exposes a full REST API under <code>/api/v1/</code>. Everything the
+  interface does is available programmatically.
+</p>
+<h4>Authentication</h4>
+<p>
+  The API uses JWT bearer tokens. Request a token from the login endpoint:
+</p>
+<p>
+  <code>POST /api/v1/auth/login</code> with <code>{"email": "...", "password": "..."}</code>
+</p>
+<p>
+  Send the returned token as an <code>Authorization: Bearer &lt;token&gt;</code>
+  header on every request.
+</p>
+<h4>Key endpoints</h4>
+<table>
+  <thead>
+    <tr><th>Endpoint</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>GET /api/v1/repos</code></td><td>List all repositories</td></tr>
+    <tr><td><code>POST /api/v1/runs</code></td><td>Start a new run</td></tr>
+    <tr><td><code>GET /api/v1/reports</code></td><td>List reports</td></tr>
+    <tr><td><code>GET /api/v1/stats/kpis</code></td><td>Fetch KPI data</td></tr>
+  </tbody>
+</table>
+<p>
+  The full API documentation with all endpoints, parameters, and response
+  formats is available in the interactive <strong>Swagger UI</strong> at
+  <code>/api/v1/docs</code>.
 </p>`
       }
     ]

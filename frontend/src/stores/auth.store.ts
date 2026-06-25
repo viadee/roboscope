@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as authApi from '@/api/auth.api'
+import { useFeatureFlags } from '@/composables/useFeatureFlags'
 import type { User } from '@/types/domain.types'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -22,6 +23,8 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('access_token', response.access_token)
     localStorage.setItem('refresh_token', response.refresh_token)
     await fetchCurrentUser()
+    // Refetch deployment feature flags for the freshly logged-in user.
+    void useFeatureFlags().refresh()
   }
 
   async function fetchCurrentUser() {
@@ -38,6 +41,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
+    useFeatureFlags().reset()
   }
 
   async function markFirstLoginComplete() {

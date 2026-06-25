@@ -26,6 +26,7 @@ import { extractErrorDetail } from '@/utils/errors'
 import { collectEnvVarRefs } from '@/utils/robotEnvVars'
 import { type RecordedFlow, type SelectorCandidate, type SelectorStrategy } from '@/types/recorder.types'
 import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
+import { useToast } from '@/composables/useToast'
 import {
   getArgLabel,
   friendlyType,
@@ -48,6 +49,7 @@ import {
   NODE_X,
   type RobotForm,
   type RobotStep,
+  type StepType,
   type RobotTestCase,
   type RobotKeywordDef,
   type FlowNodeData,
@@ -111,6 +113,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const toast = useToast()
 
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
@@ -180,6 +183,17 @@ const libraryEntries = computed<LibraryEntry[]>(() => {
   return out
 })
 
+// UX D1 — the imports panel splits into separate "Resources" and
+// "Libraries" lists so a `.resource` import never sits under "Libraries"
+// (RF distinguishes the two). Both derive from the same libraryEntries so
+// removeLibrary(idx) still targets the right form.settings row.
+const resourceImportEntries = computed<LibraryEntry[]>(() =>
+  libraryEntries.value.filter(e => e.kind === 'resource'),
+)
+const libraryImportEntries = computed<LibraryEntry[]>(() =>
+  libraryEntries.value.filter(e => e.kind === 'library'),
+)
+
 /** Lower-cased set of imported library names. Always includes
  *  `'builtin'` because RF auto-imports BuiltIn. Drives the
  *  KeywordPalette dimming + auto-import logic.
@@ -229,9 +243,9 @@ const _RF_BUNDLED = new Set([
  *  are treated as Resource imports instead. Emits
  *  `libraries-changed` so the parent can refresh the keyword
  *  cache. */
-function addLibrary(rawName: string): void {
+function addLibrary(rawName: string): 'library' | 'resource' | false {
   const name = rawName.trim()
-  if (!name) return
+  if (!name) return false
   const isResource = name.toLowerCase().endsWith('.resource') || name.includes('/')
   const key = isResource ? 'Resource' : 'Library'
   // Dedupe — RF accepts duplicate Library imports but they're noise.
@@ -239,7 +253,7 @@ function addLibrary(rawName: string): void {
     s => s.key.toLowerCase() === key.toLowerCase()
       && s.value.trim().toLowerCase() === name.toLowerCase(),
   )
-  if (existing) return
+  if (existing) return false
   props.form.settings.push({ key, value: name, args: [] })
   libraryInputValue.value = ''
   // Only third-party Library imports trigger the env-introspection
@@ -247,6 +261,25 @@ function addLibrary(rawName: string): void {
   // libs (Collections, XML, …) don't need pip install.
   const skipInstallCheck = isResource || _RF_BUNDLED.has(name.toLowerCase())
   emit('libraries-changed', skipInstallCheck ? undefined : name)
+  return isResource ? 'resource' : 'library'
+}
+
+/**
+ * UX D2 (ux-flow-editor-resources.md) — surface the otherwise-silent
+ * auto-import. Shows a localized confirmation toast ONLY when an import
+ * was actually added (caller passes `addLibrary`'s return), naming the
+ * file/library. No Undo (decided 2026-06-18 — removal lives in the
+ * Resources/Libraries panel). Never fires for BuiltIn / same-file /
+ * already-imported inserts because those never reach `addLibrary` with
+ * a truthy result.
+ */
+function notifyImportAdded(kind: 'library' | 'resource', name: string): void {
+  toast.success(
+    t(kind === 'resource'
+      ? 'flowEditor.importAdded.resourceTitle'
+      : 'flowEditor.importAdded.libraryTitle'),
+    t('flowEditor.importAdded.message', { name }),
+  )
 }
 
 function confirmAddLibrary(): void {
@@ -733,7 +766,34 @@ function onPanelResizeStart(ev: PointerEvent) {
 // Story EDITOR-2 — keyword signature map (lowercase keyword name → raw
 // libdoc args). Reactive: rebuilds graph automatically when the
 // explorer-store cache resolves after a repo open.
-const { argsByName, getKeywordInfo } = useKeywordSignatures()
+const { argsByName, getKeywordInfo, getParsedArgs } = useKeywordSignatures()
+
+/**
+ * UX D3 (ux-flow-editor-resources.md) — pre-seed a freshly-inserted
+ * keyword node's `args` with one EMPTY slot per REQUIRED positional
+ * argument from its signature, so the detail panel opens with the
+ * parameters the user must fill already labelled (e.g. a resource
+ * keyword `Open Login Page    [Arguments]    ${url}` shows a "url"
+ * slot instead of a bare "+ add argument"). Mirrors the "add next
+ * positional" picker which also pushes `''`.
+ *
+ * Only REQUIRED positionals are seeded: optionals/varargs/kwargs stay
+ * behind the "+ add argument" picker (seeding them would write
+ * redundant `name=default` cells). Required args always precede
+ * optionals in an RF signature, so we stop at the first non-required
+ * descriptor. No-op when the keyword has no known signature (the slot
+ * count is then driven purely by what the user adds).
+ */
+function prefillRequiredArgs(step: RobotStep): void {
+  if (step.type !== 'keyword' && step.type !== 'assignment') return
+  if (step.args.length > 0) return // never clobber caller-provided args
+  const specs = getParsedArgs(step.keyword)
+  if (!specs) return
+  for (const s of specs) {
+    if (s.kind === 'positional') step.args.push('')
+    else break
+  }
+}
 
 // Library usage histogram for the currently-open file. Walks every
 // keyword / assignment step in test cases AND keyword definitions
@@ -755,6 +815,18 @@ const libraryUsageCounts = computed<Map<string, number>>(() => {
   for (const tc of props.form.testCases) tally(tc.steps)
   for (const kw of props.form.keywords) tally(kw.steps)
   return counts
+})
+
+// UX D6 — heuristic inputs for the palette's adaptive "what's shown"
+// default: how many Library/Resource imports the open file has, and its
+// total step count. A "sophisticated" file (≥1 import OR ≥5 steps) with an
+// environment defaults the palette to imported-only.
+const fileImportCount = computed(() => libraryEntries.value.length)
+const fileStepCount = computed(() => {
+  let n = 0
+  for (const tc of props.form.testCases) n += tc.steps.length
+  for (const kw of props.form.keywords) n += kw.steps.length
+  return n
 })
 
 function buildGraph() {
@@ -1540,6 +1612,32 @@ function removeReturnValue(index: number) {
 
 // --- Add node from palette ---
 
+/** A fully-formed blank step of `type` with every field initialised —
+ *  the canonical empty RobotStep shape used when scaffolding control
+ *  blocks (END / EXCEPT). Keeping it in one place stops the three
+ *  insertion paths (palette add, insert-before, drag-drop) from
+ *  drifting out of sync. */
+function makeBlankStep(type: StepType): RobotStep {
+  return {
+    type, keyword: '', args: [], returnVars: [],
+    condition: '', loopVar: '', loopFlavor: '', loopValues: [],
+    exceptPattern: '', exceptVar: '', varScope: '', comment: '',
+  }
+}
+
+/** Trailing steps a freshly-added block starter needs to be VALID
+ *  Robot Framework out of the box. IF/FOR/WHILE just need a matching
+ *  END. TRY is special: a bare `TRY ... END` is a SYNTAX ERROR in RF
+ *  — a TRY must have at least one EXCEPT / ELSE / FINALLY. So we
+ *  scaffold `TRY → EXCEPT → END` (catch-all EXCEPT), which mirrors
+ *  what a user means by "add a try/except" and leaves the block
+ *  runnable immediately. Returns [] for non-block steps. */
+function blockTrailingSteps(type: StepType): RobotStep[] {
+  if (type === 'try') return [makeBlankStep('except'), makeBlankStep('end')]
+  if (type === 'if' || type === 'for' || type === 'while') return [makeBlankStep('end')]
+  return []
+}
+
 function addNodeFromPalette(step: RobotStep, library?: string) {
   // Auto-import: when the keyword came from a library that isn't in
   // form.settings yet, prepend a `Library    X` row so RF can
@@ -1547,10 +1645,15 @@ function addNodeFromPalette(step: RobotStep, library?: string) {
   // and emits `libraries-changed` (which refreshes the palette
   // signatures cache).
   if (library) {
-    const lower = library.toLowerCase()
-    const already = importedLibraryNames.value.has(lower)
-    if (!already) addLibrary(library)
+    // addLibrary dedupes internally (incl. Resource imports, which
+    // importedLibraryNames doesn't track) and returns the kind it added
+    // or false — drive the D2 import toast off that truthy result.
+    const added = addLibrary(library)
+    if (added) notifyImportAdded(added, library)
   }
+
+  // UX D3 — open the node with its required arguments already slotted.
+  prefillRequiredArgs(step)
 
   const list = activeSection.value === 'testcases'
     ? props.form.testCases[activeItemIndex.value]?.steps
@@ -1563,14 +1666,7 @@ function addNodeFromPalette(step: RobotStep, library?: string) {
   const insertAt = selectedNodeData.value
     ? selectedNodeData.value.stepIndex + 1
     : list.length
-  list.splice(insertAt, 0, step)
-  if (['if', 'for', 'while', 'try'].includes(step.type)) {
-    list.splice(insertAt + 1, 0, {
-      type: 'end', keyword: '', args: [], returnVars: [],
-      condition: '', loopVar: '', loopFlavor: '', loopValues: [],
-      exceptPattern: '', exceptVar: '', varScope: '', comment: '',
-    })
-  }
+  list.splice(insertAt, 0, step, ...blockTrailingSteps(step.type))
   // Move selection to the freshly-inserted node so the user can
   // edit args / chain another insert without a second click.
   rebuildAndReselect(stepNodeIdAt(insertAt))
@@ -1629,14 +1725,7 @@ function insertStepBefore(step: RobotStep) {
   const steps = getActiveSteps()
   if (!steps) return
   const idx = selectedNodeData.value.stepIndex
-  steps.splice(idx, 0, step)
-  if (['if', 'for', 'while', 'try'].includes(step.type)) {
-    steps.splice(idx + 1, 0, {
-      type: 'end', keyword: '', args: [], returnVars: [],
-      condition: '', loopVar: '', loopFlavor: '', loopValues: [],
-      exceptPattern: '', exceptVar: '', varScope: '', comment: '',
-    })
-  }
+  steps.splice(idx, 0, step, ...blockTrailingSteps(step.type))
   buildGraph()
 }
 
@@ -1749,14 +1838,7 @@ function insertStepAt(step: RobotStep, index: number) {
     counted++
     realIndex++
   }
-  list.splice(realIndex, 0, step)
-  if (['if', 'for', 'while', 'try'].includes(step.type)) {
-    list.splice(realIndex + 1, 0, {
-      type: 'end', keyword: '', args: [], returnVars: [],
-      condition: '', loopVar: '', loopFlavor: '', loopValues: [],
-      exceptPattern: '', exceptVar: '', varScope: '', comment: '',
-    })
-  }
+  list.splice(realIndex, 0, step, ...blockTrailingSteps(step.type))
   suppressFitView = true
   buildGraph()
 }
@@ -1783,9 +1865,13 @@ function onCanvasDrop(event: DragEvent) {
   // from a not-yet-imported library, prepend the Library row before
   // inserting the step.
   const sourceLib = event.dataTransfer?.getData('application/rf-library') || ''
-  if (sourceLib && !importedLibraryNames.value.has(sourceLib.toLowerCase())) {
-    addLibrary(sourceLib)
+  if (sourceLib) {
+    const added = addLibrary(sourceLib)
+    if (added) notifyImportAdded(added, sourceLib)
   }
+
+  // UX D3 — pre-seed required argument slots (same as the palette path).
+  prefillRequiredArgs(step)
 
   const flowY = eventToFlowY(event)
   const idx = findInsertIndex(flowY)
@@ -2134,26 +2220,50 @@ function onDebugOverlayClose(): void {
          RobotEditor's settings-watcher refreshes the keyword cache
          + palette automatically. -->
     <div v-if="librariesPanelOpen" class="flow-libraries">
-      <div class="flow-libraries__chips">
-        <span v-if="libraryEntries.length === 0" class="flow-libraries__empty">
-          {{ t('flowEditor.librariesNone') }}
-        </span>
-        <span
-          v-for="entry in libraryEntries"
-          :key="entry.idx"
-          class="flow-libraries__chip"
-          :class="{ 'flow-libraries__chip--resource': entry.kind === 'resource' }"
-        >
-          <span class="flow-libraries__chip-kind">{{ entry.kind === 'resource' ? 'R' : 'L' }}</span>
-          <span class="flow-libraries__chip-name">{{ entry.value }}</span>
-          <button
-            type="button"
-            class="flow-libraries__chip-remove"
-            :title="t('flowEditor.libraryRemoveTitle', { name: entry.value })"
-            @click="removeLibrary(entry.idx)"
-            data-testid="flow-library-remove"
-          >×</button>
-        </span>
+      <span v-if="libraryEntries.length === 0" class="flow-libraries__empty">
+        {{ t('flowEditor.librariesNone') }}
+      </span>
+      <!-- D1 — Resources list (separate from Libraries) -->
+      <div v-if="resourceImportEntries.length" class="flow-libraries__group" data-testid="flow-resources-group">
+        <div class="flow-libraries__group-label">{{ t('flowEditor.resourcePanelLabel') }} ({{ resourceImportEntries.length }})</div>
+        <div class="flow-libraries__chips">
+          <span
+            v-for="entry in resourceImportEntries"
+            :key="entry.idx"
+            class="flow-libraries__chip flow-libraries__chip--resource"
+          >
+            <span class="flow-libraries__chip-kind">R</span>
+            <span class="flow-libraries__chip-name" :title="entry.value">{{ entry.value }}</span>
+            <button
+              type="button"
+              class="flow-libraries__chip-remove"
+              :title="t('flowEditor.libraryRemoveTitle', { name: entry.value })"
+              @click="removeLibrary(entry.idx)"
+              data-testid="flow-library-remove"
+            >×</button>
+          </span>
+        </div>
+      </div>
+      <!-- D1 — Libraries list -->
+      <div v-if="libraryImportEntries.length" class="flow-libraries__group" data-testid="flow-libraries-group">
+        <div class="flow-libraries__group-label">{{ t('flowEditor.librariesPanelLabel') }} ({{ libraryImportEntries.length }})</div>
+        <div class="flow-libraries__chips">
+          <span
+            v-for="entry in libraryImportEntries"
+            :key="entry.idx"
+            class="flow-libraries__chip"
+          >
+            <span class="flow-libraries__chip-kind">L</span>
+            <span class="flow-libraries__chip-name" :title="entry.value">{{ entry.value }}</span>
+            <button
+              type="button"
+              class="flow-libraries__chip-remove"
+              :title="t('flowEditor.libraryRemoveTitle', { name: entry.value })"
+              @click="removeLibrary(entry.idx)"
+              data-testid="flow-library-remove"
+            >×</button>
+          </span>
+        </div>
       </div>
       <div class="flow-libraries__input-row">
         <input
@@ -2348,6 +2458,8 @@ function onDebugOverlayClose(): void {
         :file-path="props.filePath"
         :imported-libraries="importedLibraryNames"
         :usage-counts="libraryUsageCounts"
+        :file-import-count="fileImportCount"
+        :file-step-count="fileStepCount"
         @add-node="addNodeFromPalette"
       />
 
@@ -3148,6 +3260,18 @@ function onDebugOverlayClose(): void {
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 8px;
+}
+/* D1 — labelled Resources / Libraries groups in the imports panel */
+.flow-libraries__group {
+  margin-bottom: 6px;
+}
+.flow-libraries__group-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted, #5A6380);
+  margin-bottom: 4px;
 }
 .flow-libraries__empty {
   color: var(--color-text-muted, #5A6380);

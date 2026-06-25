@@ -57,6 +57,27 @@ export async function analyzeFailures(data: AiAnalyzeRequest): Promise<AiJob> {
   return response.data
 }
 
+export interface ApplyPatchResult {
+  status: string
+  file_path: string
+  line_count: number
+}
+
+/** Apply one AI-suggested unified-diff patch to a repository file.
+ *  Rejects (422) if the patch no longer matches the file. */
+export async function applyPatch(
+  repositoryId: number,
+  filePath: string,
+  unifiedDiff: string,
+): Promise<ApplyPatchResult> {
+  const response = await apiClient.post<ApplyPatchResult>('/ai/apply-patch', {
+    repository_id: repositoryId,
+    file_path: filePath,
+    unified_diff: unifiedDiff,
+  })
+  return response.data
+}
+
 // --- Job status ---
 
 export async function getJobStatus(jobId: number): Promise<AiJob> {

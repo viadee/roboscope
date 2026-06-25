@@ -213,7 +213,7 @@ const es: DocsContent = [
   (paleta del Editor de Flujo, selector del Grabador, palabras clave de
   auto-reparaci\u00F3n, tasa de reparaci\u00F3n de Stats, auto-sync de repos, panel de
   Detalles de Ejecuci\u00F3n, \u2026) \u2014 no consejos gen\u00E9ricos de Robot Framework. El
-  texto de los consejos est\u00E1 disponible en las cuatro localizaciones (EN/DE/FR/ES).
+  texto de los consejos est\u00E1 disponible en las cinco localizaciones de la interfaz (EN/DE/FR/ES/ZH).
 </p>`
       }
     ]
@@ -534,9 +534,37 @@ const es: DocsContent = [
 </p>
 <ul>
   <li><strong>Buscar</strong> &mdash; Filtrar palabras clave por nombre usando el cuadro de b\u00FAsqueda.</li>
-  <li><strong>Clic para a\u00F1adir</strong> &mdash; Haga clic en una palabra clave para a\u00F1adirla como nuevo nodo.</li>
+  <li><strong>Clic para a\u00F1adir</strong> &mdash; Haga clic en una palabra clave para seleccionarla (aparece una barra \u00ABA\u00F1adir\u00BB en la parte superior de la paleta), luego haga clic en <strong>+</strong> para insertarla despu\u00E9s del nodo seleccionado actualmente.</li>
   <li><strong>Arrastrar y soltar</strong> &mdash; Arrastre una palabra clave desde la paleta al lienzo para posicionarla con precisi\u00F3n.</li>
 </ul>
+<h4>Estructuras de control (IF/ELSE, TRY/EXCEPT, bucles)</h4>
+<p>
+  La categor\u00EDa <strong>Control</strong> de la paleta le permite construir flujo
+  de control de Robot Framework sin escribir c\u00F3digo. A\u00F1ada un elemento de la
+  misma forma que una palabra clave (seleccionar &rarr; <strong>+</strong>, o
+  arrastrarlo al lienzo):
+</p>
+<ul>
+  <li><strong>IF / ELSE</strong>, <strong>FOR Loop</strong>, <strong>WHILE Loop</strong>
+      y <strong>TRY / EXCEPT</strong> insertan cada uno un bloque completo y v\u00E1lido
+      con su <code>END</code> correspondiente en un solo paso. Un <code>TRY</code> se
+      genera como <code>TRY &rarr; EXCEPT &rarr; END</code> para que sea ejecutable
+      de inmediato (un <code>TRY&hellip;END</code> a secas es un error de sintaxis en
+      Robot Framework).</li>
+  <li>Para extender un bloque, seleccione el nodo desde el que desea ramificar y
+      a\u00F1ada <strong>ELSE IF</strong>, <strong>ELSE</strong>, <strong>EXCEPT</strong>
+      o <strong>FINALLY</strong> &mdash; la nueva cl\u00E1usula se inserta en su lugar,
+      dentro del bloque.</li>
+  <li><strong>VAR</strong>, <strong>RETURN</strong>, <strong>BREAK</strong> y
+      <strong>CONTINUE</strong> tambi\u00E9n est\u00E1n disponibles.</li>
+</ul>
+<p>
+  Seleccione un nodo <code>EXCEPT</code> para editar su patr\u00F3n de error y su
+  variable de captura (<code>AS \${error}</code>) en el panel de detalles. Cambie a
+  la pesta\u00F1a Code en cualquier momento para ver el texto <code>.robot</code>
+  generado &mdash; la estructura y sus marcadores <code>END</code> sobreviven al
+  round-trip fielmente.
+</p>
 <h4>Sincronizaci\u00F3n</h4>
 <p>
   Las tres pesta\u00F1as del editor (Visual Editor, Code, Flow) comparten el mismo modelo de datos
@@ -1189,6 +1217,36 @@ Recording 21
   <li><strong>Completado</strong> &mdash; El resultado se muestra con un contador de tokens
       y un bot\u00F3n para volver a analizar.</li>
 </ul>
+<h4>Idioma de salida</h4>
+<p>
+  El an\u00E1lisis se genera en el <strong>idioma actualmente seleccionado en la
+  interfaz</strong> (EN/DE/FR/ES/ZH) &mdash; la prosa, los t\u00EDtulos y el resumen
+  se localizan, mientras que el c\u00F3digo, las palabras clave de Robot Framework,
+  las rutas de archivo y los parches sugeridos se mantienen literales para que
+  sigan siendo v\u00E1lidos.
+</p>
+<h4>Parches sugeridos y correcci\u00F3n con un clic</h4>
+<p>
+  Cuando una correcci\u00F3n es lo bastante concreta, el an\u00E1lisis la presenta como
+  un <strong>parche</strong> en formato unified-diff debajo de la prosa, mostrando
+  el archivo afectado. Para cada parche puede:
+</p>
+<ul>
+  <li><strong>Corregir autom\u00E1ticamente</strong> &mdash; aplica el parche
+      directamente al archivo en el repositorio. El cambio se aplica
+      <em>priorizando el contexto</em> (los n\u00FAmeros de l\u00EDnea del diff son
+      orientativos) y se <strong>rechaza</strong> si las l\u00EDneas circundantes
+      ya no coinciden con el archivo actual &mdash; de modo que un parche obsoleto
+      nunca puede corromper un test de forma silenciosa. Revise el diff primero;
+      la aplicaci\u00F3n es una acci\u00F3n expl\u00EDcita, con un solo clic.</li>
+  <li><strong>Copiar parche</strong> &mdash; copia el unified diff al portapapeles
+      para aplicarlo manualmente en su editor.</li>
+</ul>
+<p>
+  El an\u00E1lisis est\u00E1 acotado a la ejecuci\u00F3n para la que se gener\u00F3: abrir una
+  ejecuci\u00F3n diferente muestra el an\u00E1lisis propio de esa ejecuci\u00F3n (o ninguno
+  todav\u00EDa), nunca un resultado obsoleto de una ejecuci\u00F3n vista anteriormente.
+</p>
 <p>
   El an\u00E1lisis se ejecuta como una tarea en segundo plano y no bloquea otras operaciones.
   Cada an\u00E1lisis es una llamada LLM independiente &mdash; un rean\u00E1lisis puede producir
@@ -1276,11 +1334,15 @@ Recording 21
 </ul>
 <h4>Tasa de \u00E9xito a lo largo del tiempo</h4>
 <p>
-  Un gr\u00E1fico de l\u00EDneas muestra la tasa de \u00E9xito diaria para el per\u00EDodo
+  Un gr\u00E1fico de barras muestra la tasa de \u00E9xito diaria para el per\u00EDodo
   seleccionado. El eje X representa las fechas y el eje Y muestra el porcentaje
-  (0&ndash;100%). Este gr\u00E1fico facilita la detecci\u00F3n de regresiones o mejoras
-  a lo largo del tiempo. El gr\u00E1fico est\u00E1 impulsado por <strong>Chart.js</strong>
-  y soporta tooltips al pasar el cursor para valores exactos.
+  (0&ndash;100%); pase el cursor sobre cualquier barra para ver el valor exacto y
+  el n\u00FAmero de ejecuciones. El eje es una l\u00EDnea temporal continua: cada d\u00EDa
+  calendario del rango recibe el mismo ancho de espacio, y los d\u00EDas
+  <strong>sin ejecuciones</strong> se muestran como un hueco vac\u00EDo (una l\u00EDnea
+  base tenue, sin barra) en lugar de colapsarse &mdash; de modo que el espaciado
+  entre barras refleja el tiempo real transcurrido y facilita detectar
+  regresiones o mejoras.
 </p>`,
         tip: 'Una tendencia decreciente en la tasa de \u00E9xito a menudo indica que nuevos cambios de c\u00F3digo est\u00E1n introduciendo fallos. Investigue las fechas espec\u00EDficas de las ca\u00EDdas.'
       },
@@ -2118,6 +2180,26 @@ Login Works
   que el SSO esté completamente desplegado.
 </p>`,
         tip: 'Ejecute siempre la sonda Dry-Run antes de guardar y antes de desplegar a los usuarios. Detecta el 90&nbsp;% de los errores de configuración (emisor incorrecto, scope faltante, JWKS inaccesible) sin afectar a los usuarios finales.'
+      },
+      {
+        id: 'feature-governance',
+        title: 'Gobernanza de funciones (bloqueo de la gestión de paquetes)',
+        content: `
+<p>En una instalación compartida o remota donde los entornos de Python se administran de forma centralizada, puede desactivar la <strong>gestión de paquetes</strong> para que los usuarios finales no puedan instalar, desinstalar ni actualizar paquetes, crear imágenes de Docker ni ejecutar <code>rfbrowser init</code> sobre el entorno gestionado.</p>
+<h4>Cómo desactivarla</h4>
+<ul>
+  <li><strong>Desde la interfaz</strong> &mdash; en <strong>Ajustes &gt; General &gt; features</strong>, establezca <code>features.packageManagement</code> en <em>No</em>.</li>
+  <li><strong>Desde el despliegue</strong> (bloqueo permanente) &mdash; establezca la variable de entorno <code>ROBOSCOPE_FEATURE_PACKAGE_MANAGEMENT=false</code> en el servidor. Esta tiene prioridad sobre el conmutador de la aplicación y la muestra como 🔒 bloqueada (no editable). Cambiar una variable de entorno surte efecto en el siguiente reinicio.</li>
+</ul>
+<p>El orden de prioridad de resolución es <strong>variable de entorno &rarr; ajuste de la base de datos &rarr; valor predeterminado (habilitado)</strong>.</p>
+<h4>Qué cambia cuando está desactivada</h4>
+<ul>
+  <li>La página de Entornos oculta los controles de instalar / desinstalar / actualizar / crear y muestra un aviso de solo lectura; la lista de paquetes instalados permanece visible.</li>
+  <li>Los endpoints de API correspondientes se rechazan en el servidor (HTTP 403) &mdash; el bloqueo no puede eludirse a través de la API, y el bloqueo queda registrado en el Registro de auditoría.</li>
+</ul>
+<h4>Rol mínimo</h4>
+<p>Cuando la gestión de paquetes se deja <em>activada</em>, todavía puede elevar el rol mínimo requerido para cada operación en los ajustes <code>features.packageManagement.role.*</code> (valor predeterminado <strong>Editor</strong>).</p>`,
+        tip: 'Use el bloqueo mediante variable de entorno (no solo el conmutador de la aplicación) en instalaciones donde los usuarios finales nunca deban tocar los entornos &mdash; no puede modificarse desde dentro de la aplicación.'
       }
     ]
   },
@@ -2396,15 +2478,40 @@ Login Works
     <tr><td><code>de</code></td><td>Deutsch (Alem\u00E1n)</td></tr>
     <tr><td><code>fr</code></td><td>Fran\u00E7ais (Franc\u00E9s)</td></tr>
     <tr><td><code>es</code></td><td>Espa\u00F1ol</td></tr>
+    <tr><td><code>zh</code></td><td>&#20013;&#25991; (chino simplificado)</td></tr>
   </tbody>
 </table>
 <p>
   Para cambiar de idioma, use el <strong>selector de idioma</strong> en el
   encabezado de la aplicaci\u00F3n. El idioma seleccionado se guarda en el
   almacenamiento local del navegador y persiste entre sesiones. Todas las
-  etiquetas de la interfaz, botones, mensajes y esta documentaci\u00F3n se
-  adaptan al idioma seleccionado.
+  etiquetas de la interfaz, botones y mensajes se adaptan al idioma
+  seleccionado. Esta documentaci\u00F3n est\u00E1 escrita en ingl\u00E9s, alem\u00E1n,
+  franc\u00E9s y espa\u00F1ol; cuando la interfaz est\u00E1 en chino, la documentaci\u00F3n
+  recurre al ingl\u00E9s.
 </p>`
+      },
+      {
+        id: 'api-access',
+        title: 'Acceso a la API',
+        content: `
+<p>RoboScope expone una API REST completa bajo <code>/api/v1/</code>. Todo lo que hace la interfaz est\u00E1 disponible de forma program\u00E1tica.</p>
+<h4>Autenticaci\u00F3n</h4>
+<p>La API utiliza tokens bearer JWT. Solicite un token desde el endpoint de inicio de sesi\u00F3n:</p>
+<p><code>POST /api/v1/auth/login</code> con <code>{"email": "...", "password": "..."}</code></p>
+<p>Env\u00EDe el token devuelto como una cabecera <code>Authorization: Bearer &lt;token&gt;</code> en cada solicitud.</p>
+<h4>Endpoints principales</h4>
+<table>
+  <thead><tr><th>Endpoint</th><th>Descripci\u00F3n</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /api/v1/repos</code></td><td>Listar todos los repositorios</td></tr>
+    <tr><td><code>POST /api/v1/runs</code></td><td>Iniciar una nueva ejecuci\u00F3n</td></tr>
+    <tr><td><code>GET /api/v1/reports</code></td><td>Listar informes</td></tr>
+    <tr><td><code>GET /api/v1/stats/kpis</code></td><td>Obtener datos de KPI</td></tr>
+  </tbody>
+</table>
+<p>La documentaci\u00F3n completa de la API con todos los endpoints, par\u00E1metros y formatos de respuesta est\u00E1 disponible en la <strong>Swagger UI</strong> interactiva en <code>/api/v1/docs</code>.</p>`,
+        tip: 'La Swagger UI en /api/v1/docs es la referencia en vivo: cada endpoint, par\u00E1metro y esquema, generado a partir del servidor en ejecuci\u00F3n.'
       }
     ]
   },

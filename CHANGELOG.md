@@ -2,6 +2,103 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-19
+
+### Flow Editor — your repository keywords are first-class
+
+- A dedicated, top-pinned **"Your resources"** section groups the keywords from
+  your repo's `.robot`/`.resource` files (file glyph + relative-path subtitle),
+  separate from the library list; the imports panel now splits into distinct
+  **Resources** and **Libraries** lists.
+- Inserting a resource keyword shows a **localized import-confirmation toast**
+  (the auto-`Resource`-import is no longer silent) and **pre-fills the node's
+  required argument slots** from the keyword's `[Arguments]` signature.
+- Long keyword names get a **hover tooltip** (full name) and stay legible; a new
+  **sort control** (Most used / A–Z / Imported first) and a **"what's shown"
+  filter** with an *adaptive default* (hides not-installed example libraries for
+  repos that already have an environment and a non-trivial test file) let you
+  shape the palette. All choices persist.
+- Fixed a duplicate where a repo's resource keywords appeared both under
+  "Your resources" and again as a library group.
+
+### Explorer — quiet, repo-scoped keyword loading
+
+- Keyword data is now cached **per repository**: switching files no longer
+  re-invalidates and refetches the whole keyword set every time (it only
+  refreshes on real changes — imports added, package installs, saves).
+- The "Loading keywords…" indicator is now a **subtle slim line** instead of a
+  prominent bar, and only appears on first repo open.
+
+### Deployment governance (Epic GOV)
+
+- Operators can **lock down feature areas per deployment** — first up, package
+  management. Flags resolve **ENV > DB > default-on**; enforcement is
+  per-endpoint (a disabled feature returns **403 even for admins**) and audited.
+  A token-guarded `useFeatureFlags()` gates the UI; an env override locks the
+  matching Settings toggle.
+
+### Robot Framework execution config (Epic EXEC)
+
+- The **New Run dialog exposes Include/Exclude tags**, threaded to the existing
+  `robot --include/--exclude` runner.
+
+### AI provider & output (Epic AIX)
+
+- Added a **LiteLLM** provider type (gateway to many models) and a
+  **verbosity control** for AI failure analysis.
+
+### Security
+
+- Cleared **all open Dependabot advisories**: `cryptography` → 49.0.0,
+  `PyJWT` → 2.13.0, `starlette` → 1.3.1 (with `fastapi` → 0.137.2 and
+  `robotframework-roboview` → 1.0.0), and `dompurify` → 3.4.11
+  (GHSA-cmwh-pvxp-8882).
+
+### CI / Docs
+
+- New **i18n & docs consistency** gate keeps EN/FR/ES documentation subsections
+  in lockstep so a section can't ship in one language but not the others.
+
+## [0.10.0] - 2026-06-17
+
+### Flow Editor — control-structure authoring
+
+- Added **EXCEPT** and **FINALLY** palette items, and adding a **TRY** now
+  scaffolds `TRY → EXCEPT → END` so the block is valid Robot Framework the
+  moment it is added (a bare `TRY … END` is a syntax error and could not be
+  completed through the UI before). New E2E coverage builds IF/ELSE and
+  TRY/EXCEPT through the Flow Editor and asserts they land cleanly in the
+  Code tab, on disk after Save, and across a reload.
+
+### AI failure analysis — localized output + one-click fixes
+
+- The analysis now runs in the **frontend's current language** (EN/DE/FR/ES/ZH);
+  prose is translated while code, keywords, and patches stay verbatim.
+- Suggested unified-diff patches can now be **applied automatically** with one
+  click. The backend applies them context-first and refuses (HTTP 422) when the
+  hunks no longer match the file, so a stale patch can never corrupt a test.
+- The analysis is **scoped to its execution/report** — it no longer lingers
+  when switching to a different run, and is discarded on leave.
+
+### Statistics
+
+- The **success-rate-over-time** chart now renders one slot per calendar day:
+  days without executions keep their width and show a faint baseline instead of
+  collapsing the gap, so the time axis is continuous and evenly spaced.
+
+### Internationalization
+
+- **Complete Simplified Chinese (中文)** translation — every section of the UI
+  is now translated. Previously only high-traffic sections were covered and the
+  rest fell back to English; zh still deep-merges over en so future keys resolve
+  until translated.
+
+### Security & CI
+
+- Bumped **fastmcp to >=3.2.4,<4** and cleared all remaining open Dependabot
+  advisories (closes #35).
+- Added a **Windows online-install smoke gate** to the Phase 4 release gates (#49).
+
 ### Self-healing library distribution model
 
 - **`robotframework-roboscopeheal` now visible + installable from
