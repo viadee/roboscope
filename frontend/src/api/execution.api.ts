@@ -167,3 +167,18 @@ export async function toggleSchedule(id: number): Promise<Schedule> {
   const response = await apiClient.post<Schedule>(`/schedules/${id}/toggle`)
   return response.data
 }
+
+// EXEC.10: curated execution modifiers (vendor + org) for the run-dialog picker.
+export interface RunModifier {
+  key: string
+  kind: 'prerun' | 'prerebot'
+  label: string
+  tier: 'vendor' | 'org'
+  description: string
+  args_schema: Array<{ name: string; label?: string; required?: boolean }>
+}
+
+export async function getRunModifiers(): Promise<RunModifier[]> {
+  const response = await apiClient.get<RunModifier[]>('/modifiers')
+  return response.data
+}

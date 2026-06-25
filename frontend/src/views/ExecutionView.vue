@@ -10,6 +10,7 @@ import { useReportsStore } from '@/stores/reports.store'
 import { useToast } from '@/composables/useToast'
 import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
 import { getRunOutput } from '@/api/execution.api'
+import { getRepoTags } from '@/api/explorer.api'
 import { buildDockerImage } from '@/api/environments.api'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
@@ -17,6 +18,8 @@ import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import RunDetailPanel from '@/components/execution/RunDetailPanel.vue'
 import CronEditor from '@/components/execution/CronEditor.vue'
+import AdvancedRunConfig from '@/components/execution/AdvancedRunConfig.vue'
+import { useFeatureFlags } from '@/composables/useFeatureFlags'
 import { useRouter } from 'vue-router'
 import { formatDuration } from '@/utils/formatDuration'
 import { formatTimeAgo } from '@/utils/formatDate'
@@ -124,6 +127,55 @@ const runForm = ref({
 })
 const starting = ref(false)
 const rebuildDocker = ref(false)
+// EXEC.3: advanced execution config (flag-gated). Kept as text; parsed on submit.
+const { isEnabled } = useFeatureFlags()
+const showAdvanced = computed(() => isEnabled('executionAdvancedArgs'))
+const showPythonPath = computed(() => isEnabled('executionPythonPath'))
+const showVariableFile = computed(() => isEnabled('executionVariableFile'))
+const advancedArgsText = ref('')
+const advancedVariablesText = ref('')
+// EXEC.10: curated modifier selections + repo-confined code-loading levers.
+const advancedModifiers = ref<Array<{ key: string; kind: string; args: string[] }>>([])
+const advancedPythonPaths = ref<string[]>([])
+const advancedVariableFiles = ref<string[]>([])
+// EXEC.4: tag discovery — distinct repo tags offered as a pick-list (datalist).
+const repoTags = ref<string[]>([])
+watch(() => runForm.value.repository_id, async (id) => {
+  repoTags.value = []
+  if (!id) return
+  try {
+    repoTags.value = await getRepoTags(id)
+  } catch {
+    repoTags.value = []
+  }
+})
+
+/** Parse "KEY:VALUE" / "KEY=VALUE" lines into a variables dict (or null). */
+function parseVariables(text: string): Record<string, string> | null {
+  const out: Record<string, string> = {}
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    const m = trimmed.match(/^([^:=]+)[:=](.*)$/)
+    if (m) out[m[1].trim()] = m[2].trim()
+  }
+  return Object.keys(out).length ? out : null
+}
+
+/**
+ * Tokenize freeform args, respecting single/double quotes so a value with
+ * spaces survives as one token (e.g. `--name "My Suite"` → ['--name','My Suite'])
+ * instead of being shredded on whitespace. Quotes are stripped from the token.
+ */
+function parseArgs(text: string): string[] {
+  const tokens: string[] = []
+  const re = /"([^"]*)"|'([^']*)'|(\S+)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    tokens.push(m[1] ?? m[2] ?? m[3] ?? '')
+  }
+  return tokens.filter(Boolean)
+}
 const selectedRunEnv = computed(() => {
   if (!runForm.value.environment_id) return null
   return envs.environments.find(e => e.id === runForm.value.environment_id) ?? null
@@ -227,10 +279,41 @@ async function doStartRun() {
       await buildDockerImage(runForm.value.environment_id)
       await envs.fetchEnvironments()
     }
-    const run = await execution.startRun(runForm.value)
+    const payload: Record<string, unknown> = { ...runForm.value }
+    if (showAdvanced.value) {
+      const variables = parseVariables(advancedVariablesText.value)
+      if (variables) payload.variables = variables
+      const adv: Record<string, unknown> = {}
+      const args = parseArgs(advancedArgsText.value)
+      if (args.length) adv.args = args
+      const prerun = advancedModifiers.value
+        .filter((m) => m.kind === 'prerun')
+        .map((m) => ({ key: m.key, args: m.args }))
+      const prerebot = advancedModifiers.value
+        .filter((m) => m.kind === 'prerebot')
+        .map((m) => ({ key: m.key, args: m.args }))
+      const listeners = advancedModifiers.value
+        .filter((m) => m.kind === 'listener')
+        .map((m) => ({ key: m.key, args: m.args }))
+      if (prerun.length) adv.prerun_modifiers = prerun
+      if (prerebot.length) adv.prerebot_modifiers = prerebot
+      if (listeners.length) adv.listeners = listeners
+      if (advancedPythonPaths.value.length) adv.python_paths = advancedPythonPaths.value
+      if (advancedVariableFiles.value.length) adv.variable_files = advancedVariableFiles.value
+      // EXEC.10: code-loading levers only ever populate post-consent in the UI;
+      // pass the explicit consent token the server now requires for them.
+      if (adv.python_paths || adv.variable_files) adv.code_load_consent = true
+      if (Object.keys(adv).length) payload.advanced_config = adv
+    }
+    const run = await execution.startRun(payload as typeof runForm.value)
     toast.success(t('execution.toasts.started'), t('execution.toasts.startedMsg', { id: run.id }))
     showRunDialog.value = false
     rebuildDocker.value = false
+    advancedArgsText.value = ''
+    advancedVariablesText.value = ''
+    advancedModifiers.value = []
+    advancedPythonPaths.value = []
+    advancedVariableFiles.value = []
   } catch (e: unknown) {
     toast.error(t('common.error'), extractErrorDetail(e, t('execution.toasts.startError')))
   } finally {
@@ -660,16 +743,31 @@ function isTerminal(status: string): boolean {
             <label class="form-label">{{ t('execution.runDialog.timeout') }}</label>
             <input v-model.number="runForm.timeout_seconds" type="number" class="form-input" min="30" max="86400" />
           </div>
+          <datalist id="run-repo-tags">
+            <option v-for="tag in repoTags" :key="tag" :value="tag" />
+          </datalist>
           <div class="form-group">
             <label class="form-label">{{ t('execution.runDialog.tagsInclude') }}</label>
-            <input v-model="runForm.tags_include" class="form-input" :placeholder="t('execution.runDialog.tagsPlaceholder')" />
+            <input v-model="runForm.tags_include" list="run-repo-tags" class="form-input" :placeholder="t('execution.runDialog.tagsPlaceholder')" data-testid="run-tags-include" />
             <span class="text-muted text-sm">{{ t('execution.runDialog.tagsHint') }}</span>
           </div>
           <div class="form-group">
             <label class="form-label">{{ t('execution.runDialog.tagsExclude') }}</label>
-            <input v-model="runForm.tags_exclude" class="form-input" :placeholder="t('execution.runDialog.tagsPlaceholder')" />
+            <input v-model="runForm.tags_exclude" list="run-repo-tags" class="form-input" :placeholder="t('execution.runDialog.tagsPlaceholder')" data-testid="run-tags-exclude" />
           </div>
         </div>
+
+        <!-- EXEC.3: advanced execution config (feature-flag gated; hide-when-off) -->
+        <AdvancedRunConfig
+          v-if="showAdvanced"
+          v-model:args-text="advancedArgsText"
+          v-model:variables-text="advancedVariablesText"
+          :show-python-path="showPythonPath"
+          :show-variable-file="showVariableFile"
+          @update:modifiers="advancedModifiers = $event"
+          @update:python-paths="advancedPythonPaths = $event"
+          @update:variable-files="advancedVariableFiles = $event"
+        />
 
         <!-- Docker image stale warning -->
         <div v-if="showDockerStaleWarning" class="docker-stale-warning">

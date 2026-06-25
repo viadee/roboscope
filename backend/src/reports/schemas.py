@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 
 
 class ReportResponse(BaseModel):
@@ -35,6 +35,14 @@ class TestResultResponse(BaseModel):
     end_time: str | None = None
 
     model_config = {"from_attributes": True}
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def long_name(self) -> str:
+        """EXEC.4: RF-style long name (Suite.Sub.Test), read-only, derived from
+        the stored suite + test names (no migration). Degrades to the test name
+        when no suite is recorded."""
+        return f"{self.suite_name}.{self.test_name}" if self.suite_name else self.test_name
 
 
 class ReportDetailResponse(BaseModel):

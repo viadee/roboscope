@@ -964,6 +964,141 @@ Recording 21
         tip: 'Si necesita ejecutar pruebas de m\u00FAltiples repositorios, p\u00F3ngalas en cola secuencialmente. Se ejecutar\u00E1n en orden.'
       },
       {
+        id: 'advanced-run-config',
+        title: 'Configuración de ejecución avanzada',
+        content: `
+<p>
+  Más allá del repositorio y la ruta de destino, el diálogo de ejecución ofrece
+  controles opcionales para definir <em>cómo</em> se ejecuta Robot Framework. Algunos
+  están disponibles para todos; las palancas más potentes se rigen por indicadores de
+  función que un administrador debe habilitar primero.
+</p>
+<h4>Incluir / excluir etiquetas mediante una lista de selección</h4>
+<p>
+  Use los campos <strong>Incluir etiquetas</strong> y <strong>Excluir etiquetas</strong>
+  para ejecutar solo un subconjunto de pruebas. RoboScope analiza las suites del
+  repositorio en busca de cada etiqueta declarada (<code>[Tags]</code>, <code>Test Tags</code>,
+  <code>Force Tags</code>, <code>Default Tags</code>, <code>Keyword Tags</code>) y las ofrece
+  como lista de selección, para que no tenga que recordar los nombres exactos. Aún puede
+  escribir libremente una etiqueta que todavía no se haya detectado.
+</p>
+<h4>Argumentos &amp; variables avanzados (habilitados por el administrador)</h4>
+<p>
+  Cuando un administrador habilita el indicador <code>executionAdvancedArgs</code>, aparece
+  una sección <strong>Avanzado</strong> para usuarios con rol <strong>Editor</strong> o
+  superior. Proporciona un editor de <strong>variables</strong> clave/valor (pasadas como
+  <code>--variable KEY:VALUE</code>) y un campo libre de <strong>argumentos de robot</strong>
+  para opciones adicionales seguras como <code>--randomize all</code>.
+</p>
+<p>
+  Por seguridad, RoboScope valida cada argumento antes de ejecutarlo. Las opciones que
+  controlan las ubicaciones de salida (<code>--outputdir</code>, <code>--log</code>,
+  <code>--report</code>, …) y cualquier cosa que pueda cargar o ejecutar código
+  (<code>--listener</code>, <code>--pythonpath</code>, <code>--variablefile</code>,
+  <code>--argumentfile</code>, <code>--prerunmodifier</code>, …) se rechazan, incluidos sus
+  alias cortos y abreviaturas. Los argumentos siempre se pasan como una lista, nunca a través
+  de un shell, y cada ejecución avanzada se registra en el registro de auditoría.
+</p>
+<h4>PreRunModifiers &amp; pruebas basadas en datos (habilitados por el administrador)</h4>
+<p>
+  Otras dos palancas se encuentran tras sus propios indicadores desactivados por defecto:
+  <code>executionPreRunModifierUserCode</code> (solo administrador — aplica código modificador
+  personalizado que da forma al modelo de la suite antes de la ejecución) y
+  <code>executionDataDriver</code> (genera casos de prueba en tiempo de ejecución a partir de
+  una fuente de datos CSV frente a una prueba <code>[Template]</code>). Ambos están
+  desactivados por defecto y pensados para usuarios avanzados.
+</p>
+<h4>Relacionado</h4>
+<ul>
+  <li><strong>Archivos de inicialización de suite</strong> — puede editar el
+  <code>__init__.robot</code> de una suite en el editor; RoboScope avisa si declara una
+  sección <code>*** Test Cases ***</code>, que Robot Framework prohíbe en un archivo de
+  inicialización. Consulte <em>Explorador</em>.</li>
+  <li><strong>Nombre largo &amp; id estructural</strong> — el nombre largo completo
+  <code>Suite.Sub.Test</code> y el id estructural (p.&nbsp;ej. <code>s1-t1</code>) de cada
+  prueba se muestran de solo lectura en la vista de detalle del informe. Consulte
+  <em>Informes</em>.</li>
+</ul>`,
+        tip: 'La sección «Avanzado» permanece oculta a menos que su indicador de función esté habilitado: RoboScope nunca muestra un control que no puede usar. Un administrador puede activar los indicadores en Ajustes → Funciones.'
+      },
+      {
+        id: 'execution-modifiers',
+        title: 'Modificadores de ejecución y palancas de carga de código',
+        content: `
+<p>
+  Más allá de los argumentos simples, RoboScope puede aplicar <strong>modificadores de
+  ejecución</strong> y dos palancas de carga de código confinadas al repositorio. Son
+  <strong>canales curados</strong>, no una forma de eludir la lista de bloqueo de seguridad: el
+  campo de argumentos libres sigue rechazando las opciones de carga de código para todos, incluidos
+  los administradores.
+</p>
+<h4>Modificadores pre- vs post-ejecución</h4>
+<p>Un modificador de Robot Framework es una clase de Python que transforma el modelo de pruebas:</p>
+<ul>
+  <li><strong>Modificadores pre-ejecución</strong> (<code>--prerunmodifier</code>) se ejecutan
+  <em>antes</em> contra el modelo de suite/prueba — p.&nbsp;ej. añadir etiquetas, renombrar o filtrar.</li>
+  <li><strong>Modificadores post-ejecución</strong> (<code>--prerebotmodifier</code>) se ejecutan
+  <em>después</em> contra el modelo de resultados — el punto adecuado para <strong>enviar
+  resultados a su sistema de gestión de pruebas</strong> o generar un informe personalizado.</li>
+</ul>
+<h4>Listeners en vivo</h4>
+<p>
+  Un <strong>listener</strong> (p.&nbsp;ej. <code>roboscope_live_progress</code>) recibe
+  retrollamadas en vivo, por evento, <em>durante toda</em> la ejecución (inicio/fin de cada prueba,
+  mensajes de registro) en lugar de transformar el modelo una sola vez. Use un listener para
+  transmitir resultados a un panel o sistema de gestión de pruebas <em>a medida que avanza la
+  ejecución</em> — a diferencia de un modificador post-ejecución, que actúa una vez al terminar.
+  Los listeners personalizados se registran mediante el MISMO registro y niveles de confianza, se
+  ejecutan junto a los listeners integrados de RoboScope y nunca los reemplazan.
+</p>
+<h4>Tres niveles de confianza</h4>
+<p>RoboScope solo ofrece modificadores y listeners de un registro verificado, nunca una ruta de clase libre:</p>
+<ul>
+  <li><strong>Integrado</strong> — incluido y verificado por RoboScope. Disponible para Editores.</li>
+  <li><strong>Organización</strong> — registrado por su operador mediante la configuración del
+  backend (abajo). Confiado en el despliegue, por lo que también está disponible para Editores.</li>
+  <li><strong>Código de usuario</strong> — una ruta de clase arbitraria proporcionada en tiempo de
+  ejecución. Solo admin, tras un indicador dedicado y un consentimiento explícito.</li>
+</ul>
+<h4>Registrar los modificadores de su organización (operadores)</h4>
+<p>
+  Un operador añade modificadores propios solo mediante la <strong>configuración del backend</strong>
+  (nunca la interfaz), por cualquiera de los dos mecanismos:
+</p>
+<ol>
+  <li><strong>Punto de entrada de Python</strong> — distribuir un paquete que exponga el grupo de
+  puntos de entrada <code>roboscope.modifiers</code>; instalarlo en el entorno del backend y se
+  registra al iniciar.</li>
+  <li><strong>Archivo de configuración</strong> — apuntar <code>ROBOSCOPE_MODIFIERS_CONFIG</code> a
+  un archivo JSON/TOML con entradas <code>{key, class_path, kind, label}</code>.</li>
+</ol>
+<p>
+  Cada clase registrada se valida al iniciar; una entrada defectuosa se registra y se omite (nunca
+  un fallo de arranque). Ejemplo de entrada para una sincronización resultados&rarr;TMS:
+</p>
+<pre><code>{
+  "modifiers": [
+    {
+      "key": "tms_sync",
+      "class_path": "mycompany.roboscope.TmsSync",
+      "kind": "prerebot",
+      "label": "Enviar resultados al TMS"
+    }
+  ]
+}</code></pre>
+<p>Una vez registrado, aparece en el selector post-ejecución del diálogo de ejecución.</p>
+<h4>Palancas de carga de código confinadas al repositorio (admin)</h4>
+<p>Otras dos palancas, solo admin, cada una tras su indicador y un consentimiento explícito:</p>
+<ul>
+  <li><strong>Ruta de Python</strong> (<code>--pythonpath</code>) — añadir un directorio relativo al
+  repositorio a la ruta de importación (p.&nbsp;ej. para una biblioteca propia).</li>
+  <li><strong>Archivo de variables</strong> (<code>--variablefile</code>) — cargar variables desde
+  un archivo del repositorio.</li>
+</ul>
+<p>Ambas están <strong>confinadas al árbol del repositorio</strong> — una ruta que se salga se rechaza.</p>`,
+        tip: 'Los modificadores y las palancas de carga de código pueden no aplicarse en el runner de Docker: las clases instaladas en el entorno del backend no son importables dentro del contenedor de pruebas. Use el runner de subproceso.'
+      },
+      {
         id: 'run-status-table',
         title: 'Tabla de estado de ejecuciones',
         content: `

@@ -39,6 +39,16 @@ DEFAULT_SETTINGS = [
     {"key": "features.packageManagement.role.upgrade", "value": "editor", "value_type": "string", "category": "features", "description": "Minimum role to upgrade packages."},
     {"key": "features.packageManagement.role.docker_build", "value": "editor", "value_type": "string", "category": "features", "description": "Minimum role to build Docker images."},
     {"key": "features.packageManagement.role.rfbrowser_init", "value": "editor", "value_type": "string", "category": "features", "description": "Minimum role to run rfbrowser init."},
+    # Epic EXEC — advanced execution levers. All default OFF (the deliberate
+    # security exception to GOV's default-ON convention). Seeded here so admins
+    # can toggle them in Settings → Features; the registry default still backs
+    # them when the row is absent (e.g. ENV-locked installs).
+    {"key": "features.executionAdvancedArgs", "value": "false", "value_type": "bool", "category": "features", "description": "Show the run dialog's Advanced section: custom robot args, variables, and curated pre-/post-run modifiers + listeners. EDITOR+."},
+    {"key": "features.executionPreRunModifierUserCode", "value": "false", "value_type": "bool", "category": "features", "description": "Allow ADMINs to run user-authored (non-curated) PreRunModifier code — arbitrary code in the execution environment."},
+    {"key": "features.executionCustomListenerUserCode", "value": "false", "value_type": "bool", "category": "features", "description": "Allow ADMINs to attach user-authored (non-curated) Robot Framework listeners — arbitrary code throughout execution."},
+    {"key": "features.executionPythonPath", "value": "false", "value_type": "bool", "category": "features", "description": "Allow ADMINs to add repo-confined --pythonpath entries to a run."},
+    {"key": "features.executionVariableFile", "value": "false", "value_type": "bool", "category": "features", "description": "Allow ADMINs to load a repo-confined --variablefile in a run."},
+    {"key": "features.executionDataDriver", "value": "false", "value_type": "bool", "category": "features", "description": "Enable DataDriver dynamic test generation from a CSV data source."},
 ]
 
 

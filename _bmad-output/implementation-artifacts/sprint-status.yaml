@@ -38,7 +38,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-15
-last_updated: 2026-05-08T-post-090-backlog-sweep
+last_updated: 2026-06-24T-exec-11-implemented-reviewed
 project: roboscope
 project_key: NOKEY
 tracking_system: file-system
@@ -216,3 +216,29 @@ development_status:
   # Epic: Easter eggs (whimsy, opt-in fun)
   epic-easter-eggs: in-progress
   EE-1-konami-code-robot-parade: ready-for-dev
+
+  # Epic: Flow Editor Resources & Keyword UX (shipped in v0.11.0)
+  # RES + D1-D6 UX wave + palette dedup (#53) + quiet repo-scoped
+  # keyword loading (#55). Shipped via quick-dev/direct epics, not
+  # the formal plan above. GOV/AIX/EXEC-1·3 landed in parallel.
+  epic-flow-editor-resources: done
+  epic-flow-editor-resources-retrospective: done  # covered by implementation-artifacts/epic-flow-editor-resources-retro-2026-06-23.md
+
+  # Epic EXEC — RF Execution Configuration (planning-artifacts/exec-epics.md)
+  # Sequenced per exec-architecture.md; implement each via bmad-dev-story.
+  epic-exec: done  # EXEC.1-11 done + reviewed (EXEC.10/11 added via code-review follow-up 2026-06-24)
+  # code-review 2026-06-24 (whole-epic): 8 patches applied + fixed, 4 deferred
+  # (see deferred-work.md), 377 exec/gov/explorer tests green. EXEC.7 curated-
+  # modifier default-path remains a DEFERRED AC gap (conservative ADMIN-only
+  # gating is safe in the interim) — tracked in deferred-work.md.
+  exec-1-resolver-seam-and-runner-parity: done
+  exec-2-advanced-config-persistence-and-flags: done
+  exec-3-advanced-args-and-variables-ui: done  # review: gate-order doc fix + structured resolved-argv audit
+  exec-4-tag-discovery: done  # review: RF-correct tag separators (tab/2+sp) + Settings-scoped + null-path guard
+  exec-5-longname-id-surfacing: done  # EXEC.4 (long-name/id): backend long_name computed-field + deep-parse id + ReportDetailView tooltip; tests green
+  exec-6-init-robot-editor: done  # review: detection made authoritative (helper wired) + round-trip pinning spec added
+  exec-7-prerunmodifier: done  # review: deny-list hardened (short aliases + --variablefile/--argumentfile + abbreviations). Curated default-path = deferred follow-up.
+  exec-8-datadriver-spike: done  # feasibility note GO (CSV-first) — planning-artifacts/exec8-datadriver-spike.md
+  exec-9-datadriver-feature: done  # robotframework-datadriver>=1.11,<2 added + uv.lock'd; offline import-gate (phase4-gates Windows install + in-repo test); runs as Library import (no runner change), flag-gated. 8 tests green.
+  exec-10-curated-org-modifiers-and-code-levers: done  # modifier registry w/ 3 trust tiers (vendor / org-deployed via entry-point+config / runtime user-code), pre+prerebot hooks (TMS/report sync), + repo-confined --pythonpath/--variablefile. Closes EXEC.7 gap; NEVER a Z3 deny-list bypass. Drafted inline in exec-epics.md 2026-06-24.
+  exec-11-custom-execution-listeners: done  # fast-follow to EXEC.10: extends the registry with kind:listener (live per-event hook, e.g. results→TMS streaming); same 3 trust tiers; coexists with system quarantine/heal listeners; free-typed --listener stays denied. Depends on EXEC.10. Drafted inline in exec-epics.md 2026-06-24.

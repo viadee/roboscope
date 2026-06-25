@@ -316,6 +316,65 @@ def list_all_testcases(base_path: str) -> list[TestCaseInfo]:
     return testcases
 
 
+# Suite-level tag settings (RF6 Force/Default Tags + RF7 Test/Keyword Tags).
+_SUITE_TAG_PREFIXES = ("force tags", "default tags", "test tags", "keyword tags")
+
+
+def list_all_tags(base_path: str) -> list[str]:
+    """Distinct tags across a repo's suites (EXEC.4 tag discovery).
+
+    Aggregates per-test ``[Tags]`` plus suite-level ``Force Tags`` /
+    ``Default Tags`` / ``Test Tags`` / ``Keyword Tags``. Resolver-free —
+    powers the run-dialog tag picker so include/exclude is pick-from-list
+    instead of free-text. Returns a sorted, de-duplicated list.
+    """
+    # A repo that has never been synced has no local_path / on-disk tree — the
+    # picker must degrade to empty, not 500 on Path(None)/rglob.
+    if not base_path or not Path(base_path).is_dir():
+        return []
+
+    base = Path(base_path)
+    tags: set[str] = set()
+
+    for tc in list_all_testcases(base_path):
+        tags.update(tc.tags or [])
+
+    for ext in (".robot", ".resource"):
+        for rf_file in base.rglob(f"*{ext}"):
+            if any(part in IGNORE_DIRS for part in rf_file.parts):
+                continue
+            try:
+                lines = rf_file.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            in_settings = False
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith("***"):
+                    # Suite-level tag settings only live in *** Settings ***;
+                    # a body keyword named "Test Tags Helper" or a doc line must
+                    # not be mis-read as a tag declaration.
+                    in_settings = bool(
+                        re.match(r"\*+\s*settings?\s*\**", stripped, re.IGNORECASE)
+                    )
+                    continue
+                if not in_settings:
+                    continue
+                low = stripped.lower()
+                for prefix in _SUITE_TAG_PREFIXES:
+                    # Require a cell separator (tab / 2+ spaces) after the prefix
+                    # so "Default Tagsfoo" doesn't match "default tags".
+                    if low.startswith(prefix) and re.match(r"\t| {2,}", stripped[len(prefix):]):
+                        rest = stripped[len(prefix):].strip()
+                        # RF cell separator is a tab OR two-or-more spaces — NOT
+                        # exactly four (the old split silently merged 2-/tab-
+                        # separated tags into one bogus value).
+                        tags.update(t.strip() for t in re.split(r"\t| {2,}", rest) if t.strip())
+                        break
+
+    return sorted(tags)
+
+
 # ---------------------------------------------------------------------------
 # File operations (create, save, delete, rename, open in editor)
 # ---------------------------------------------------------------------------

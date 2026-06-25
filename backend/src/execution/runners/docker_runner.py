@@ -10,6 +10,7 @@ from src.docker_client import (
     DockerNotAvailableError,  # re-exported for backwards-compat callers
     get_docker_client,
 )
+from src.execution.resolver import build_robot_argv, resolve_run_spec
 from src.execution.runners.base import AbstractRunner, RunResult
 
 logger = logging.getLogger("roboscope.execution.docker")
@@ -74,6 +75,11 @@ class DockerRunner(AbstractRunner):
         timeout: int = 3600,
         on_output: Callable[[str], None] | None = None,
         listeners: list[str] | None = None,
+        advanced_args: list[str] | None = None,
+        prerun_modifiers: list[str] | None = None,
+        prerebot_modifiers: list[str] | None = None,
+        python_paths: list[str] | None = None,
+        variable_files: list[str] | None = None,
     ) -> RunResult:
         """Execute Robot Framework tests in a Docker container.
 
@@ -83,6 +89,12 @@ class DockerRunner(AbstractRunner):
         host-side `src/execution/runners/` package, which isn't
         reachable from inside the test container. Mounting the listener
         file + propagating it is tracked as follow-up FLAKY-3.
+
+        EXEC.10: curated/org modifiers (`--prerunmodifier`/`--prerebotmodifier`)
+        carry the same in-container importability caveat — a modifier installed
+        in the backend venv is not importable inside the test image. They are
+        warned about + dropped from the Docker invocation (FLAKY-3), as is
+        `--variablefile` for a host path that isn't mounted in the container.
         """
         start_time = time.time()
 
@@ -107,16 +119,28 @@ class DockerRunner(AbstractRunner):
                 "(Story FLAKY-3 follow-up).",
                 len(listeners),
             )
+        if prerun_modifiers or prerebot_modifiers or python_paths or variable_files:
+            logger.warning(
+                "DockerRunner dropping curated/org modifiers + --pythonpath/"
+                "--variablefile levers — modules installed in the backend venv "
+                "and host paths are not reachable in-container (Story FLAKY-3). "
+                "Use the subprocess runner for these levers."
+            )
 
         # Ensure output directory exists
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-        # Build robot command
+        # Build robot command. The EXEC.10 levers are DROPPED here (not forwarded),
+        # mirroring the listener handling above — the builder remains capable of
+        # them (runner-parity asserts at the builder level), but a real Docker run
+        # cannot resolve them in-container.
         cmd = self._build_robot_command(
             target_path=target_path,
             variables=variables,
             tags_include=tags_include,
             tags_exclude=tags_exclude,
+            advanced_args=advanced_args,
+            repo_path=repo_path,
         )
 
         # Environment variables
@@ -246,30 +270,39 @@ class DockerRunner(AbstractRunner):
         variables: dict | None = None,
         tags_include: str | None = None,
         tags_exclude: str | None = None,
+        listeners: list[str] | None = None,
+        advanced_args: list[str] | None = None,
+        prerun_modifiers: list[str] | None = None,
+        prerebot_modifiers: list[str] | None = None,
+        python_paths: list[str] | None = None,
+        variable_files: list[str] | None = None,
+        repo_path: str | None = None,
     ) -> str:
-        """Build the robot command for Docker execution."""
-        parts = [
-            "python", "-m", "robot",
-            "--outputdir", "/output",
-            "--loglevel", "INFO",
-            "--consolecolors", "off",
-        ]
+        """Build the robot command for Docker execution.
 
-        if tags_include:
-            for tag in tags_include.split(","):
-                tag = tag.strip()
-                if tag:
-                    parts.extend(["--include", tag])
-
-        if tags_exclude:
-            for tag in tags_exclude.split(","):
-                tag = tag.strip()
-                if tag:
-                    parts.extend(["--exclude", tag])
-
-        if variables:
-            for key, value in variables.items():
-                parts.extend(["--variable", f"{key}:{value}"])
-
-        parts.append(target_path)
-        return " ".join(parts)
+        Delegates to the shared :mod:`src.execution.resolver` builder (Story
+        EXEC.1) — same argument sequence and validation as the subprocess
+        runner, differing only in the Python executable (``python``) and the
+        container output dir (``/output``). The builder is now ``--listener``
+        capable for parity; note, however, that ``execute()`` still does not
+        pass host listeners into the container (the listener module isn't
+        importable in-container — tracked as FLAKY-3), so real Docker runs are
+        unchanged. Returns a space-joined string to preserve the established
+        command contract for this runner.
+        """
+        spec = resolve_run_spec(
+            target_path=target_path,
+            runner_type="docker",
+            tags_include=tags_include,
+            tags_exclude=tags_exclude,
+            variables=variables,
+            listeners=listeners,
+            advanced_args=advanced_args,
+            prerun_modifiers=prerun_modifiers,
+            prerebot_modifiers=prerebot_modifiers,
+            python_paths=python_paths,
+            variable_files=variable_files,
+            repo_root=repo_path,
+        )
+        argv = build_robot_argv(spec, python="python", output_dir="/output")
+        return " ".join(argv)

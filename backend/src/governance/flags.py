@@ -26,6 +26,19 @@ from src.settings.service import get_setting_value
 # takes to govern a new area.
 FEATURE_FLAGS: dict[str, bool] = {
     "packageManagement": True,
+    # EXEC.2: advanced execution levers. These MUST be registered explicitly
+    # with default False — `resolve_flag` falls back to `.get(key, True)`, so an
+    # UNregistered key would default ON. Security requires these OFF by default,
+    # the deliberate exception to the registry's "default-ON" convention.
+    "executionAdvancedArgs": False,
+    "executionPreRunModifierUserCode": False,
+    "executionDataDriver": False,
+    # EXEC.10: repo-confined code-loading levers, ADMIN-only, default OFF.
+    "executionPythonPath": False,
+    "executionVariableFile": False,
+    # EXEC.11: runtime user-code listeners (curated listeners need no flag),
+    # ADMIN-only, default OFF.
+    "executionCustomListenerUserCode": False,
 }
 
 SETTINGS_CATEGORY = "features"

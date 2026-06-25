@@ -2,6 +2,55 @@
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-06-25
+
+### Robot Framework execution configuration (Epic EXEC)
+
+- The **New Run dialog gains a governed "Advanced" section** (Editor and up,
+  behind the `executionAdvancedArgs` feature flag): a **variables** key/value
+  editor and a **freeform `robot` arguments** field. Arguments are validated by
+  a single resolver seam against a three-zone safety model — output-owning and
+  code-loading flags (`--outputdir`, `--listener`, `--pythonpath`,
+  `--variablefile`, `--argumentfile`, …, including short aliases and
+  abbreviations) are **always rejected, for every role** — and are passed as a
+  list, never through a shell. Every advanced run is audited.
+- **Tag discovery**: include/exclude tag fields now offer the tags actually
+  present in your repo's suites as a pick-list (free-typing still allowed).
+- **Long name & structural id** of each test are surfaced read-only in the
+  report detail view.
+- **`__init__.robot` suite-init files** are editable in the editor, with a
+  non-blocking warning when an init file declares a `*** Test Cases ***`
+  section (which Robot Framework forbids).
+- **DataDriver** dynamic test generation from a CSV data source is available
+  behind the `executionDataDriver` flag.
+
+### Curated & organization-extensible execution modifiers and listeners
+
+- A **curated registry** of pre-run / post-run **modifiers** and live
+  **listeners** with three trust tiers: RoboScope-shipped (vendor), your
+  **organization's own** (registered via the `roboscope.modifiers` entry-point
+  or a `ROBOSCOPE_MODIFIERS_CONFIG` file — backend config, no UI), and
+  admin-gated runtime user code. Post-run modifiers (`--prerebotmodifier`) and
+  live listeners are the hook to **push results to a test-management system** or
+  emit custom reports as a run finishes — without ever exposing a free-typed
+  code-loading flag.
+- Admin-only, repository-confined **`--pythonpath`** and **`--variablefile`**
+  levers, each behind its own default-off flag and an explicit code-loading
+  consent.
+- Full in-app documentation (EN/DE/FR/ES) covering the trust tiers, both
+  organization-registration mechanisms, and the live-vs-post-run distinction.
+
+### Settings — clarity & safety
+
+- A **sticky "unsaved changes" bar** on the General tab (with a per-row marker,
+  a Discard action, and a leave guard) so edits are never silently abandoned
+  before the far-below Save button.
+- Toggling a feature flag now **takes effect immediately** (no hard reload).
+- The **advanced-execution feature flags** appear as toggles under
+  Settings → Features (all default off).
+- **All settings descriptions and category headers are now localized**
+  (EN/DE/FR/ES/ZH) instead of always English.
+
 ## [0.11.0] - 2026-06-19
 
 ### Flow Editor — your repository keywords are first-class

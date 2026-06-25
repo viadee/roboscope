@@ -26,6 +26,7 @@ def create_run(db: Session, data: RunCreate, user_id: int) -> ExecutionRun:
         tags_include=data.tags_include,
         tags_exclude=data.tags_exclude,
         variables=json.dumps(data.variables) if data.variables else None,
+        advanced_config=json.dumps(data.advanced_config) if data.advanced_config else None,
         parallel=data.parallel,
         max_retries=data.max_retries,
         timeout_seconds=data.timeout_seconds,

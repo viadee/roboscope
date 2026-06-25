@@ -940,6 +940,142 @@ Recording 21
         tip: 'Wenn Auto-Sync aktiviert ist, wird das Repository vor der Ausf\u00FChrung automatisch auf den neuesten Stand gebracht.'
       },
       {
+        id: 'execution-advanced-config',
+        title: 'Erweiterte Ausführungskonfiguration',
+        content: `
+<p>
+  Über Repository und Zielpfad hinaus bietet der Ausführungsdialog optionale
+  Einstellungen dafür, <em>wie</em> Robot Framework ausgeführt wird. Einige stehen
+  allen zur Verfügung; die mächtigeren Hebel sind durch Feature-Flags geschützt,
+  die zuerst von einer Administratorin oder einem Administrator aktiviert werden müssen.
+</p>
+<h4>Tags ein-/ausschließen per Auswahlliste</h4>
+<p>
+  Mit den Feldern <strong>Tags einschließen</strong> und <strong>Tags ausschließen</strong>
+  lässt sich nur eine Teilmenge der Tests ausführen. RoboScope durchsucht die Suites
+  des Repositorys nach allen deklarierten Tags (<code>[Tags]</code>,
+  <code>Test Tags</code>, <code>Force Tags</code>, <code>Default Tags</code>,
+  <code>Keyword Tags</code>) und bietet sie als Auswahlliste an, sodass man sich keine
+  Namen merken muss. Ein noch nicht erkannter Tag kann weiterhin frei eingetippt werden.
+</p>
+<h4>Erweiterte Argumente &amp; Variablen (durch Admin freigeschaltet)</h4>
+<p>
+  Aktiviert ein Administrator das Feature-Flag <code>executionAdvancedArgs</code>,
+  erscheint für Nutzer ab der Rolle <strong>Editor</strong> ein Bereich
+  <strong>Erweitert</strong>. Er bietet einen <strong>Variablen</strong>-Editor
+  (Schlüssel/Wert, übergeben als <code>--variable KEY:VALUE</code>) sowie ein
+  freies <strong>Robot-Argumente</strong>-Feld für unbedenkliche Zusatz-Flags wie
+  <code>--randomize all</code>.
+</p>
+<p>
+  Aus Sicherheitsgründen prüft RoboScope jedes Argument vor der Ausführung. Flags,
+  die Ausgabepfade steuern (<code>--outputdir</code>, <code>--log</code>,
+  <code>--report</code>, …) sowie alles, was Code laden oder ausführen kann
+  (<code>--listener</code>, <code>--pythonpath</code>, <code>--variablefile</code>,
+  <code>--argumentfile</code>, <code>--prerunmodifier</code>, …) werden abgelehnt —
+  einschließlich ihrer Kurzformen und Abkürzungen. Argumente werden immer als Liste
+  übergeben, niemals über eine Shell, und jede erweiterte Ausführung wird im
+  Audit-Log protokolliert.
+</p>
+<h4>PreRunModifier &amp; datengetriebene Tests (durch Admin freigeschaltet)</h4>
+<p>
+  Zwei weitere Hebel liegen hinter eigenen, standardmäßig deaktivierten Flags:
+  <code>executionPreRunModifierUserCode</code> (nur Admin — wendet eigenen
+  Modifier-Code an, der das Suite-Modell vor der Ausführung verändert) und
+  <code>executionDataDriver</code> (erzeugt Testfälle zur Laufzeit aus einer
+  CSV-Datenquelle gegen einen <code>[Template]</code>-Test). Beide sind
+  standardmäßig aus und für Power-User gedacht.
+</p>
+<h4>Verwandt</h4>
+<ul>
+  <li><strong>Suite-Init-Dateien</strong> — die <code>__init__.robot</code> einer
+  Suite kann im Editor bearbeitet werden; RoboScope warnt, wenn sie einen
+  <code>*** Test Cases ***</code>-Abschnitt deklariert, den Robot Framework in einer
+  Init-Datei verbietet. Siehe <em>Explorer</em>.</li>
+  <li><strong>Langname &amp; strukturelle Id</strong> — der vollständige
+  <code>Suite.Sub.Test</code>-Langname und die strukturelle Id (z.&nbsp;B.
+  <code>s1-t1</code>) jedes Tests werden schreibgeschützt in der Berichtsdetailansicht
+  angezeigt. Siehe <em>Berichte</em>.</li>
+</ul>`,
+        tip: 'Der Bereich „Erweitert“ bleibt ausgeblendet, solange sein Feature-Flag nicht aktiviert ist — RoboScope zeigt nie ein Bedienelement, das man nicht nutzen kann. Ein Administrator kann die Flags unter Einstellungen → Features umschalten.'
+      },
+      {
+        id: 'execution-modifiers',
+        title: 'Ausführungs-Modifier & Code-Lade-Hebel',
+        content: `
+<p>
+  Über einfache Argumente hinaus kann RoboScope <strong>Ausführungs-Modifier</strong> und zwei
+  repo-beschränkte Code-Lade-Hebel anwenden. Das sind <strong>kuratierte Kanäle</strong>, keine
+  Umgehung der Sicherheits-Deny-Liste: Das Freitext-Argumentfeld weist Code-Lade-Flags weiterhin
+  für alle ab, auch für Administratoren.
+</p>
+<h4>Modifier vor vs. nach der Ausführung</h4>
+<p>Ein Robot-Framework-Modifier ist eine Python-Klasse, die das Testmodell verändert:</p>
+<ul>
+  <li><strong>Pre-Run-Modifier</strong> (<code>--prerunmodifier</code>) laufen <em>vor</em> der
+  Ausführung gegen das Suite-/Testmodell — z.&nbsp;B. Tags hinzufügen, Tests umbenennen oder filtern.</li>
+  <li><strong>Post-Run-Modifier</strong> (<code>--prerebotmodifier</code>) laufen <em>nach</em> der
+  Ausführung gegen das Ergebnismodell — der richtige Hook, um <strong>Ergebnisse an Ihr
+  Testmanagement zu übergeben</strong> oder einen eigenen Report zu erzeugen.</li>
+</ul>
+<h4>Live-Listener</h4>
+<p>
+  Ein <strong>Listener</strong> (z.&nbsp;B. <code>roboscope_live_progress</code>) erhält live,
+  ereignisweise Callbacks <em>während</em> der Ausführung (Start/Ende jedes Tests, Log-Meldungen),
+  statt das Modell einmalig zu verändern. Mit einem Listener streamen Sie Ergebnisse an ein
+  Dashboard oder Testmanagement, <em>während der Lauf fortschreitet</em> — im Gegensatz zum
+  Post-Run-Modifier, der einmal nach dem Lauf wirkt. Eigene Listener registrieren sich über
+  dasselbe Registry und dieselben Vertrauensstufen, laufen neben RoboScopes eingebauten Listenern
+  und ersetzen sie nie.
+</p>
+<h4>Drei Vertrauensstufen</h4>
+<p>RoboScope bietet Modifier und Listener nur aus einem geprüften Registry an, nie als frei getippten Klassenpfad:</p>
+<ul>
+  <li><strong>Integriert</strong> — von RoboScope mitgeliefert und geprüft. Für Editoren verfügbar.</li>
+  <li><strong>Organisation</strong> — von Ihrem Betreiber per Backend-Konfiguration registriert
+  (siehe unten). Zur Deploy-Zeit vertraut, daher ebenfalls für Editoren verfügbar.</li>
+  <li><strong>Benutzercode</strong> — ein beliebiger Klassenpfad zur Laufzeit. Nur Admin, hinter
+  einem eigenen Feature-Flag und einer ausdrücklichen &bdquo;führt beliebigen Code aus&ldquo;-Zustimmung.</li>
+</ul>
+<h4>Eigene Modifier der Organisation registrieren (Betreiber)</h4>
+<p>
+  Ein Betreiber fügt eigene Modifier ausschließlich per <strong>Backend-Konfiguration</strong>
+  hinzu (nie über die UI), über einen der beiden Wege:
+</p>
+<ol>
+  <li><strong>Python-Entry-Point</strong> — ein Paket bereitstellen, das die
+  <code>roboscope.modifiers</code>-Entry-Point-Gruppe exponiert; in die Backend-Umgebung
+  installieren, dann registriert es sich beim Start selbst.</li>
+  <li><strong>Konfigurationsdatei</strong> — <code>ROBOSCOPE_MODIFIERS_CONFIG</code> auf eine
+  JSON/TOML-Datei mit Einträgen <code>{key, class_path, kind, label}</code> zeigen lassen.</li>
+</ol>
+<p>
+  Jede registrierte Klasse wird beim Start validiert; ein fehlerhafter Eintrag wird protokolliert
+  und übersprungen (nie ein Boot-Fehler). Beispiel-Eintrag für einen Ergebnisse&rarr;TMS-Sync:
+</p>
+<pre><code>{
+  "modifiers": [
+    {
+      "key": "tms_sync",
+      "class_path": "mycompany.roboscope.TmsSync",
+      "kind": "prerebot",
+      "label": "Ergebnisse an TMS senden"
+    }
+  ]
+}</code></pre>
+<p>Nach der Registrierung erscheint <em>Ergebnisse an TMS senden</em> im Post-Run-Picker des Ausführungsdialogs.</p>
+<h4>Repo-beschränkte Code-Lade-Hebel (Admin)</h4>
+<p>Zwei weitere, nur für Admins, jeweils hinter eigenem Feature-Flag und ausdrücklicher Zustimmung:</p>
+<ul>
+  <li><strong>Python-Pfad</strong> (<code>--pythonpath</code>) — ein repo-relatives Verzeichnis zum
+  Import-Pfad hinzufügen (z.&nbsp;B. für eine eigene Bibliothek).</li>
+  <li><strong>Variablendatei</strong> (<code>--variablefile</code>) — Variablen aus einer
+  Repository-Datei laden.</li>
+</ul>
+<p>Beide sind <strong>auf den Repository-Baum beschränkt</strong> — ein Pfad, der ihn verlässt, wird abgewiesen.</p>`,
+        tip: 'Modifier und die Code-Lade-Hebel greifen auf dem Docker-Runner möglicherweise nicht: In der Backend-Umgebung installierte Klassen sind im Test-Container nicht importierbar. Nutzen Sie dafür den Subprocess-Runner.'
+      },
+      {
         id: 'execution-status-table',
         title: 'Run-Status-Tabelle',
         content: `
