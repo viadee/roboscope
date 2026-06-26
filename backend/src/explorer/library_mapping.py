@@ -33,6 +33,12 @@ LIBRARY_TO_PYPI: dict[str, str] = {
     "DataDriver": "robotframework-datadriver",
     "Pabot": "robotframework-pabot",
     "RPA": "rpaframework",
+    # RPA.Windows is split into its own Windows-only distribution; the
+    # generic `robotframework-<name>` heuristic would emit the bogus
+    # `robotframework-rpa.windows` (no such PyPI package). The desktop
+    # recorder emits `Library    RPA.Windows`, so this mapping is what
+    # the "install missing library" automatism resolves against.
+    "RPA.Windows": "rpaframework-windows",
     "RESTinstance": "RESTinstance",
     "Selenium2Library": "robotframework-selenium2library",
     "WhiteLibrary": "robotframework-whitelibrary",
@@ -107,9 +113,20 @@ def resolve_pypi_package(library_name: str) -> str | None:
     if library_name.startswith("."):
         return None
 
-    # Known mapping lookup
+    # Known mapping lookup (covers dotted entries like "RPA.Windows" too).
     if library_name in LIBRARY_TO_PYPI:
         return LIBRARY_TO_PYPI[library_name]
+
+    # Dotted library namespace (e.g. "RPA.Desktop", "SeleniumLibrary.Foo"):
+    # the bare heuristic below would emit a bogus dotted package name like
+    # `robotframework-rpa.desktop` (PyPI names never carry a submodule
+    # dot). Resolve via the TOP-LEVEL segment instead — explicit mapping
+    # first ("RPA" → rpaframework), then the heuristic on that segment.
+    if "." in library_name:
+        top = library_name.split(".", 1)[0]
+        if top in LIBRARY_TO_PYPI:
+            return LIBRARY_TO_PYPI[top]
+        return f"robotframework-{top.lower()}"
 
     # Heuristic fallback: robotframework-{name_lower}
     return f"robotframework-{library_name.lower()}"

@@ -72,6 +72,30 @@ class TestResolvePypiPackage:
         result = resolve_pypi_package("MyLib")
         assert result == "robotframework-mylib"
 
+    def test_rpa_windows_resolves_to_rpaframework_windows(self):
+        # Regression: the desktop recorder emits `Library    RPA.Windows`.
+        # The old heuristic produced `robotframework-rpa.windows` (no such
+        # PyPI package), so the "install missing library" automatism tried
+        # to install garbage. Must resolve to the real distribution.
+        assert resolve_pypi_package("RPA.Windows") == "rpaframework-windows"
+
+    def test_dotted_rpa_namespace_falls_back_to_top_segment(self):
+        # Other RPA.* submodules ship in the base `rpaframework` collection.
+        assert resolve_pypi_package("RPA.Desktop") == "rpaframework"
+        assert resolve_pypi_package("RPA.Excel.Files") == "rpaframework"
+
+    def test_dotted_name_never_yields_dotted_package(self):
+        # A PyPI package name can never contain a submodule dot. Whatever
+        # dotted library we throw at the resolver, the result must not.
+        for lib in ("RPA.Windows", "RPA.Desktop", "Foo.Bar", "SeleniumLibrary.X"):
+            result = resolve_pypi_package(lib)
+            assert result is not None
+            assert "." not in result, f"{lib} → {result} carries a dot"
+
+    def test_unknown_dotted_uses_top_segment_heuristic(self):
+        # Unknown dotted lib → robotframework-<top>, not -<full.dotted>.
+        assert resolve_pypi_package("Foo.Bar") == "robotframework-foo"
+
 
 class TestIdentifyRfLibraries:
     def test_known_package(self):
@@ -107,6 +131,15 @@ class TestIdentifyRfLibraries:
         result = identify_rf_libraries(packages)
         assert len(result) == 1
         assert result[0]["library_name"] == "RPA"
+        assert result[0]["source"] == "known"
+
+    def test_rpaframework_windows_maps_to_rpa_windows_library(self):
+        # The reverse mapping must name the installed `rpaframework-windows`
+        # package as the `RPA.Windows` import, not echo the package name.
+        packages = [{"name": "rpaframework-windows", "version": "11.0.0"}]
+        result = identify_rf_libraries(packages)
+        assert len(result) == 1
+        assert result[0]["library_name"] == "RPA.Windows"
         assert result[0]["source"] == "known"
 
     def test_mixed_packages(self):
