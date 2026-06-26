@@ -23,7 +23,7 @@ import {
   saveV2Flow,
   startV2Browser,
 } from '@/api/recording-v2.api'
-import { extractErrorDetail } from '@/utils/errors'
+import { describeRequestError } from '@/utils/errors'
 import { effectiveSelector } from '@/utils/effectiveSelector'
 import type { RecordedCommand, RecordedFlow, RecordingTransport } from '@/types/recorder.types'
 import { RECORDER_SCHEMA_VERSION } from '@/types/recorder.types'
@@ -34,6 +34,14 @@ const route = useRoute()
 const router = useRouter()
 
 const sessionId = Number(route.params.sessionId)
+// Transport stashed by the launcher. Threaded into `startV2Browser` so the
+// backend dispatches the right capture task, and used as the saved flow's
+// `transport` so the emitter picks the right library (Browser vs RPA.Windows).
+// Falls back to web for direct deep-links / legacy sessions (Story D-5).
+const transport: RecordingTransport =
+  (sessionStorage.getItem(`recorder.transport.${sessionId}`) as RecordingTransport | null) ??
+  'web_playwright'
+const isDesktop = transport === 'desktop_windows' || transport === 'desktop_macos'
 const commands = ref<RecordedCommand[]>([])
 
 /**
@@ -56,7 +64,7 @@ const errorMsg = ref<string | null>(null)
 const crashMessage = ref<string | null>(null)
 const saving = ref(false)
 const restarting = ref(false)
-const savePathInput = ref('flows/recording')
+const savePathInput = ref(isDesktop ? 'flows/desktop_recording' : 'flows/recording')
 
 // `browser_ready` timestamp from the backend's lifecycle event — used
 // to drive the live uptime counter in the status card. `null` until
@@ -165,9 +173,13 @@ async function ensureBrowserStarted() {
     // and `v2_start_browser` returns 400 for any non-http(s) value
     // that somehow slipped through.
     const stashedUrl = sessionStorage.getItem(`recorder.url.${sessionId}`) ?? undefined
-    await startV2Browser(sessionId, stashedUrl)
+    await startV2Browser(sessionId, stashedUrl, transport)
   } catch (e: unknown) {
-    errorMsg.value = extractErrorDetail(e, t('recorder.live.startFailed'))
+    errorMsg.value = describeRequestError(e, {
+      fallback: t('recorder.live.startFailed'),
+      serverError: (status) => t('recorder.live.serverError', { status }),
+      networkError: t('recorder.live.networkError'),
+    })
   }
 }
 
@@ -207,7 +219,11 @@ async function onRestartBrowser(): Promise<void> {
     // here so the user sees the canonical phase progression driven
     // by the backend, not an optimistic UI lie.
   } catch (e: unknown) {
-    errorMsg.value = extractErrorDetail(e, t('recorder.live.restartFailed'))
+    errorMsg.value = describeRequestError(e, {
+      fallback: t('recorder.live.restartFailed'),
+      serverError: (status) => t('recorder.live.serverError', { status }),
+      networkError: t('recorder.live.networkError'),
+    })
   } finally {
     restarting.value = false
   }
@@ -235,7 +251,7 @@ async function stopAndSave() {
     })
     const flow: RecordedFlow = {
       schema_version: RECORDER_SCHEMA_VERSION,
-      transport: 'web_playwright' as RecordingTransport,
+      transport,
       session_id: String(sessionId),
       name: null,
       commands: commands.value,
@@ -252,7 +268,11 @@ async function stopAndSave() {
     const res = await saveV2Flow(flow, repoId, savePathInput.value)
     router.push(`/explorer/${repoId}?path=${encodeURIComponent(res.saved_path)}`)
   } catch (e: unknown) {
-    errorMsg.value = extractErrorDetail(e, t('recorder.live.saveFailed'))
+    errorMsg.value = describeRequestError(e, {
+      fallback: t('recorder.live.saveFailed'),
+      serverError: (status) => t('recorder.live.serverError', { status }),
+      networkError: t('recorder.live.networkError'),
+    })
   } finally {
     saving.value = false
   }

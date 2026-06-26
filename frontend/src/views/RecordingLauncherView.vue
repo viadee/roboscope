@@ -18,7 +18,7 @@ import {
 } from '@/api/recording-v2.api'
 import { useReposStore } from '@/stores/repos.store'
 import { useToast } from '@/composables/useToast'
-import { extractErrorDetail } from '@/utils/errors'
+import { describeRequestError } from '@/utils/errors'
 import type { RecordingTransport } from '@/types/recorder.types'
 
 const { t } = useI18n()
@@ -105,7 +105,11 @@ async function reset() {
       )
     }
   } catch (e: unknown) {
-    error.value = extractErrorDetail(e, t('recorder.launcher.reset.failed'))
+    error.value = describeRequestError(e, {
+      fallback: t('recorder.launcher.reset.failed'),
+      serverError: (status) => t('recorder.launcher.serverError', { status }),
+      networkError: t('recorder.launcher.networkError'),
+    })
   } finally {
     resetting.value = false
   }
@@ -120,6 +124,11 @@ async function start() {
     // Stash the repo id so the live view's save step can POST /save
     // without re-prompting the user.
     sessionStorage.setItem(`recorder.repo.${session.session_id}`, String(repoId.value))
+    // Stash the transport so the live view threads it through to
+    // `startV2Browser` (otherwise a desktop session dispatches the web
+    // recorder) AND tags the saved RecordedFlow correctly (otherwise a
+    // desktop recording emits Browser library instead of RPA.Windows).
+    sessionStorage.setItem(`recorder.transport.${session.session_id}`, transport.value)
     // Stash the target URL (if any) so the live view's
     // `startV2Browser(sessionId, targetUrl)` call carries it through
     // to the recorder. Trim + empty-check matches the backend's
@@ -130,7 +139,11 @@ async function start() {
     }
     router.push(`/recordings/live/${session.session_id}`)
   } catch (e: unknown) {
-    error.value = extractErrorDetail(e, t('recorder.launcher.startFailed'))
+    error.value = describeRequestError(e, {
+      fallback: t('recorder.launcher.startFailed'),
+      serverError: (status) => t('recorder.launcher.serverError', { status }),
+      networkError: t('recorder.launcher.networkError'),
+    })
   } finally {
     starting.value = false
   }

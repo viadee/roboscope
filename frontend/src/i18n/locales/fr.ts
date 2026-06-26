@@ -1935,6 +1935,8 @@ export default {
       record: "Démarrer l'enregistrement",
       starting: 'Démarrage…',
       startFailed: "Impossible de démarrer l'enregistrement. Réessayez.",
+      serverError: "Le serveur a renvoyé une erreur (HTTP {status}). C'est un problème côté backend, pas votre saisie — consultez les journaux du backend. Un disque plein sur le serveur en est une cause fréquente.",
+      networkError: "Impossible de joindre le backend RoboScope. Vérifiez qu'il est démarré et accessible, puis réessayez.",
       remote: {
         heading: 'Enregistrement navigateur indisponible sur ce serveur',
         body: "Le backend RoboScope ne dispose pas d'un navigateur affichable (typique d'un déploiement distant) et ne peut donc pas ouvrir une fenêtre Chromium à enregistrer. Installez plutôt l'extension Chrome RoboScope sur votre propre machine : elle enregistre dans votre navigateur et diffuse les événements vers ce backend.",
@@ -1984,6 +1986,8 @@ export default {
       streamError: 'Connexion au recorder perdue.',
       startFailed: 'Impossible de lancer le navigateur.',
       saveFailed: "Impossible d'enregistrer la session.",
+      serverError: "Le serveur a renvoyé une erreur (HTTP {status}). C'est un problème côté backend, pas votre saisie — consultez les journaux du backend. Un disque plein sur le serveur en est une cause fréquente.",
+      networkError: "Impossible de joindre le backend RoboScope. Vérifiez qu'il est démarré et accessible, puis réessayez.",
       repoMissing: 'Référence du référentiel perdue — rouvrez le lanceur.',
       restart: 'Démarrer un nouvel enregistrement',
     },

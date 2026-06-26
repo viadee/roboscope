@@ -1935,6 +1935,8 @@ export default {
       record: 'Start recording',
       starting: 'Starting…',
       startFailed: 'Could not start the recording. Please try again.',
+      serverError: 'The server returned an error (HTTP {status}). This is a backend problem, not your input — check the backend logs for details. A full disk on the server is a common cause.',
+      networkError: 'Cannot reach the RoboScope backend. Make sure it is running and reachable, then try again.',
       remote: {
         heading: 'Browser recording not available on this server',
         body: 'The RoboScope backend has no viewable browser (typical for a remote server deployment), so it cannot open a Chromium window for you to record in. Install the RoboScope Chrome Extension on your own machine instead — it records in your browser and streams the events to this backend.',
@@ -1984,6 +1986,8 @@ export default {
       streamError: 'Lost connection to the recorder.',
       startFailed: 'Could not launch the browser.',
       saveFailed: 'Could not save the recording.',
+      serverError: 'The server returned an error (HTTP {status}). This is a backend problem, not your input — check the backend logs for details. A full disk on the server is a common cause.',
+      networkError: 'Cannot reach the RoboScope backend. Make sure it is running and reachable, then try again.',
       repoMissing: 'Repository reference lost — open the launcher again.',
       restart: 'Start a new recording',
     },

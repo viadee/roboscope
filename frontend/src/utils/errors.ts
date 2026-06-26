@@ -59,6 +59,68 @@ export function extractErrorStatus(e: unknown): number | null {
  *
  * Always returns a string. Never throws.
  */
+/**
+ * Status-aware error-message builder for user-facing call sites.
+ *
+ * `extractErrorDetail` alone has a blind spot: an UNHANDLED backend
+ * exception comes back from Starlette's error middleware as a 500
+ * whose body is the bare text `"Internal Server Error"`. That string
+ * matches the plain-string-body branch and gets surfaced verbatim —
+ * so the user sees "Internal Server Error" with no idea what went
+ * wrong or what to do (the real cause, e.g. a full disk, is only in
+ * the backend log). This helper branches on the HTTP status instead:
+ *
+ *   - 5xx           → `serverError(status)` (the raw body is useless,
+ *                     so we never surface it; the localised message
+ *                     points the user at the server logs).
+ *   - 4xx           → `extractErrorDetail` — a client error's `detail`
+ *                     IS meaningful (permission denied, repo missing,
+ *                     validation), so keep showing it.
+ *   - no response   → `networkError` (backend unreachable / CORS /
+ *                     connection refused — axios produces an error
+ *                     with no `.response`).
+ *
+ * All three message options are optional; each falls back to
+ * `fallback` when not supplied. Always returns a string; never throws.
+ */
+export interface RequestErrorMessages {
+  /** Generic message used for 4xx without a detail, or any unknown throw. */
+  fallback: string
+  /** 5xx — receives the numeric status so callers can show the code. */
+  serverError?: (status: number) => string
+  /** No HTTP response received (backend down, network failure). */
+  networkError?: string
+}
+
+export function describeRequestError(
+  e: unknown,
+  messages: RequestErrorMessages,
+): string {
+  const status = extractErrorStatus(e)
+  if (status !== null) {
+    if (status >= 500) {
+      return messages.serverError ? messages.serverError(status) : messages.fallback
+    }
+    // 4xx (and the rare 3xx that surface as errors): the server's
+    // `detail` is the useful, actionable text — keep showing it.
+    return extractErrorDetail(e, messages.fallback)
+  }
+  // status === null: either a genuine no-response failure, or a
+  // weird shape that still carries a `response`. Only treat it as a
+  // network error when there's truly no `response` object — otherwise
+  // fall back to the detail walk so we don't mislabel a malformed 4xx.
+  const hasResponse =
+    e !== null
+    && typeof e === 'object'
+    && 'response' in e
+    && typeof (e as { response?: unknown }).response === 'object'
+    && (e as { response?: unknown }).response !== null
+  if (!hasResponse && messages.networkError) {
+    return messages.networkError
+  }
+  return extractErrorDetail(e, messages.fallback)
+}
+
 export function extractErrorDetail(e: unknown, fallback: string): string {
   // Walk `e.response.data` defensively — `e` may be anything from a
   // real AxiosError to a plain object mocked in tests, to a native

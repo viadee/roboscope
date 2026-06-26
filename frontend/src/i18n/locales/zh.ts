@@ -1896,6 +1896,8 @@ const overrides: Dict = {
       record: '开始录制',
       starting: '正在启动…',
       startFailed: '无法开始录制。请重试。',
+      serverError: '服务器返回错误（HTTP {status}）。这是后端问题，与你的输入无关——请查看后端日志了解详情。常见原因是服务器磁盘已满。',
+      networkError: '无法连接到 RoboScope 后端。请确认它正在运行且可访问，然后重试。',
       remote: {
         heading: '此服务器上无法进行浏览器录制',
         body: 'RoboScope 后端没有可视化浏览器（远程服务器部署的典型情况），因此无法为您打开 Chromium 窗口进行录制。请改为在您自己的机器上安装 RoboScope Chrome 扩展——它会在您的浏览器中录制并将事件流式传输到此后端。',
@@ -1945,6 +1947,8 @@ const overrides: Dict = {
       streamError: '与录制器的连接已断开。',
       startFailed: '无法启动浏览器。',
       saveFailed: '无法保存录制。',
+      serverError: '服务器返回错误（HTTP {status}）。这是后端问题，与你的输入无关——请查看后端日志了解详情。常见原因是服务器磁盘已满。',
+      networkError: '无法连接到 RoboScope 后端。请确认它正在运行且可访问，然后重试。',
       repoMissing: '仓库引用已丢失——请重新打开启动器。',
       restart: '开始新的录制',
     },

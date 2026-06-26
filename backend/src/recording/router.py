@@ -356,9 +356,19 @@ def v2_recorder_capabilities(
     backend has no display to render Chromium into.
     """
     import sys as _sys
+
+    # Windows desktop recording needs BOTH a Windows host AND the
+    # `windows` extra (pywinauto). Probing for the dependency here means
+    # a venv installed without `roboscope[windows]` shows the transport
+    # as unavailable in the launcher, instead of offering it and having
+    # the background capture task crash immediately to "beendet" (the
+    # real ModuleNotFoundError only ever reached the backend log).
+    from src.recording.win32_input import pywinauto_available
+
+    desktop_windows_viable = _sys.platform.startswith("win") and pywinauto_available()
     return V2CapabilitiesResponse(
         web_playwright_viable=_web_playwright_viable(),
-        desktop_windows_viable=_sys.platform.startswith("win"),
+        desktop_windows_viable=desktop_windows_viable,
         desktop_macos_viable=False,  # DM.1 NO-GO lock.
     )
 

@@ -1935,6 +1935,8 @@ export default {
       record: 'Aufnahme starten',
       starting: 'Wird gestartet…',
       startFailed: 'Aufzeichnung konnte nicht gestartet werden. Bitte erneut versuchen.',
+      serverError: 'Der Server hat einen Fehler gemeldet (HTTP {status}). Das ist ein Backend-Problem, nicht deine Eingabe — Details stehen im Backend-Log. Häufige Ursache: voller Speicherplatz auf dem Server.',
+      networkError: 'Das RoboScope-Backend ist nicht erreichbar. Stelle sicher, dass es läuft und erreichbar ist, und versuche es erneut.',
       remote: {
         heading: 'Browser-Aufnahme auf diesem Server nicht verfügbar',
         body: 'Das RoboScope-Backend kann keinen sichtbaren Browser öffnen (typisch bei Remote-Deployments) und somit auch kein Chromium-Fenster zum Aufnehmen bereitstellen. Installiere stattdessen die RoboScope Chrome Extension auf deinem eigenen Rechner — sie zeichnet in deinem Browser auf und streamt die Events an dieses Backend.',
@@ -1984,6 +1986,8 @@ export default {
       streamError: 'Verbindung zum Recorder verloren.',
       startFailed: 'Browser konnte nicht gestartet werden.',
       saveFailed: 'Aufzeichnung konnte nicht gespeichert werden.',
+      serverError: 'Der Server hat einen Fehler gemeldet (HTTP {status}). Das ist ein Backend-Problem, nicht deine Eingabe — Details stehen im Backend-Log. Häufige Ursache: voller Speicherplatz auf dem Server.',
+      networkError: 'Das RoboScope-Backend ist nicht erreichbar. Stelle sicher, dass es läuft und erreichbar ist, und versuche es erneut.',
       repoMissing: 'Repository-Bezug verloren — bitte Launcher erneut öffnen.',
       restart: 'Neue Aufzeichnung starten',
     },

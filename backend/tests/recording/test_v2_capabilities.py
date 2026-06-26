@@ -80,6 +80,11 @@ class TestDesktopTransports:
     def test_desktop_windows_only_on_windows(
         self, client: TestClient, admin_user: User, monkeypatch
     ) -> None:
+        # The pywinauto dependency is also required (see the gating tests
+        # below); pin it present here so this test isolates the OS check.
+        monkeypatch.setattr(
+            "src.recording.win32_input.pywinauto_available", lambda: True
+        )
         monkeypatch.setattr("sys.platform", "darwin")
         resp = client.get(ENDPOINT, headers=auth_header(admin_user))
         body = resp.json()
@@ -92,6 +97,32 @@ class TestDesktopTransports:
         assert body["desktop_windows_viable"] is True
         # DM.1 NO-GO lock — macOS stays false regardless of host platform.
         assert body["desktop_macos_viable"] is False
+
+    def test_desktop_windows_false_when_pywinauto_missing(
+        self, client: TestClient, admin_user: User, monkeypatch
+    ) -> None:
+        """Regression: a Windows host WITHOUT the `windows` extra installed
+        used to report viable=True, so the launcher offered desktop
+        recording and the background task crashed straight to "beendet"
+        with the ModuleNotFoundError buried in the backend log. The
+        capability probe must reflect the missing dependency."""
+        monkeypatch.setattr("sys.platform", "win32")
+        monkeypatch.setattr(
+            "src.recording.win32_input.pywinauto_available", lambda: False
+        )
+        resp = client.get(ENDPOINT, headers=auth_header(admin_user))
+        assert resp.status_code == 200
+        assert resp.json()["desktop_windows_viable"] is False
+
+    def test_desktop_windows_true_when_pywinauto_present(
+        self, client: TestClient, admin_user: User, monkeypatch
+    ) -> None:
+        monkeypatch.setattr("sys.platform", "win32")
+        monkeypatch.setattr(
+            "src.recording.win32_input.pywinauto_available", lambda: True
+        )
+        resp = client.get(ENDPOINT, headers=auth_header(admin_user))
+        assert resp.json()["desktop_windows_viable"] is True
 
 
 class TestAuth:
