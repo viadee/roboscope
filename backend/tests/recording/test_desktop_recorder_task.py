@@ -7,12 +7,8 @@ be called from that hook.
 
 from __future__ import annotations
 
-import sys
 import threading
 import time
-import types
-
-import pytest
 
 from src.recording.desktop_recorder_task import translate_uia_event
 
@@ -126,41 +122,52 @@ class TestCandidatesShape:
         assert any(c.strategy == "xpath" for c in cmd.selector_candidates)
 
 
+def _edit_snapshot(automation_id):
+    return {
+        "control_type": "Edit",
+        "automation_id": automation_id,
+        "name": None,
+        "class_name": "TextBox",
+        "ancestors": [],
+    }
+
+
+def _button_snapshot(automation_id):
+    return {
+        "control_type": "Button",
+        "automation_id": automation_id,
+        "name": None,
+        "class_name": None,
+        "ancestors": [],
+    }
+
+
 class TestDesktopLoopStopLatency:
-    """`_desktop_loop` previously polled the stop event at 2Hz
-    (`stop_event.wait(timeout=0.5)` in a `while` loop). That added up
-    to half a second of latency between the user clicking Stop and
-    the desktop recorder thread exiting. The current implementation
-    is `stop_event.wait()` (no timeout) — blocks until the event
-    fires and returns instantly. Same UX win as the asyncio refactor
-    in v2_recorder_task (commit 06ee6d1)."""
+    """Story D-5 — the capture loop drains an injectable `event_source`
+    through `pump_raw_events`, checking `stop_event` between events. When the
+    user clicks Stop the loop exits promptly (no busy-poll), mirroring the
+    asyncio refactor in v2_recorder_task."""
 
-    @pytest.fixture
-    def _fake_pywinauto(self, monkeypatch: pytest.MonkeyPatch):
-        """Inject a stub `pywinauto` module so the deferred import
-        inside `_desktop_loop` resolves on non-Windows test hosts.
-        The loop never CALLS into pywinauto until the D.1-full hook
-        wiring lands, so a bare module is enough."""
-        fake = types.ModuleType("pywinauto")
-        monkeypatch.setitem(sys.modules, "pywinauto", fake)
-
-    def test_stop_event_unblocks_loop_immediately(
-        self, _fake_pywinauto, monkeypatch
-    ) -> None:
+    def test_stop_event_unblocks_loop_immediately(self, monkeypatch) -> None:
         from src.recording import desktop_recorder_task as drt
 
-        # Spy on _mark_status so the loop's COMPLETED side effect
-        # doesn't try to touch a real DB session.
         monkeypatch.setattr(drt, "_mark_status", lambda *_a, **_kw: None)
 
         ev = threading.Event()
-        # Run the loop in a thread; signal stop after a short delay
-        # and measure total elapsed time. Legacy 2Hz polling would
-        # mean ~500ms baseline lag; event-driven wait should be
-        # near-zero (just thread scheduling overhead).
+
+        def blocking_source(stop):
+            # Mimic the real Windows generator: yield nothing while idle,
+            # return as soon as stop is signalled.
+            while not stop.wait(0.01):
+                pass
+            return
+            yield  # noqa: unreachable — makes this a generator
+
         FIRE_DELAY_S = 0.05
         loop_thread = threading.Thread(
-            target=drt._desktop_loop, args=(99999, ev), daemon=True,
+            target=drt._desktop_loop,
+            args=(99999, ev, blocking_source(ev)),
+            daemon=True,
         )
         loop_thread.start()
 
@@ -171,19 +178,12 @@ class TestDesktopLoopStopLatency:
         elapsed = time.perf_counter() - t0
 
         assert not loop_thread.is_alive(), "loop thread did not exit on stop"
-        # Generous 200ms ceiling — covers thread scheduling on slow
-        # CI; the legacy 2Hz polling would routinely exceed this.
         assert elapsed < 0.2, (
             f"desktop loop took {elapsed:.3f}s to exit after stop_event.set() "
-            "— should be near-instant under the event-driven wait"
+            "— should be near-instant"
         )
 
-    def test_stop_event_already_set_exits_immediately(
-        self, _fake_pywinauto, monkeypatch
-    ) -> None:
-        """If `stop_event` is set BEFORE the loop runs, `Event.wait()`
-        returns immediately — the loop must exit without a poll
-        round-trip."""
+    def test_stop_event_already_set_exits_immediately(self, monkeypatch) -> None:
         from src.recording import desktop_recorder_task as drt
 
         monkeypatch.setattr(drt, "_mark_status", lambda *_a, **_kw: None)
@@ -191,9 +191,71 @@ class TestDesktopLoopStopLatency:
         ev = threading.Event()
         ev.set()  # already set
         t0 = time.perf_counter()
-        drt._desktop_loop(99998, ev)  # synchronous; runs to completion
+        drt._desktop_loop(99998, ev, iter([]))  # empty source → returns at once
         elapsed = time.perf_counter() - t0
-        assert elapsed < 0.1, (
-            f"loop with already-set event took {elapsed:.3f}s — must "
-            "return immediately, not after a poll tick"
+        assert elapsed < 0.1
+
+
+class TestDesktopCaptureIntegration:
+    """Story D-5 — drive the REAL capture pipeline end to end on any OS via
+    the `event_source` injection seam: raw events → accumulator → translator
+    → enqueue, then assert the emitted `.robot` targets RPA.Windows."""
+
+    def test_capture_to_rpa_windows_robot(self, monkeypatch) -> None:
+        from src.recording import desktop_recorder_task as drt
+        from src.recording.desktop_capture import RawKey, RawMouse
+        from src.recording.robot_emit import emit_robot
+        from src.recording.selector_schema import RecordedFlow
+
+        # Avoid the DB write in _mark_status; collect enqueued commands.
+        monkeypatch.setattr(drt, "_mark_status", lambda *_a, **_kw: None)
+        captured = []
+        monkeypatch.setattr(
+            drt, "enqueue_command", lambda _sid, cmd: captured.append(cmd) or True
         )
+
+        edit = _edit_snapshot("username")
+        events = [
+            RawKey("a", snapshot=edit),
+            RawKey("b", snapshot=edit),
+            RawKey("c", snapshot=edit),
+            RawMouse(snapshot=_button_snapshot("submit")),
+            RawMouse(snapshot=_button_snapshot("row"), double=True),
+        ]
+
+        drt.run_desktop_recorder_session(4242, event_source=iter(events))
+
+        assert [c.keyword for c in captured] == ["Type Text", "Click", "Double Click"]
+        assert captured[0].args["text"] == "abc"
+        # Indices are assigned sequentially by the loop's emit closure.
+        assert [c.index for c in captured] == [0, 1, 2]
+        # Every targeted command carries an automation_id candidate.
+        assert any(s.strategy == "automation_id" for s in captured[1].selector_candidates)
+
+        robot = emit_robot(
+            RecordedFlow(
+                transport="desktop_windows",
+                session_id="4242",
+                commands=captured,
+            )
+        )
+        assert "Library           RPA.Windows" in robot
+        assert "Type Text" in robot
+        assert "id:submit" in robot  # RPA.Windows AutomationId locator syntax
+        assert "Double Click" in robot
+
+    def test_non_windows_without_source_no_ops(self, monkeypatch) -> None:
+        """Without an injected source on a non-Windows host the task marks the
+        session FAILED instead of trying to build the Win32 source."""
+        from src.recording import desktop_recorder_task as drt
+
+        monkeypatch.setattr(drt.sys, "platform", "linux")
+        statuses = []
+        monkeypatch.setattr(
+            drt, "_mark_status", lambda _sid, status, *a, **k: statuses.append(status)
+        )
+        monkeypatch.setattr(drt, "finalize_session", lambda *_a, **_k: None)
+        monkeypatch.setattr(drt, "tear_down_session", lambda *_a, **_k: None)
+
+        drt.run_desktop_recorder_session(7777)
+        assert statuses and statuses[0] == drt.RecordingStatus.FAILED

@@ -41,10 +41,15 @@ export interface StartBrowserResponse {
 export async function startV2Browser(
   sessionId: number,
   targetUrl?: string,
+  transport?: RecordingTransport,
 ): Promise<StartBrowserResponse> {
+  // `transport` MUST be threaded through for non-web sessions: the backend
+  // `/start-browser` endpoint defaults to `web_playwright`, so omitting it on a
+  // `desktop_windows` session would dispatch the WEB recorder instead of the
+  // Windows desktop capture task (Story D-5 fix).
   const response = await apiClient.post<StartBrowserResponse>(
     `/recordings/sessions/${sessionId}/start-browser`,
-    { target_url: targetUrl ?? null },
+    { target_url: targetUrl ?? null, transport: transport ?? null },
   )
   return response.data
 }

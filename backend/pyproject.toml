@@ -71,6 +71,16 @@ postgres = [
 docker = [
     "docker>=7.1.0",
 ]
+# Windows desktop recorder (Story D-5). pywinauto drives the UIA tree for
+# element resolution under the cursor / focus; the low-level mouse + keyboard
+# hooks themselves use stdlib ctypes (no extra dep). Marked win32-only so it's
+# never resolved on Linux/macOS dev boxes or the Linux CI host — the recorder
+# module imports it lazily inside the Windows branch only. All deps are
+# pure-Python wheels (no Rust toolchain), so they vendor cleanly into the
+# offline Windows bundle. See recorder-desktop-architecture.md §5.
+windows = [
+    "pywinauto>=0.6.8; sys_platform == 'win32'",
+]
 # Alle optionalen Abhängigkeiten
 all = [
     "roboscope-backend[postgres,docker]",

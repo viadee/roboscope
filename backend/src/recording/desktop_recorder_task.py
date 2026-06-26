@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import sys
 import threading
-from typing import Any
+from typing import Any, Iterable
 
 # FK resolution for fresh background-thread DB sessions (CLAUDE.md).
 import src.auth.models  # noqa: F401
@@ -137,10 +137,19 @@ def translate_uia_event(payload: dict[str, Any], index: int) -> RecordedCommand 
 # ---------------------------------------------------------------------------
 
 
-def run_desktop_recorder_session(session_id: int) -> None:
+def run_desktop_recorder_session(
+    session_id: int,
+    event_source: "Iterable[Any] | None" = None,
+) -> None:
     """Start the Windows recorder for a session. No-ops on non-Windows
-    hosts so this codepath is importable everywhere."""
-    if not sys.platform.startswith("win"):
+    hosts so this codepath is importable everywhere.
+
+    `event_source` is an injection seam (Story D-5): tests pass a fake
+    iterator of `RawMouse`/`RawKey`/`RawFocus` events to exercise the real
+    capture → translate → enqueue pipeline on any OS. In production it is
+    None and the Windows `win32_input.windows_event_source` is built lazily.
+    """
+    if event_source is None and not sys.platform.startswith("win"):
         logger.warning(
             "desktop_windows recorder dispatched on non-Windows host — "
             "no-op for session %d", session_id,
@@ -154,7 +163,7 @@ def run_desktop_recorder_session(session_id: int) -> None:
     _stop_signals[session_id] = stop_event
 
     try:
-        _desktop_loop(session_id, stop_event)
+        _desktop_loop(session_id, stop_event, event_source)
     except Exception:
         logger.exception("desktop recorder session %d crashed", session_id)
         _mark_status(session_id, RecordingStatus.FAILED, "recorder crashed")
@@ -164,25 +173,23 @@ def run_desktop_recorder_session(session_id: int) -> None:
         tear_down_session(session_id)
 
 
-def _desktop_loop(session_id: int, stop_event: threading.Event) -> None:
-    """Windows UIA capture loop. Deferred pywinauto import — lives here so
-    the module can be imported on non-Windows hosts (unit tests).
+def _desktop_loop(
+    session_id: int,
+    stop_event: threading.Event,
+    event_source: "Iterable[Any] | None" = None,
+) -> None:
+    """Windows UIA capture loop (Story D-5).
 
-    The actual event-hook wiring is a D.1 full follow-up — this skeleton
-    polls the stop event and emits nothing so the session ends cleanly.
+    Drains a raw-event source through the pure `DesktopEventAccumulator` into
+    `translate_uia_event` → `enqueue_command`. The Windows hook wiring lives in
+    `win32_input` (imported lazily, never on non-Windows hosts); tests inject
+    `event_source` directly so this whole path runs deterministically anywhere.
     """
-    # Deferred import — raises only when actually called on Windows.
-    try:
-        import pywinauto  # noqa: F401
-    except ImportError as exc:
-        raise RuntimeError(
-            "pywinauto is not installed; add it to the Windows-optional "
-            "dependency group before dispatching the desktop recorder"
-        ) from exc
+    from src.recording.desktop_capture import pump_raw_events
 
     command_index = 0
 
-    def enqueue(payload: dict[str, Any]) -> None:
+    def emit(payload: dict[str, Any]) -> None:
         nonlocal command_index
         try:
             cmd = translate_uia_event(payload, command_index)
@@ -193,19 +200,16 @@ def _desktop_loop(session_id: int, stop_event: threading.Event) -> None:
         except Exception:
             logger.exception("desktop recorder translate failed")
 
-    # TODO(D.1 full): attach pywinauto InputEventHandler hooks that call
-    # `enqueue(...)`. Until then, the loop just waits for the stop event.
-    # This keeps the thread lifecycle correct (create/destroy) while the
-    # hook wiring is a separate PR that needs a Windows dev host.
+    if event_source is None:
+        # Production path — build the Windows LL-hook source lazily. The
+        # import + pywinauto check raise a clear error if unavailable.
+        from src.recording.win32_input import windows_event_source
 
-    # Block until the stop signal fires. No periodic work to do in this
-    # thread — once the hook wiring lands, pywinauto will call
-    # `enqueue(...)` from its own threads, so this main thread has no
-    # reason to wake up. A previous version polled every 0.5s which
-    # added a half-second of latency to every Stop click for no
-    # benefit (matches the asyncio refactor in v2_recorder_task that
-    # replaced the 1Hz busy-poll with an executor wait).
-    stop_event.wait()
+        event_source = windows_event_source(stop_event)
+
+    # Blocks until the source is exhausted (stop_event set → the Windows
+    # generator stops its pump thread and returns) or the stop event fires.
+    pump_raw_events(event_source, emit, stop_event)
 
     _mark_status(session_id, RecordingStatus.COMPLETED)
 
