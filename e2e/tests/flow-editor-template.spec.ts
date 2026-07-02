@@ -15,6 +15,10 @@ Addition
     [Template]    Add Should Be
     1    2    3
     5    7    12
+
+Second Addition
+    [Template]    Add Should Be
+    2    2    4
 `;
 
 async function getAuthToken(page: Page): Promise<string> {
@@ -101,5 +105,50 @@ test.describe('Flow Editor — [Template] data table', () => {
     expect(text).toContain('[Template]    Add Should Be');
     expect(text).toContain('9');
     expect(text).toContain('10');
+  });
+
+  test('editing the SECOND test case does not reset the active item to the first (regression: deep form-watcher reset)', async ({ page }) => {
+    // Fixtures with a single test case can't catch a reset-to-index-0
+    // regression (item 0 is the only item, so a reset is invisible).
+    // This test deliberately activates test case #2 first, mutates its
+    // table, and asserts the UI is STILL anchored on #2 afterward.
+    await openFlow(page, repoId);
+
+    const secondTab = page.locator('.flow-item-tab', { hasText: 'Second Addition' });
+    await expect(secondTab).toBeVisible({ timeout: 8_000 });
+    await secondTab.click();
+    await expect(secondTab).toHaveClass(/active/);
+
+    const table = page.getByTestId('flow-template-table');
+    await expect(table).toBeVisible({ timeout: 8_000 });
+    await expect(table.locator('tr')).toHaveCount(1);
+
+    await page.getByTestId('flow-template-add-row').dispatchEvent('click');
+    await expect(table.locator('tr')).toHaveCount(2);
+    const newRowCells = table.locator('tr').nth(1).getByTestId('flow-template-cell');
+    await newRowCells.nth(0).fill('3');
+    await newRowCells.nth(1).fill('3');
+    await newRowCells.nth(2).fill('6');
+    await newRowCells.nth(2).blur();
+
+    // If the deep form-watcher regressed and reset activeItemIndex to 0,
+    // this tab would no longer be `.active` (the canvas would have
+    // silently jumped back to "Addition").
+    await expect(secondTab).toHaveClass(/active/);
+
+    // Round-trip: the new row must land under "Second Addition", and
+    // the first test case's original rows must be untouched. Avoid
+    // matching multi-space runs directly — CodeMirror renders
+    // indentation as NBSP, not plain spaces.
+    const codeTab = page.locator('button', { hasText: /^Code$/ }).first();
+    await codeTab.click();
+    const code = page.locator('.cm-content');
+    await expect(code).toBeVisible({ timeout: 8_000 });
+    const text = await code.innerText();
+    expect(text).toContain('Second Addition');
+    expect(text.match(/\b6\b/)).toBeTruthy();
+    // Original rows from BOTH test cases survive untouched.
+    expect(text).toContain('12');
+    expect(text).toContain('Addition');
   });
 });

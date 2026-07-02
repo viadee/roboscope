@@ -33,6 +33,11 @@ Documented Test
     Log    body line
 
 
+Second Test
+    [Tags]    trivial
+    Log    trivial second case
+
+
 *** Keywords ***
 Documented Keyword
     [Documentation]    Keyword-level docs
@@ -226,5 +231,34 @@ test.describe('Flow Editor — [...] settings as side notes', () => {
     await expect(
       page.locator('.vue-flow__node[data-id="tc0-tags"]')
     ).toContainText('alpha, beta, gamma');
+  });
+
+  test('editing [Tags] on the SECOND test case does not reset the active item (regression: deep form-watcher reset)', async ({ page }) => {
+    // A single-test-case fixture can't catch a reset-to-index-0
+    // regression (item 0 is the only item). Work explicitly on test
+    // case #2 and assert the UI stays anchored there through the
+    // commit-on-blur mutation.
+    await openFlowEditor(page, repoId);
+
+    const secondTab = page.locator('.flow-item-tab', { hasText: 'Second Test' });
+    await expect(secondTab).toBeVisible({ timeout: 8_000 });
+    await secondTab.click();
+    await expect(secondTab).toHaveClass(/active/);
+
+    await page.locator('.vue-flow__node[data-id="tc1-tags"]').click();
+    await page.waitForTimeout(300);
+    const tagsInput = page.locator('.flow-detail-panel input[type="text"]');
+    await expect(tagsInput).toBeVisible({ timeout: 4_000 });
+    await tagsInput.fill('delta, epsilon');
+    await tagsInput.blur();
+    await page.waitForTimeout(400);
+
+    // If the deep form-watcher regressed and reset activeItemIndex to
+    // 0, this tab would no longer be active (canvas silently jumped
+    // to "Documented Test").
+    await expect(secondTab).toHaveClass(/active/);
+    await expect(
+      page.locator('.vue-flow__node[data-id="tc1-tags"]')
+    ).toContainText('delta, epsilon');
   });
 });

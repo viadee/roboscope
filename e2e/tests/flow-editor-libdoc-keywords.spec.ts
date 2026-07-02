@@ -16,6 +16,9 @@ Library    Browser
 *** Test Cases ***
 T
     Log    hi
+
+Second Test
+    Log    trivial second case
 `;
 
 async function getAuthToken(page: Page): Promise<string> {

@@ -27,6 +27,9 @@ Submit Credentials
 const TEST_FILE = `*** Test Cases ***
 Logs In
     Log    start
+
+Second Test
+    Log    trivial second case
 `;
 
 async function getToken(page: Page): Promise<string> {
@@ -122,5 +125,48 @@ test.describe('Flow Editor — custom-resource UX (D1–D6)', () => {
     const text = (await code.innerText()).replace(/ /g, ' ');
     expect(text).toContain('Open Login Page');
     expect(text).toMatch(/Resource\s+\.\.\/resources\/login\.resource/);
+  });
+
+  test('inserting a resource keyword into the SECOND test case does not reset the active item (regression: deep form-watcher reset)', async ({ page }) => {
+    // A single-test-case fixture can't catch a reset-to-index-0
+    // regression. Work explicitly on test case #2.
+    await page.goto(`/explorer/${repoId}`);
+    await expect(page.locator('h1', { hasText: 'Explorer' })).toBeVisible({ timeout: 10_000 });
+    const testsFolder = page.locator('text=/^tests$/').first();
+    await expect(testsFolder).toBeVisible({ timeout: 10_000 });
+    const fileRow = page.locator('text=login_test.robot').first();
+    if (!(await fileRow.isVisible().catch(() => false))) await testsFolder.click();
+    await expect(fileRow).toBeVisible({ timeout: 8_000 });
+    await fileRow.click();
+
+    await page.locator('button', { hasText: /^Flow$/ }).first().click();
+    await expect(page.locator('.vue-flow__node[data-id$="-start"]').first()).toBeVisible({ timeout: 8_000 });
+
+    const secondTab = page.locator('.flow-item-tab', { hasText: 'Second Test' });
+    await expect(secondTab).toBeVisible({ timeout: 8_000 });
+    await secondTab.click();
+    await expect(secondTab).toHaveClass(/active/);
+
+    const palette = page.locator('.keyword-palette');
+    const resHeader = palette.locator('.category-header', { hasText: 'login.resource' }).first();
+    await expect(resHeader).toBeVisible({ timeout: 8_000 });
+    if (!(await palette.getByText('Submit Credentials', { exact: true }).first().isVisible().catch(() => false))) {
+      await resHeader.click();
+    }
+    await palette.getByText('Submit Credentials', { exact: true }).first().click();
+    await palette.locator('.palette-add-btn').click();
+
+    const toast = page.locator('.toast').filter({ hasText: /login\.resource/ });
+    await expect(toast.first()).toBeVisible({ timeout: 6_000 });
+
+    // If the watcher regressed and reset activeItemIndex to 0, this
+    // tab would no longer be active (canvas silently jumped to "Logs In").
+    await expect(secondTab).toHaveClass(/active/);
+
+    await page.locator('button', { hasText: /^Code$/ }).first().click();
+    const code = page.locator('.cm-content');
+    await expect(code).toBeVisible({ timeout: 8_000 });
+    const text = await code.innerText();
+    expect(text.indexOf('Second Test')).toBeLessThan(text.indexOf('Submit Credentials'));
   });
 });

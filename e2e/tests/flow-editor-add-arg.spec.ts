@@ -14,6 +14,9 @@ const PASSWORD = 'admin123';
 const SEED_ROBOT = `*** Test Cases ***
 T
     Log    hello
+
+Second Test
+    Log    hello again
 `;
 
 async function getAuthToken(page: Page): Promise<string> {
@@ -77,5 +80,44 @@ test.describe('Flow Editor — add custom argument', () => {
     const code = page.locator('.cm-content');
     await expect(code).toBeVisible({ timeout: 8_000 });
     expect(await code.innerText()).toContain('level=DEBUG');
+  });
+
+  test('adding an argument on the SECOND test case does not reset the active item (regression: deep form-watcher reset)', async ({ page }) => {
+    // A single-test-case fixture can't catch a reset-to-index-0
+    // regression. Work explicitly on test case #2.
+    await page.goto(`/explorer/${repoId}`);
+    await expect(page.locator('h1', { hasText: 'Explorer' })).toBeVisible({ timeout: 10_000 });
+    const testsFolder = page.locator('text=/^tests$/').first();
+    await expect(testsFolder).toBeVisible({ timeout: 10_000 });
+    const fileRow = page.locator('text=argpick.robot').first();
+    if (!(await fileRow.isVisible().catch(() => false))) await testsFolder.click();
+    await fileRow.click();
+    const flowTab = page.locator('button', { hasText: /^Flow$/ }).first();
+    await flowTab.click();
+    await expect(page.locator('.vue-flow__node[data-id$="-start"]').first()).toBeVisible({ timeout: 8_000 });
+
+    const secondTab = page.locator('.flow-item-tab', { hasText: 'Second Test' });
+    await expect(secondTab).toBeVisible({ timeout: 8_000 });
+    await secondTab.click();
+    await expect(secondTab).toHaveClass(/active/);
+
+    await page.locator('.vue-flow__node', { hasText: 'Log' }).first().click();
+    await page.locator('.flow-add-arg-wrap button').first().click();
+    const input = page.getByTestId('add-arg-custom-input');
+    await expect(input).toBeVisible({ timeout: 5_000 });
+    await input.fill('level=WARN');
+    await page.getByTestId('add-arg-custom-add').click();
+
+    // If the watcher regressed and reset activeItemIndex to 0, this
+    // tab would no longer be active.
+    await expect(secondTab).toHaveClass(/active/);
+
+    await page.locator('button', { hasText: /^Code$/ }).first().click();
+    const code = page.locator('.cm-content');
+    await expect(code).toBeVisible({ timeout: 8_000 });
+    const text = await code.innerText();
+    expect(text).toContain('level=WARN');
+    // Landed under "Second Test", not "T".
+    expect(text.indexOf('Second Test')).toBeLessThan(text.indexOf('level=WARN'));
   });
 });
