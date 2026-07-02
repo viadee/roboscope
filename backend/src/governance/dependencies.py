@@ -50,8 +50,13 @@ def _audit_block(
 def require_feature(flag: str):
     """Dependency: 403 when `flag` is disabled for this deployment."""
 
-    def dep(db: Session = Depends(get_db)) -> None:
+    def dep(
+        request: Request,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> None:
         if not resolve_flag(db, flag).value:
+            _audit_block(db, request, current_user, f"feature_disabled:{flag}", "feature_flag")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"feature_disabled:{flag}",
