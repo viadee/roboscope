@@ -287,6 +287,20 @@ def docker_build(
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
 
+    # 2.3: skip re-dispatch if a build is already in flight — without
+    # this, rapid double-clicks (or a slow first click retried) queue
+    # duplicate build tasks on the single-worker executor. Mirrors the
+    # keyword-introspection 120s in-flight guard; Docker builds run much
+    # longer, so the window is wider.
+    if env.docker_build_status == "building" and env.updated_at is not None:
+        from datetime import UTC, datetime, timedelta
+        age = datetime.now(UTC) - env.updated_at.replace(tzinfo=UTC)
+        if age < timedelta(seconds=600):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A Docker build is already in progress for this environment.",
+            )
+
     packages = list_packages(db, env_id)
     if not packages:
         raise HTTPException(
