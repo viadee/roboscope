@@ -98,7 +98,7 @@ test.describe.serial('HEAL-VENDORED — auto-seed in fresh venv (no PyPI)', () =
   });
 
   test('creating an environment auto-seeds robotframework-roboscopeheal into the venv', async ({ page }) => {
-    test.setTimeout(150_000);
+    test.setTimeout(300_000);
 
     // Create the environment. POST /environments dispatches create_venv
     // which installs robotframework AND seeds RoboScopeHeal from the
@@ -112,10 +112,12 @@ test.describe.serial('HEAL-VENDORED — auto-seed in fresh venv (no PyPI)', () =
     envId = (await createRes.json()).id as number;
 
     // Poll until robotframework-roboscopeheal appears in the installed list.
-    // Timeout: 120 s — venv creation + pip install can take up to ~60 s
-    // depending on the host.
+    // Timeout: 240 s — venv creation + pip install take ~60 s on their own,
+    // but under a FULL suite run the single-worker task executor can hold
+    // the create_venv task in the queue well past 120 s (same queue-drain
+    // problem execution-run.spec.ts out-waits).
     let healInstalled = false;
-    for (let i = 0; i < 60 && !healInstalled; i++) {
+    for (let i = 0; i < 120 && !healInstalled; i++) {
       await page.waitForTimeout(2_000);
       const listRes = await page.request.get(`${API}/environments/${envId}/packages/installed`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -134,7 +136,7 @@ test.describe.serial('HEAL-VENDORED — auto-seed in fresh venv (no PyPI)', () =
 
     expect(
       healInstalled,
-      'robotframework-roboscopeheal was not seeded into the venv within 120s',
+      'robotframework-roboscopeheal was not seeded into the venv within 240s',
     ).toBe(true);
   });
 });
