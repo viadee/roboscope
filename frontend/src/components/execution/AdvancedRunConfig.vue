@@ -30,7 +30,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:argsText': [value: string]
   'update:variablesText': [value: string]
-  'update:modifiers': [value: Array<{ key: string; kind: string; args: string[] }>]
+  'update:modifiers': [value: Array<{ key: string; kind: RunModifier['kind']; args: string[] }>]
   'update:pythonPaths': [value: string[]]
   'update:variableFiles': [value: string[]]
 }>()
@@ -58,7 +58,7 @@ function ensureState(key: string) {
 }
 
 function emitModifiers() {
-  const out: Array<{ key: string; kind: string; args: string[] }> = []
+  const out: Array<{ key: string; kind: RunModifier['kind']; args: string[] }> = []
   for (const m of modifiers.value) {
     const st = selection.value[m.key]
     if (!st?.checked) continue

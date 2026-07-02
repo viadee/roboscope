@@ -9,7 +9,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useReportsStore } from '@/stores/reports.store'
 import { useToast } from '@/composables/useToast'
 import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
-import { getRunOutput } from '@/api/execution.api'
+import { getRunOutput, type RunModifier } from '@/api/execution.api'
 import { getRepoTags } from '@/api/explorer.api'
 import { buildDockerImage } from '@/api/environments.api'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -135,7 +135,7 @@ const showVariableFile = computed(() => isEnabled('executionVariableFile'))
 const advancedArgsText = ref('')
 const advancedVariablesText = ref('')
 // EXEC.10: curated modifier selections + repo-confined code-loading levers.
-const advancedModifiers = ref<Array<{ key: string; kind: string; args: string[] }>>([])
+const advancedModifiers = ref<Array<{ key: string; kind: RunModifier['kind']; args: string[] }>>([])
 const advancedPythonPaths = ref<string[]>([])
 const advancedVariableFiles = ref<string[]>([])
 // EXEC.4: tag discovery — distinct repo tags offered as a pick-list (datalist).

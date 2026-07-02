@@ -168,10 +168,12 @@ export async function toggleSchedule(id: number): Promise<Schedule> {
   return response.data
 }
 
-// EXEC.10: curated execution modifiers (vendor + org) for the run-dialog picker.
+// EXEC.10/11: curated execution modifiers + listeners (vendor + org) for
+// the run-dialog picker. 'listener' added for EXEC.11 (registry.py's
+// LiveProgressListener etc. — see execution/modifiers/registry.py).
 export interface RunModifier {
   key: string
-  kind: 'prerun' | 'prerebot'
+  kind: 'prerun' | 'prerebot' | 'listener'
   label: string
   tier: 'vendor' | 'org'
   description: string
