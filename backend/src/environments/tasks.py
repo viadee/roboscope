@@ -401,6 +401,14 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
                 error_msg = f"Failed to create venv: {result.stderr or result.stdout}"
                 logger.error(error_msg)
                 return {"status": "error", "message": error_msg}
+            # A venv we just created is FRESH by definition — seed the
+            # vendored heal library like `create_venv` does, so the
+            # HEAL-VENDORED day-one promise also holds when the venv
+            # materialises lazily on the first package install. The
+            # "don't re-add after the user removed it" rule only
+            # applies to installs into EXISTING venvs, which this
+            # branch never touches.
+            _install_vendored_heal_into_venv(str(venv_path), env_id)
 
         # Mark as installing
         pkg = session.execute(

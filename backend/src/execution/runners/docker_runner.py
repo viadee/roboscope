@@ -210,6 +210,12 @@ class DockerRunner(AbstractRunner):
                 report_html_path=report_html if Path(report_html).exists() else "",
                 stdout="".join(stdout_lines),
                 duration_seconds=duration,
+                # C1 companion (parity with subprocess_runner): a mid-run
+                # cancel stops the container, so the normal wait() path is
+                # how a cancel usually completes. Propagate the flag or
+                # tasks.py races the cancelling request's DB commit and
+                # files the cancelled run as FAILED.
+                cancelled=self._cancelled,
             )
 
         except Exception as e:

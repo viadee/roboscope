@@ -234,6 +234,14 @@ class SubprocessRunner(AbstractRunner):
                 stdout="".join(stdout_lines),
                 stderr="".join(stderr_lines),
                 duration_seconds=duration,
+                # C1 companion: a user cancel SIGTERMs the process, so the
+                # normal wait() path is how a mid-run cancel usually ends.
+                # Without propagating the flag here, tasks.py loses the race
+                # when the cancelling request's DB commit lands after our
+                # session.refresh() — and files the cancelled run as FAILED.
+                # (The timeout paths above deliberately do NOT set this:
+                # they call cancel() too, but must classify as TIMEOUT.)
+                cancelled=self._cancelled,
             )
 
         except subprocess.TimeoutExpired:

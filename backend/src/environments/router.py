@@ -79,6 +79,21 @@ def add_environment(
 
     env = create_environment(db, data, current_user.id)
 
+    # Eagerly create the venv (which also seeds the vendored
+    # RoboScopeHeal library — HEAL-VENDORED promises heal on day one
+    # for EVERY fresh environment, not only `/setup-default`).
+    # Without this, the venv only materialises lazily on the first
+    # package install, which skips the heal seed entirely.
+    # Commit BEFORE dispatch: the background thread uses its own
+    # session and would not see the uncommitted row.
+    db.commit()
+    try:
+        from src.environments.tasks import create_venv
+
+        dispatch_task(create_venv, env.id)
+    except TaskDispatchError as e:
+        logger.error("Failed to dispatch venv creation for env %d: %s", env.id, e)
+
     # Check for compatibility warnings
     warning = check_python_version_compatibility(data.python_version)
     response = EnvResponse.model_validate(env)

@@ -36,6 +36,35 @@ class TestListEnvironments:
 
 
 class TestCreateEnvironment:
+    @pytest.fixture(autouse=True)
+    def _no_real_dispatch(self):
+        """POST /environments now dispatches create_venv (HEAL-VENDORED
+        day-one seed) — keep the background executor out of unit tests
+        so no real `uv venv` runs pollute the machine."""
+        with patch("src.environments.router.dispatch_task") as disp:
+            disp.return_value = MagicMock(id="fake-task-id")
+            self.mock_dispatch = disp
+            yield disp
+
+    def test_create_environment_dispatches_venv_creation(self, client, admin_user):
+        """Pin: a bare POST /environments MUST dispatch create_venv.
+        Without the eager dispatch the venv only materialises lazily on
+        the first package install, which skips the vendored heal seed —
+        regression found via heal-toggle.spec.ts 2026-07-02."""
+        from src.environments.tasks import create_venv
+
+        response = client.post(
+            URL,
+            json={"name": "dispatch-pin-env", "python_version": "3.12"},
+            headers=auth_header(admin_user),
+        )
+        assert response.status_code == 201
+        env_id = response.json()["id"]
+        assert any(
+            call.args[0] is create_venv and call.args[1] == env_id
+            for call in self.mock_dispatch.call_args_list
+        ), "POST /environments did not dispatch create_venv"
+
     def test_create_environment_as_admin(self, client, admin_user):
         response = client.post(
             URL,
