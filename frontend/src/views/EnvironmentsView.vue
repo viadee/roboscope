@@ -7,6 +7,7 @@ import { useFeatureFlags } from '@/composables/useFeatureFlags'
 import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
 import * as envsApi from '@/api/environments.api'
 import type { EnvironmentPackage } from '@/types/domain.types'
+import { parseBackendDate } from '@/utils/formatDate'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
@@ -431,7 +432,7 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
               <span class="text-sm">{{ t('environments.docker.currentImage') }}:</span>
               <code class="docker-tag">{{ env.docker_image }}</code>
               <span v-if="env.docker_image_built_at" class="text-muted text-sm">
-                {{ t('environments.docker.builtAt', { date: new Date(env.docker_image_built_at).toLocaleString() }) }}
+                {{ t('environments.docker.builtAt', { date: parseBackendDate(env.docker_image_built_at).toLocaleString() }) }}
               </span>
             </div>
             <div class="docker-settings">

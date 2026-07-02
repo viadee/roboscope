@@ -14,6 +14,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import type { Team } from '@/types/domain.types'
+import { parseBackendDate } from '@/utils/formatDate'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -183,7 +184,7 @@ onMounted(async () => {
           >
             <td class="team-name">{{ team.name }}</td>
             <td>{{ team.description || '—' }}</td>
-            <td>{{ new Date(team.created_at).toLocaleDateString() }}</td>
+            <td>{{ parseBackendDate(team.created_at).toLocaleDateString() }}</td>
             <td class="actions-col">
               <button
                 type="button"

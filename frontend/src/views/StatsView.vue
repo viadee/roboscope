@@ -87,8 +87,8 @@ const isStale = computed(() => {
   if (!stats.lastRunFinished) return false
   if (!stats.lastAggregated) return true
   // Compare: last run finished vs last aggregation date
-  const runDate = new Date(stats.lastRunFinished)
-  const aggDate = new Date(stats.lastAggregated + 'T23:59:59')
+  const runDate = parseBackendDate(stats.lastRunFinished)
+  const aggDate = parseBackendDate(stats.lastAggregated + 'T23:59:59')
   return runDate > aggDate
 })
 
