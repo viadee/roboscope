@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
-from src.auth.dependencies import get_current_user, require_role
+from src.auth.dependencies import get_current_user, require_effective_role_for_recording
 from src.auth.models import User
 from src.database import get_db
 from src.rate_limit import limiter
@@ -52,9 +52,33 @@ def create_recording_endpoint(
     request: Request,
     data: RecordingCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.RUNNER)),
+    current_user: User = Depends(get_current_user),
 ):
-    """Create a new recording session."""
+    """Create a new recording session.
+
+    Repo-scoped effective-role check is inline (same reason as
+    `v2_create_session` below): the repo id arrives in the JSON body, not
+    the URL path, so `require_effective_role_for_recording` (path-based,
+    no recording_id exists yet on create) isn't usable here. Was a
+    global `require_role(RUNNER)` — audit finding 2.1.
+    """
+    from src.auth.constants import ERR_INSUFFICIENT_PERMISSIONS, ROLE_HIERARCHY
+    from src.auth.permissions import effective_role
+    from src.repos.models import Repository
+
+    repo = db.get(Repository, data.repository_id)
+    if repo is None:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    if getattr(current_user, "_auth_via_api_token", False):
+        role_level = ROLE_HIERARCHY.get(Role(current_user.role), -1)
+    else:
+        er = effective_role(db, current_user, repo)
+        role_level = ROLE_HIERARCHY.get(er, -1)
+    if role_level < ROLE_HIERARCHY.get(Role.RUNNER, 999):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=ERR_INSUFFICIENT_PERMISSIONS
+        )
+
     recording = create_recording(db, data, current_user.id)
     return recording
 
@@ -98,7 +122,7 @@ def get_recording_endpoint(
 def delete_recording_endpoint(
     recording_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.EDITOR)),
+    current_user: User = Depends(require_effective_role_for_recording(Role.EDITOR)),
 ):
     """Delete a recording session."""
     recording = get_recording(db, recording_id)
@@ -114,7 +138,7 @@ def delete_recording_endpoint(
 def start_recording_endpoint(
     recording_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.RUNNER)),
+    current_user: User = Depends(require_effective_role_for_recording(Role.RUNNER)),
 ):
     """Start capturing events for a recording session."""
     recording = get_recording(db, recording_id)
@@ -133,7 +157,7 @@ def start_recording_endpoint(
 def start_browser_recording_endpoint(
     recording_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.RUNNER)),
+    current_user: User = Depends(require_effective_role_for_recording(Role.RUNNER)),
 ):
     """Start a Playwright browser for in-app recording.
 
@@ -169,7 +193,7 @@ def append_event_endpoint(
     recording_id: int,
     event: RecordingEventIn,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.RUNNER)),
+    current_user: User = Depends(require_effective_role_for_recording(Role.RUNNER)),
 ):
     """Append a recorded browser event to the session."""
     recording = get_recording(db, recording_id)
@@ -199,7 +223,7 @@ def stop_recording_endpoint(
     recording_id: int,
     data: RecordingStopRequest | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.RUNNER)),
+    current_user: User = Depends(require_effective_role_for_recording(Role.RUNNER)),
 ):
     """Stop a recording session and optionally generate .robot output."""
     recording = get_recording(db, recording_id)
@@ -245,7 +269,7 @@ def stop_recording_endpoint(
 def cancel_recording_endpoint(
     recording_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.RUNNER)),
+    current_user: User = Depends(require_effective_role_for_recording(Role.RUNNER)),
 ):
     """Cancel a recording session."""
     recording = get_recording(db, recording_id)
