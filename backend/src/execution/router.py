@@ -772,16 +772,53 @@ def cancel_run_endpoint(
 @router.post("/runs/cancel-all")
 def cancel_all_runs(
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_role(Role.RUNNER)),
+    current_user: User = Depends(get_current_user),
 ):
-    """Cancel all pending and running executions."""
+    """Cancel all pending and running executions the caller has RUNNER+
+    effective role on.
+
+    Previously gated by a global `require_role(RUNNER)` — a global RUNNER
+    with no team/project grant on a repo could still cancel THAT repo's
+    runs via this endpoint, inconsistent with the repo-scoped
+    `POST /runs/{run_id}/cancel`. Filtering (not raising the floor to
+    ADMIN) keeps admin behavior unchanged — an ADMIN's effective role is
+    always at least ADMIN on every repo — while a plain RUNNER only
+    cancels the repos they actually have access to (audit finding 2.2).
+    """
+    from src.auth.constants import ROLE_HIERARCHY
+    from src.auth.permissions import effective_role
     from src.execution.models import ExecutionRun
+    from src.repos.models import Repository
+
     result = db.execute(
         select(ExecutionRun).where(
             ExecutionRun.status.in_([RunStatus.PENDING, RunStatus.RUNNING])
         )
     )
-    runs = list(result.scalars().all())
+    all_runs = list(result.scalars().all())
+
+    is_api_token = getattr(current_user, "_auth_via_api_token", False)
+    user_level = ROLE_HIERARCHY.get(Role(current_user.role), -1)
+    runner_floor = ROLE_HIERARCHY.get(Role.RUNNER, 999)
+
+    repo_cache: dict[int, Repository | None] = {}
+    runs = []
+    for run in all_runs:
+        if is_api_token:
+            # Story 3-15: API tokens stay capped at their scoped role —
+            # no team/project elevation.
+            if user_level >= runner_floor:
+                runs.append(run)
+            continue
+        if run.repository_id not in repo_cache:
+            repo_cache[run.repository_id] = db.get(Repository, run.repository_id)
+        repo = repo_cache[run.repository_id]
+        if repo is None:
+            continue
+        er = effective_role(db, current_user, repo)
+        if ROLE_HIERARCHY.get(er, -1) >= runner_floor:
+            runs.append(run)
+
     cancelled = 0
     for run in runs:
         run.status = RunStatus.CANCELLED
