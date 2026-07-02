@@ -9,17 +9,18 @@ import webbrowser
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pythonjsonlogger.json import JsonFormatter
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy.orm import Session
 from starlette.responses import FileResponse
 
 from src.api.v1.router import api_router
 from src.config import settings
-from src.database import create_tables, SessionLocal
+from src.database import create_tables, get_db, SessionLocal
 from src.rate_limit import limiter
 from src.utc_response import UtcJSONResponse
 from src.websocket.manager import ws_manager
@@ -504,22 +505,73 @@ def create_app() -> FastAPI:
             )
         return body
 
-    # WebSocket auth helper: validate JWT token from query parameter
-    def _ws_authenticate(token: str | None) -> bool:
-        """Return True if the token is valid."""
+    # WebSocket auth helper: validate JWT token from query parameter AND
+    # that the account is still active. Takes `db` via `Depends(get_db)`
+    # (NOT a raw `SessionLocal()`) so tests can exercise these checks
+    # through the same `app.dependency_overrides[get_db]` swap the HTTP
+    # test client uses — FastAPI resolves WebSocket route dependencies
+    # through the same DI machinery as HTTP routes, sync generators
+    # included, so this doesn't block the event loop either. Before this
+    # fix, a still-valid JWT for a deactivated account could keep
+    # receiving live broadcasts indefinitely (audit finding 2.5 — the SSE
+    # recorder endpoint already checked is_active, WS didn't).
+    def _ws_authenticate(token: str | None, db: Session) -> bool:
+        """Return True if the token is a valid, non-expired access JWT
+        for an active user."""
         if not token:
             return False
         try:
-            from src.auth.service import decode_token
-            decode_token(token)
-            return True
-        except (ValueError, Exception):
+            from src.auth.service import decode_token, get_user_by_id
+            payload = decode_token(token)
+            if payload.get("type") != "access":
+                return False
+            user = get_user_by_id(db, int(payload["sub"]))
+            return user is not None and user.is_active
+        except (ValueError, KeyError, TypeError):
             return False
+
+    # WebSocket auth helper: effective-role gate for a specific run's
+    # repository (audit finding 1.2). Mirrors
+    # `require_effective_role_for_run` — WebSocket-shaped: no
+    # Authorization header (browsers' WebSocket API can't set one, same
+    # constraint as EventSource/SSE), so the JWT travels via `?token=`;
+    # a failure closes the socket instead of raising HTTPException.
+    # Callers must call `_ws_authenticate(token, db)` FIRST — this
+    # assumes a syntactically valid, active-user token and only adds the
+    # role check.
+    def _ws_authorize_run(token: str, run_id: int, min_role, db: Session) -> bool:
+        from src.auth.constants import ROLE_HIERARCHY
+        from src.auth.permissions import effective_role
+        from src.auth.service import decode_token, get_user_by_id
+        from src.execution.models import ExecutionRun
+        from src.repos.models import Repository
+
+        try:
+            payload = decode_token(token)
+            user_id = int(payload["sub"])
+        except (ValueError, KeyError, TypeError):
+            return False
+
+        user = get_user_by_id(db, user_id)
+        if user is None or not user.is_active:
+            return False
+        run = db.get(ExecutionRun, run_id)
+        if run is None:
+            return False
+        repo = db.get(Repository, run.repository_id)
+        if repo is None:
+            return False
+        er = effective_role(db, user, repo)
+        return ROLE_HIERARCHY.get(er, -1) >= ROLE_HIERARCHY.get(min_role, 999)
 
     # WebSocket: global notifications
     @app.websocket("/ws/notifications")
-    async def ws_notifications(websocket: WebSocket, token: str = Query(default="")):
-        if not _ws_authenticate(token):
+    async def ws_notifications(
+        websocket: WebSocket,
+        token: str = Query(default=""),
+        db: Session = Depends(get_db),
+    ):
+        if not _ws_authenticate(token, db):
             await websocket.close(code=4401, reason="Unauthorized")
             return
         await ws_manager.connect(websocket)
@@ -536,10 +588,26 @@ def create_app() -> FastAPI:
     # WebSocket: run-specific live output
     @app.websocket("/ws/runs/{run_id}")
     async def ws_run_output(
-        websocket: WebSocket, run_id: int, token: str = Query(default=""),
+        websocket: WebSocket,
+        run_id: int,
+        token: str = Query(default=""),
+        db: Session = Depends(get_db),
     ):
-        if not _ws_authenticate(token):
+        from src.auth.constants import Role
+
+        if not _ws_authenticate(token, db):
             await websocket.close(code=4401, reason="Unauthorized")
+            return
+        # 1.2: before this fix, ANY authenticated user could stream ANY
+        # repo's run output — there was no run/repo lookup at all. VIEWER
+        # is `effective_role()`'s documented no-deny floor (any user with
+        # a valid global role already clears it — read access is
+        # intentionally open system-wide, matching GET /runs/{run_id}),
+        # so the observable hardening here is: the run/repo must actually
+        # exist, and a deactivated account (checked inside
+        # `_ws_authorize_run` too) can't ride a still-valid JWT in.
+        if not _ws_authorize_run(token, run_id, Role.VIEWER, db):
+            await websocket.close(code=4403, reason="Forbidden")
             return
         await ws_manager.connect_to_run(websocket, run_id)
         try:
