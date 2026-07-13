@@ -29,7 +29,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
+# pyproject's [tool.uv.sources] points robotframework-roboscopeheal at the
+# vendored tree, so it must exist BEFORE the dependency-install layer — a
+# pyproject-only COPY fails with "Distribution not found at
+# file:///app/vendor/robotframework-roboscopeheal" (latent since the vendor
+# flip; only surfaces when the install layer's cache is invalidated).
 COPY backend/pyproject.toml .
+COPY backend/vendor ./vendor
 RUN uv pip install --system --no-cache-dir -e ".[dev]" 2>/dev/null || uv pip install --system --no-cache-dir .
 
 COPY backend/ .
