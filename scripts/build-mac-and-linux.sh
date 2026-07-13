@@ -201,16 +201,35 @@ done
 # `pip install --no-index --find-links wheels/` picks it up by
 # version match, no special-case install logic needed.
 RFHEAL_VENDOR="$ROOT/backend/vendor/robotframework-roboscopeheal"
-if [ -d "$RFHEAL_VENDOR" ]; then
-  echo "    Building robotframework-roboscopeheal wheel from vendor..."
-  # `python -m build` requires the `build` package — install it
-  # transiently if missing rather than expecting it to be there.
-  python3 -m pip install --quiet --upgrade build 2>/dev/null || true
-  (cd "$RFHEAL_VENDOR" \
-   && python3 -m build --wheel --outdir "$DIST/wheels" 2>&1 \
-   | grep -iE "built|error|warn" || true)
-else
-  echo "    WARN: $RFHEAL_VENDOR missing — heal library won't be in this bundle." >&2
+if [ ! -d "$RFHEAL_VENDOR" ]; then
+  echo "ERROR: $RFHEAL_VENDOR missing — the offline install (--no-index) cannot" >&2
+  echo "       satisfy robotframework-roboscopeheal without it. Aborting." >&2
+  exit 1
+fi
+echo "    Building robotframework-roboscopeheal wheel from vendor..."
+# `python -m build` requires the `build` package — install it
+# transiently if missing rather than expecting it to be there.
+python3 -m pip install --quiet --upgrade build 2>/dev/null || true
+(cd "$RFHEAL_VENDOR" \
+ && python3 -m build --wheel --outdir "$DIST/wheels" 2>&1 \
+ | grep -iE "built|error|warn" || true)
+# Hosts whose python3 lacks pip/build (Homebrew 3.14, PEP 668) fail the
+# step above SILENTLY ("No module named build" matches none of the grep
+# alternatives) — fall back to `uv build`, then hard-fail if the wheel
+# still isn't there: requirements.txt pins roboscopeheal and the install
+# runs --no-index, so a bundle without the wheel cannot install at all.
+if ! ls "$DIST"/wheels/robotframework_roboscopeheal-*.whl >/dev/null 2>&1; then
+  UV_FALLBACK="${UV_PATH:-$(command -v uv || true)}"
+  if [ -n "$UV_FALLBACK" ]; then
+    echo "    python3 -m build unavailable — using uv build fallback..."
+    "$UV_FALLBACK" build --wheel --out-dir "$DIST/wheels" "$RFHEAL_VENDOR" 2>&1 \
+      | grep -iE "success|error" || true
+  fi
+fi
+if ! ls "$DIST"/wheels/robotframework_roboscopeheal-*.whl >/dev/null 2>&1; then
+  echo "ERROR: robotframework-roboscopeheal wheel missing from $DIST/wheels —" >&2
+  echo "       the offline install (--no-index) would fail. Aborting build." >&2
+  exit 1
 fi
 
 # Save requirements for install scripts

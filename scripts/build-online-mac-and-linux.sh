@@ -91,17 +91,36 @@ echo "    Requirements: $(wc -l < "$DIST/requirements.txt" | tr -d ' ') packages
 # requirements.txt so the install command can resolve roboscopeheal
 # locally via --find-links, while everything else still comes from PyPI.
 RFHEAL_VENDOR="$ROOT/backend/vendor/robotframework-roboscopeheal"
-if [ -d "$RFHEAL_VENDOR" ]; then
-  echo "==> Building robotframework-roboscopeheal wheel from vendor..."
-  mkdir -p "$DIST/wheels"
-  python3 -m pip install --quiet --upgrade build 2>/dev/null || true
-  (cd "$RFHEAL_VENDOR" \
-   && python3 -m build --wheel --outdir "$DIST/wheels" 2>&1 \
-   | grep -iE "built|error|warn" || true)
-  echo "    Wheel: $(ls "$DIST/wheels"/*.whl 2>/dev/null | head -1)"
-else
-  echo "    WARN: $RFHEAL_VENDOR missing — heal library won't ship with this online bundle." >&2
+if [ ! -d "$RFHEAL_VENDOR" ]; then
+  echo "ERROR: $RFHEAL_VENDOR missing — the online install would 404 on" >&2
+  echo "       robotframework-roboscopeheal (not on PyPI). Aborting." >&2
+  exit 1
 fi
+echo "==> Building robotframework-roboscopeheal wheel from vendor..."
+mkdir -p "$DIST/wheels"
+python3 -m pip install --quiet --upgrade build 2>/dev/null || true
+(cd "$RFHEAL_VENDOR" \
+ && python3 -m build --wheel --outdir "$DIST/wheels" 2>&1 \
+ | grep -iE "built|error|warn" || true)
+# Hosts whose python3 lacks pip/build (Homebrew 3.14, PEP 668) fail the
+# step above SILENTLY ("No module named build" matches none of the grep
+# alternatives) — fall back to `uv build`, then hard-fail if the wheel
+# still isn't there: without it the install scripts fall through to a
+# plain PyPI install and 404 on roboscopeheal (regression PR #48).
+if ! ls "$DIST"/wheels/robotframework_roboscopeheal-*.whl >/dev/null 2>&1; then
+  UV_FALLBACK="${UV_PATH:-$(command -v uv || true)}"
+  if [ -n "$UV_FALLBACK" ]; then
+    echo "    python3 -m build unavailable — using uv build fallback..."
+    "$UV_FALLBACK" build --wheel --out-dir "$DIST/wheels" "$RFHEAL_VENDOR" 2>&1 \
+      | grep -iE "success|error" || true
+  fi
+fi
+if ! ls "$DIST"/wheels/robotframework_roboscopeheal-*.whl >/dev/null 2>&1; then
+  echo "ERROR: robotframework-roboscopeheal wheel missing from $DIST/wheels —" >&2
+  echo "       the online install would 404 on roboscopeheal. Aborting build." >&2
+  exit 1
+fi
+echo "    Wheel: $(ls "$DIST/wheels"/*.whl 2>/dev/null | head -1)"
 
 # ── 5. Create .env template ──────────────────────────────────
 cat > "$DIST/.env.example" << 'ENVEOF'
