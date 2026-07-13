@@ -85,6 +85,7 @@ dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.6.0",
     "httpx>=0.28.0",
     "factory-boy>=3.3.0",
     "ruff>=0.8.0",
@@ -127,6 +128,7 @@ filterwarnings = [
 ]
 markers = [
     "integration: requires an installed playwright chromium browser; opt-in via -m integration",
+    "slow: spawns a real subprocess/venv/browser and materially slows the suite; excluded from the fast dev loop (make test-backend-fast), included in make test-backend",
 ]
 
 [tool.ruff]

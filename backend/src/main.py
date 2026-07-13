@@ -274,23 +274,29 @@ async def lifespan(app: FastAPI):
     from src.plugins.registry import plugin_registry
     plugin_registry.discover_builtin()
 
-    # Auto-start rf-mcp (bundled dependency — always start)
-    with SessionLocal() as session:
-        from src.settings.service import get_setting_value
-        env_id_str = get_setting_value(session, "rf_mcp_environment_id", "")
-        port_str = get_setting_value(session, "rf_mcp_port", str(settings.RF_MCP_PORT))
+    # Auto-start rf-mcp (bundled dependency — always start). Skipped under
+    # pytest (same signal as the ready banner): every TestClient lifespan
+    # would otherwise spawn a real rf-mcp subprocess through the single-worker
+    # task executor, competing with the tasks the test actually dispatched.
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        logger.info("pytest detected — skipping rf-mcp auto-start")
+    else:
+        with SessionLocal() as session:
+            from src.settings.service import get_setting_value
+            env_id_str = get_setting_value(session, "rf_mcp_environment_id", "")
+            port_str = get_setting_value(session, "rf_mcp_port", str(settings.RF_MCP_PORT))
 
-        from src.task_executor import dispatch_task
-        from src.ai import rf_mcp_manager
-        env_id = int(env_id_str) if env_id_str else None
-        port = int(port_str)
-        rf_mcp_manager._status = "starting"
-        rf_mcp_manager._environment_id = env_id
-        try:
-            dispatch_task(rf_mcp_manager.start_bundled, env_id, port)
-            logger.info("Auto-starting rf-mcp (env_id=%s, port=%d)", env_id, port)
-        except Exception:
-            logger.warning("Failed to auto-start rf-mcp", exc_info=True)
+            from src.task_executor import dispatch_task
+            from src.ai import rf_mcp_manager
+            env_id = int(env_id_str) if env_id_str else None
+            port = int(port_str)
+            rf_mcp_manager._status = "starting"
+            rf_mcp_manager._environment_id = env_id
+            try:
+                dispatch_task(rf_mcp_manager.start_bundled, env_id, port)
+                logger.info("Auto-starting rf-mcp (env_id=%s, port=%d)", env_id, port)
+            except Exception:
+                logger.warning("Failed to auto-start rf-mcp", exc_info=True)
 
     # Start retention enforcement scheduler (daily cleanup)
     from datetime import datetime, timedelta, timezone as _timezone

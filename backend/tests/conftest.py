@@ -133,12 +133,22 @@ def auth_header(user) -> dict:
 def _reset_process_level_caches():
     """Clear in-process caches that would otherwise leak between tests.
 
-    Currently only the SSO 429-audit dedup dict (sso_router module-level
-    state) — extend this fixture if more per-process caches are added.
+    - SSO 429-audit dedup dict (sso_router module-level state).
+    - slowapi rate-limit counters: every TestClient request comes from the
+      same "testclient" address, so per-endpoint limits (e.g. 20/minute on
+      recording create) accumulate ACROSS tests. Invisible while the suite
+      was slow; a fast suite trips them with order-dependent 429s.
+
+    Extend this fixture if more per-process caches are added.
     """
     try:
         from src.auth.sso_router import _clear_audit_dedup_state
         _clear_audit_dedup_state()
+    except Exception:
+        pass
+    try:
+        from src.rate_limit import limiter
+        limiter.reset()
     except Exception:
         pass
     yield
