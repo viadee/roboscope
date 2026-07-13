@@ -167,3 +167,20 @@ export async function toggleSchedule(id: number): Promise<Schedule> {
   const response = await apiClient.post<Schedule>(`/schedules/${id}/toggle`)
   return response.data
 }
+
+// EXEC.10/11: curated execution modifiers + listeners (vendor + org) for
+// the run-dialog picker. 'listener' added for EXEC.11 (registry.py's
+// LiveProgressListener etc. — see execution/modifiers/registry.py).
+export interface RunModifier {
+  key: string
+  kind: 'prerun' | 'prerebot' | 'listener'
+  label: string
+  tier: 'vendor' | 'org'
+  description: string
+  args_schema: Array<{ name: string; label?: string; required?: boolean }>
+}
+
+export async function getRunModifiers(): Promise<RunModifier[]> {
+  const response = await apiClient.get<RunModifier[]>('/modifiers')
+  return response.data
+}

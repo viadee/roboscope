@@ -20,9 +20,11 @@ test.describe('Settings Page', () => {
     await page.goto('/settings');
     await expect(page.locator('h1', { hasText: 'Einstellungen' })).toBeVisible({ timeout: 10_000 });
 
-    // Both tabs should be visible
-    await expect(page.getByText('Allgemein')).toBeVisible();
-    await expect(page.getByText('Benutzer')).toBeVisible();
+    // Both tabs should be visible. Target the .tab buttons specifically — the
+    // General tab also renders a localized "Allgemein" category card now, so a
+    // bare getByText('Allgemein') is ambiguous (strict-mode violation).
+    await expect(page.locator('.tab', { hasText: 'Allgemein' })).toBeVisible();
+    await expect(page.locator('.tab', { hasText: 'Benutzer' })).toBeVisible();
   });
 
   test('should switch to Benutzer tab and show users table', async ({ page }) => {
@@ -30,7 +32,7 @@ test.describe('Settings Page', () => {
     await expect(page.locator('h1', { hasText: 'Einstellungen' })).toBeVisible({ timeout: 10_000 });
 
     // Click Benutzer tab
-    await page.getByText('Benutzer').click();
+    await page.locator('.tab', { hasText: 'Benutzer' }).click();
 
     // Should show a users table with the admin user
     await page.waitForLoadState('networkidle');

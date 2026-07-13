@@ -30,6 +30,9 @@ test: test-backend test-frontend ## Run all tests
 test-backend: ## Run backend tests
 	cd backend && .venv/bin/pytest -v --tb=short
 
+test-backend-fast: ## Fast dev loop: skip slow subprocess/venv/browser tests, parallel via xdist
+	cd backend && .venv/bin/pytest -q --tb=short -n auto -m "not slow and not integration"
+
 test-backend-cov: ## Run backend tests with coverage
 	cd backend && .venv/bin/pytest --cov=src --cov-report=html --cov-report=term
 

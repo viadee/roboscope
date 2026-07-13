@@ -33,6 +33,8 @@ import {
   makeStep,
   parseRobotText,
   serializeRobotForm,
+  isInitFile,
+  initFileHasTestCases,
   type StepType,
   type RobotStep,
   type RobotSettingEntry,
@@ -224,6 +226,17 @@ const isResource = computed(() => {
 
 const testCaseCount = computed(() => form.testCases.length)
 const keywordCount = computed(() => form.keywords.length)
+
+// EXEC.6: a suite-init file (__init__.robot) must not declare a Test Cases
+// section — RF refuses to start the suite. Surface a warning when it does.
+// Detection is authoritative: parsed test cases (flow/visual) OR a raw
+// `*** Test Cases ***`/`*** Tasks ***` header in the code buffer — the latter
+// catches an empty section header that produces zero parsed cases.
+const initFileTestCaseViolation = computed(
+  () =>
+    isInitFile(props.filePath) &&
+    (form.testCases.length > 0 || initFileHasTestCases(internalCode.value)),
+)
 
 // Step line parser + step serializer now live in
 // `@/components/editor/robotTextIO` (parseStepLine / serializeStep, with the
@@ -1557,6 +1570,12 @@ watch(() => props.content, (newContent) => {
         <span class="badge badge-robot">{{ isResource ? '.resource' : '.robot' }}</span>
         <span v-if="!isResource && testCaseCount > 0" class="badge badge-info">{{ testCaseCount }} {{ t('robotEditor.tests') }}</span>
         <span v-if="keywordCount > 0" class="badge badge-info">{{ keywordCount }} {{ t('robotEditor.keywordsCount') }}</span>
+        <span
+          v-if="initFileTestCaseViolation"
+          class="badge badge-warning"
+          data-testid="init-file-warning"
+          :title="t('robotEditor.initFileWarning')"
+        >{{ t('robotEditor.initFileWarning') }}</span>
         <!-- Story HEAL-2: suite-level Self-Healing toggle. Only shown
              when the file has Browser keywords that can be healed. -->
         <button

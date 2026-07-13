@@ -29,6 +29,9 @@ Nested Control
     FINALLY
         Cleanup
     END
+
+Second Test
+    Log    trivial second case
 `;
 
 async function getAuthToken(page: Page): Promise<string> {

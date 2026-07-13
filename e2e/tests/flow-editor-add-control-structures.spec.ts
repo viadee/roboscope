@@ -29,6 +29,9 @@ const PASSWORD = 'admin123';
 const SEED_ROBOT = `*** Test Cases ***
 Control Demo
     Log    start
+
+Second Case
+    Log    trivial second case
 `;
 
 async function getAuthToken(page: Page): Promise<string> {
@@ -201,5 +204,35 @@ test.describe('Flow Editor — add control structures through the UI', () => {
     expect(reloaded).toContain('TRY');
     expect(reloaded).toContain('EXCEPT');
     expect((reloaded.match(/^\s*END\s*$/gm) || []).length).toBe(1);
+  });
+
+  test('adding a control structure to the SECOND test case does not reset the active item (regression: deep form-watcher reset)', async ({ page }) => {
+    // A single-test-case fixture can't catch a reset-to-index-0
+    // regression (item 0 is the only item). Work explicitly on test
+    // case #2 and assert the UI stays anchored there through the
+    // mutation.
+    await openFileInFlow(page, repoId);
+
+    const secondTab = page.locator('.flow-item-tab', { hasText: 'Second Case' });
+    await expect(secondTab).toBeVisible({ timeout: 8_000 });
+    await secondTab.click();
+    await expect(secondTab).toHaveClass(/active/);
+
+    await deselect(page);
+    await addControl(page, 'IF / ELSE');
+
+    // If the watcher regressed and reset activeItemIndex to 0, this
+    // tab would no longer be active (canvas silently jumped to
+    // "Control Demo").
+    await expect(secondTab).toHaveClass(/active/);
+
+    const text = await codeText(page);
+    // The IF block must land under "Second Case", not "Control Demo".
+    const secondCaseIdx = text.indexOf('Second Case');
+    const controlDemoIdx = text.indexOf('Control Demo');
+    const ifIdx = text.indexOf('IF    ${condition}');
+    expect(secondCaseIdx).toBeGreaterThan(-1);
+    expect(ifIdx).toBeGreaterThan(secondCaseIdx);
+    expect(controlDemoIdx).toBeLessThan(secondCaseIdx);
   });
 });

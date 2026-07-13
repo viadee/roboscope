@@ -14,6 +14,9 @@ const SEED_ROBOT = `*** Test Cases ***
 Env Test
     Log    %{HOME=/tmp}
     Log    plain value
+
+Second Test
+    Log    trivial second case
 `;
 
 async function getAuthToken(page: Page): Promise<string> {

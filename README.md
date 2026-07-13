@@ -17,6 +17,7 @@ Built by [viadee Unternehmensberatung AG](https://www.viadee.de).
 - **Test Explorer** — Browse test files, parse Robot Framework keywords/tests, library dependency check
 - **Visual Flow Editor** — Node-based graphical test editor with keyword palette, drag & drop, control structures (IF/FOR/WHILE/TRY)
 - **Test Execution** — Run tests via subprocess or Docker, live WebSocket status updates, scheduling
+- **Advanced Run Configuration** — Governed "Advanced" section in the run dialog (feature-flagged): variables, validated freeform `robot` arguments (three-zone safety model, code-loading flags always rejected), curated pre-/post-run modifiers and listeners with organization-extensible registry, optional DataDriver CSV test generation
 - **Recorder v2** — Record browser flows into `.robot` files end-to-end. Launch from the sidebar (Recorder) or from the Explorer toolbar (the Explorer button pre-selects the current repository). Transport picker for Web (Playwright) and Desktop Windows; each captured action streams live over SSE with ranked selector candidates (test-id, ARIA, text, CSS, XPath, Playwright locator). Saves a sidecar `<name>.rbs.json` alongside the `.robot` carrying all candidates — consumed later by the self-healing library. The external Chrome Recorder extension remains available as a separate HTTP client.
 - **Self-Healing Selectors** — Opt-in `RoboScopeHeal` Robot Framework library (Heal Click, Heal Fill Text, Heal Upload File, Heal Drag And Drop, ...). When a selector times out at runtime the library falls through three tiers: sidecar-stored alternatives → cross-strategy transposition (`id=X` → `[data-testid=X]` → `text=X` → ...) → DOM-walk fingerprint scoring (Healenium-style). Confirmed heals land as a "🩹 Apply patch" button on the run-detail panel; suspect heals (test still failed) never offer a patch. Per-test budget, confidence thresholds, and a `no-heal` tag keep the blast radius bounded.
 - **Selector Diagnosis** — Every failed run is scanned for "Element not found" / Playwright timeout signatures; recognised selectors are cross-referenced with the recording sidecar and their ranked alternatives surface as copy-chips on the run detail.
@@ -33,7 +34,7 @@ Built by [viadee Unternehmensberatung AG](https://www.viadee.de).
 - **Audit & Compliance** — Full audit log with CSV export, retention enforcement, secrets encryption at rest
 - **rf-mcp Integration** — Optional Robot Framework keyword knowledge server for enhanced AI suggestions
 - **Role-Based Access** — Four roles: Viewer, Runner, Editor, Admin
-- **Multi-Language UI** — English, German, French, Spanish
+- **Multi-Language UI** — English, German, French, Spanish, Simplified Chinese
 - **In-App Documentation** — Searchable docs with print/PDF export
 - **Offline Deployment** — Standalone ZIP with bundled dependencies for air-gapped environments
 
@@ -44,7 +45,7 @@ Built by [viadee Unternehmensberatung AG](https://www.viadee.de).
 | Backend | FastAPI, SQLAlchemy 2.0, Pydantic v2, Python 3.12+ |
 | Frontend | Vue 3, TypeScript, Pinia, Vue Router, Chart.js, CodeMirror 6, Vite |
 | Database | SQLite (default) or PostgreSQL |
-| Tests | pytest (~885 tests), Vitest (113 tests), Playwright (~249 E2E tests) |
+| Tests | pytest (~2,300 tests), Vitest (~870 tests), Playwright (~360 E2E tests) |
 | AI | OpenAI, Anthropic, OpenRouter, Ollama (configurable) |
 
 ## Quick Start
@@ -126,7 +127,7 @@ RoboScope/
 │       ├── stores/   # 9 Pinia stores
 │       ├── api/      # 9 Axios API clients
 │       ├── docs/     # In-app documentation (EN, DE, FR, ES)
-│       └── i18n/     # Translations (EN, DE, FR, ES)
+│       └── i18n/     # Translations (EN, DE, FR, ES, ZH)
 ├── e2e/              # Playwright end-to-end tests
 ├── docker/           # Dockerfiles and nginx config
 ├── scripts/          # Build and utility scripts
@@ -155,6 +156,7 @@ Swagger UI available at `http://localhost:8000/api/v1/docs`
 
 ```bash
 make test-backend       # Backend unit tests (pytest)
+make test-backend-fast  # Fast dev loop (parallel, skips slow subprocess/venv/browser tests)
 make test-frontend      # Frontend unit tests (Vitest)
 make test-e2e           # Playwright E2E tests
 make test               # All tests

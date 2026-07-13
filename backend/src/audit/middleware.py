@@ -17,6 +17,20 @@ logger = logging.getLogger("roboscope.audit")
 _WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 # Paths to skip (health, static, websocket, auth refresh, audit itself)
+#
+# `^/ws/` — this middleware only sees the ONE HTTP upgrade request that
+# opens a WebSocket, never the messages exchanged after that (those never
+# pass through ASGI HTTP middleware at all). A skip here is therefore
+# harmless for read-only sockets. It stops being harmless the moment a WS
+# endpoint accepts a STATE-CHANGING message over the open connection —
+# that mutation would be completely invisible to the audit trail. Current
+# endpoints (`/ws/notifications`, `/ws/runs/{run_id}`) only stream
+# broadcasts and answer client "ping" with "pong", so this holds today.
+# Any FUTURE websocket handler that performs a write must call
+# `src.governance.dependencies._audit_block`-style logging itself (same
+# pattern `require_feature`/`require_package_op` use for blocked
+# HTTP 4xx, which this middleware also can't see) — do not assume this
+# skip covers it (audit finding 2.5).
 _SKIP_PATTERNS = [
     re.compile(r"^/health"),
     re.compile(r"^/ws/"),

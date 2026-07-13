@@ -234,6 +234,16 @@ def sync_repo(
     if repo.repo_type == "local":
         return SyncResponse(status="skipped", message="Local repositories do not require sync")
 
+    # 2.3: skip re-dispatch if a sync is already in flight — without this,
+    # rapid repeated POSTs (double-click, a slow first sync retried)
+    # queue duplicate sync tasks on the single-worker executor. Mirrors
+    # the keyword-introspection 120s in-flight guard.
+    if repo.sync_status == "syncing" and repo.updated_at is not None:
+        from datetime import UTC, datetime, timedelta
+        age = datetime.now(UTC) - repo.updated_at.replace(tzinfo=UTC)
+        if age < timedelta(seconds=120):
+            return SyncResponse(status="syncing", message="Sync already in progress")
+
     try:
         from src.repos.tasks import sync_repo
 

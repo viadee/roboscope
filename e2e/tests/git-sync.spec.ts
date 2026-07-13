@@ -67,7 +67,19 @@ test.describe('Git Sync — E2E', () => {
       expect(syncBody).toHaveProperty('status');
       expect(syncBody).toHaveProperty('message');
       expect(syncBody.status).toBe('syncing');
-      expect(syncBody.task_id).toBeTruthy();
+      // Repo creation for a git repo already dispatches `clone_repo` in
+      // the background, which sets sync_status='syncing' as its first
+      // step. This test's explicit sync call can race that: if the
+      // clone is still in flight, the sync endpoint's in-flight guard
+      // (audit finding 2.3) intentionally skips a redundant dispatch —
+      // no task_id, just the "already in progress" message. Both are a
+      // correct `status: "syncing"` response; only a fresh dispatch
+      // carries a task_id.
+      if (syncBody.task_id) {
+        expect(syncBody.task_id).toBeTruthy();
+      } else {
+        expect(syncBody.message).toMatch(/already in progress/i);
+      }
     } else {
       // Log the failure for diagnosis
       console.error('Sync API failed:', syncRes.status(), syncBody);

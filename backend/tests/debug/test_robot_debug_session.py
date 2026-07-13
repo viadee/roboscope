@@ -142,6 +142,7 @@ def _make_robot_file(tmp_path: Path) -> Path:
     return f
 
 
+@pytest.mark.slow  # spawns real fake-robotcode subprocesses + timeout waits (5-7s each)
 class TestSpawnAndHandshake:
     @pytest.mark.asyncio
     async def test_full_lifecycle_with_fake_robotcode(self, tmp_path: Path) -> None:

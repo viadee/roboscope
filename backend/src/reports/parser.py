@@ -232,6 +232,9 @@ def _parse_suite_deep(suite_elem: _Element) -> dict:
 def _parse_test_deep(test_elem: _Element) -> dict:
     """Parse a test element including its keywords."""
     name = test_elem.get("name", "")
+    # EXEC.4: RF's structural id (e.g. "s1-t1"), read-only surface for the
+    # detail view. Degrades to "" when absent.
+    test_id = test_elem.get("id", "")
 
     # Status
     status_elem = test_elem.find("status")
@@ -267,6 +270,7 @@ def _parse_test_deep(test_elem: _Element) -> dict:
 
     return {
         "name": name,
+        "id": test_id,
         "status": test_status,
         "start_time": start_time,
         "end_time": end_time,

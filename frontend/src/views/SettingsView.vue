@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import * as settingsApi from '@/api/settings.api'
 import * as authApi from '@/api/auth.api'
@@ -21,12 +22,62 @@ import { extractErrorDetail } from '@/utils/errors'
 import * as webhooksApi from '@/api/webhooks.api'
 
 const toast = useToast()
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+// Localised descriptions for known settings (the DB stores an English
+// description; we prefer a translated one keyed by a stable id, falling back to
+// the DB string for any setting we haven't translated yet). camelCase ids avoid
+// vue-i18n dotted-path nesting collisions (e.g. packageManagement is both a flag
+// and a `.role.*` prefix).
+const SETTING_DESC_IDS: Record<string, string> = {
+  default_runner: 'defaultRunner',
+  max_parallel_runs: 'maxParallelRuns',
+  default_timeout: 'defaultTimeout',
+  git_sync_interval: 'gitSyncInterval',
+  report_retention_days: 'reportRetentionDays',
+  log_retention_days: 'logRetentionDays',
+  log_level: 'logLevel',
+  enable_notifications: 'enableNotifications',
+  docker_default_image: 'dockerDefaultImage',
+  docker_memory_limit: 'dockerMemoryLimit',
+  rf_mcp_auto_start: 'rfMcpAutoStart',
+  rf_mcp_environment_id: 'rfMcpEnvironmentId',
+  rf_mcp_port: 'rfMcpPort',
+  sso_emergency_bypass: 'ssoEmergencyBypass',
+  sso_emergency_bypass_expires_at: 'ssoEmergencyBypassExpiresAt',
+  deprovision_retention_days: 'deprovisionRetentionDays',
+  admin_contact_email: 'adminContactEmail',
+  hide_local_login_form: 'hideLocalLoginForm',
+  'features.packageManagement': 'packageManagement',
+  'features.packageManagement.role.install': 'roleInstall',
+  'features.packageManagement.role.uninstall': 'roleUninstall',
+  'features.packageManagement.role.upgrade': 'roleUpgrade',
+  'features.packageManagement.role.docker_build': 'roleDockerBuild',
+  'features.packageManagement.role.rfbrowser_init': 'roleRfbrowserInit',
+  'features.executionAdvancedArgs': 'execAdvancedArgs',
+  'features.executionPreRunModifierUserCode': 'execPreRunModifierUserCode',
+  'features.executionCustomListenerUserCode': 'execCustomListenerUserCode',
+  'features.executionPythonPath': 'execPythonPath',
+  'features.executionVariableFile': 'execVariableFile',
+  'features.executionDataDriver': 'execDataDriver',
+}
+function settingDescription(setting: { key: string; description?: string | null }): string {
+  const id = SETTING_DESC_IDS[setting.key]
+  if (id) {
+    const k = `settings.descriptions.${id}`
+    if (te(k)) return t(k)
+  }
+  return setting.description ?? ''
+}
+function settingCategory(cat: string): string {
+  const k = `settings.categories.${cat}`
+  return te(k) ? t(k) : cat
+}
 
 // Epic GOV — a `features.<flag>` setting whose flag is locked by an ENV
 // override is non-editable here (the backend ignores the DB value). Disable
 // the input and show a hint so an admin isn't misled into "saving" a no-op.
-const { isLocked } = useFeatureFlags()
+const { isLocked, refresh: refreshFeatureFlags } = useFeatureFlags()
 function settingLocked(key: string): boolean {
   const prefix = 'features.'
   return key.startsWith(prefix) && isLocked(key.slice(prefix.length))
@@ -45,6 +96,21 @@ const loading = ref(true)
 const saving = ref(false)
 const activeTab = ref<'general' | 'users' | 'docker' | 'tokens' | 'webhooks' | 'audit' | 'ai'>('general')
 const editedValues = ref<Record<string, string>>({})
+// Baseline = last-saved values. Dirty tracking compares editedValues against it
+// so the user gets a persistent "unsaved changes" signal instead of having to
+// remember the Save button is far below the fold.
+const savedValues = ref<Record<string, string>>({})
+
+const dirtyKeys = computed(() =>
+  Object.keys(editedValues.value).filter((k) => editedValues.value[k] !== savedValues.value[k]),
+)
+const isDirty = computed(() => dirtyKeys.value.length > 0)
+function isRowDirty(key: string): boolean {
+  return editedValues.value[key] !== savedValues.value[key]
+}
+function discardChanges() {
+  editedValues.value = { ...savedValues.value }
+}
 
 // --- API Tokens state ---
 const tokens = ref<ApiToken[]>([])
@@ -381,6 +447,7 @@ onMounted(async () => {
     for (const setting of s) {
       editedValues.value[setting.key] = setting.value
     }
+    savedValues.value = { ...editedValues.value }
   } finally {
     loading.value = false
   }
@@ -400,6 +467,14 @@ async function saveSettings() {
   try {
     const updates = Object.entries(editedValues.value).map(([key, value]) => ({ key, value }))
     await settingsApi.updateSettings(updates)
+    // Refresh the cached feature flags so toggling e.g. executionAdvancedArgs
+    // takes effect immediately (the run dialog's Advanced section appears)
+    // without a hard page reload.
+    if (updates.some(u => u.key.startsWith('features.'))) {
+      await refreshFeatureFlags()
+    }
+    // New baseline — clears the dirty state + sticky unsaved-changes bar.
+    savedValues.value = { ...editedValues.value }
     toast.success(t('settings.toasts.saved'))
   } catch {
     toast.error(t('settings.toasts.saveError'))
@@ -407,6 +482,21 @@ async function saveSettings() {
     saving.value = false
   }
 }
+
+// --- Unsaved-changes guards (safety net beyond the sticky bar) ---
+function beforeUnloadGuard(e: BeforeUnloadEvent) {
+  if (isDirty.value) {
+    e.preventDefault()
+    e.returnValue = '' // browsers show their own generic prompt
+  }
+}
+onMounted(() => window.addEventListener('beforeunload', beforeUnloadGuard))
+onUnmounted(() => window.removeEventListener('beforeunload', beforeUnloadGuard))
+onBeforeRouteLeave(() => {
+  if (isDirty.value && !window.confirm(t('settings.unsaved.leaveConfirm'))) {
+    return false
+  }
+})
 
 async function toggleUserActive(user: User) {
   try {
@@ -550,13 +640,18 @@ function formatSize(bytes: number): string {
     <template v-else-if="activeTab === 'general'">
       <div v-for="cat in categories" :key="cat" class="card mb-4">
         <div class="card-header">
-          <h3 style="text-transform: capitalize">{{ cat }}</h3>
+          <h3 style="text-transform: capitalize">{{ settingCategory(cat) }}</h3>
         </div>
         <div class="settings-list">
-          <div v-for="setting in getSettingsByCategory(cat)" :key="setting.key" class="setting-row">
+          <div
+            v-for="setting in getSettingsByCategory(cat)"
+            :key="setting.key"
+            class="setting-row"
+            :class="{ 'setting-row-dirty': isRowDirty(setting.key) }"
+          >
             <div class="setting-info">
-              <strong>{{ setting.key }}</strong>
-              <span class="text-muted text-sm">{{ setting.description }}</span>
+              <strong>{{ setting.key }}<span v-if="isRowDirty(setting.key)" class="dirty-dot" :title="t('settings.unsaved.rowHint')">●</span></strong>
+              <span class="text-muted text-sm">{{ settingDescription(setting) }}</span>
             </div>
             <div class="setting-input">
               <select
@@ -583,7 +678,30 @@ function formatSize(bytes: number): string {
           </div>
         </div>
       </div>
-      <BaseButton :loading="saving" @click="saveSettings">{{ t('common.save') }}</BaseButton>
+      <BaseButton :loading="saving" :disabled="!isDirty" @click="saveSettings">{{ t('common.save') }}</BaseButton>
+
+      <!-- Sticky unsaved-changes bar: always in view regardless of scroll. -->
+      <Transition name="dirtybar">
+        <div v-if="isDirty" class="dirty-bar" data-testid="unsaved-bar">
+          <span class="dirty-bar-text" data-testid="unsaved-count">
+            {{ t('settings.unsaved.count', { n: dirtyKeys.length }, dirtyKeys.length) }}
+          </span>
+          <div class="dirty-bar-actions">
+            <BaseButton
+              variant="secondary"
+              size="sm"
+              :disabled="saving"
+              data-testid="unsaved-discard"
+              @click="discardChanges"
+            >
+              {{ t('settings.unsaved.discard') }}
+            </BaseButton>
+            <BaseButton size="sm" :loading="saving" data-testid="unsaved-save" @click="saveSettings">
+              {{ t('common.save') }}
+            </BaseButton>
+          </div>
+        </div>
+      </Transition>
     </template>
 
     <!-- Users Tab -->
@@ -1221,6 +1339,47 @@ function formatSize(bytes: number): string {
   padding: 10px 0;
   border-bottom: 1px solid var(--color-border-light);
 }
+
+/* Dirty (unsaved) row marker — subtle accent rail + a dot next to the key. */
+.setting-row-dirty {
+  box-shadow: inset 3px 0 0 var(--color-accent, #d4883e);
+  padding-left: 10px;
+  margin-left: -10px;
+  border-radius: 2px;
+}
+.dirty-dot {
+  color: var(--color-accent, #d4883e);
+  font-size: 0.7em;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+/* Sticky unsaved-changes bar — pinned to the viewport bottom while editing. */
+.dirty-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 16px;
+  background: var(--color-navy, #1a2d50);
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  max-width: calc(100vw - 32px);
+}
+.dirty-bar-text { font-size: 0.88rem; font-weight: 500; }
+.dirty-bar-actions { display: flex; gap: 8px; }
+
+.dirtybar-enter-active,
+.dirtybar-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
+.dirtybar-enter-from,
+.dirtybar-leave-to { opacity: 0; transform: translate(-50%, 12px); }
+.dirtybar-enter-to,
+.dirtybar-leave-from { opacity: 1; transform: translateX(-50%); }
 
 .setting-info {
   display: flex;

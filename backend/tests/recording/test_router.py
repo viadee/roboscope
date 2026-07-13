@@ -327,6 +327,7 @@ class TestRecordingLifecycle:
             json=_recording_payload(repo.id),
             headers=auth_header(admin_user),
         )
+        assert create_resp.status_code == 201, create_resp.text
         rec_id = create_resp.json()["id"]
         client.post(f"/api/v1/recordings/{rec_id}/start", headers=auth_header(admin_user))
 

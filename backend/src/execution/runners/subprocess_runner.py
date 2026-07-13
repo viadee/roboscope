@@ -17,6 +17,7 @@ from src.environments.venv_utils import (
     get_venv_bin_dir,
     pip_install_cmd,
 )
+from src.execution.resolver import build_robot_argv, resolve_run_spec
 from src.execution.runners.base import AbstractRunner, RunResult
 
 
@@ -57,6 +58,11 @@ class SubprocessRunner(AbstractRunner):
         timeout: int = 3600,
         on_output: Callable[[str], None] | None = None,
         listeners: list[str] | None = None,
+        advanced_args: list[str] | None = None,
+        prerun_modifiers: list[str] | None = None,
+        prerebot_modifiers: list[str] | None = None,
+        python_paths: list[str] | None = None,
+        variable_files: list[str] | None = None,
     ) -> RunResult:
         """Execute Robot Framework tests via subprocess."""
         start_time = time.time()
@@ -86,6 +92,11 @@ class SubprocessRunner(AbstractRunner):
             tags_include=tags_include,
             tags_exclude=tags_exclude,
             listeners=listeners,
+            advanced_args=advanced_args,
+            prerun_modifiers=prerun_modifiers,
+            prerebot_modifiers=prerebot_modifiers,
+            python_paths=python_paths,
+            variable_files=variable_files,
         )
 
         # Prepare environment
@@ -223,6 +234,14 @@ class SubprocessRunner(AbstractRunner):
                 stdout="".join(stdout_lines),
                 stderr="".join(stderr_lines),
                 duration_seconds=duration,
+                # C1 companion: a user cancel SIGTERMs the process, so the
+                # normal wait() path is how a mid-run cancel usually ends.
+                # Without propagating the flag here, tasks.py loses the race
+                # when the cancelling request's DB commit lands after our
+                # session.refresh() — and files the cancelled run as FAILED.
+                # (The timeout paths above deliberately do NOT set this:
+                # they call cancel() too, but must classify as TIMEOUT.)
+                cancelled=self._cancelled,
             )
 
         except subprocess.TimeoutExpired:
@@ -276,38 +295,32 @@ class SubprocessRunner(AbstractRunner):
         tags_include: str | None = None,
         tags_exclude: str | None = None,
         listeners: list[str] | None = None,
+        advanced_args: list[str] | None = None,
+        prerun_modifiers: list[str] | None = None,
+        prerebot_modifiers: list[str] | None = None,
+        python_paths: list[str] | None = None,
+        variable_files: list[str] | None = None,
     ) -> list[str]:
-        """Build the robot command line."""
+        """Build the robot command line.
+
+        Delegates to the shared :mod:`src.execution.resolver` builder (Story
+        EXEC.1) so the argument sequence and validation live in exactly one
+        place, shared with the Docker runner. The only subprocess-specific
+        inputs are the Python executable and the (host) output directory.
+        """
         python = get_python_path(self.venv_path) if self.venv_path else sys.executable
-
-        cmd = [
-            python, "-m", "robot",
-            "--outputdir", output_dir,
-            "--loglevel", "INFO",
-            "--consolecolors", "off",
-        ]
-
-        if tags_include:
-            for tag in tags_include.split(","):
-                tag = tag.strip()
-                if tag:
-                    cmd.extend(["--include", tag])
-
-        if tags_exclude:
-            for tag in tags_exclude.split(","):
-                tag = tag.strip()
-                if tag:
-                    cmd.extend(["--exclude", tag])
-
-        if listeners:
-            for spec in listeners:
-                spec = spec.strip()
-                if spec:
-                    cmd.extend(["--listener", spec])
-
-        if variables:
-            for key, value in variables.items():
-                cmd.extend(["--variable", f"{key}:{value}"])
-
-        cmd.append(target_path)
-        return cmd
+        spec = resolve_run_spec(
+            target_path=target_path,
+            runner_type="subprocess",
+            tags_include=tags_include,
+            tags_exclude=tags_exclude,
+            variables=variables,
+            listeners=listeners,
+            advanced_args=advanced_args,
+            prerun_modifiers=prerun_modifiers,
+            prerebot_modifiers=prerebot_modifiers,
+            python_paths=python_paths,
+            variable_files=variable_files,
+            repo_root=repo_path,
+        )
+        return build_robot_argv(spec, python=python, output_dir=output_dir)

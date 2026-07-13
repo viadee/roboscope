@@ -206,9 +206,11 @@ test.describe('Execution Run — UI Tests', () => {
     // Dialog should close
     await expect(page.getByText('Neuen Run starten')).not.toBeVisible({ timeout: 5000 });
 
-    // The runs table should show the new run
+    // The runs table should show the new run. `.first()` — the page can
+    // legitimately render a second .data-table (the schedules table) when
+    // schedules exist in the DB; the runs table is the first one.
     await page.waitForTimeout(1000);
-    await expect(page.locator('.data-table')).toBeVisible();
+    await expect(page.locator('.data-table').first()).toBeVisible();
   });
 
   test('UI: can start a run from explorer and see overlay', async ({ page }) => {

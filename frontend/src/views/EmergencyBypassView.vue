@@ -13,6 +13,7 @@ import {
   getBypassStatus,
   type BypassStatus,
 } from '@/api/emergencyBypass.api'
+import { parseBackendDate } from '@/utils/formatDate'
 
 const { t } = useI18n()
 
@@ -23,7 +24,7 @@ const duration = ref(1)
 
 const remainingLabel = computed(() => {
   if (!status.value?.active || !status.value.expires_at) return null
-  const expiresAt = new Date(status.value.expires_at).getTime()
+  const expiresAt = parseBackendDate(status.value.expires_at).getTime()
   const diffMs = expiresAt - Date.now()
   if (diffMs <= 0) return t('bypass.expiringSoon')
   const minutes = Math.round(diffMs / 60000)

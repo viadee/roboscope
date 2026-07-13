@@ -127,6 +127,21 @@ def get_project_keywords(
     return parse_robot_keywords_in_repo(repo.local_path)
 
 
+@router.get("/{repo_id}/tags", response_model=list[str])
+def get_repo_tags(
+    repo_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """EXEC.4: distinct tags across the repo's suites for the run-dialog picker."""
+    repo = get_repository(db, repo_id)
+    if repo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+    from src.explorer.service import list_all_tags
+
+    return list_all_tags(repo.local_path)
+
+
 @router.get("/{repo_id}/library-check", response_model=LibraryCheckResponse)
 def library_check(
     repo_id: int,

@@ -134,7 +134,7 @@ function cancelDelete() {
 
 function isDiscoveryCacheStale(cachedAt: string | null | undefined): boolean {
   if (!cachedAt) return true
-  return Date.now() - new Date(cachedAt).getTime() > 24 * 3600 * 1000
+  return Date.now() - parseBackendDate(cachedAt).getTime() > 24 * 3600 * 1000
 }
 </script>
 

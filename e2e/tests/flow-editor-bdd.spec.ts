@@ -15,6 +15,9 @@ BDD Flow
     Given a user exists
     When the user logs in
     Then the dashboard is shown
+
+Second Test
+    Log    trivial second case
 `;
 
 async function getAuthToken(page: Page): Promise<string> {

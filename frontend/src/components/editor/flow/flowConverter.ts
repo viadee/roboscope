@@ -65,6 +65,15 @@ export interface RobotStep {
    * tell the backend where to break.
    */
   _lineNumber?: number
+  /**
+   * Round-trip-fidelity — an inline comment trailing a real step line,
+   * e.g. `Click    ${sel}    # wait for it`. Preserved verbatim and
+   * re-appended on serialize (robotTextIO.ts). Mirrors the field of
+   * the same name on robotTextIO.ts's own RobotStep — the two
+   * declarations must be kept in sync (tech debt: unify, see
+   * CLAUDE.md).
+   */
+  trailingComment?: string
 }
 
 export interface RobotTestCase {

@@ -27,7 +27,11 @@ onMounted(async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: DEFAULT_EMAIL, password: DEFAULT_PASSWORD }),
     })
-    if (res.ok) {
+    // Prefill ONLY if the user hasn't started typing — the probe
+    // resolves asynchronously and must never clobber real input
+    // (a fast typist would get their credentials silently replaced
+    // with the admin defaults and log in as the wrong user).
+    if (res.ok && !email.value && !password.value) {
       email.value = DEFAULT_EMAIL
       password.value = DEFAULT_PASSWORD
     }

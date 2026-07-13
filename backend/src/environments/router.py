@@ -79,6 +79,21 @@ def add_environment(
 
     env = create_environment(db, data, current_user.id)
 
+    # Eagerly create the venv (which also seeds the vendored
+    # RoboScopeHeal library — HEAL-VENDORED promises heal on day one
+    # for EVERY fresh environment, not only `/setup-default`).
+    # Without this, the venv only materialises lazily on the first
+    # package install, which skips the heal seed entirely.
+    # Commit BEFORE dispatch: the background thread uses its own
+    # session and would not see the uncommitted row.
+    db.commit()
+    try:
+        from src.environments.tasks import create_venv
+
+        dispatch_task(create_venv, env.id)
+    except TaskDispatchError as e:
+        logger.error("Failed to dispatch venv creation for env %d: %s", env.id, e)
+
     # Check for compatibility warnings
     warning = check_python_version_compatibility(data.python_version)
     response = EnvResponse.model_validate(env)
@@ -271,6 +286,20 @@ def docker_build(
     env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
+
+    # 2.3: skip re-dispatch if a build is already in flight — without
+    # this, rapid double-clicks (or a slow first click retried) queue
+    # duplicate build tasks on the single-worker executor. Mirrors the
+    # keyword-introspection 120s in-flight guard; Docker builds run much
+    # longer, so the window is wider.
+    if env.docker_build_status == "building" and env.updated_at is not None:
+        from datetime import UTC, datetime, timedelta
+        age = datetime.now(UTC) - env.updated_at.replace(tzinfo=UTC)
+        if age < timedelta(seconds=600):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A Docker build is already in progress for this environment.",
+            )
 
     packages = list_packages(db, env_id)
     if not packages:

@@ -41,8 +41,11 @@ test.describe('Execution Page', () => {
 
     await expect(page.locator('h1', { hasText: 'Ausführung' })).toBeVisible({ timeout: 10_000 });
 
-    // Either we see the data table with runs or the empty state message
-    const hasTable = await page.locator('.data-table').isVisible().catch(() => false);
+    // Either we see the data table with runs or the empty state message.
+    // `.first()` — a second .data-table (schedules) may exist, and a
+    // multi-match makes isVisible() throw a strict-mode violation that
+    // the catch() would silently turn into `false`.
+    const hasTable = await page.locator('.data-table').first().isVisible().catch(() => false);
     const hasEmptyState = await page.getByText('Noch keine Ausführungen.').isVisible().catch(() => false);
 
     expect(hasTable || hasEmptyState).toBeTruthy();

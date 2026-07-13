@@ -257,6 +257,71 @@ def require_effective_role_for_run(min_role: Role):
     return check
 
 
+def require_effective_role_for_recording(min_role: Role):
+    """Dependency factory gating on the user's effective role on the repo
+    that a given recording session belongs to.
+
+    Reads `recording_id` from the path, resolves
+    `RecordingSession.repository_id`, then reuses the same effective-role
+    computation as `require_effective_role`. Recording-v2 endpoints
+    already did this inline (repo id arrives in the body there, not the
+    path); this closes the same gap for the v1 endpoints, which used a
+    GLOBAL `require_role` — any EDITOR/RUNNER could act on ANY repo's
+    recordings regardless of team/project membership (audit finding 2.1).
+    """
+
+    def check(
+        request: Request,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        from src.auth.permissions import effective_role
+        from src.recording.models import RecordingSession
+        from src.repos.models import Repository
+
+        raw_recording_id = request.path_params.get("recording_id")
+        try:
+            recording_id = int(raw_recording_id)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Recording not found",
+            )
+
+        recording = db.get(RecordingSession, recording_id)
+        if recording is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Recording not found",
+            )
+
+        repo = db.get(Repository, recording.repository_id)
+        if repo is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Repository not found",
+            )
+
+        if getattr(current_user, "_auth_via_api_token", False):
+            user_level = ROLE_HIERARCHY.get(Role(current_user.role), -1)
+            if user_level < ROLE_HIERARCHY.get(min_role, 999):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=ERR_INSUFFICIENT_PERMISSIONS,
+                )
+            return current_user
+
+        er = effective_role(db, current_user, repo)
+        if ROLE_HIERARCHY.get(er, -1) < ROLE_HIERARCHY.get(min_role, 999):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=ERR_INSUFFICIENT_PERMISSIONS,
+            )
+        return current_user
+
+    return check
+
+
 def require_effective_role_for_report(min_role: Role):
     """Dependency factory gating on the user's effective role on the repo
     that a given report's run belongs to.

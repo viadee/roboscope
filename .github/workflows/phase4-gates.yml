@@ -205,6 +205,10 @@ jobs:
           # ImportError here is exactly the roboheal-404 regression.
           & $py -c "import RoboScopeHeal; print('roboheal import OK')"
           if ($LASTEXITCODE -ne 0) { throw "robotframework-roboscopeheal did not install" }
+          # EXEC.9 — DataDriver must be present in the offline bundle too, or
+          # data-driven suites fail only on air-gapped installs.
+          & $py -c "import DataDriver; print('DataDriver import OK')"
+          if ($LASTEXITCODE -ne 0) { throw "robotframework-datadriver did not install" }
           # Boot smoke: the app must come up and answer /health.
           $proc = Start-Process -FilePath $py `
             -ArgumentList "-m","uvicorn","src.main:app","--host","127.0.0.1","--port","8145" `

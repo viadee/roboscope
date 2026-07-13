@@ -177,6 +177,53 @@ def _get_runner(runner_type: str, env_config: dict | None = None):
         return SubprocessRunner(venv_path=venv_path)
 
 
+def _format_modifiers(entries: list) -> list[str] | None:
+    """Resolve persisted modifier entries to ``robot`` modifier specs (EXEC.10).
+
+    A curated registry key (Tier A/B) resolves to its registered class-path spec
+    via the modifier registry; a non-registered reference is Tier-C user-code
+    (already ADMIN-gated at request time) and is emitted as given. Entry shape:
+    ``{key|name, args}`` dict or a bare string.
+    """
+    from src.execution.modifiers import build_modifier_spec, is_curated_key
+
+    out: list[str] = []
+    for m in entries:
+        if isinstance(m, dict):
+            key = (m.get("key") or m.get("name") or "").strip()
+            margs = m.get("args") or []
+        else:
+            key, margs = str(m).strip(), []
+        if not key:
+            continue
+        if is_curated_key(key):
+            try:
+                out.append(build_modifier_spec(key, margs))
+            except KeyError:
+                # Curated at request time but its registry entry vanished before
+                # execution (config/entry-point reload). Skip rather than crash
+                # the run; the gate already authorized it as curated.
+                logger.warning("curated modifier %r no longer registered; skipping", key)
+        else:
+            out.append(":".join([key, *(str(a) for a in margs)]) if margs else key)
+    return out or None
+
+
+def _merge_listeners(
+    system: list[str] | None, user: list[str] | None
+) -> list[str] | None:
+    """Merge system-injected listeners (e.g. the quarantine-skip listener) with
+    user/org listeners (EXEC.11). System listeners ALWAYS come first and are never
+    dropped/reordered; user listeners are appended, de-duplicated (a user entry
+    equal to an already-present spec is skipped so it can't double a system
+    listener's callbacks). Returns None when both are empty."""
+    merged: list[str] = []
+    for spec in (*(system or []), *(user or [])):
+        if spec not in merged:
+            merged.append(spec)
+    return merged or None
+
+
 def _get_env_config(session: Session, env_id: int | None) -> dict | None:
     """Load environment configuration."""
     if env_id is None:
@@ -338,6 +385,30 @@ def execute_test_run(run_id: int) -> dict:
             # Parse variables
             variables = json.loads(run.variables) if run.variables else None
 
+            # EXEC.3/EXEC.7/EXEC.10 — apply persisted advanced execution config.
+            # Everything here was validated + gated + audited at request time
+            # (the router's gate_advanced_execution). Curated modifier keys are
+            # resolved to their registry class-path specs; non-curated (Tier-C
+            # user-code) references are emitted as given (already ADMIN-gated).
+            advanced_args: list[str] | None = None
+            prerun_modifiers: list[str] | None = None
+            prerebot_modifiers: list[str] | None = None
+            user_listeners: list[str] | None = None
+            python_paths: list[str] | None = None
+            variable_files: list[str] | None = None
+            if run.advanced_config:
+                adv = json.loads(run.advanced_config)
+                advanced_args = adv.get("args") or None
+                prerun_modifiers = _format_modifiers(adv.get("prerun_modifiers") or [])
+                prerebot_modifiers = _format_modifiers(adv.get("prerebot_modifiers") or [])
+                user_listeners = _format_modifiers(adv.get("listeners") or [])
+                python_paths = [
+                    str(p).strip() for p in (adv.get("python_paths") or []) if str(p).strip()
+                ] or None
+                variable_files = [
+                    str(p).strip() for p in (adv.get("variable_files") or []) if str(p).strip()
+                ] or None
+
             # Story FLAKY-2 — if this repo has quarantine entries, dump
             # them into a snapshot file and register the
             # QuarantineSkipListener so Robot Framework skips those
@@ -370,6 +441,13 @@ def execute_test_run(run_id: int) -> dict:
                     f"QuarantineSkipListener:{snapshot_path}"
                 ]
 
+            # EXEC.11 — merge curated/org custom listeners AFTER the system
+            # listeners (the quarantine-skip listener built above). System-first
+            # + additive + de-duplicated: a user listener can never drop or
+            # reorder the system ones; they were already gated + audited at
+            # request time.
+            listeners = _merge_listeners(listeners, user_listeners)
+
             # Execute
             result = runner.execute(
                 repo_path=repo.local_path,
@@ -380,6 +458,11 @@ def execute_test_run(run_id: int) -> dict:
                 tags_exclude=run.tags_exclude,
                 timeout=run.timeout_seconds,
                 listeners=listeners,
+                advanced_args=advanced_args,
+                prerun_modifiers=prerun_modifiers,
+                prerebot_modifiers=prerebot_modifiers,
+                python_paths=python_paths,
+                variable_files=variable_files,
             )
 
             # Re-read run status — it may have been set to CANCELLED while we were executing
