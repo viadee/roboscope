@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [0.12.0] - 2026-06-25
+## [0.12.0] - 2026-07-13
 
 ### Robot Framework execution configuration (Epic EXEC)
 
@@ -50,6 +50,52 @@
   Settings → Features (all default off).
 - **All settings descriptions and category headers are now localized**
   (EN/DE/FR/ES/ZH) instead of always English.
+
+### Security & permissions hardening (audit sweep)
+
+- **Recording endpoints are repo-scoped**: create / start / stop / cancel /
+  delete on a recording now check your effective role **for that recording's
+  own repository** (global + team + project grants), not a global role floor.
+  A project grant on repo A no longer authorizes acting on repo B.
+- **"Cancel all runs"** only cancels runs in repositories the caller holds
+  RUNNER (or higher) on, instead of every run on the server.
+- The **live run WebSocket** (`/ws/runs/{id}`) rejects unknown run ids and
+  tokens of deactivated users instead of accepting the upgrade.
+- **Feature-gate denials are always audited**: blocks raised by
+  `require_feature` now write the same audit-log entries as package-operation
+  blocks (the audit middleware skips ≥400 responses, so gates log themselves).
+- **Default-password rotation enforcement got cheaper and stronger**: accounts
+  that log in with the well-known default password are flagged for forced
+  rotation at login time; the boot-time bcrypt sweep runs once per database
+  instead of on every start — removing a multi-second, O(users) hang from
+  backend startup.
+
+### Reliability & fixes
+
+- **Duplicate-work guards**: a second click on Docker image build or git sync
+  while one is already in flight no longer starts a duplicate build/sync.
+- **`/health`, the boot banner and the startup log report the real version**
+  again (they had been stuck at "0.10.0" since that release).
+- **Environments created via the UI get their venv (and the vendored
+  self-healing library) immediately** — previously only the
+  "default environment" setup path seeded them.
+- **Login no longer overwrites what you're typing**: the demo-credential
+  prefill only fills empty fields, so a fast typist can't be silently logged
+  in as the seed admin.
+- **Cancelling a run near its natural end is filed as CANCELLED**, not
+  FAILED, in both the subprocess and Docker runners.
+- **Timestamps from the API are parsed as UTC everywhere** — relative times
+  ("2 hours ago") no longer jump by your UTC offset in views that parsed
+  naive timestamps directly.
+- **Flow editor**: trailing comments on a step survive the flow-node
+  round-trip; curated **listeners** validate correctly in the Advanced run
+  section.
+
+### Developer experience
+
+- The backend test suite runs in ~6 minutes (was over 3 hours — the
+  default-password sweep ran per test); `make test-backend-fast` gives a
+  parallel sub-minute loop that skips subprocess/venv/browser-spawning tests.
 
 ## [0.11.0] - 2026-06-19
 
