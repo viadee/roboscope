@@ -89,6 +89,58 @@ class TestEnsureAdminExists:
         db_session.refresh(normal)
         assert normal.password_change_required is False
 
+    def test_sweep_runs_once_per_database(self, db_session: Session):
+        """The bcrypt sweep is O(users) and therefore stamps a marker in
+        app_settings after its first run — later startups must skip it
+        (a 59-user DB cost ~14s of boot hang per lifespan before this).
+        """
+        db_session.execute(User.__table__.delete())
+        seeded = User(
+            email="existing@example.com",
+            username="existing",
+            hashed_password=hash_password("custom-pw"),
+            role=Role.EDITOR,
+            password_change_required=False,
+        )
+        db_session.add(seeded)
+        db_session.flush()
+
+        ensure_admin_exists(db_session)  # runs the sweep, stamps the marker
+
+        late = User(
+            email="late@example.com",
+            username="late",
+            hashed_password=hash_password(DEFAULT_ADMIN_PASSWORD),
+            role=Role.EDITOR,
+            password_change_required=False,
+        )
+        db_session.add(late)
+        db_session.flush()
+
+        ensure_admin_exists(db_session)  # marker present — sweep must not run
+
+        db_session.refresh(late)
+        assert late.password_change_required is False
+
+    def test_marker_is_hidden_from_settings_list(self, db_session: Session):
+        """The sweep marker lives in category "internal" and must not leak
+        into the Settings UI, which renders category cards dynamically.
+        """
+        db_session.execute(User.__table__.delete())
+        db_session.add(User(
+            email="someone@example.com",
+            username="someone",
+            hashed_password=hash_password("custom-pw"),
+            role=Role.EDITOR,
+            password_change_required=False,
+        ))
+        db_session.flush()
+
+        ensure_admin_exists(db_session)  # stamps the marker
+
+        from src.settings.service import list_settings
+        assert all(s.category != "internal" for s in list_settings(db_session))
+
 
 # ---------------------------------------------------------------------------
 # authenticate_user — WARNING on flagged login
@@ -139,6 +191,28 @@ class TestAuthLogsWarning:
         assert not any(
             "password_change_required" in r.message for r in caplog.records
         )
+
+    def test_login_with_default_password_sets_flag(self, db_session: Session):
+        """With the boot sweep reduced to once-per-DB, login is the seam
+        that catches accounts (re)adopting the well-known default password.
+        """
+        user = User(
+            email="default-pw@example.com",
+            username="default-pw",
+            hashed_password=hash_password(DEFAULT_ADMIN_PASSWORD),
+            role=Role.EDITOR,
+            is_active=True,
+            password_change_required=False,
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        result = authenticate_user(
+            db_session, user.email, DEFAULT_ADMIN_PASSWORD,
+        )
+
+        assert result is not None
+        assert result.password_change_required is True
 
 
 # ---------------------------------------------------------------------------

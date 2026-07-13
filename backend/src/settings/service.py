@@ -53,10 +53,18 @@ DEFAULT_SETTINGS = [
 
 
 def list_settings(db: Session, category: str | None = None) -> list[AppSetting]:
-    """List all application settings."""
+    """List all application settings.
+
+    Rows in category "internal" (one-time markers like the SECURITY-1
+    default-password sweep stamp) are process bookkeeping, not user
+    configuration — the Settings UI renders category cards dynamically,
+    so they are excluded unless explicitly requested by category.
+    """
     query = select(AppSetting).order_by(AppSetting.category, AppSetting.key)
     if category:
         query = query.where(AppSetting.category == category)
+    else:
+        query = query.where(AppSetting.category != "internal")
     result = db.execute(query)
     return list(result.scalars().all())
 

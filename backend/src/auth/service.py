@@ -102,6 +102,16 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
         return None
     if not user.is_active:
         return None
+    # SECURITY-1 follow-up: the boot-time default-password sweep runs only
+    # once per database (see ensure_admin_exists), so ongoing coverage lives
+    # here — the plaintext is in hand at login, no extra bcrypt round needed.
+    if password == DEFAULT_ADMIN_PASSWORD and not user.password_change_required:
+        user.password_change_required = True
+        logger.warning(
+            "User %s authenticated with the well-known default password — "
+            "flagging password_change_required.",
+            user.email,
+        )
     # Update last login
     user.last_login_at = datetime.now(timezone.utc)
     db.flush()
@@ -163,6 +173,11 @@ def create_token_response(user: User) -> TokenResponse:
 DEFAULT_ADMIN_EMAIL = "admin@roboscope.local"
 DEFAULT_ADMIN_PASSWORD = "admin123"
 
+# app_settings key marking that the one-time SECURITY-1 sweep (flag every
+# account still on the well-known default password) has already run for
+# this database. Category "internal" is hidden from the Settings UI.
+SWEEP_MARKER_KEY = "auth.default_pw_sweep_done"
+
 
 def ensure_admin_exists(db: Session) -> None:
     """Create a default admin user if no users exist.
@@ -192,8 +207,20 @@ def ensure_admin_exists(db: Session) -> None:
 
     # Legacy upgrade: any user (most often the original seed admin)
     # whose password still matches the well-known default gets the
-    # flag flipped on. Constant-time bcrypt verify, runs once per
-    # startup at most.
+    # flag flipped on. Each bcrypt verify costs ~0.25s, so sweeping
+    # EVERY unflagged user is O(n) seconds of boot hang (measured
+    # 2026-07: 59 users ≈ 14s per startup — and per TestClient
+    # lifespan in the backend suite). The sweep therefore runs ONCE
+    # per database, stamped via an app_settings marker; from then on
+    # `authenticate_user` flags default-password logins at zero cost.
+    from src.settings.models import AppSetting
+
+    marker = db.execute(
+        select(AppSetting).where(AppSetting.key == SWEEP_MARKER_KEY)
+    ).scalar_one_or_none()
+    if marker is not None:
+        return
+
     candidates = db.execute(
         select(User).where(User.password_change_required.is_(False))
     ).scalars().all()
@@ -204,5 +231,10 @@ def ensure_admin_exists(db: Session) -> None:
         ):
             user.password_change_required = True
             flipped += 1
-    if flipped:
-        db.flush()
+    db.add(AppSetting(
+        key=SWEEP_MARKER_KEY,
+        value="1",
+        category="internal",
+        description="Stamped once the SECURITY-1 default-password sweep has run.",
+    ))
+    db.flush()
