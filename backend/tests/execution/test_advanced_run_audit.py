@@ -211,6 +211,42 @@ def test_code_loading_lever_requires_server_consent(db_session, monkeypatch, tmp
     assert any("consent_required" in (r.detail or "") for r in _audit_rows(db_session, "blocked"))
 
 
+def test_usercode_prerun_modifier_requires_server_consent(db_session, monkeypatch):
+    # code-review 2026-07-19: a non-curated (Tier-C) prerun modifier loads
+    # arbitrary code exactly like a custom listener / file lever, so it must
+    # require the same server-side code_load_consent. Regression: needs_consent
+    # omitted usercode_mods, letting user code run with consent=false.
+    monkeypatch.delenv("ROBOSCOPE_FEATURE_EXECUTION_ADVANCED_ARGS", raising=False)
+    _enable(db_session, "executionAdvancedArgs")
+    _enable(db_session, "executionPreRunModifierUserCode")
+    admin = _user(db_session, role=Role.ADMIN)
+    with pytest.raises(HTTPException) as exc:
+        # flag on, ADMIN, well-formed user-code modifier — but NO consent
+        gate_advanced_execution(
+            db_session,
+            _FakeRequest(),
+            admin,
+            {"prerun_modifiers": [{"key": "my.evil.Cls"}]},
+        )
+    assert exc.value.status_code == 422
+    assert any("consent_required" in (r.detail or "") for r in _audit_rows(db_session, "blocked"))
+
+
+def test_usercode_prerun_modifier_with_consent_passes(db_session, monkeypatch):
+    # The same request WITH consent is accepted (consent is the gate, not a ban).
+    monkeypatch.delenv("ROBOSCOPE_FEATURE_EXECUTION_ADVANCED_ARGS", raising=False)
+    _enable(db_session, "executionAdvancedArgs")
+    _enable(db_session, "executionPreRunModifierUserCode")
+    admin = _user(db_session, role=Role.ADMIN)
+    # Should NOT raise.
+    gate_advanced_execution(
+        db_session,
+        _FakeRequest(),
+        admin,
+        {"prerun_modifiers": [{"key": "my.evil.Cls"}], "code_load_consent": True},
+    )
+
+
 def test_curated_modifier_kind_mismatch_is_422(db_session, monkeypatch):
     # A curated prerun modifier submitted in the prerebot list is rejected.
     monkeypatch.delenv("ROBOSCOPE_FEATURE_EXECUTION_ADVANCED_ARGS", raising=False)
