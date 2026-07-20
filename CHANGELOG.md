@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-07-20
+
+### Security
+
+- **Advanced-args deny-list bypass (arbitrary code execution)**: freeform
+  `robot` arguments were matched against an exact lowercase string list, but
+  Robot Framework resolves long options case- and hyphen/underscore-insensitively
+  and lets short options carry an attached value. `--Listener`, `--python-path`,
+  `-P/path`, `-Vfile.py` and similar variants slipped past the gate and loaded
+  code — reachable by an Editor, without the Admin role or code-load consent the
+  policy requires. The validator now canonicalises flags the way RF does before
+  matching.
+- **User-code modifiers ran without code-load consent**: non-curated (user-code)
+  pre-run / post-run modifiers loaded arbitrary code via `--prerunmodifier`
+  without the explicit server-side consent that custom listeners and the
+  file-based levers already required. Consent is now enforced for them too.
+
+### Fixed
+
+- **WebSocket connections no longer exhaust the database pool**: the
+  `/ws/notifications` and `/ws/runs/{id}` endpoints held one pooled DB connection
+  for the entire lifetime of each open socket, so a handful of concurrent live
+  views could starve the pool and stall every HTTP request. The connection is now
+  released immediately after the authentication check.
+
 ## [0.12.0] - 2026-07-13
 
 ### Robot Framework execution configuration (Epic EXEC)

@@ -64,7 +64,10 @@ def test_dry_run_success(
     body = resp.json()
     assert body["overall_status"] == "passed"
     assert len(body["checks"]) == 3
-    assert body["elapsed_ms"] > 0
+    # elapsed_ms = int((monotonic - start) * 1000): a sub-millisecond mock
+    # dry-run legitimately floors to 0, so assert presence + non-negativity,
+    # not > 0 (the strict form is flaky on fast CI runners).
+    assert body["elapsed_ms"] >= 0
     for check in body["checks"]:
         assert check["status"] == "passed"
 
