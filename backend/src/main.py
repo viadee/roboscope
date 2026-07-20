@@ -580,6 +580,15 @@ def create_app() -> FastAPI:
         if not _ws_authenticate(token, db):
             await websocket.close(code=4401, reason="Unauthorized")
             return
+        # Release the pooled DB connection BEFORE the (possibly hours-long)
+        # receive loop. A Depends(get_db) session is only finalized after the
+        # handler returns — i.e. after disconnect — so without this each open
+        # socket pins one connection out of the pool (default 5+10 on SQLite),
+        # and ~15 concurrent sockets starve every HTTP request (code-review
+        # 2026-07-19). rollback() ends the auth transaction and returns the
+        # connection to the pool; the loop below does no DB work, and get_db's
+        # own finalizer still closes the (idle) session on disconnect.
+        db.rollback()
         await ws_manager.connect(websocket)
         try:
             while True:
@@ -615,6 +624,9 @@ def create_app() -> FastAPI:
         if not _ws_authorize_run(token, run_id, Role.VIEWER, db):
             await websocket.close(code=4403, reason="Forbidden")
             return
+        # Release the pooled DB connection before the receive loop — see the
+        # ws_notifications rollback above (code-review 2026-07-19).
+        db.rollback()
         await ws_manager.connect_to_run(websocket, run_id)
         try:
             while True:
