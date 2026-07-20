@@ -68,26 +68,46 @@ OWNED_SHORT: frozenset[str] = frozenset(
 )
 DENIED_SHORT: frozenset[str] = frozenset({"-P", "-V", "-A"})
 
-# Union of the controlled long flags, used for RF's unambiguous-prefix
-# abbreviation expansion (e.g. `--listen` → `--listener`).
-_CONTROLLED_LONG: frozenset[str] = OWNED_FLAGS | DENIED_FLAGS
+def _canonical_long(flag: str) -> str:
+    """Canonicalise a ``--long`` option the way Robot Framework's own parser
+    does before matching: option names are compared **case-insensitively and
+    with hyphens/underscores ignored**, so ``--Listener``, ``--LISTENER`` and
+    ``--listen-er`` all resolve to ``--listener``. Returns ``--<lowercased,
+    dehyphenated name>``.
 
-# Safe full flags that happen to be a strict prefix of a controlled flag
-# (`--variable` vs `--variablefile`). RF resolves the exact match first, so
-# these must NOT be rejected by the abbreviation check below.
-_SAFE_PREFIX_FLAGS: frozenset[str] = frozenset({"--variable"})
-
-
-def _abbreviates_controlled(flag: str) -> bool:
-    """True if ``flag`` is an unambiguous long-option abbreviation of a
-    controlled flag (RF expands a unique prefix). Over-rejects ambiguous
-    prefixes too — those wouldn't run anyway, so denying them is strictly safe.
+    Without this, an exact lowercase-string deny-list is trivially bypassed:
+    ``--Listener`` / ``--python-path`` / ``--Variable-File`` never match the
+    literal set yet RF still loads the code (code-review 2026-07-19).
     """
-    if not (flag.startswith("--") and len(flag) > 2):
+    name = flag[2:].replace("-", "").replace("_", "").lower()
+    return "--" + name
+
+
+# Canonical forms of the controlled long flags, matched against the canonical
+# form of each incoming token (see _canonical_long). Case/hyphen variants of a
+# denied flag therefore collapse onto the same key and are caught.
+_OWNED_CANON: frozenset[str] = frozenset(_canonical_long(f) for f in OWNED_FLAGS)
+_DENIED_CANON: frozenset[str] = frozenset(_canonical_long(f) for f in DENIED_FLAGS)
+_CONTROLLED_CANON: frozenset[str] = _OWNED_CANON | _DENIED_CANON
+
+# Safe full flags that are a strict prefix of a controlled flag (`--variable`
+# vs `--variablefile`). RF resolves the exact match first, so these must NOT be
+# rejected by the abbreviation check below. Stored canonical for comparison.
+_SAFE_PREFIX_CANON: frozenset[str] = frozenset(_canonical_long(f) for f in ("--variable",))
+
+
+def _abbreviates_controlled(canon: str) -> bool:
+    """True if canonical long flag ``canon`` is an unambiguous prefix of a
+    controlled flag (RF expands a unique prefix, e.g. ``--listen`` →
+    ``--listener``). Over-rejects ambiguous prefixes too — those wouldn't run
+    anyway, so denying them is strictly safe. ``canon`` must already be
+    :func:`_canonical_long`-normalised.
+    """
+    if len(canon) <= 2:  # bare "--" carries no option name
         return False
-    if flag in _SAFE_PREFIX_FLAGS:
+    if canon in _SAFE_PREFIX_CANON:
         return False
-    return any(full.startswith(flag) for full in _CONTROLLED_LONG)
+    return any(full.startswith(canon) for full in _CONTROLLED_CANON)
 
 
 class AdvancedArgError(ValueError):
@@ -177,19 +197,37 @@ def validate_advanced_args(args: Iterable[str] | None) -> tuple[str, ...]:
     validated = tuple(args)
     for token in validated:
         flag = token.split("=", 1)[0].strip()
-        if flag in OWNED_FLAGS or flag in OWNED_SHORT:
-            raise AdvancedArgError(
-                f"{flag} is controlled by RoboScope and cannot be set via advanced args"
-            )
-        if flag in DENIED_FLAGS or flag in DENIED_SHORT:
-            raise AdvancedArgError(
-                f"{flag} loads code or escapes paths and is not allowed in advanced args"
-            )
-        if _abbreviates_controlled(flag):
-            raise AdvancedArgError(
-                f"{flag} abbreviates a flag controlled by RoboScope and is not allowed "
-                "in advanced args"
-            )
+        if not flag.startswith("-"):
+            continue  # a value/positional, not an option — nothing to gate
+        if flag.startswith("--"):
+            # Long option: match RF's case/hyphen-insensitive resolution.
+            canon = _canonical_long(flag)
+            if canon in _OWNED_CANON:
+                raise AdvancedArgError(
+                    f"{flag} is controlled by RoboScope and cannot be set via advanced args"
+                )
+            if canon in _DENIED_CANON:
+                raise AdvancedArgError(
+                    f"{flag} loads code or escapes paths and is not allowed in advanced args"
+                )
+            if _abbreviates_controlled(canon):
+                raise AdvancedArgError(
+                    f"{flag} abbreviates a flag controlled by RoboScope and is not allowed "
+                    "in advanced args"
+                )
+        else:
+            # Short option: RF attaches the value to the flag char (`-P/tmp`,
+            # `-Vx.py`), so only the first char after '-' is the option, and it
+            # is CASE-SENSITIVE (-v=--variable safe, -V=--variablefile loads).
+            short = flag[:2]
+            if short in OWNED_SHORT:
+                raise AdvancedArgError(
+                    f"{short} is controlled by RoboScope and cannot be set via advanced args"
+                )
+            if short in DENIED_SHORT:
+                raise AdvancedArgError(
+                    f"{short} loads code or escapes paths and is not allowed in advanced args"
+                )
     return validated
 
 
