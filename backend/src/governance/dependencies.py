@@ -182,9 +182,13 @@ def gate_advanced_execution(
             _block(f"insufficient_role:executionVariableFile:{user.role}", "insufficient_role")
 
     # 4. Input rejection (422) AFTER the 403 gates.
-    # 4a. Code-loading levers + Tier-C listeners require explicit consent
-    # server-side (not just UI).
-    needs_consent = python_paths or variable_files or usercode_listeners
+    # 4a. Code-loading levers + Tier-C user code require explicit consent
+    # server-side (not just UI). usercode_mods (non-curated prerun/prerebot
+    # modifiers) load arbitrary code exactly like custom listeners and the file
+    # levers, so they MUST require the same consent — omitting them let an
+    # ADMIN run --prerunmodifier user code with code_load_consent=false
+    # (code-review 2026-07-19).
+    needs_consent = bool(python_paths or variable_files or usercode_listeners or usercode_mods)
     if needs_consent and advanced_config.get("code_load_consent") is not True:
         _block(
             "consent_required",

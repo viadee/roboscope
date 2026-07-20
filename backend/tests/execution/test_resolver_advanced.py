@@ -57,11 +57,25 @@ def test_prerun_modifier_is_separate_from_denied_advanced_args():
         "--outp",  # --output / --outputdir (owned)
         # The =-joined form must be caught too.
         "--variablefile=/tmp/evil.py",
+        # code-review 2026-07-19: RF matches long options case- AND
+        # hyphen/underscore-insensitively, and short options take an ATTACHED
+        # value — none of which an exact-lowercase-string deny-list catches.
+        "--Listener",  # capitalised long
+        "--LISTENER",
+        "--python-path",  # hyphenated (RF strips it)
+        "--Python_Path",  # underscore + case
+        "--Variable-File",
+        "-Px",  # attached-value short forms
+        "-P/tmp/evil",
+        "-Vx.py",
+        "-Aargs.txt",
+        "--Listen",  # capitalised abbreviation
     ],
 )
 def test_advanced_args_reject_code_loading_vectors(token):
-    # code-review 2026-06-24: the deny-list must cover short aliases,
-    # --variablefile/--argumentfile, and abbreviations, not just exact longs.
+    # code-review 2026-06-24 + 2026-07-19: the deny-list must cover short
+    # aliases (incl. attached values), --variablefile/--argumentfile,
+    # abbreviations, AND case/hyphen variants — not just exact lowercase longs.
     with pytest.raises(AdvancedArgError):
         resolve_run_spec(target_path="s.robot", advanced_args=[token])
 
