@@ -85,6 +85,21 @@ export function useKeywordSignatures() {
     const args = argsByName.value.get(lower)
     if (!args) return null
     const dynamic = explorer.keywords.find((k) => k.name.toLowerCase() === lower)
+    // A repo keyword shadows a library one of the same name (same order as
+    // `argsByName` above), and it is the ONLY doc source for project
+    // keywords — they never go through libdoc, so `explorer.keywords` has
+    // no entry for them at all. Their `[Documentation]` comes from the repo
+    // parser and is always plain text, never libdoc HTML.
+    const project = explorer.projectKeywords.find((k) => k.name.toLowerCase() === lower)
+    if (project) {
+      return {
+        display: project.name,
+        library: project.file_path,
+        doc: project.doc ?? '',
+        docFormat: 'text',
+        args,
+      }
+    }
     return {
       display: dynamic?.name ?? keywordName,
       library: dynamic?.library ?? 'BuiltIn',

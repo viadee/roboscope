@@ -520,6 +520,7 @@ const fr: DocsContent = [
 <ul>
   <li><strong>Rechercher</strong> &mdash; Filtrer les mots-cl\u00E9s par nom gr\u00E2ce \u00E0 la bo\u00EEte de recherche.</li>
   <li><strong>Cliquer pour ajouter</strong> &mdash; Cliquez sur un mot-cl\u00E9 pour le s\u00E9lectionner (une barre \u00AB&nbsp;Ajouter&nbsp;\u00BB appara\u00EEt en haut de la palette), puis cliquez sur <strong>+</strong> pour l\u2019ins\u00E9rer apr\u00E8s le n\u0153ud actuellement s\u00E9lectionn\u00E9.</li>
+  <li><strong>Documentation int\u00E9gr\u00E9e</strong> &mdash; La barre \u00AB&nbsp;Ajouter&nbsp;\u00BB affiche la documentation du mot-cl\u00E9 s\u00E9lectionn\u00E9 et sa provenance &mdash; un nom de biblioth\u00E8que, ou le chemin du fichier pour un mot-cl\u00E9 d\u00E9fini dans votre propre d\u00E9p\u00F4t. Les mots-cl\u00E9s que vous d\u00E9finissez affichent ici leur texte <code>[Documentation]</code>.</li>
   <li><strong>Glisser-d\u00E9poser</strong> &mdash; Faites glisser un mot-cl\u00E9 depuis la palette sur le canevas pour le positionner pr\u00E9cis\u00E9ment.</li>
 </ul>
 <h4>Structures de contr\u00F4le (IF/ELSE, TRY/EXCEPT, boucles)</h4>

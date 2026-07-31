@@ -513,6 +513,7 @@ const de: DocsContent = [
 <ul>
   <li><strong>Suche</strong> &mdash; Keywords \u00FCber das Suchfeld nach Namen filtern.</li>
   <li><strong>Klick zum Ausw\u00E4hlen</strong> &mdash; Klicken Sie auf ein Keyword, um es auszuw\u00E4hlen (oben in der Palette erscheint eine \u201EHinzuf\u00FCgen\u201C-Leiste), dann klicken Sie auf <strong>+</strong>, um es nach dem aktuell ausgew\u00E4hlten Knoten einzuf\u00FCgen.</li>
+  <li><strong>Inline-Dokumentation</strong> &mdash; Die \u201EHinzuf\u00FCgen\u201C-Leiste zeigt die Dokumentation des ausgew\u00E4hlten Keywords und dessen Herkunft &mdash; einen Bibliotheksnamen oder den Dateipfad bei einem Keyword aus Ihrem eigenen Repository. Selbst definierte Keywords zeigen hier ihren <code>[Documentation]</code>-Text.</li>
   <li><strong>Drag &amp; Drop</strong> &mdash; Ziehen Sie ein Keyword aus der Palette auf die Canvas, um es pr\u00E4zise zu platzieren.</li>
 </ul>
 <h4>Kontrollstrukturen (IF/ELSE, TRY/EXCEPT, Schleifen)</h4>

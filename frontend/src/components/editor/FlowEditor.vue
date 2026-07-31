@@ -14,6 +14,7 @@ import StartEndNode from './flow/StartEndNode.vue'
 import KeywordPalette from './flow/KeywordPalette.vue'
 import KeywordAutocompleteInput from './flow/KeywordAutocompleteInput.vue'
 import KeywordDocModal from './flow/KeywordDocModal.vue'
+import { isResourceImport } from './flow/resourcePath'
 import SelectorPicker from '@/components/recorder/SelectorPicker.vue'
 // Story DEBUG-3 — Flow Editor "Run up to here" debug action.
 import DebugPanel from '@/components/debug/DebugPanel.vue'
@@ -239,14 +240,14 @@ const _RF_BUNDLED = new Set([
 ])
 
 /** Push a Library entry onto form.settings unless an identical one
- *  already exists. Names containing a `/` or ending in `.resource`
- *  are treated as Resource imports instead. Emits
- *  `libraries-changed` so the parent can refresh the keyword
+ *  already exists. Names containing a `/` or carrying an RF
+ *  resource-file extension are treated as Resource imports instead.
+ *  Emits `libraries-changed` so the parent can refresh the keyword
  *  cache. */
 function addLibrary(rawName: string): 'library' | 'resource' | false {
   const name = rawName.trim()
   if (!name) return false
-  const isResource = name.toLowerCase().endsWith('.resource') || name.includes('/')
+  const isResource = isResourceImport(name)
   const key = isResource ? 'Resource' : 'Library'
   // Dedupe — RF accepts duplicate Library imports but they're noise.
   const existing = props.form.settings.find(
@@ -257,8 +258,8 @@ function addLibrary(rawName: string): 'library' | 'resource' | false {
   props.form.settings.push({ key, value: name, args: [] })
   libraryInputValue.value = ''
   // Only third-party Library imports trigger the env-introspection
-  // check. Resource imports point at .resource files, and RF-bundled
-  // libs (Collections, XML, …) don't need pip install.
+  // check. Resource imports point at files inside the repo, and
+  // RF-bundled libs (Collections, XML, …) don't need pip install.
   const skipInstallCheck = isResource || _RF_BUNDLED.has(name.toLowerCase())
   emit('libraries-changed', skipInstallCheck ? undefined : name)
   return isResource ? 'resource' : 'library'
