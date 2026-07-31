@@ -404,11 +404,26 @@ export function isInitFile(filePath: string | null | undefined): boolean {
 export function initFileHasTestCases(content: string): boolean {
   return content
     .split('\n')
-    .some((line) => /^\*{3}\s*(Test Cases?|Tasks?)\s*\*{0,3}/i.test(line.trim()))
+    .some((line) => /^﻿?\*+[ ]*(Test Cases?|Tasks?)[ ]*\**/i.test(line.trim()))
 }
 
 // --- Main Parser ---
-const SECTION_HEADER_RE = /^\*{3}\s*(Settings?|Variables?|Test Cases?|Tasks?|Keywords?)\s*\*{0,3}/i
+// Robot Framework accepts any number of leading asterisks (`* Keywords`,
+// `*** Keywords ***`, `**** Keywords ****`), an optional closing run, singular
+// or plural names, and tolerates a UTF-8 BOM on the file's first line — which
+// is exactly where a `.resource` file puts its `*** Keywords ***`. Requiring
+// exactly three asterisks made the editor parse such a file as one big
+// preamble: nothing was lost on save, but the Flow Editor showed an empty file
+// (GitHub #58, same root cause as the backend's explorer parser).
+//
+// Only SPACES may pad the name — RF rejects tab-padded headers, so `[ ]` here
+// is deliberate and must not be relaxed to `\s`.
+//
+// NOTE: translated headers (`*** 关键字 ***` in a file declaring `Language:`)
+// are recognised by the BACKEND parser but not here — that needs RF's
+// translation table, which is not available in the browser. Such a file still
+// round-trips without loss; it just renders as preamble.
+const SECTION_HEADER_RE = /^﻿?\*+[ ]*(Settings?|Variables?|Test Cases?|Tasks?|Keywords?)[ ]*\**/i
 
 /**
  * Parse `.robot` content into a RobotForm. Pure: returns a fresh form and

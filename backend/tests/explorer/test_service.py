@@ -6,6 +6,7 @@ from src.explorer.service import (
     build_tree,
     check_libraries_against_env,
     extract_libraries,
+    list_all_tags,
     list_all_testcases,
     parse_robot_keywords_in_repo,
     parse_robot_testcases,
@@ -689,3 +690,108 @@ class TestParseRobotKeywordsInRepo:
         )
         assert kws[0]["doc"] == ""
         assert kws[0]["arguments"] == ["${a}"]
+
+
+class TestSectionHeaderVariantsEndToEnd:
+    """GitHub #58 — every explorer surface that scans .robot files.
+
+    One malformed-looking-but-valid header used to zero out keyword discovery,
+    test-case listing, tag discovery AND the file-tree test count at once,
+    because all four shared the same `startswith("*** xxx")` check.
+    """
+
+    SUITE = (
+        "{settings}\n"
+        "Force Tags    smoke\n"
+        "\n"
+        "{tests}\n"
+        "My Test\n"
+        "    Log    hi\n"
+        "\n"
+        "{keywords}\n"
+        "My Keyword\n"
+        "    Log    hi\n"
+    )
+
+    VARIANTS = {
+        "canonical": ("*** Settings ***", "*** Test Cases ***", "*** Keywords ***"),
+        "no_spaces": ("***Settings***", "***Test Cases***", "***Keywords***"),
+        "four_asterisks": (
+            "**** Settings ****",
+            "**** Test Cases ****",
+            "**** Keywords ****",
+        ),
+        "single_asterisk": ("* Settings", "* Test Cases", "* Keywords"),
+        "no_closing": ("*** Settings", "*** Test Cases", "*** Keywords"),
+        "singular": ("*** Setting ***", "*** Test Case ***", "*** Keyword ***"),
+    }
+
+    def _write(self, tmp_path, variant):
+        settings, tests, keywords = self.VARIANTS[variant]
+        (tmp_path / "suite.robot").write_text(
+            self.SUITE.format(settings=settings, tests=tests, keywords=keywords),
+            encoding="utf-8",
+        )
+
+    @pytest.mark.parametrize("variant", sorted(VARIANTS))
+    def test_all_four_surfaces_agree_across_header_forms(self, tmp_path, variant):
+        self._write(tmp_path, variant)
+
+        keywords = [k["name"] for k in parse_robot_keywords_in_repo(str(tmp_path))]
+        testcases = [t.name for t in parse_robot_testcases(str(tmp_path), "suite.robot")]
+        tags = list_all_tags(str(tmp_path))
+        tree = build_tree(str(tmp_path))
+
+        assert keywords == ["My Keyword"], f"{variant}: keyword discovery"
+        assert testcases == ["My Test"], f"{variant}: test-case listing"
+        assert tags == ["smoke"], f"{variant}: tag discovery"
+        assert tree.children[0].test_count == 1, f"{variant}: tree test count"
+
+    def test_bom_does_not_hide_a_resource_files_keywords(self, tmp_path):
+        # The BOM only ever lands on the first line — which for a .resource
+        # file is its `*** Keywords ***` header, so ALL keywords vanished.
+        (tmp_path / "kw.resource").write_text(
+            "﻿*** Keywords ***\nMy Keyword\n    Log    hi\n", encoding="utf-8"
+        )
+        assert [k["name"] for k in parse_robot_keywords_in_repo(str(tmp_path))] == [
+            "My Keyword"
+        ]
+
+    def test_localised_headers_with_language_declaration(self, tmp_path):
+        (tmp_path / "kw.resource").write_text(
+            "Language: zh-CN\n\n*** 关键字 ***\nMy Keyword\n    Log    hi\n",
+            encoding="utf-8",
+        )
+        assert [k["name"] for k in parse_robot_keywords_in_repo(str(tmp_path))] == [
+            "My Keyword"
+        ]
+
+    def test_localised_headers_without_declaration_stay_hidden(self, tmp_path):
+        # RF rejects these too; listing them would advertise keywords RF cannot
+        # resolve at run time.
+        (tmp_path / "kw.resource").write_text(
+            "*** Schlüsselwörter ***\nMy Keyword\n    Log    hi\n", encoding="utf-8"
+        )
+        assert parse_robot_keywords_in_repo(str(tmp_path)) == []
+
+    def test_tasks_section_counts_as_tests(self, tmp_path):
+        (tmp_path / "suite.robot").write_text(
+            "*** Tasks ***\nMy Task\n    Log    hi\n", encoding="utf-8"
+        )
+        tree = build_tree(str(tmp_path))
+        assert tree.children[0].test_count == 1
+        assert [t.name for t in parse_robot_testcases(str(tmp_path), "suite.robot")] == [
+            "My Task"
+        ]
+
+    def test_unknown_section_still_closes_the_previous_one(self, tmp_path):
+        # `*** Bogus ***` is not a section we know, but it must not let the
+        # keyword section leak into it.
+        (tmp_path / "kw.resource").write_text(
+            "*** Keywords ***\nReal Keyword\n    Log    hi\n"
+            "*** Bogus ***\nNot A Keyword\n    Log    hi\n",
+            encoding="utf-8",
+        )
+        assert [k["name"] for k in parse_robot_keywords_in_repo(str(tmp_path))] == [
+            "Real Keyword"
+        ]

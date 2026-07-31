@@ -6,6 +6,14 @@ import re
 import subprocess
 from pathlib import Path
 
+from src.explorer.rf_sections import (
+    KEYWORDS,
+    SETTINGS,
+    TASKS,
+    TEST_CASES,
+    build_section_matcher,
+    is_section_start,
+)
 from src.explorer.schemas import FileContent, SearchResult, TestCaseInfo, TreeNode
 
 # Directories and files to skip in the tree
@@ -65,16 +73,15 @@ def build_tree(base_path: str, relative_path: str = "") -> TreeNode:
 def _count_tests_in_file(file_path: str) -> int:
     """Count test cases in a robot file."""
     try:
-        content = Path(file_path).read_text(encoding="utf-8", errors="replace")
+        content = Path(file_path).read_text(encoding="utf-8-sig", errors="replace")
+        section_of = build_section_matcher(content)
         in_test_section = False
         count = 0
         for line in content.splitlines():
             stripped = line.strip()
-            if stripped.lower().startswith("*** test case"):
-                in_test_section = True
-                continue
-            if stripped.startswith("***"):
-                in_test_section = False
+            if is_section_start(line):
+                kind = section_of(line)
+                in_test_section = kind in (TEST_CASES, TASKS)
                 continue
             if in_test_section and stripped and not stripped.startswith("#") and not line.startswith((" ", "\t")):
                 count += 1
@@ -133,9 +140,10 @@ def parse_robot_testcases(base_path: str, relative_path: str) -> list[TestCaseIn
     if not full_path.exists():
         return []
 
-    content = full_path.read_text(encoding="utf-8", errors="replace")
+    content = full_path.read_text(encoding="utf-8-sig", errors="replace")
     lines = content.splitlines()
     suite_name = full_path.stem
+    section_of = build_section_matcher(content)
 
     testcases: list[TestCaseInfo] = []
     in_test_section = False
@@ -144,14 +152,11 @@ def parse_robot_testcases(base_path: str, relative_path: str) -> list[TestCaseIn
     for i, line in enumerate(lines, 1):
         stripped = line.strip()
 
-        if stripped.lower().startswith("*** test case"):
-            in_test_section = True
-            continue
-        if stripped.startswith("***"):
+        if is_section_start(line):
             if current_test:
                 testcases.append(TestCaseInfo(**current_test))
                 current_test = None
-            in_test_section = False
+            in_test_section = section_of(line) in (TEST_CASES, TASKS)
             continue
 
         if not in_test_section:
@@ -212,10 +217,11 @@ def parse_robot_keywords_in_repo(base_path: str) -> list[dict]:
         for rf_file in base.rglob(f"*{ext}"):
             relative = str(rf_file.relative_to(base))
             try:
-                content = rf_file.read_text(encoding="utf-8", errors="replace")
+                content = rf_file.read_text(encoding="utf-8-sig", errors="replace")
             except Exception:
                 continue
 
+            section_of = build_section_matcher(content)
             in_keyword_section = False
             current_kw: dict | None = None
             # True while the parser sits inside a `[Documentation]` value, so
@@ -225,15 +231,11 @@ def parse_robot_keywords_in_repo(base_path: str) -> list[dict]:
             for line in content.splitlines():
                 stripped = line.strip()
 
-                if stripped.lower().startswith("*** keyword"):
-                    in_keyword_section = True
-                    in_doc = False
-                    continue
-                if stripped.startswith("***"):
+                if is_section_start(line):
                     if current_kw:
                         keywords.append(current_kw)
                         current_kw = None
-                    in_keyword_section = False
+                    in_keyword_section = section_of(line) == KEYWORDS
                     in_doc = False
                     continue
 
@@ -379,19 +381,19 @@ def list_all_tags(base_path: str) -> list[str]:
             if any(part in IGNORE_DIRS for part in rf_file.parts):
                 continue
             try:
-                lines = rf_file.read_text(encoding="utf-8", errors="replace").splitlines()
+                content = rf_file.read_text(encoding="utf-8-sig", errors="replace")
             except OSError:
                 continue
+            lines = content.splitlines()
+            section_of = build_section_matcher(content)
             in_settings = False
             for line in lines:
                 stripped = line.strip()
-                if stripped.startswith("***"):
+                if is_section_start(line):
                     # Suite-level tag settings only live in *** Settings ***;
                     # a body keyword named "Test Tags Helper" or a doc line must
                     # not be mis-read as a tag declaration.
-                    in_settings = bool(
-                        re.match(r"\*+\s*settings?\s*\**", stripped, re.IGNORECASE)
-                    )
+                    in_settings = section_of(line) == SETTINGS
                     continue
                 if not in_settings:
                     continue
@@ -508,15 +510,13 @@ def extract_libraries(base_path: str) -> list[dict]:
         rel_path = str(file_path.relative_to(base))
 
         try:
-            content = file_path.read_text(encoding="utf-8", errors="replace")
+            content = file_path.read_text(encoding="utf-8-sig", errors="replace")
+            section_of = build_section_matcher(content)
             in_settings = False
             for line in content.splitlines():
                 stripped = line.strip()
-                if stripped.lower().startswith("*** settings") or stripped.lower().startswith("*** setting"):
-                    in_settings = True
-                    continue
-                if stripped.startswith("***"):
-                    in_settings = False
+                if is_section_start(line):
+                    in_settings = section_of(line) == SETTINGS
                     continue
                 if not in_settings:
                     continue
