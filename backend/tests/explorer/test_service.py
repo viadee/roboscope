@@ -7,6 +7,7 @@ from src.explorer.service import (
     check_libraries_against_env,
     extract_libraries,
     list_all_testcases,
+    parse_robot_keywords_in_repo,
     parse_robot_testcases,
     read_file,
     search_in_repo,
@@ -578,3 +579,113 @@ class TestCheckLibrariesAgainstEnv:
         assert statuses["Collections"] == "builtin"
         assert statuses["Browser"] == "installed"
         assert statuses["SeleniumLibrary"] == "missing"
+
+
+class TestParseRobotKeywordsInRepo:
+    """`[Documentation]` extraction for project keywords.
+
+    Project keywords never go through libdoc, so this parser is the ONLY
+    source the editor's keyword palette has for their documentation.
+    """
+
+    def _write(self, tmp_path, body: str, name: str = "kw.resource"):
+        (tmp_path / name).write_text(body)
+        return parse_robot_keywords_in_repo(str(tmp_path))
+
+    def test_extracts_single_line_documentation(self, tmp_path):
+        kws = self._write(
+            tmp_path,
+            "*** Keywords ***\n"
+            "Connect And Create Schema\n"
+            "    [Documentation]    Open the SQLite file.\n"
+            "    Log    hi\n",
+        )
+        assert kws[0]["name"] == "Connect And Create Schema"
+        assert kws[0]["doc"] == "Open the SQLite file."
+
+    def test_joins_continuation_rows_with_newline(self, tmp_path):
+        kws = self._write(
+            tmp_path,
+            "*** Keywords ***\n"
+            "Multi Line\n"
+            "    [Documentation]    First line\n"
+            "    ...    Second line\n"
+            "    ...    Third line\n"
+            "    Log    hi\n",
+        )
+        assert kws[0]["doc"] == "First line\nSecond line\nThird line"
+
+    def test_joins_cells_in_one_row_with_space(self, tmp_path):
+        kws = self._write(
+            tmp_path,
+            "*** Keywords ***\nSpaced\n    [Documentation]    Hello    World\n",
+        )
+        assert kws[0]["doc"] == "Hello World"
+
+    def test_accepts_two_space_and_tab_separators(self, tmp_path):
+        # RF's cell separator is a tab or 2+ spaces — not exactly 4.
+        kws = self._write(
+            tmp_path,
+            "*** Keywords ***\n"
+            "Two Space\n"
+            "  [Documentation]  Terse formatting\n"
+            "Tabbed\n"
+            "\t[Documentation]\tTab formatting\n",
+        )
+        docs = {k["name"]: k["doc"] for k in kws}
+        assert docs["Two Space"] == "Terse formatting"
+        assert docs["Tabbed"] == "Tab formatting"
+
+    def test_continuation_stops_at_next_body_row(self, tmp_path):
+        # A `...` row AFTER a normal step continues that step, not the doc.
+        kws = self._write(
+            tmp_path,
+            "*** Keywords ***\n"
+            "Stops\n"
+            "    [Documentation]    Only this.\n"
+            "    Log    many\n"
+            "    ...    args\n",
+        )
+        assert kws[0]["doc"] == "Only this."
+
+    def test_documentation_is_per_keyword(self, tmp_path):
+        kws = self._write(
+            tmp_path,
+            "*** Keywords ***\n"
+            "First\n"
+            "    [Documentation]    Doc of first.\n"
+            "    Log    a\n"
+            "Second\n"
+            "    Log    b\n"
+            "Third\n"
+            "    [Documentation]    Doc of third.\n",
+        )
+        docs = {k["name"]: k["doc"] for k in kws}
+        assert docs == {
+            "First": "Doc of first.",
+            "Second": "",
+            "Third": "Doc of third.",
+        }
+
+    def test_documentation_does_not_leak_across_sections(self, tmp_path):
+        kws = self._write(
+            tmp_path,
+            "*** Keywords ***\n"
+            "Documented\n"
+            "    [Documentation]    Mine.\n"
+            "\n"
+            "*** Test Cases ***\n"
+            "Some Test\n"
+            "    ...    not a keyword doc\n",
+            name="suite.robot",
+        )
+        assert [k["name"] for k in kws] == ["Documented"]
+        assert kws[0]["doc"] == "Mine."
+
+    def test_keyword_without_documentation_gets_empty_string(self, tmp_path):
+        kws = self._write(
+            tmp_path,
+            "*** Keywords ***\nBare\n    [Arguments]    ${a}\n    Log    ${a}\n",
+        )
+        assert kws[0]["doc"] == ""
+        assert kws[0]["arguments"] == ["${a}"]

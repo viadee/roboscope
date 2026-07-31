@@ -181,10 +181,26 @@ def parse_robot_testcases(base_path: str, relative_path: str) -> list[TestCaseIn
     return testcases
 
 
+# RF cell separator: a tab or a run of 2+ spaces (NOT exactly 4 — a file
+# formatted with 2-space separators is just as valid).
+_RF_CELL_SEP = re.compile(r"\t|[ ]{2,}")
+
+
+def _rf_cells(text: str) -> list[str]:
+    """Split a Robot Framework data row into its non-empty cells."""
+    return [c.strip() for c in _RF_CELL_SEP.split(text) if c.strip()]
+
+
 def parse_robot_keywords_in_repo(base_path: str) -> list[dict]:
     """Extract all user-defined keyword names from .robot/.resource files in a repo.
 
-    Returns a list of {name, file_path, arguments} dicts.
+    Returns a list of {name, file_path, arguments, doc} dicts.
+
+    `doc` carries the keyword's `[Documentation]` value so the editor's
+    keyword palette can show it inline (project keywords never go through
+    libdoc, so this parser is their ONLY doc source). RF joins cells within
+    a row with a space and `...` continuation rows with a newline; we
+    mirror both.
     """
     base = Path(base_path)
     if not base.exists():
@@ -202,18 +218,23 @@ def parse_robot_keywords_in_repo(base_path: str) -> list[dict]:
 
             in_keyword_section = False
             current_kw: dict | None = None
+            # True while the parser sits inside a `[Documentation]` value, so
+            # the following `...` rows append instead of being ignored.
+            in_doc = False
 
             for line in content.splitlines():
                 stripped = line.strip()
 
                 if stripped.lower().startswith("*** keyword"):
                     in_keyword_section = True
+                    in_doc = False
                     continue
                 if stripped.startswith("***"):
                     if current_kw:
                         keywords.append(current_kw)
                         current_kw = None
                     in_keyword_section = False
+                    in_doc = False
                     continue
 
                 if not in_keyword_section:
@@ -226,12 +247,26 @@ def parse_robot_keywords_in_repo(base_path: str) -> list[dict]:
                         "name": stripped,
                         "file_path": relative,
                         "arguments": [],
+                        "doc": "",
                     }
+                    in_doc = False
+                elif current_kw and stripped.lower().startswith("[documentation]"):
+                    current_kw["doc"] = " ".join(_rf_cells(stripped[len("[documentation]"):]))
+                    in_doc = True
+                elif current_kw and in_doc and stripped.startswith("..."):
+                    cont = " ".join(_rf_cells(stripped[3:]))
+                    current_kw["doc"] = (
+                        f"{current_kw['doc']}\n{cont}" if current_kw["doc"] else cont
+                    )
                 elif current_kw and stripped.lower().startswith("[arguments]"):
                     args_str = stripped[11:].strip()
                     current_kw["arguments"] = [
                         a.strip() for a in args_str.split("    ") if a.strip()
                     ]
+                    in_doc = False
+                elif stripped:
+                    # Any other non-blank body row ends the documentation block.
+                    in_doc = False
 
             if current_kw:
                 keywords.append(current_kw)

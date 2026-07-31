@@ -180,3 +180,35 @@ export function sortLibraries<T extends CatLike>(
   }
   return out
 }
+
+/**
+ * Turn a keyword's raw doc string into the plain-text preview the palette's
+ * selected-keyword bar shows inline.
+ *
+ * libdoc emits HTML for ROBOT/REST/TEXT-format library keywords (see the
+ * backend's `convert_docs_to_html()`), while project keywords parsed out of
+ * the repo are always plain text. The palette column is far too narrow for
+ * rendered HTML — and rendering untrusted markup in a always-visible sidebar
+ * is a worse trade than in the explicitly-opened doc modal — so HTML docs are
+ * flattened to text here. Block-level tags become newlines FIRST so
+ * `<p>a</p><p>b</p>` reads "a\nb" and not "ab"; `stripTags` then removes what
+ * is left. Entity decoding is the caller's job (`stripTags` is injected so
+ * this module stays DOM-free and unit-testable).
+ */
+export function docPreviewText(
+  doc: string,
+  docFormat: string,
+  stripTags: (html: string) => string,
+): string {
+  const raw = (doc || '').trim()
+  if (!raw) return ''
+  if (docFormat !== 'html') return raw
+  const withBreaks = raw
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6]|tr|pre|blockquote)\s*>/gi, '\n')
+  return stripTags(withBreaks)
+    .replace(/[ \t]+/g, ' ')
+    .replace(/[ \t]*\n[ \t]*/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
