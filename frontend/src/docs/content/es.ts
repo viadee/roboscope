@@ -535,6 +535,7 @@ const es: DocsContent = [
 <ul>
   <li><strong>Buscar</strong> &mdash; Filtrar palabras clave por nombre usando el cuadro de b\u00FAsqueda.</li>
   <li><strong>Clic para a\u00F1adir</strong> &mdash; Haga clic en una palabra clave para seleccionarla (aparece una barra \u00ABA\u00F1adir\u00BB en la parte superior de la paleta), luego haga clic en <strong>+</strong> para insertarla despu\u00E9s del nodo seleccionado actualmente.</li>
+  <li><strong>Documentaci\u00F3n integrada</strong> &mdash; La barra \u00ABA\u00F1adir\u00BB muestra la documentaci\u00F3n de la palabra clave seleccionada y su origen &mdash; un nombre de biblioteca, o la ruta del archivo si la palabra clave est\u00E1 definida en su propio repositorio. Las palabras clave que usted define muestran aqu\u00ED su texto <code>[Documentation]</code>.</li>
   <li><strong>Arrastrar y soltar</strong> &mdash; Arrastre una palabra clave desde la paleta al lienzo para posicionarla con precisi\u00F3n.</li>
 </ul>
 <h4>Estructuras de control (IF/ELSE, TRY/EXCEPT, bucles)</h4>

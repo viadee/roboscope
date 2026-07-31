@@ -2,6 +2,57 @@
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-31
+
+### Added
+
+- **Keyword documentation inline in the Flow Editor palette**: clicking a keyword
+  lifts it into the add-bar above the tree, which now shows the keyword's
+  documentation and its source (library name, or repo-relative file path for a
+  project keyword) right there — choosing between similarly-named keywords no
+  longer means opening the doc modal first. libdoc HTML is flattened to text for
+  the narrow palette column rather than rendered; BuiltIn docs, which the
+  wildcard preload skips, are lazy-loaded on selection and memoized.
+- **Project keywords now carry their `[Documentation]`**: the repo keyword parser
+  only extracted `[Arguments]`, and project keywords never pass through libdoc,
+  so keywords defined in a repo's own `.robot` / `.resource` files had no
+  documentation anywhere in the UI. The parser now reads `[Documentation]`,
+  joining cells in a row with a space and `...` continuation rows with a newline
+  the way Robot Framework does. Keyword lookup consults project keywords ahead of
+  libraries, matching the precedence already used for argument signatures.
+
+### Fixed
+
+- **Valid Robot Framework files could show no keywords, tests or tags at all**
+  ([#58](https://github.com/viadee/roboscope/issues/58)): the Explorer recognised
+  section headers only in their single canonical spelling `*** Keywords ***`.
+  Every other form Robot Framework accepts — `***Keywords***`, `* Keywords`,
+  `**** Keywords ****`, `*** Keywords` without a closing run, the singular
+  `*** Keyword ***`, a leading UTF-8 byte-order mark, and translated headers such
+  as `*** 关键字 ***` in a file declaring `Language:` — fell through to a branch
+  that *closed* the section instead of opening it. A file using any of them
+  parsed and ran perfectly in Robot Framework while RoboScope showed an empty
+  keyword palette. The same check backed four surfaces at once, so keyword
+  discovery, test-case listing, tag discovery and the file tree's test counts all
+  went blank together. Header recognition now lives in one module that mirrors
+  Robot Framework's own rules, taking translated section names from Robot
+  Framework itself rather than a local table, and deliberately still rejecting
+  what RF rejects (tab-padded headers; translated headers with no `Language:`
+  declaration) so the Explorer never advertises keywords RF cannot resolve.
+  `*** Tasks ***` sections now count towards a file's test count as well.
+  The editor's own `.robot` parser had the same blind spot and rendered such a
+  file as an empty Flow Editor (its content always survived a save, so no data
+  was ever lost); it now accepts the same asterisk and BOM forms. Translated
+  headers remain backend-only there, since that needs Robot Framework's
+  translation table, which the browser does not have.
+- **Adding a keyword from a local resource asked to pip-install it**: picking a
+  keyword from a `.robot` resource file that sits in the same directory as the
+  open file wrote an invalid `Library    09_database.robot` import and popped the
+  "install this package?" dialog. Same-directory resources resolve to a bare
+  filename, which the import classifier read as a third-party library name. Import
+  classification now recognises every Robot Framework resource-file extension
+  (`.robot`, `.resource`, `.txt`, `.tsv`).
+
 ## [0.12.1] - 2026-07-20
 
 ### Security

@@ -567,6 +567,7 @@ const en: DocsContent = [
 <ul>
   <li><strong>Search</strong> &mdash; Filter keywords by name using the search box.</li>
   <li><strong>Click to Add</strong> &mdash; Click a keyword to select it (an &ldquo;Add&rdquo; bar appears at the top of the palette), then click <strong>+</strong> to insert it after the currently-selected node.</li>
+  <li><strong>Inline documentation</strong> &mdash; The &ldquo;Add&rdquo; bar shows the selected keyword&rsquo;s documentation and where it comes from &mdash; a library name, or the file path for a keyword defined in your own repository. Keywords you define yourself show their <code>[Documentation]</code> text here.</li>
   <li><strong>Drag &amp; Drop</strong> &mdash; Drag a keyword from the palette onto the canvas to position it precisely.</li>
 </ul>
 <h4>Control Structures (IF/ELSE, TRY/EXCEPT, loops)</h4>
