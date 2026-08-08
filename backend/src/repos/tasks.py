@@ -1,13 +1,12 @@
 """Background tasks for repository operations."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import select
 
 import src.auth.models  # noqa: F401 — defines 'users' table
-
 from src.database import get_sync_session
 from src.repos.models import Repository
 from src.repos.service import clone_repository, due_repos, sync_repository
@@ -55,10 +54,13 @@ def clone_repo(repo_id: int, max_retries: int = 3) -> dict:
             try:
                 logger.info(
                     "Cloning %s from %s (attempt %d/%d)",
-                    repo.name, repo.git_url, attempt + 1, max_retries,
+                    repo.name,
+                    repo.git_url,
+                    attempt + 1,
+                    max_retries,
                 )
                 clone_repository(repo.git_url, repo.local_path, repo.default_branch)
-                repo.last_synced_at = datetime.now(timezone.utc)
+                repo.last_synced_at = datetime.now(UTC)
                 repo.sync_status = "success"
                 repo.sync_error = None
                 session.commit()
@@ -68,7 +70,10 @@ def clone_repo(repo_id: int, max_retries: int = 3) -> dict:
                 last_exc = exc
                 logger.warning(
                     "Clone attempt %d/%d failed for %s: %s",
-                    attempt + 1, max_retries, repo.name, exc,
+                    attempt + 1,
+                    max_retries,
+                    repo.name,
+                    exc,
                 )
 
         # All retries exhausted
@@ -111,7 +116,7 @@ def sync_repo(repo_id: int, max_retries: int = 3) -> dict:
                         return {"status": "error", "message": "No git URL configured"}
                     logger.info("Local path missing — cloning %s from %s", repo.name, repo.git_url)
                     clone_repository(repo.git_url, repo.local_path, repo.default_branch)
-                    repo.last_synced_at = datetime.now(timezone.utc)
+                    repo.last_synced_at = datetime.now(UTC)
                     repo.sync_status = "success"
                     repo.sync_error = None
                     session.commit()
@@ -119,7 +124,15 @@ def sync_repo(repo_id: int, max_retries: int = 3) -> dict:
 
                 # Pull latest changes
                 result = sync_repository(repo.local_path, repo.default_branch)
-                repo.last_synced_at = datetime.now(timezone.utc)
+                if result.startswith("error:"):
+                    detail = result.removeprefix("error:").strip() or result
+                    repo.sync_status = "error"
+                    repo.sync_error = detail[:500]
+                    session.commit()
+                    logger.warning("Sync failed for %s: %s", repo.name, detail)
+                    return {"status": "error", "message": detail}
+
+                repo.last_synced_at = datetime.now(UTC)
                 repo.sync_status = "success"
                 repo.sync_error = None
                 session.commit()
@@ -129,7 +142,10 @@ def sync_repo(repo_id: int, max_retries: int = 3) -> dict:
                 last_exc = exc
                 logger.warning(
                     "Sync attempt %d/%d failed for %s: %s",
-                    attempt + 1, max_retries, repo.name, exc,
+                    attempt + 1,
+                    max_retries,
+                    repo.name,
+                    exc,
                 )
 
         # All retries exhausted
@@ -154,7 +170,7 @@ def auto_sync_due_repos() -> dict:
     scheduler logs them as ERROR + may suspend the job. We catch and
     log instead.
     """
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
 
     dispatched: list[int] = []
     skipped: int = 0
@@ -171,17 +187,23 @@ def auto_sync_due_repos() -> dict:
             # flip. Reset to 'error' with a clear message so the UI
             # surfaces *why* it's no longer in flight.
             stale_cutoff = now_utc - timedelta(minutes=_STALE_SYNCING_AFTER_MINUTES)
-            stale_rows = session.execute(
-                select(Repository).where(
-                    Repository.sync_status == "syncing",
-                    Repository.updated_at < stale_cutoff,
+            stale_rows = (
+                session.execute(
+                    select(Repository).where(
+                        Repository.sync_status == "syncing",
+                        Repository.updated_at < stale_cutoff,
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             for stale in stale_rows:
                 logger.warning(
                     "auto-sync: recovering stale 'syncing' row for repo %d (%s) — "
                     "updated_at %s older than %d min",
-                    stale.id, stale.name, stale.updated_at,
+                    stale.id,
+                    stale.name,
+                    stale.updated_at,
                     _STALE_SYNCING_AFTER_MINUTES,
                 )
                 stale.sync_status = "error"
@@ -209,7 +231,9 @@ def auto_sync_due_repos() -> dict:
                 except TaskDispatchError as e:
                     logger.warning(
                         "auto-sync: dispatch failed for repo %d (%s): %s",
-                        repo.id, repo.name, e,
+                        repo.id,
+                        repo.name,
+                        e,
                     )
                     # Roll the optimistic flag back so the next tick can
                     # try again instead of silently skipping forever.
@@ -219,12 +243,16 @@ def auto_sync_due_repos() -> dict:
         if dispatched or skipped or recovered:
             logger.info(
                 "auto-sync: dispatched %d, skipped %d (queue busy), recovered %d stale",
-                len(dispatched), skipped, recovered,
+                len(dispatched),
+                skipped,
+                recovered,
             )
     except Exception:
         logger.exception("auto-sync tick crashed; will retry next 5min interval")
         return {
-            "dispatched": dispatched, "skipped": skipped,
-            "recovered": recovered, "error": True,
+            "dispatched": dispatched,
+            "skipped": skipped,
+            "recovered": recovered,
+            "error": True,
         }
     return {"dispatched": dispatched, "skipped": skipped, "recovered": recovered}
