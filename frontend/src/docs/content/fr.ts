@@ -1751,6 +1751,32 @@ Login Works
         tip: 'Nommez les environnements de mani\u00E8re descriptive, par ex. \u00AB\u00A0rf7-browser\u00A0\u00BB ou \u00AB\u00A0rf6-selenium\u00A0\u00BB, pour que les membres de l\u2019\u00E9quipe sachent quelles biblioth\u00E8ques sont incluses.'
       },
       {
+        id: 'env-python-source',
+        title: 'Source Python : interpréteur de RoboScope ou venv importé',
+        content: `
+<p>
+  Lors de la création d'un environnement, vous choisissez l'origine de son Python :
+</p>
+<ul>
+  <li><strong>Nouvel environnement virtuel</strong> (par défaut) : RoboScope crée et gère un venv
+  <code>uv</code> sous <code>VENVS_DIR</code>.</li>
+  <li><strong>Environnement Python de RoboScope</strong> : les tests s'exécutent avec l'interpréteur
+  dans lequel RoboScope a été démarré. Aucun venv supplémentaire n'est créé ; toutes les
+  bibliothèques livrées avec RoboScope (Robot Framework, Browser, RoboScopeHeal, …) sont
+  disponibles immédiatement. Les paquets installés ici sont partagés avec RoboScope, la
+  désinstallation est donc bloquée.</li>
+  <li><strong>Importer un environnement virtuel existant</strong> : RoboScope utilise un venv déjà
+  présent sur le serveur (le dossier contenant <code>bin/python</code>, sous Windows
+  <code>Scripts\\python.exe</code>). La version de Python est détectée automatiquement.</li>
+</ul>
+<p>
+  Ces deux dernières options nécessitent le rôle <strong>Admin</strong>. RoboScope ne supprime
+  jamais un venv importé ni son propre interpréteur : supprimer un tel environnement le retire
+  seulement de RoboScope. La carte affiche un badge <em>Python de RoboScope</em> ou
+  <em>venv importé</em>.
+</p>`
+      },
+      {
         id: 'install-packages',
         title: 'Installer des paquets',
         content: `

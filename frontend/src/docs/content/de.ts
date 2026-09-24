@@ -1713,6 +1713,31 @@ Login Works
 </p>`
       },
       {
+        id: 'environments-python-source',
+        title: 'Python-Quelle: eigener Interpreter oder importiertes venv',
+        content: `
+<p>
+  Beim Anlegen einer Umgebung legen Sie fest, woher ihr Python kommt:
+</p>
+<ul>
+  <li><strong>Neue virtuelle Umgebung</strong> (Standard): RoboScope erstellt und verwaltet ein
+  <code>uv</code>-venv unter <code>VENVS_DIR</code>.</li>
+  <li><strong>RoboScopes eigene Python-Umgebung</strong>: Tests laufen mit dem Interpreter, in dem
+  RoboScope selbst gestartet wurde. Es wird kein zusätzliches venv angelegt; alle mit RoboScope
+  gelieferten Bibliotheken (Robot Framework, Browser, RoboScopeHeal, …) stehen sofort bereit. Hier
+  installierte Pakete teilt sich die Umgebung mit RoboScope, daher ist Deinstallieren gesperrt.</li>
+  <li><strong>Bestehende virtuelle Umgebung importieren</strong>: RoboScope nutzt ein venv, das auf
+  dem Server bereits existiert (der Ordner mit <code>bin/python</code>, unter Windows
+  <code>Scripts\\python.exe</code>). Die Python-Version wird automatisch erkannt.</li>
+</ul>
+<p>
+  Die beiden letzten Optionen erfordern die Rolle <strong>Admin</strong>. RoboScope löscht ein
+  importiertes venv oder den eigenen Interpreter nie: Beim Löschen der Umgebung wird sie nur aus
+  RoboScope entfernt. Die Umgebungskarte zeigt ein Badge <em>RoboScope-Python</em> bzw.
+  <em>Importiertes venv</em>.
+</p>`
+      },
+      {
         id: 'environments-packages',
         title: 'Pakete installieren',
         content: `

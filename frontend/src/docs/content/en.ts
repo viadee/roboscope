@@ -1802,6 +1802,30 @@ Login Works
         tip: 'Name environments descriptively, e.g., "rf7-browser" or "rf6-selenium", so team members know which libraries are included.'
       },
       {
+        id: 'env-python-source',
+        title: 'Python Source: Own Interpreter or Imported venv',
+        content: `
+<p>
+  When creating an environment you choose where its Python comes from:
+</p>
+<ul>
+  <li><strong>New virtual environment</strong> (default): RoboScope creates and manages a
+  <code>uv</code> venv under <code>VENVS_DIR</code>.</li>
+  <li><strong>RoboScope's own Python environment</strong>: tests run with the interpreter
+  RoboScope itself was started in. No extra venv is created, so all libraries RoboScope ships
+  (Robot Framework, Browser, RoboScopeHeal, …) are available immediately. Packages installed here
+  are shared with RoboScope, so uninstalling is blocked.</li>
+  <li><strong>Import existing virtual environment</strong>: point RoboScope at a venv that already
+  exists on the server (the folder containing <code>bin/python</code>, on Windows
+  <code>Scripts\\python.exe</code>). The Python version is detected automatically.</li>
+</ul>
+<p>
+  The last two options require the <strong>Admin</strong> role. RoboScope never deletes an
+  imported venv or its own interpreter: deleting such an environment only removes it from RoboScope.
+  The environment card shows a <em>RoboScope Python</em> or <em>Imported venv</em> badge.
+</p>`
+      },
+      {
         id: 'install-packages',
         title: 'Installing Packages',
         content: `
