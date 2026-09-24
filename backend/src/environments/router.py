@@ -7,7 +7,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.auth.constants import Role
+from src.auth.constants import ROLE_HIERARCHY, Role
 from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
 from src.database import get_db
@@ -77,7 +77,23 @@ def add_environment(
     except PythonVersionError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
-    env = create_environment(db, data, current_user.id)
+    # Pointing an environment at an arbitrary interpreter on the server
+    # (RoboScope's own, or an imported venv path) is a host-level decision:
+    # ADMIN only, and the path must hold a runnable Python.
+    if data.venv_mode != "managed" and ROLE_HIERARCHY.get(Role(current_user.role), -1) < ROLE_HIERARCHY[Role.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can use the RoboScope interpreter or import an existing venv",
+        )
+    try:
+        env = create_environment(db, data, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    if data.venv_mode != "managed":
+        # Imported / own interpreter: used as-is, nothing to create or seed.
+        db.commit()
+        return EnvResponse.model_validate(env)
 
     # Eagerly create the venv (which also seeds the vendored
     # RoboScopeHeal library — HEAL-VENDORED promises heal on day one
@@ -731,6 +747,15 @@ def uninstall_package(
     env = get_environment(db, env_id)
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
+    from src.environments.venv_utils import venv_kind
+
+    if venv_kind(env.venv_path) == "system":
+        # Uninstalling from the interpreter RoboScope runs in can break
+        # RoboScope itself (robotframework, fastapi, …).
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Packages cannot be uninstalled from RoboScope's own Python environment",
+        )
     remove_package(db, env_id, package_name)
 
     try:

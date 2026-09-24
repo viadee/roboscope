@@ -88,11 +88,73 @@ def get_uv_path() -> str:
 
 
 def get_python_path(venv_path: str) -> str:
-    """Cross-platform Python path inside a venv."""
+    """Cross-platform Python path inside a venv.
+
+    Falls back to ``bin/python3`` (system/Homebrew prefixes ship no bare
+    ``python``) and to a root ``python.exe`` (conda on Windows) so imported
+    interpreters work too. The canonical path is returned when nothing exists
+    yet (a managed venv that is about to be created).
+    """
     venv = Path(venv_path)
     if sys.platform == "win32":
-        return str(venv / "Scripts" / "python.exe")
-    return str(venv / "bin" / "python")
+        candidates = [venv / "Scripts" / "python.exe", venv / "python.exe"]
+    else:
+        candidates = [venv / "bin" / "python", venv / "bin" / "python3"]
+    for c in candidates:
+        if c.exists():
+            return str(c)
+    return str(candidates[0])
+
+
+def roboscope_python_prefix() -> str:
+    """The prefix of the interpreter RoboScope itself runs in."""
+    return sys.prefix
+
+
+def is_managed_venv(venv_path: str | None) -> bool:
+    """True when RoboScope created (and therefore owns) this venv.
+
+    Only managed venvs may be auto-created or deleted from disk. Imported
+    venvs and RoboScope's own interpreter live outside ``VENVS_DIR`` and must
+    never be ``rmtree``-d.
+    """
+    if not venv_path:
+        return False
+    try:
+        return Path(venv_path).resolve().is_relative_to(Path(settings.VENVS_DIR).resolve())
+    except OSError:
+        return False
+
+
+def venv_kind(venv_path: str | None) -> str:
+    """``managed`` | ``system`` (RoboScope's own interpreter) | ``external``."""
+    if is_managed_venv(venv_path):
+        return "managed"
+    if venv_path and Path(venv_path).resolve() == Path(sys.prefix).resolve():
+        return "system"
+    return "external"
+
+
+def probe_python_version(venv_path: str) -> str:
+    """Return ``major.minor`` of the interpreter in ``venv_path``.
+
+    Raises ValueError if there is no runnable Python there.
+    """
+    import subprocess
+
+    python = get_python_path(venv_path)
+    if not Path(python).is_file():
+        raise ValueError(f"No Python interpreter found in '{venv_path}'")
+    try:
+        out = subprocess.run(
+            [python, "-c", "import sys;print('%d.%d' % sys.version_info[:2])"],
+            capture_output=True, text=True, timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise ValueError(f"Python in '{venv_path}' is not runnable: {e}") from e
+    if out.returncode != 0:
+        raise ValueError(f"Python in '{venv_path}' is not runnable: {out.stderr.strip()[:300]}")
+    return out.stdout.strip()
 
 
 def get_venv_bin_dir(venv_path: str) -> str:

@@ -1,6 +1,7 @@
 """Pydantic schemas for environment management."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -15,6 +16,11 @@ class EnvCreate(BaseModel):
     description: str | None = None
     index_url: str | None = None
     extra_index_url: str | None = None
+    # "managed": RoboScope creates + owns a uv venv under VENVS_DIR (default).
+    # "system": run with the interpreter RoboScope itself was started in.
+    # "existing": import an existing venv at ``venv_path`` (never deleted).
+    venv_mode: Literal["managed", "system", "existing"] = "managed"
+    venv_path: str | None = Field(default=None, max_length=500)
 
 
 class EnvUpdate(BaseModel):
@@ -51,11 +57,15 @@ class EnvResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     python_version_warning: str | None = None
+    venv_kind: str = "managed"
 
     model_config = {"from_attributes": True}
 
     @model_validator(mode="after")
     def compute_docker_image_stale(self) -> "EnvResponse":
+        from src.environments.venv_utils import venv_kind
+
+        self.venv_kind = venv_kind(self.venv_path)
         if self.docker_image:
             if self.docker_image_built_at is None:
                 self.docker_image_stale = True

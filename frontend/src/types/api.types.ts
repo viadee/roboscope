@@ -56,6 +56,8 @@ export interface EnvCreateRequest {
   description?: string | null
   index_url?: string | null
   extra_index_url?: string | null
+  venv_mode?: 'managed' | 'system' | 'existing'
+  venv_path?: string | null
 }
 
 export interface PackageCreateRequest {

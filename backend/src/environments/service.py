@@ -35,14 +35,30 @@ def get_environment(db: Session, env_id: int) -> Environment | None:
 
 
 def create_environment(db: Session, data: EnvCreate, user_id: int) -> Environment:
-    """Create a new environment."""
-    venv_dir = Path(settings.VENVS_DIR)
-    venv_dir.mkdir(parents=True, exist_ok=True)
-    venv_path = str(venv_dir / data.name)
+    """Create a new environment.
+
+    ``venv_mode`` "system"/"existing" point the environment at an interpreter
+    RoboScope does not own; ValueError when that interpreter is not runnable.
+    """
+    from src.environments.venv_utils import probe_python_version, roboscope_python_prefix
+
+    python_version = data.python_version
+    if data.venv_mode == "managed":
+        venv_dir = Path(settings.VENVS_DIR)
+        venv_dir.mkdir(parents=True, exist_ok=True)
+        venv_path = str(venv_dir / data.name)
+    else:
+        if data.venv_mode == "system":
+            venv_path = roboscope_python_prefix()
+        else:
+            if not data.venv_path or not data.venv_path.strip():
+                raise ValueError("venv_path is required to import an existing environment")
+            venv_path = str(Path(data.venv_path.strip()).expanduser().resolve())
+        python_version = probe_python_version(venv_path)
 
     env = Environment(
         name=data.name,
-        python_version=data.python_version,
+        python_version=python_version,
         venv_path=venv_path,
         docker_image=data.docker_image,
         is_default=data.is_default,
@@ -78,8 +94,13 @@ def update_environment(db: Session, env: Environment, data: EnvUpdate) -> Enviro
 
 
 def delete_environment(db: Session, env: Environment) -> None:
-    """Delete an environment and its venv."""
-    if env.venv_path:
+    """Delete an environment and — only if RoboScope owns it — its venv.
+
+    Imported venvs and RoboScope's own interpreter are left untouched.
+    """
+    from src.environments.venv_utils import is_managed_venv
+
+    if env.venv_path and is_managed_venv(env.venv_path):
         venv_path = Path(env.venv_path)
         if venv_path.exists():
             shutil.rmtree(venv_path, ignore_errors=True)

@@ -15,6 +15,7 @@ from src.environments.venv_utils import (
     create_venv_cmd,
     get_python_path,
     get_venv_bin_dir,
+    is_managed_venv,
     pip_install_cmd,
 )
 from src.execution.resolver import build_robot_argv, resolve_run_spec
@@ -32,6 +33,10 @@ class SubprocessRunner(AbstractRunner):
     def prepare(self, repo_path: str, target_path: str, env_config: dict | None = None) -> None:
         """Prepare virtualenv if specified."""
         if self.venv_path and not Path(self.venv_path).exists():
+            if not is_managed_venv(self.venv_path):
+                # Imported venv vanished — never materialise a fresh venv
+                # at a path RoboScope does not own.
+                raise RuntimeError(f"Python environment not found: {self.venv_path}")
             subprocess.run(
                 create_venv_cmd(self.venv_path),
                 check=True,

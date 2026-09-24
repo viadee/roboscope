@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import { useToast } from '@/composables/useToast'
 import { useFeatureFlags } from '@/composables/useFeatureFlags'
+import { useAuthStore } from '@/stores/auth.store'
 import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
 import * as envsApi from '@/api/environments.api'
 import type { EnvironmentPackage } from '@/types/domain.types'
@@ -22,6 +23,7 @@ const { t } = useI18n()
 // also enforces (403); this is the matching UX.
 const { isEnabled } = useFeatureFlags()
 const pkgMgmt = computed(() => isEnabled('packageManagement'))
+const isAdmin = computed(() => useAuthStore().hasMinRole('admin'))
 
 const showAddDialog = ref(false)
 const defaultEnvName = () => {
@@ -34,7 +36,7 @@ const defaultEnvName = () => {
   }
   return name
 }
-const newEnv = ref({ name: '', python_version: '3.12', docker_image: '', description: '', index_url: '', extra_index_url: '' })
+const newEnv = ref({ name: '', python_version: '3.12', docker_image: '', description: '', index_url: '', extra_index_url: '', venv_mode: 'managed' as 'managed' | 'system' | 'existing', venv_path: '' })
 const adding = ref(false)
 const selectedEnvId = ref<number | null>(null)
 
@@ -80,13 +82,15 @@ async function addEnvironment() {
       description: newEnv.value.description || undefined,
       index_url: newEnv.value.index_url || undefined,
       extra_index_url: newEnv.value.extra_index_url || undefined,
+      venv_mode: newEnv.value.venv_mode,
+      venv_path: newEnv.value.venv_mode === 'existing' ? newEnv.value.venv_path : undefined,
     })
     toast.success(t('environments.toasts.created'))
     if (env.python_version_warning) {
       toast.warning(t('environments.toasts.pythonVersionWarning'), env.python_version_warning)
     }
     showAddDialog.value = false
-    newEnv.value = { name: defaultEnvName(), python_version: '3.12', docker_image: '', description: '', index_url: '', extra_index_url: '' }
+    newEnv.value = { name: defaultEnvName(), python_version: '3.12', docker_image: '', description: '', index_url: '', extra_index_url: '', venv_mode: 'managed', venv_path: '' }
   } catch (e: unknown) {
     // FastAPI returns Pydantic validation errors as an ARRAY at
     // `response.data.detail` rather than the conventional string.
@@ -344,7 +348,9 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
       <div v-for="env in envs.environments" :key="env.id" class="card mb-4">
         <div class="card-header" style="cursor: pointer" @click="toggleDetails(env.id)">
           <div>
-            <h3>{{ env.name }} <BaseBadge v-if="env.is_default" variant="info">{{ t('environments.default') }}</BaseBadge></h3>
+            <h3>{{ env.name }} <BaseBadge v-if="env.is_default" variant="info">{{ t('environments.default') }}</BaseBadge>
+              <BaseBadge v-if="env.venv_kind === 'system'" variant="warning" data-testid="env-kind-system">{{ t('environments.addDialog.kindSystem') }}</BaseBadge>
+              <BaseBadge v-else-if="env.venv_kind === 'external'" variant="default" data-testid="env-kind-external">{{ t('environments.addDialog.kindExternal') }}</BaseBadge></h3>
             <p class="text-muted text-sm">Python {{ env.python_version }} {{ env.docker_image ? `| Docker: ${env.docker_image}` : '' }}</p>
           </div>
           <span>{{ selectedEnvId === env.id ? '▲' : '▼' }}</span>
@@ -356,6 +362,8 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
 
         <!-- Details Panel -->
         <div v-if="selectedEnvId === env.id" class="env-details">
+          <p v-if="env.venv_kind === 'system'" class="form-hint" data-testid="env-system-notice">{{ t('environments.addDialog.systemNotice') }}</p>
+          <p v-if="env.venv_kind !== 'managed' && env.venv_path" class="text-muted text-sm"><code>{{ env.venv_path }}</code></p>
           <!-- Packages -->
           <div class="detail-section">
             <div class="section-header">
@@ -550,6 +558,21 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
           <input v-model="newEnv.name" class="form-input" placeholder="production" required />
         </div>
         <div class="form-group">
+          <label class="form-label">{{ t('environments.addDialog.venvMode') }}</label>
+          <select v-model="newEnv.venv_mode" class="form-select" data-testid="env-venv-mode">
+            <option value="managed">{{ t('environments.addDialog.venvModeManaged') }}</option>
+            <option value="system" :disabled="!isAdmin">{{ t('environments.addDialog.venvModeSystem') }}</option>
+            <option value="existing" :disabled="!isAdmin">{{ t('environments.addDialog.venvModeExisting') }}</option>
+          </select>
+          <span v-if="!isAdmin" class="form-hint">{{ t('environments.addDialog.adminOnly') }}</span>
+          <span v-else-if="newEnv.venv_mode === 'system'" class="form-hint">{{ t('environments.addDialog.systemHint') }}</span>
+        </div>
+        <div v-if="newEnv.venv_mode === 'existing'" class="form-group">
+          <label class="form-label">{{ t('environments.addDialog.venvPath') }}</label>
+          <input v-model="newEnv.venv_path" class="form-input" placeholder="/opt/venvs/robot" required data-testid="env-venv-path" />
+          <span class="form-hint">{{ t('environments.addDialog.venvPathHint') }}</span>
+        </div>
+        <div v-if="newEnv.venv_mode === 'managed'" class="form-group">
           <label class="form-label">{{ t('environments.addDialog.pythonVersion') }}</label>
           <input v-model="newEnv.python_version" class="form-input" placeholder="3.12" />
         </div>
