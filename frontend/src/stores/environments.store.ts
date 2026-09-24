@@ -74,6 +74,21 @@ export const useEnvironmentsStore = defineStore('environments', () => {
     variables.value[envId] = await envsApi.getVariables(envId)
   }
 
+  async function createVariable(envId: number, data: { key: string; value: string; is_secret: boolean }) {
+    await envsApi.createVariable(envId, data)
+    await fetchVariables(envId)
+  }
+
+  async function updateVariable(envId: number, varId: number, data: { key?: string; value?: string; is_secret?: boolean }) {
+    await envsApi.updateVariable(envId, varId, data)
+    await fetchVariables(envId)
+  }
+
+  async function deleteVariable(envId: number, varId: number) {
+    await envsApi.deleteVariable(envId, varId)
+    variables.value[envId] = (variables.value[envId] || []).filter((v) => v.id !== varId)
+  }
+
   function updatePackageFromWs(
     envId: number,
     packageName: string,
@@ -113,6 +128,7 @@ export const useEnvironmentsStore = defineStore('environments', () => {
     environments, packages, variables, buildLogs, loading,
     fetchEnvironments, addEnvironment, setupDefault, removeEnvironment, cloneEnvironment,
     fetchPackages, installPackage, uninstallPackage, fetchVariables, updatePackageFromWs,
+    createVariable, updateVariable, deleteVariable,
     appendBuildLog, clearBuildLogs,
   }
 })

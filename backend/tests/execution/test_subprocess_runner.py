@@ -248,4 +248,33 @@ class TestInactivityTimeout:
 
         # Only first line should be captured (cancelled after second)
         assert "first line\n" in result.stdout
+
+
+class TestExtraEnvInjection:
+    """V14.2: environment variables reach the robot child's process env."""
+
+    def _run(self, runner, tmp_path):
+        mock_proc = MagicMock()
+        mock_proc.stdout.readline.return_value = ""
+        mock_proc.stderr.readline.return_value = ""
+        mock_proc.poll.return_value = 0
+        mock_proc.returncode = 0
+        with patch("subprocess.Popen", return_value=mock_proc) as popen, \
+             patch.object(runner, "_build_command", return_value=["robot", "t.robot"]):
+            runner.execute(repo_path=str(tmp_path), target_path="t.robot",
+                           output_dir=str(tmp_path / "out"))
+        return popen.call_args.kwargs["env"]
+
+    def test_extra_env_reaches_popen(self, tmp_path: Path):
+        runner = SubprocessRunner(extra_env={"BASE_URL": "https://staging", "API_KEY": "s3cr3t"})
+        env = self._run(runner, tmp_path)
+        assert env["BASE_URL"] == "https://staging"
+        assert env["API_KEY"] == "s3cr3t"
+
+    def test_path_and_virtual_env_not_overridable(self, tmp_path: Path):
+        venv = str(tmp_path / "venv")
+        runner = SubprocessRunner(venv_path=venv, extra_env={"PATH": "/evil", "VIRTUAL_ENV": "/evil"})
+        env = self._run(runner, tmp_path)
+        assert env["VIRTUAL_ENV"] == venv
+        assert not env["PATH"].startswith("/evil")
         # The second line triggers cancel, so reader breaks before appending more

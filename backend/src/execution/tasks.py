@@ -17,6 +17,7 @@ import src.repos.models  # noqa: F401
 
 from src.config import settings
 from src.database import get_sync_session
+from src.environments.service import resolve_env_vars
 from src.environments.tasks import _is_browser_package
 from src.environments.venv_utils import check_rfbrowser_initialized
 from src.execution.models import ExecutionRun, RunStatus, RunnerType
@@ -171,10 +172,12 @@ def _get_runner(runner_type: str, env_config: dict | None = None):
     if runner_type == RunnerType.DOCKER:
         from src.execution.runners.docker_runner import DockerRunner
         image = env_config.get("docker_image") if env_config else None
-        return DockerRunner(image=image)
+        extra_env = env_config.get("env_vars") if env_config else None
+        return DockerRunner(image=image, extra_env=extra_env)
     else:
         venv_path = env_config.get("venv_path") if env_config else None
-        return SubprocessRunner(venv_path=venv_path)
+        extra_env = env_config.get("env_vars") if env_config else None
+        return SubprocessRunner(venv_path=venv_path, extra_env=extra_env)
 
 
 def _format_modifiers(entries: list) -> list[str] | None:
@@ -255,6 +258,8 @@ def _get_env_config(session: Session, env_id: int | None) -> dict | None:
         "docker_image": env.docker_image,
         "default_runner_type": env.default_runner_type,
         "packages": pkg_specs,
+        # Decrypted secrets — never log env_config.
+        "env_vars": resolve_env_vars(session, env_id),
     }
 
 

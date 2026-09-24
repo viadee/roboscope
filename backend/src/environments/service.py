@@ -17,7 +17,14 @@ from src.environments.models import (
     EnvironmentPackage,
     EnvironmentVariable,
 )
-from src.environments.schemas import EnvCreate, EnvUpdate, EnvVarCreate, PackageCreate
+from src.environments.schemas import (
+    EnvCreate,
+    EnvUpdate,
+    EnvVarCreate,
+    EnvVarUpdate,
+    PackageCreate,
+    is_reserved_env_key,
+)
 
 logger = logging.getLogger("roboscope.environments")
 
@@ -279,6 +286,70 @@ def add_variable(db: Session, env_id: int, data: EnvVarCreate) -> EnvironmentVar
     db.flush()
     db.refresh(var)
     return var
+
+
+def get_variable(db: Session, env_id: int, var_id: int) -> EnvironmentVariable | None:
+    """Get a variable, scoped to its environment (a foreign env's var is None)."""
+    return db.execute(
+        select(EnvironmentVariable)
+        .where(EnvironmentVariable.id == var_id)
+        .where(EnvironmentVariable.environment_id == env_id)
+    ).scalar_one_or_none()
+
+
+def variable_key_taken(db: Session, env_id: int, key: str, exclude_id: int | None = None) -> bool:
+    """True when another variable in the environment already uses ``key``."""
+    q = select(EnvironmentVariable.id).where(
+        EnvironmentVariable.environment_id == env_id, EnvironmentVariable.key == key
+    )
+    if exclude_id is not None:
+        q = q.where(EnvironmentVariable.id != exclude_id)
+    return db.execute(q).first() is not None
+
+
+def update_variable(
+    db: Session, var: EnvironmentVariable, data: EnvVarUpdate
+) -> EnvironmentVariable:
+    """Update a variable. Secrets are re-encrypted; an empty value on a secret
+    keeps the stored value so the edit form never has to echo it."""
+    from src.encryption import encrypt_value
+
+    was_secret = var.is_secret
+    is_secret = var.is_secret if data.is_secret is None else data.is_secret
+    if data.key is not None:
+        var.key = data.key
+    if data.value is not None and (data.value or not (was_secret or is_secret)):
+        plain = data.value
+    elif was_secret != is_secret:
+        plain = decrypt_variable_value(var)  # secret flag toggled: re-store existing value
+    else:
+        plain = None
+    var.is_secret = is_secret
+    if plain is not None:
+        var.value = encrypt_value(plain) if is_secret and plain else plain
+    db.flush()
+    db.refresh(var)
+    return var
+
+
+def delete_variable(db: Session, var: EnvironmentVariable) -> None:
+    db.delete(var)
+    db.flush()
+
+
+def resolve_env_vars(db: Session, env_id: int) -> dict[str, str]:
+    """Plaintext ``{key: value}`` for injection into a run's process env.
+
+    Secrets are decrypted here, at injection time only. Reserved names are
+    skipped as defence in depth (legacy rows predating the API validator).
+    """
+    out: dict[str, str] = {}
+    for var in list_variables(db, env_id):
+        if is_reserved_env_key(var.key):
+            logger.warning("Skipping reserved environment variable %s", var.key)
+            continue
+        out[var.key] = decrypt_variable_value(var)
+    return out
 
 
 def decrypt_variable_value(var: EnvironmentVariable) -> str:

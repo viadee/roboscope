@@ -19,6 +19,7 @@ from src.environments.schemas import (
     EnvUpdate,
     EnvVarCreate,
     EnvVarResponse,
+    EnvVarUpdate,
     KeywordCacheResponse,
     PackageCreate,
     PackageResponse,
@@ -30,9 +31,11 @@ from src.environments.service import (
     clone_environment,
     create_environment,
     delete_environment,
+    delete_variable,
     generate_dockerfile,
     get_environment,
     get_keyword_cache,
+    get_variable,
     keyword_cache_is_fresh,
     list_environments,
     list_packages,
@@ -41,6 +44,8 @@ from src.environments.service import (
     remove_package,
     search_pypi,
     update_environment,
+    update_variable,
+    variable_key_taken,
 )
 from src.task_executor import TaskDispatchError, dispatch_task
 
@@ -773,22 +778,32 @@ def uninstall_package(
 # --- Variables ---
 
 
+def _var_response(var) -> EnvVarResponse:
+    """Serialize a variable, masking secrets. Never mutate the ORM row: the
+    request session commits, so an in-place mask would overwrite the secret."""
+    return EnvVarResponse(
+        id=var.id,
+        environment_id=var.environment_id,
+        key=var.key,
+        value="********" if var.is_secret else var.value,
+        is_secret=var.is_secret,
+    )
+
+
+def _require_env(db: Session, env_id: int) -> None:
+    if get_environment(db, env_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
+
+
 @router.get("/{env_id}/variables", response_model=list[EnvVarResponse])
 def get_variables(
     env_id: int,
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """List variables in an environment."""
-    env = get_environment(db, env_id)
-    if env is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
-    variables = list_variables(db, env_id)
-    # Mask secret values
-    for var in variables:
-        if var.is_secret:
-            var.value = "********"
-    return variables
+    """List variables in an environment (secret values masked)."""
+    _require_env(db, env_id)
+    return [_var_response(v) for v in list_variables(db, env_id)]
 
 
 @router.post("/{env_id}/variables", response_model=EnvVarResponse, status_code=status.HTTP_201_CREATED)
@@ -799,7 +814,42 @@ def create_variable(
     _current_user: User = Depends(require_role(Role.EDITOR)),
 ):
     """Add a variable to an environment."""
-    env = get_environment(db, env_id)
-    if env is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
-    return add_variable(db, env_id, data)
+    _require_env(db, env_id)
+    if variable_key_taken(db, env_id, data.key):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Variable key already exists"
+        )
+    return _var_response(add_variable(db, env_id, data))
+
+
+@router.patch("/{env_id}/variables/{var_id}", response_model=EnvVarResponse)
+def patch_variable(
+    env_id: int,
+    var_id: int,
+    data: EnvVarUpdate,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Update a variable. An empty value on a secret keeps the stored value."""
+    var = get_variable(db, env_id, var_id)
+    if var is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Variable not found")
+    if data.key is not None and variable_key_taken(db, env_id, data.key, exclude_id=var_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Variable key already exists"
+        )
+    return _var_response(update_variable(db, var, data))
+
+
+@router.delete("/{env_id}/variables/{var_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_variable(
+    env_id: int,
+    var_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_role(Role.EDITOR)),
+):
+    """Delete a variable."""
+    var = get_variable(db, env_id, var_id)
+    if var is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Variable not found")
+    delete_variable(db, var)

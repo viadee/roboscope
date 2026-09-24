@@ -25,8 +25,9 @@ from src.execution.runners.base import AbstractRunner, RunResult
 class SubprocessRunner(AbstractRunner):
     """Runs Robot Framework tests in a local subprocess with optional virtualenv."""
 
-    def __init__(self, venv_path: str | None = None):
+    def __init__(self, venv_path: str | None = None, extra_env: dict[str, str] | None = None):
         self.venv_path = venv_path
+        self.extra_env = extra_env or {}
         self._process: subprocess.Popen | None = None
         self._cancelled = False
 
@@ -106,6 +107,9 @@ class SubprocessRunner(AbstractRunner):
 
         # Prepare environment
         env = os.environ.copy()
+        # Environment variables (readable as %{NAME}); applied before the venv
+        # lines so PATH/VIRTUAL_ENV always win.
+        env.update(self.extra_env)
         if self.venv_path:
             venv_bin = get_venv_bin_dir(self.venv_path)
             env["PATH"] = venv_bin + os.pathsep + env.get("PATH", "")
