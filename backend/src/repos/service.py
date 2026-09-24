@@ -213,6 +213,7 @@ class GitOperationError(Exception):
     `kind` is one of:
       - 'not_a_repo'         the path is not a git repo (404)
       - 'nothing_to_commit'  the index is clean (400)
+      - 'bad_path'           path escapes the repo root / is invalid (400)
       - 'non_fast_forward'   the remote rejected the push (409)
       - 'auth'               remote authentication failed (502)
       - 'other'              everything else (500)
@@ -328,6 +329,66 @@ def get_repo_status(local_path: str) -> dict:
         "deleted": sorted(deleted),
         "is_dirty": is_dirty,
     }
+
+
+def get_file_diff(local_path: str, rel_path: str, max_bytes: int = 200_000) -> dict:
+    """Unified diff of ONE working-tree file against HEAD (Story V14.5).
+
+    Returns ``{path, status, diff, truncated}`` where status is one of
+    ``modified | untracked | deleted | binary | unchanged``. Untracked
+    files render as an all-added diff; binaries yield ``diff=None``.
+
+    Raises ``GitOperationError('bad_path')`` for absolute paths, ``..``
+    segments, directories, or anything resolving outside the repo root
+    (symlinks included), and ``'not_a_repo'`` for non-git paths.
+    """
+    from git import InvalidGitRepositoryError, NoSuchPathError, Repo
+
+    root = Path(local_path).resolve()
+    rel = Path(rel_path)
+    if not rel_path or rel.is_absolute() or ".." in rel.parts or rel_path.startswith(("/", "\\")):
+        raise GitOperationError("bad_path", "Invalid path")
+    target = (root / rel).resolve()
+    if not target.is_relative_to(root) or target == root or target.is_dir():
+        raise GitOperationError("bad_path", "Invalid path")
+
+    try:
+        repo = Repo(str(root))
+    except (InvalidGitRepositoryError, NoSuchPathError) as e:
+        raise GitOperationError("not_a_repo", str(e)) from e
+    # Treat `path` as a literal filename — no globs / `:(magic)` pathspecs.
+    repo.git.update_environment(GIT_LITERAL_PATHSPECS="1")
+    git_rel = rel.as_posix()
+
+    def _cap(text: str) -> tuple[str, bool]:
+        raw = text.encode("utf-8", errors="replace")
+        if len(raw) <= max_bytes:
+            return text, False
+        return raw[:max_bytes].decode("utf-8", errors="ignore"), True
+
+    if repo.git.ls_files("--others", "--exclude-standard", "--", git_rel):
+        with open(target, "rb") as fh:
+            data = fh.read(max_bytes + 1)
+        if b"\0" in data[:8000]:
+            return {"path": rel_path, "status": "binary", "diff": None, "truncated": False}
+        lines = data.decode("utf-8", errors="replace").splitlines()
+        body = "".join(f"+{line}\n" for line in lines)
+        header = f"--- /dev/null\n+++ b/{git_rel}\n@@ -0,0 +1,{len(lines)} @@\n"
+        diff, truncated = _cap(header + body)
+        return {"path": rel_path, "status": "untracked", "diff": diff,
+                "truncated": truncated or len(data) > max_bytes}
+
+    # `-` in --numstat marks a binary change.
+    if repo.git.diff("--numstat", "HEAD", "--", git_rel).startswith("-\t-\t"):
+        return {"path": rel_path, "status": "binary", "diff": None, "truncated": False}
+    diff, truncated = _cap(repo.git.diff("HEAD", "--", git_rel))
+    if not diff:
+        state = "unchanged"
+    elif not target.exists():
+        state = "deleted"
+    else:
+        state = "modified"
+    return {"path": rel_path, "status": state, "diff": diff, "truncated": truncated}
 
 
 def commit_changes(

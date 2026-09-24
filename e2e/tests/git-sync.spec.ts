@@ -1,4 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { loginAndGoToDashboard } from '../helpers';
 
 const API = 'http://localhost:8000/api/v1';
@@ -269,5 +271,71 @@ test.describe('Git Sync — E2E', () => {
 
     // The card should show "Letzter Sync:" field
     await expect(repoCard.getByText('Letzter Sync:')).toBeVisible();
+  });
+
+  // ─── Story V14.5: per-file diff preview in the Publish modal ─────
+
+  test('publish modal shows the diff of an edited file', async ({ page }) => {
+    // Real git: a local bare remote seeded with one committed file.
+    const stamp = Date.now();
+    const seed = `/tmp/roboscope-diff-seed-${stamp}`;
+    const bare = `/tmp/roboscope-diff-remote-${stamp}.git`;
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync('git', ['-c', 'user.name=e2e', '-c', 'user.email=e2e@example.com', ...args], { cwd });
+    mkdirSync(seed, { recursive: true });
+    git(seed, 'init', '-b', 'main');
+    writeFileSync(`${seed}/suite.robot`, '*** Test Cases ***\nSeed\n    Log    seed\n');
+    git(seed, 'add', '.');
+    git(seed, 'commit', '-m', 'seed');
+    git('/tmp', 'clone', '--bare', seed, bare);
+
+    const created = await createRepoViaApi(page, token, `diff-e2e-${stamp}`, bare);
+    expect(created.status).toBe(201);
+    const repoId = created.body.id;
+
+    // Wait for the background clone to land.
+    await expect.poll(async () => {
+      const r = await page.request.get(`${API}/repos/${repoId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return (await r.json()).sync_status;
+    }, { timeout: 30_000 }).toBe('success');
+
+    // Edit the file through the Explorer API (working tree, not committed).
+    const save = await page.request.put(`${API}/explorer/${repoId}/file`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { path: 'suite.robot', content: '*** Test Cases ***\nSeed\n    Log    diff-e2e-new-line\n' },
+    });
+    expect(save.ok()).toBeTruthy();
+
+    await page.goto(`/explorer/${repoId}`);
+    const saveBtn = page.getByTestId('repo-save-btn');
+    await expect(saveBtn).toBeVisible({ timeout: 10_000 });
+    await saveBtn.click();
+
+    const row = page.locator('.publish-path', { hasText: 'suite.robot' });
+    const checkbox = row.locator('input[type="checkbox"]');
+    await expect(checkbox).toBeChecked();
+    await row.getByTestId('publish-diff-toggle').click();
+
+    const diff = row.getByTestId('publish-diff');
+    await expect(diff.locator('.diff-add', { hasText: 'diff-e2e-new-line' })).toBeVisible({ timeout: 5_000 });
+    await expect(diff.locator('.diff-del', { hasText: 'Log    seed' })).toBeVisible();
+    // Previewing never changes the selection.
+    await expect(checkbox).toBeChecked();
+
+    await page.request.delete(`${API}/repos/${repoId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  });
+
+  test('GET /repos/{id}/diff rejects path traversal', async ({ page }) => {
+    const created = await createRepoViaApi(page, token, `diff-trav-${Date.now()}`, 'https://github.com/test/repo.git');
+    const res = await page.request.get(`${API}/repos/${created.body.id}/diff`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params: { path: '../etc/passwd' },
+    });
+    // The path guard runs before git is touched, so this is 400 even if the clone failed.
+    expect(res.status()).toBe(400);
   });
 });

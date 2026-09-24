@@ -301,6 +301,17 @@ const es: DocsContent = [
   muestra la \u00FAltima sincronizaci\u00F3n exitosa. Si una sincronizaci\u00F3n falla
   (por ejemplo, conflictos de fusi\u00F3n), aparece una insignia de error junto
   al nombre del repositorio.
+</p>
+<h4>Guardar sus cambios</h4>
+<p>
+  El botón <strong>Guardar N cambios</strong> del Explorador abre una ventana
+  con los archivos modificados: marque los que quiera publicar, escriba un mensaje
+  de commit y guarde (commit + push). Haga clic en <strong>Ver cambios</strong>
+  junto a un archivo para ver su diff respecto al último commit (líneas
+  añadidas en verde, eliminadas en rojo). Los archivos nuevos aparecen
+  completamente añadidos y los eliminados completamente borrados; los archivos
+  binarios no muestran diff de texto y los diffs muy grandes se cortan a
+  200&nbsp;KB. La vista previa no cambia la selección.
 </p>`,
         tip: 'Importante: Auto-Sync ahora ejecuta un git pull en segundo plano cada sync_interval_minutes (15 min por defecto). El planificador se activa cada 5 min, los intervalos cortos se redondean a 5 min. Use el bot\u00F3n "Sincronizar" expl\u00EDcito y guarde sus cambios antes con "Guardar N cambios" para evitar sobrescrituras.'
       },

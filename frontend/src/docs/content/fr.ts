@@ -293,6 +293,18 @@ const fr: DocsContent = [
   Le statut de synchronisation est indiqu\u00E9 par un horodatage montrant la derni\u00E8re
   synchronisation r\u00E9ussie. Si une synchronisation \u00E9choue (par exemple en cas de conflit
   de fusion), un badge d\u2019erreur appara\u00EEt \u00E0 c\u00F4t\u00E9 du nom du d\u00E9p\u00F4t.
+</p>
+<h4>Enregistrer vos modifications</h4>
+<p>
+  Le bouton <strong>Enregistrer N modifications</strong> de l\u2019Explorateur ouvre
+  une fen\u00EAtre listant les fichiers modifi\u00E9s&nbsp;: cochez ceux \u00E0 publier,
+  saisissez un message de commit, puis enregistrez (commit + push). Cliquez sur
+  <strong>Voir les modifications</strong> \u00E0 c\u00F4t\u00E9 d\u2019un fichier pour
+  afficher son diff par rapport au dernier commit (lignes ajout\u00E9es en vert,
+  supprim\u00E9es en rouge). Les nouveaux fichiers apparaissent enti\u00E8rement
+  ajout\u00E9s, les fichiers supprim\u00E9s enti\u00E8rement retir\u00E9s&nbsp;; les
+  fichiers binaires n\u2019ont pas de diff texte et les tr\u00E8s gros diffs sont
+  tronqu\u00E9s \u00E0 200&nbsp;Ko. L\u2019aper\u00E7u ne modifie pas la s\u00E9lection.
 </p>`,
         tip: 'La synchronisation automatique garantit que vous testez toujours le code le plus r\u00E9cent. Auto-Sync ex\u00E9cute maintenant un git pull en arri\u00E8re-plan toutes les sync_interval_minutes (15 min par d\u00E9faut), via un planificateur qui tique toutes les 5 min.'
       },

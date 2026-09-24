@@ -143,6 +143,19 @@ class RepoStatusResponse(BaseModel):
     is_dirty: bool = False
 
 
+class FileDiffResponse(BaseModel):
+    """`GET /repos/{id}/diff?path=` — one file's diff against HEAD (V14.5).
+
+    `status`: modified | untracked | deleted | binary | unchanged.
+    `diff` is null for binaries; `truncated` when capped at 200 KB.
+    """
+
+    path: str
+    status: str
+    diff: str | None = None
+    truncated: bool = False
+
+
 class CommitRequest(BaseModel):
     """Body of `POST /repos/{id}/commit` and `POST /repos/{id}/publish`."""
 

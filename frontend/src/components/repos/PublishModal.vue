@@ -17,6 +17,8 @@ import {
   publishRepo,
   pushRepo,
   syncRepo,
+  getFileDiff,
+  type FileDiff,
   type RepoStatus,
   type PublishConflict,
 } from '@/api/repos.api'
@@ -52,6 +54,9 @@ const message = ref('')
 const submitting = ref(false)
 const conflict = ref<PublishConflict | null>(null)
 const pulling = ref(false)
+type DiffState = FileDiff | 'loading' | { error: string }
+const diffs = ref<Record<string, DiffState>>({})
+const openDiffs = ref<Set<string>>(new Set())
 
 // Reset selection + error state on every re-open / status update.
 // `immediate: true` so the initial render also seeds `selected` —
@@ -63,10 +68,52 @@ watch(
       selected.value = new Set(allPaths.value)
       message.value = ''
       conflict.value = null
+      diffs.value = {}
+      openDiffs.value = new Set()
     }
   },
   { immediate: true },
 )
+
+// Story V14.5 — lazy per-file diff preview (state declared above the
+// watcher). Fetched once per open; rendered as escaped text (never
+// v-html) with +/- line colouring.
+async function toggleDiff(path: string) {
+  const open = new Set(openDiffs.value)
+  if (open.has(path)) open.delete(path)
+  else open.add(path)
+  openDiffs.value = open
+  // Cached after the first successful load; a failed load retries on re-open.
+  if (!open.has(path) || (diffs.value[path] && diffError(path) === null)) return
+  diffs.value = { ...diffs.value, [path]: 'loading' }
+  try {
+    diffs.value = { ...diffs.value, [path]: await getFileDiff(props.repoId, path) }
+  } catch (e: unknown) {
+    const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+    diffs.value = {
+      ...diffs.value,
+      [path]: { error: typeof detail === 'string' ? detail : (e as Error).message ?? '' },
+    }
+  }
+}
+
+function loadedDiff(path: string): FileDiff | null {
+  const d = diffs.value[path]
+  return d && typeof d === 'object' && 'status' in d ? d : null
+}
+
+function diffError(path: string): string | null {
+  const d = diffs.value[path]
+  return d && typeof d === 'object' && 'error' in d ? d.error : null
+}
+
+function diffLineClass(line: string): string {
+  if (line.startsWith('+++') || line.startsWith('---')) return 'diff-meta'
+  if (line.startsWith('+')) return 'diff-add'
+  if (line.startsWith('-')) return 'diff-del'
+  if (line.startsWith('@@')) return 'diff-hunk'
+  return ''
+}
 
 const canSubmit = computed(() =>
   !submitting.value
@@ -181,6 +228,37 @@ function onCancel() {
               }}
             </span>
           </label>
+          <button
+            type="button"
+            class="publish-diff-toggle"
+            :aria-expanded="openDiffs.has(path)"
+            data-testid="publish-diff-toggle"
+            @click="toggleDiff(path)"
+          >
+            {{ openDiffs.has(path) ? t('repos.publish.hideChanges') : t('repos.publish.showChanges') }}
+          </button>
+          <div v-if="openDiffs.has(path)" class="publish-diff" data-testid="publish-diff">
+            <p v-if="diffs[path] === 'loading'" class="publish-diff-note">{{ t('common.loading') }}</p>
+            <p v-else-if="diffError(path) !== null" class="publish-diff-note">
+              {{ t('repos.publish.diffError', { detail: diffError(path) }) }}
+            </p>
+            <template v-else-if="loadedDiff(path)">
+              <p v-if="loadedDiff(path)!.status === 'binary'" class="publish-diff-note">
+                {{ t('repos.publish.binaryFile') }}
+              </p>
+              <p v-else-if="!loadedDiff(path)!.diff" class="publish-diff-note">
+                {{ t('repos.publish.noChanges') }}
+              </p>
+              <pre v-else class="publish-diff-pre"><span
+                v-for="(line, i) in loadedDiff(path)!.diff!.split('\n')"
+                :key="i"
+                :class="diffLineClass(line)"
+              >{{ line || ' ' }}</span></pre>
+              <p v-if="loadedDiff(path)!.truncated" class="publish-diff-note">
+                {{ t('repos.publish.diffTruncated') }}
+              </p>
+            </template>
+          </div>
         </li>
       </ul>
 
@@ -245,6 +323,26 @@ function onCancel() {
   color: var(--color-text-muted, #5A6380);
   flex-shrink: 0;
 }
+.publish-path { display: flex; flex-wrap: wrap; align-items: center; }
+.publish-path label { flex: 1; min-width: 0; }
+.publish-diff-toggle {
+  flex-shrink: 0; font-size: 11px; padding: 2px 6px;
+  background: none; border: none; cursor: pointer;
+  color: var(--color-primary, #3B7DD8);
+}
+.publish-diff { flex-basis: 100%; margin: 2px 0 6px; }
+.publish-diff-note { margin: 2px 6px; font-size: 11px; color: var(--color-text-muted, #5A6380); }
+.publish-diff-pre {
+  margin: 0; max-height: 260px; overflow: auto;
+  background: var(--color-bg, #F4F7FA);
+  border: 1px solid var(--color-border, #D8DDE8);
+  border-radius: 4px; font-size: 11px; line-height: 1.4;
+}
+.publish-diff-pre span { display: block; padding: 0 6px; white-space: pre; }
+.publish-diff-pre .diff-add { background: var(--color-success-bg, #DCFCE7); color: var(--color-success, #37996E); }
+.publish-diff-pre .diff-del { background: var(--color-danger-bg, #FEE2E2); color: var(--color-danger, #DC3545); }
+.publish-diff-pre .diff-hunk { color: var(--color-primary, #3B7DD8); }
+.publish-diff-pre .diff-meta { color: var(--color-text-muted, #5A6380); }
 .publish-message-label {
   display: flex; flex-direction: column; gap: 4px;
   font-size: 12px; font-weight: 600;
