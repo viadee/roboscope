@@ -1154,6 +1154,10 @@ export default {
     resume: 'Reprendre',
     noSchedules: 'Aucune planification configurée.',
     confirmDelete: 'Supprimer cette planification ? Cette action est irréversible.',
+    runNow: 'Exécuter maintenant',
+    lastRun: 'Dernière exécution',
+    nextRun: 'Prochaine exécution',
+    invalidCron: 'Expression cron invalide. Utilisez cinq champs : minute heure jour mois jour-de-semaine (ex. 0 2 * * 1-5).',
     cron: {
       minute: 'Minute',
       hour: 'Heure',
@@ -1183,6 +1187,8 @@ export default {
       deleted: 'Planification supprimée',
       saveError: 'Impossible de sauvegarder la planification',
       deleteError: 'Impossible de supprimer la planification',
+      runStarted: 'Exécution démarrée',
+      runError: "Impossible de démarrer l'exécution",
     },
   },
   notifications: {

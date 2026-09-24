@@ -1154,6 +1154,10 @@ export default {
     resume: 'Resume',
     noSchedules: 'No schedules configured yet.',
     confirmDelete: 'Delete this schedule? This cannot be undone.',
+    runNow: 'Run now',
+    lastRun: 'Last run',
+    nextRun: 'Next run',
+    invalidCron: 'Invalid cron expression. Use five fields: minute hour day month weekday (e.g. 0 2 * * 1-5).',
     cron: {
       minute: 'Minute',
       hour: 'Hour',
@@ -1183,6 +1187,8 @@ export default {
       deleted: 'Schedule deleted',
       saveError: 'Could not save schedule',
       deleteError: 'Could not delete schedule',
+      runStarted: 'Run started',
+      runError: 'Could not start the run',
     },
   },
   notifications: {

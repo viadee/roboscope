@@ -1,13 +1,18 @@
 """Execution service: run management, scheduling."""
 
 import json
-from datetime import datetime, timezone
+import logging
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from apscheduler.triggers.cron import CronTrigger
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from src.execution.models import ExecutionRun, RunStatus, RunType, RunnerType, Schedule
 from src.execution.schemas import RunCreate, ScheduleCreate, ScheduleUpdate
+from src.task_executor import TaskDispatchError, dispatch_task
+
+logger = logging.getLogger("roboscope.execution")
 
 
 # --- Execution Runs ---
@@ -145,6 +150,70 @@ def retry_run(db: Session, run: ExecutionRun, user_id: int) -> ExecutionRun:
 # --- Schedules ---
 
 
+def compute_next_run(cron_expression: str, now: datetime | None = None) -> datetime:
+    """Next fire time strictly after `now`, as naive UTC (the DB convention).
+
+    The cron fields are read in the server's local time zone (APScheduler's
+    default), so "0 2 * * *" means 02:00 server time.
+    """
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    # +1s: CronTrigger returns a time >= now; a tick landing exactly on a
+    # match must not compute the same slot again.
+    trigger = CronTrigger.from_crontab(cron_expression)
+    nxt = trigger.get_next_fire_time(None, now + timedelta(seconds=1))
+    return nxt.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _refresh_next_run(schedule: Schedule) -> None:
+    schedule.next_run_at = (
+        compute_next_run(schedule.cron_expression) if schedule.is_active else None
+    )
+
+
+def create_run_from_schedule(
+    db: Session, schedule: Schedule, user_id: int, now: datetime | None = None
+) -> ExecutionRun:
+    """Create, commit and dispatch a run from a schedule's plain run fields.
+
+    Deliberately never copies the schedule's variables / advanced config:
+    those columns are inert and any reader must go through
+    `gate_advanced_execution` (see the Schedule model + tripwire test).
+    Sets `last_run_at`; the caller owns `next_run_at`.
+    """
+    now = now or datetime.now(timezone.utc)
+    run = ExecutionRun(
+        repository_id=schedule.repository_id,
+        environment_id=schedule.environment_id,
+        run_type=RunType.SCHEDULED,
+        runner_type=schedule.runner_type,
+        status=RunStatus.PENDING,
+        target_path=schedule.target_path,
+        branch=schedule.branch,
+        tags_include=schedule.tags_include,
+        tags_exclude=schedule.tags_exclude,
+        triggered_by=user_id,
+        schedule_id=schedule.id,
+    )
+    db.add(run)
+    schedule.last_run_at = now.astimezone(timezone.utc).replace(tzinfo=None) if now.tzinfo else now
+    # Commit so the background thread (separate session) sees the run.
+    db.commit()
+
+    from src.execution.tasks import execute_test_run
+
+    try:
+        run.task_id = dispatch_task(execute_test_run, run.id).id
+    except TaskDispatchError as e:
+        logger.error("Failed to dispatch scheduled run %d: %s", run.id, e)
+        run.status = RunStatus.ERROR
+        run.error_message = f"Task dispatch failed: {e}"
+    db.commit()
+    db.refresh(run)
+    return run
+
+
 def create_schedule(db: Session, data: ScheduleCreate, user_id: int) -> Schedule:
     """Create a new schedule."""
     schedule = Schedule(
@@ -158,7 +227,9 @@ def create_schedule(db: Session, data: ScheduleCreate, user_id: int) -> Schedule
         tags_include=data.tags_include,
         tags_exclude=data.tags_exclude,
         created_by=user_id,
+        is_active=True,
     )
+    _refresh_next_run(schedule)
     db.add(schedule)
     db.flush()
     db.refresh(schedule)
@@ -182,13 +253,19 @@ def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate) -> Sc
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(schedule, key, value)
+    _refresh_next_run(schedule)
     db.flush()
     db.refresh(schedule)
     return schedule
 
 
 def delete_schedule(db: Session, schedule: Schedule) -> None:
-    """Delete a schedule."""
+    """Delete a schedule. Its past runs stay, detached from it."""
+    db.execute(
+        update(ExecutionRun)
+        .where(ExecutionRun.schedule_id == schedule.id)
+        .values(schedule_id=None)
+    )
     db.delete(schedule)
     db.flush()
 
@@ -196,6 +273,7 @@ def delete_schedule(db: Session, schedule: Schedule) -> None:
 def toggle_schedule(db: Session, schedule: Schedule) -> Schedule:
     """Toggle a schedule's active status."""
     schedule.is_active = not schedule.is_active
+    _refresh_next_run(schedule)
     db.flush()
     db.refresh(schedule)
     return schedule

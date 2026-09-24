@@ -92,10 +92,11 @@ class Schedule(Base, TimestampMixin):
     # carry variables + advanced config (previously Schedule had neither).
     #
     # Currently INERT: neither ScheduleCreate/ScheduleUpdate (schemas.py) nor
-    # any scheduler job writes or reads these columns — there is no
-    # schedule-trigger path yet (main.py's APScheduler jobs are retention /
-    # OIDC-refresh / repo-auto-sync only, not "run this schedule's suite").
-    # WHEN that trigger path is built: it MUST call
+    # the schedule-trigger path (V14.1: `schedule_trigger.run_due_schedules`
+    # + `POST /schedules/{id}/run`, both via
+    # `service.create_run_from_schedule`) writes or reads these columns —
+    # scheduled runs never carry variables or advanced config.
+    # IF the trigger path ever starts reading them: it MUST call
     # `governance.dependencies.gate_advanced_execution` with this schedule's
     # `advanced_config` before dispatching a run — the same gate
     # `POST /runs` uses (flag + role + deny-list). Skipping it would be a

@@ -1173,6 +1173,33 @@ Recording 21
   <strong>Runner</strong> role or above.
 </p>`,
         tip: 'Use "Cancel All" cautiously in multi-user environments, as it affects runs started by all users.'
+      },
+      {
+        id: 'scheduled-runs',
+        title: 'Scheduled Runs',
+        content: `
+<p>
+  The <strong>Schedules</strong> tab on the Execution page runs a repository target automatically
+  on a cron expression (five fields: <code>minute hour day month weekday</code>, e.g.
+  <code>0 2 * * 1-5</code> for 02:00 on weekdays). Invalid expressions are rejected when you save.
+</p>
+<ul>
+  <li><strong>Time zone</strong> &mdash; the cron fields are evaluated in the <strong>server's</strong> time zone.
+      The <strong>Last run</strong> and <strong>Next run</strong> columns are shown in your browser's local time.</li>
+  <li><strong>Heartbeat</strong> &mdash; the server checks for due schedules once a minute, so a run starts within about a minute of its slot.</li>
+  <li><strong>No overlap</strong> &mdash; if the schedule's previous run is still <code>pending</code> or <code>running</code>,
+      the slot is skipped and the schedule waits for its next time.</li>
+  <li><strong>Runs as the creator</strong> &mdash; a scheduled run is triggered by the user who created the schedule.
+      If that user is deactivated or deleted, or the repository no longer exists, the schedule does not fire.</li>
+  <li><strong>Missed slots</strong> &mdash; if the server was down, an overdue schedule fires <strong>once</strong> after restart; missed slots are not replayed.</li>
+  <li><strong>Plain runs only</strong> &mdash; scheduled runs use repository, target, branch, environment, runner and tag filters.
+      They never carry variables or advanced arguments/modifiers.</li>
+</ul>
+<p>
+  <strong>Run now</strong> (&#9889;) starts a run from a schedule immediately, even when it is paused, and does not
+  change its next scheduled time. It requires the <strong>Runner</strong> role or above on the repository;
+  creating and editing schedules requires <strong>Editor</strong>.
+</p>`
       }
     ]
   },

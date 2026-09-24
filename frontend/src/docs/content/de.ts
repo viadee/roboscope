@@ -1140,6 +1140,33 @@ Recording 21
   Run bleibt im Verlauf erhalten.
 </p>`,
         tip: 'Abgebrochene Runs erzeugen keine Reports. Wenn der Prozess bereits Teilergebnisse geschrieben hat, werden diese nicht verarbeitet.'
+      },
+      {
+        id: 'execution-scheduled-runs',
+        title: 'Geplante Ausführungen',
+        content: `
+<p>
+  Der Tab <strong>Zeitpläne</strong> auf der Ausführungsseite startet ein Repository-Ziel automatisch
+  nach einem Cron-Ausdruck (fünf Felder: <code>Minute Stunde Tag Monat Wochentag</code>, z.&nbsp;B.
+  <code>0 2 * * 1-5</code> für 02:00 an Werktagen). Ungültige Ausdrücke werden beim Speichern abgelehnt.
+</p>
+<ul>
+  <li><strong>Zeitzone</strong> &mdash; die Cron-Felder werden in der Zeitzone des <strong>Servers</strong> ausgewertet.
+      Die Spalten <strong>Letzter Lauf</strong> und <strong>Nächster Lauf</strong> zeigen die lokale Zeit Ihres Browsers.</li>
+  <li><strong>Takt</strong> &mdash; der Server prüft einmal pro Minute auf fällige Zeitpläne; eine Ausführung startet also etwa innerhalb einer Minute.</li>
+  <li><strong>Keine Überlappung</strong> &mdash; läuft die vorherige Ausführung des Zeitplans noch (<code>pending</code> oder <code>running</code>),
+      wird der Termin übersprungen und der Zeitplan wartet auf den nächsten.</li>
+  <li><strong>Läuft als Ersteller</strong> &mdash; eine geplante Ausführung wird im Namen des Benutzers gestartet, der den Zeitplan angelegt hat.
+      Ist dieser deaktiviert oder gelöscht oder existiert das Repository nicht mehr, wird nichts gestartet.</li>
+  <li><strong>Verpasste Termine</strong> &mdash; war der Server offline, startet ein überfälliger Zeitplan nach dem Neustart <strong>einmal</strong>; verpasste Termine werden nicht nachgeholt.</li>
+  <li><strong>Nur einfache Ausführungen</strong> &mdash; geplante Ausführungen nutzen Repository, Ziel, Branch, Umgebung, Runner und Tag-Filter.
+      Variablen oder erweiterte Argumente/Modifier werden nie übernommen.</li>
+</ul>
+<p>
+  <strong>Jetzt ausführen</strong> (&#9889;) startet sofort eine Ausführung aus einem Zeitplan, auch wenn er pausiert ist,
+  und ändert den nächsten geplanten Termin nicht. Dafür ist mindestens die Rolle <strong>Runner</strong> auf dem Repository nötig;
+  Zeitpläne anlegen und bearbeiten erfordert <strong>Editor</strong>.
+</p>`
       }
     ]
   },

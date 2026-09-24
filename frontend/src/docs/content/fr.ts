@@ -1150,6 +1150,33 @@ Recording 21
   <strong>Runner</strong> ou sup\u00E9rieur.
 </p>`,
         tip: 'Utilisez \u00AB\u00A0Tout annuler\u00A0\u00BB avec pr\u00E9caution dans les environnements multi-utilisateurs, car cela affecte les ex\u00E9cutions lanc\u00E9es par tous les utilisateurs.'
+      },
+      {
+        id: 'scheduled-runs',
+        title: 'Exécutions planifiées',
+        content: `
+<p>
+  L'onglet <strong>Planifications</strong> de la page Exécution lance automatiquement une cible de dépôt
+  selon une expression cron (cinq champs : <code>minute heure jour mois jour-de-semaine</code>, p.&nbsp;ex.
+  <code>0 2 * * 1-5</code> pour 02:00 en semaine). Les expressions invalides sont refusées à l'enregistrement.
+</p>
+<ul>
+  <li><strong>Fuseau horaire</strong> &mdash; les champs cron sont évalués dans le fuseau horaire du <strong>serveur</strong>.
+      Les colonnes <strong>Dernière exécution</strong> et <strong>Prochaine exécution</strong> s'affichent à l'heure locale de votre navigateur.</li>
+  <li><strong>Pulsation</strong> &mdash; le serveur vérifie les planifications échues une fois par minute ; une exécution démarre donc dans la minute environ.</li>
+  <li><strong>Pas de chevauchement</strong> &mdash; si l'exécution précédente est encore <code>pending</code> ou <code>running</code>,
+      le créneau est ignoré et la planification attend le suivant.</li>
+  <li><strong>Exécutée au nom du créateur</strong> &mdash; une exécution planifiée est déclenchée par l'utilisateur qui a créé la planification.
+      Si cet utilisateur est désactivé ou supprimé, ou si le dépôt n'existe plus, rien n'est lancé.</li>
+  <li><strong>Créneaux manqués</strong> &mdash; si le serveur était arrêté, une planification en retard s'exécute <strong>une seule fois</strong> après le redémarrage ; les créneaux manqués ne sont pas rejoués.</li>
+  <li><strong>Exécutions simples uniquement</strong> &mdash; les exécutions planifiées utilisent dépôt, cible, branche, environnement, runner et filtres de tags.
+      Elles ne transportent jamais de variables ni d'arguments/modificateurs avancés.</li>
+</ul>
+<p>
+  <strong>Exécuter maintenant</strong> (&#9889;) lance immédiatement une exécution depuis une planification, même en pause,
+  sans modifier sa prochaine échéance. Il faut au moins le rôle <strong>Runner</strong> sur le dépôt ;
+  créer et modifier des planifications nécessite <strong>Editor</strong>.
+</p>`
       }
     ]
   },
