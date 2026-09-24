@@ -119,6 +119,16 @@ export async function createVariable(envId: number, data: { key: string; value: 
   return response.data
 }
 
+/** An empty `value` on a secret keeps the stored value. */
+export async function updateVariable(envId: number, varId: number, data: { key?: string; value?: string; is_secret?: boolean }): Promise<EnvironmentVariable> {
+  const response = await apiClient.patch<EnvironmentVariable>(`/environments/${envId}/variables/${varId}`, data)
+  return response.data
+}
+
+export async function deleteVariable(envId: number, varId: number): Promise<void> {
+  await apiClient.delete(`/environments/${envId}/variables/${varId}`)
+}
+
 // Keyword discovery (libdoc-per-environment) — offline-first source for the
 // Flow Editor palette; works without the optional rf-mcp live server.
 

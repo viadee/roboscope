@@ -7,7 +7,7 @@ import { useFeatureFlags } from '@/composables/useFeatureFlags'
 import { useAuthStore } from '@/stores/auth.store'
 import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
 import * as envsApi from '@/api/environments.api'
-import type { EnvironmentPackage } from '@/types/domain.types'
+import type { EnvironmentPackage, EnvironmentVariable } from '@/types/domain.types'
 import { parseBackendDate } from '@/utils/formatDate'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
@@ -156,6 +156,52 @@ async function toggleDetails(envId: number) {
       envs.fetchVariables(envId),
       loadPipInstalled(envId),
     ])
+  }
+}
+
+// Environment variables (V14.2) — injected into runs, read as %{NAME}.
+const canEditVars = computed(() => useAuthStore().hasMinRole('editor'))
+const varForm = ref<{ envId: number; id: number | null; key: string; value: string; is_secret: boolean } | null>(null)
+const savingVar = ref(false)
+
+function startAddVar(envId: number) {
+  varForm.value = { envId, id: null, key: '', value: '', is_secret: false }
+}
+
+function startEditVar(envId: number, v: EnvironmentVariable) {
+  // A secret is never echoed: empty value means "keep the stored one".
+  varForm.value = { envId, id: v.id, key: v.key, value: v.is_secret ? '' : v.value, is_secret: v.is_secret }
+}
+
+async function saveVar() {
+  const f = varForm.value
+  if (!f) return
+  savingVar.value = true
+  try {
+    const data = { key: f.key.trim(), value: f.value, is_secret: f.is_secret }
+    if (f.id === null) await envs.createVariable(f.envId, data)
+    else await envs.updateVariable(f.envId, f.id, data)
+    varForm.value = null
+    toast.success(t('environments.varSaved'))
+  } catch (e: unknown) {
+    const status = extractErrorStatus(e)
+    const detail = JSON.stringify((e as { response?: { data?: unknown } })?.response?.data ?? '')
+    const msg = status === 409 ? t('environments.duplicateVarKey')
+      : status === 422 ? t(detail.includes('reserved') ? 'environments.reservedVarKey' : 'environments.invalidVarKey')
+      : extractErrorDetail(e, t('environments.varSaveFailed'))
+    toast.error(t('environments.varSaveFailed'), msg)
+  } finally {
+    savingVar.value = false
+  }
+}
+
+async function removeVar(envId: number, v: EnvironmentVariable) {
+  if (!confirm(t('environments.deleteVariableConfirm', { key: v.key }))) return
+  try {
+    await envs.deleteVariable(envId, v.id)
+    toast.success(t('environments.varDeleted'))
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('common.error')))
   }
 }
 
@@ -423,11 +469,34 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
 
           <!-- Variables -->
           <div class="detail-section">
-            <h4>{{ t('environments.variables') }}</h4>
+            <div class="section-header">
+              <h4>{{ t('environments.variables') }}</h4>
+              <BaseButton v-if="canEditVars" size="sm" data-testid="env-var-add" @click="startAddVar(env.id)">{{ t('environments.addVariable') }}</BaseButton>
+            </div>
+            <p class="form-hint">{{ t('environments.variablesHint') }}</p>
+            <form v-if="varForm && varForm.envId === env.id" class="var-form" data-testid="env-var-form" @submit.prevent="saveVar">
+              <input v-model="varForm.key" class="form-input form-input-sm" :placeholder="t('environments.varKey')" :aria-label="t('environments.varKey')" required data-testid="env-var-key" />
+              <input
+                v-model="varForm.value"
+                :type="varForm.is_secret ? 'password' : 'text'"
+                class="form-input form-input-sm"
+                :placeholder="varForm.is_secret && varForm.id !== null ? t('environments.secretUnchanged') : t('environments.varValue')"
+                :aria-label="t('environments.varValue')"
+                autocomplete="off"
+                data-testid="env-var-value"
+              />
+              <label class="text-sm"><input v-model="varForm.is_secret" type="checkbox" data-testid="env-var-secret" /> {{ t('environments.secret') }}</label>
+              <BaseButton type="submit" size="sm" :loading="savingVar" data-testid="env-var-save">{{ t('common.save') }}</BaseButton>
+              <BaseButton type="button" variant="ghost" size="sm" @click="varForm = null">{{ t('common.cancel') }}</BaseButton>
+            </form>
             <div v-if="envs.variables[env.id]?.length">
-              <div v-for="v in envs.variables[env.id]" :key="v.id" class="pkg-item">
-                <span>{{ v.key }}</span>
+              <div v-for="v in envs.variables[env.id]" :key="v.id" class="pkg-item" data-testid="env-var-row">
+                <span><code>{{ v.key }}</code></span>
                 <span class="text-muted text-sm">{{ v.is_secret ? '********' : v.value }}</span>
+                <div v-if="canEditVars" class="pkg-actions">
+                  <BaseButton variant="ghost" size="sm" :aria-label="t('environments.editVariable')" data-testid="env-var-edit" @click="startEditVar(env.id, v)">{{ t('common.edit') }}</BaseButton>
+                  <BaseButton variant="ghost" size="sm" data-testid="env-var-delete" @click="removeVar(env.id, v)">{{ t('common.delete') }}</BaseButton>
+                </div>
               </div>
             </div>
             <p v-else class="text-muted text-sm">{{ t('environments.noVariables') }}</p>
@@ -732,6 +801,14 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
 .section-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.var-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   align-items: center;
   margin-bottom: 8px;
 }

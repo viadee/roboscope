@@ -316,3 +316,21 @@ class TestCancelAndCleanup:
         runner._container = c
         runner.cleanup()  # must not raise
         assert runner._container is None
+
+
+class TestExtraEnvInjection:
+    """V14.2: environment variables land in the container environment."""
+
+    def test_env_vars_in_container_and_run_variable_wins(self, tmp_path):
+        container = MagicMock()
+        container.logs.return_value = iter([])
+        container.wait.return_value = {"StatusCode": 0}
+        client = MagicMock()
+        client.containers.run.return_value = container
+        runner = DockerRunner(image="img:1", extra_env={"BASE_URL": "https://staging", "ROBOT_X": "env"})
+        runner._client = client
+        runner.execute(repo_path="/repo", target_path="s.robot", output_dir=str(tmp_path),
+                       variables={"X": "run"})
+        environment = client.containers.run.call_args.kwargs["environment"]
+        assert environment["BASE_URL"] == "https://staging"
+        assert environment["ROBOT_X"] == "run"

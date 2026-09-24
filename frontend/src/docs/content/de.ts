@@ -1802,8 +1802,25 @@ Login Works
   <li><code>HEADLESS</code> \u2014 Ob der Browser im Headless-Modus laufen soll</li>
 </ul>
 <p>
-  Variablen werden als Schl\u00FCssel-Wert-Paare angelegt und k\u00F6nnen jederzeit
-  bearbeitet oder gel\u00F6scht werden.
+  Verwaltet werden die Variablen auf der Seite <strong>Umgebungen</strong>: Umgebung aufklappen
+  und den Abschnitt <strong>Variablen</strong> nutzen (ab Rolle Editor). Mit
+  <strong>Variable hinzuf\u00FCgen</strong> legen Sie einen Eintrag an, mit
+  <strong>Bearbeiten</strong> \u00E4ndern und mit <strong>L\u00F6schen</strong> entfernen Sie ihn.
+  Namen m\u00FCssen g\u00FCltige Umgebungsvariablen-Namen sein (Buchstaben, Ziffern, Unterstriche).
+  Namen, die die Python-Umgebung brechen oder fremden Code laden w\u00FCrden \u2014 etwa
+  <code>PATH</code>, <code>VIRTUAL_ENV</code>, <code>PYTHONPATH</code>, <code>PYTHONHOME</code>,
+  <code>LD_PRELOAD</code> oder <code>DYLD_*</code> \u2014 werden abgelehnt.
+</p>
+<p>
+  Jeder Run mit dieser Umgebung erh\u00E4lt die Variablen als Prozess-Umgebungsvariablen \u2014 lokal
+  wie im Docker-Container. In einer Suite lesen Sie sie als <code>%{BASE_URL}</code>, z.\u202FB.
+  <code>Should Be Equal    %{BASE_URL}    https://staging</code>. Hat eine Run-Variable
+  (<code>ROBOT_&lt;Name&gt;</code> in Docker) denselben Namen, gewinnt die Run-Variable.
+</p>
+<p>
+  Markieren Sie eine Variable als <strong>Geheim</strong>, um sie verschl\u00FCsselt zu speichern.
+  Geheime Werte werden nie wieder angezeigt; beim Bearbeiten ein leeres Feld lassen, um den
+  gespeicherten Wert zu behalten. Entschl\u00FCsselt wird erst beim Start eines Runs.
 </p>`
       },
       {

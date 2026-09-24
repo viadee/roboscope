@@ -1,9 +1,10 @@
 """Pydantic schemas for environment management."""
 
+import re
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class EnvCreate(BaseModel):
@@ -104,10 +105,51 @@ class PyPISearchResult(BaseModel):
     author: str = ""
 
 
+_ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Names that would break venv activation or hijack the interpreter / code
+# loading of the ``robot`` child (PYTHONPATH would bypass the EXEC
+# ``--pythonpath`` deny-list). Compared case-insensitively.
+RESERVED_ENV_KEYS = frozenset({
+    "PATH", "VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP",
+    "PYTHONUSERBASE", "PYTHONINSPECT", "PYTHONEXECUTABLE", "PYTHONPLATLIBDIR",
+    "LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "NODE_OPTIONS", "BASH_ENV",
+})
+
+
+def is_reserved_env_key(key: str) -> bool:
+    upper = key.upper()
+    return upper in RESERVED_ENV_KEYS or upper.startswith("DYLD_")
+
+
+def _validate_env_key(key: str) -> str:
+    if not _ENV_KEY_RE.match(key):
+        raise ValueError("invalid environment variable name")
+    if is_reserved_env_key(key):
+        raise ValueError(f"reserved environment variable name: {key}")
+    return key
+
+
 class EnvVarCreate(BaseModel):
     key: str = Field(..., min_length=1, max_length=255)
     value: str
     is_secret: bool = False
+
+    @field_validator("key")
+    @classmethod
+    def _check_key(cls, v: str) -> str:
+        return _validate_env_key(v)
+
+
+class EnvVarUpdate(BaseModel):
+    key: str | None = Field(None, min_length=1, max_length=255)
+    # Empty value on a secret keeps the stored value (the form never echoes it).
+    value: str | None = None
+    is_secret: bool | None = None
+
+    @field_validator("key")
+    @classmethod
+    def _check_key(cls, v: str | None) -> str | None:
+        return None if v is None else _validate_env_key(v)
 
 
 class EnvVarResponse(BaseModel):

@@ -1871,11 +1871,26 @@ Login Works
   <li>Almacenar <code>API_KEY</code> u otras credenciales sin codificarlas en los archivos de prueba.</li>
 </ul>
 <p>
-  Para gestionar variables, navegue a la p\u00E1gina de detalle de un entorno y use
-  la pesta\u00F1a <strong>Variables</strong>. Cada variable tiene una <strong>Clave</strong>
-  y un <strong>Valor</strong>. Haga clic en <strong>A\u00F1adir variable</strong> para
-  crear una nueva entrada, o use los iconos de editar/eliminar para modificar las
-  existentes.
+  Para gestionar variables, despliegue un entorno en la p\u00E1gina <strong>Entornos</strong>
+  y use la secci\u00F3n <strong>Variables</strong> (rol Editor o superior). Haga clic en
+  <strong>A\u00F1adir variable</strong> para crear una entrada, en <strong>Editar</strong> para
+  cambiarla o en <strong>Eliminar</strong> para borrarla. Los nombres deben ser nombres v\u00E1lidos
+  de variables de entorno (letras, d\u00EDgitos, guiones bajos). Se rechazan los nombres que
+  romper\u00EDan el entorno de Python o cargar\u00EDan c\u00F3digo ajeno, como <code>PATH</code>,
+  <code>VIRTUAL_ENV</code>, <code>PYTHONPATH</code>, <code>PYTHONHOME</code>,
+  <code>LD_PRELOAD</code> o <code>DYLD_*</code>.
+</p>
+<p>
+  Cada ejecuci\u00F3n que usa el entorno recibe las variables como variables de entorno del
+  proceso, tanto en local como dentro de contenedores Docker. L\u00E9alas en una suite como
+  <code>%{BASE_URL}</code>, p. ej. <code>Should Be Equal    %{BASE_URL}    https://staging</code>.
+  Si una variable de ejecuci\u00F3n (<code>ROBOT_&lt;nombre&gt;</code> en Docker) tiene el mismo
+  nombre, gana la variable de ejecuci\u00F3n.
+</p>
+<p>
+  Marque una variable como <strong>Secreto</strong> para cifrarla en reposo. Los valores secretos
+  no se vuelven a mostrar; al editar, deje el valor vac\u00EDo para conservar el guardado. Solo se
+  descifran al iniciar una ejecuci\u00F3n.
 </p>`,
         tip: 'Evite almacenar credenciales altamente sensibles como variables de entorno. Considere usar un gestor de secretos para despliegues en producci\u00F3n.'
       },

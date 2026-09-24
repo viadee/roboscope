@@ -1836,10 +1836,26 @@ Login Works
   <li>Stocker <code>API_KEY</code> ou d\u2019autres identifiants sans les coder en dur dans les fichiers de test.</li>
 </ul>
 <p>
-  Pour g\u00E9rer les variables, acc\u00E9dez \u00E0 la page de d\u00E9tail d\u2019un environnement et utilisez
-  l\u2019onglet <strong>Variables</strong>. Chaque variable a une <strong>Cl\u00E9</strong> et une
-  <strong>Valeur</strong>. Cliquez sur <strong>Ajouter une variable</strong> pour cr\u00E9er une
-  nouvelle entr\u00E9e, ou utilisez les ic\u00F4nes d\u2019\u00E9dition/suppression pour modifier les entr\u00E9es existantes.
+  Pour g\u00E9rer les variables, d\u00E9pliez un environnement sur la page
+  <strong>Environnements</strong> et utilisez la section <strong>Variables</strong> (r\u00F4le
+  \u00C9diteur ou sup\u00E9rieur). Cliquez sur <strong>Ajouter une variable</strong> pour cr\u00E9er une
+  entr\u00E9e, sur <strong>Modifier</strong> pour la changer ou sur <strong>Supprimer</strong> pour
+  la retirer. Les noms doivent \u00EAtre des noms de variables d\u2019environnement valides (lettres,
+  chiffres, tirets bas). Les noms qui casseraient l\u2019environnement Python ou chargeraient du code
+  tiers \u2014 comme <code>PATH</code>, <code>VIRTUAL_ENV</code>, <code>PYTHONPATH</code>,
+  <code>PYTHONHOME</code>, <code>LD_PRELOAD</code> ou <code>DYLD_*</code> \u2014 sont refus\u00E9s.
+</p>
+<p>
+  Chaque ex\u00E9cution qui utilise l\u2019environnement re\u00E7oit les variables comme variables
+  d\u2019environnement du processus \u2014 en local comme dans les conteneurs Docker. Lisez-les dans une
+  suite via <code>%{BASE_URL}</code>, p. ex. <code>Should Be Equal    %{BASE_URL}    https://staging</code>.
+  Si une variable d\u2019ex\u00E9cution (<code>ROBOT_&lt;nom&gt;</code> dans Docker) porte le m\u00EAme nom,
+  la variable d\u2019ex\u00E9cution l\u2019emporte.
+</p>
+<p>
+  Cochez <strong>Secret</strong> pour chiffrer une variable au repos. Les valeurs secr\u00E8tes ne sont
+  plus jamais affich\u00E9es\u00A0; lors de la modification, laissez la valeur vide pour conserver
+  l\u2019ancienne. Elles ne sont d\u00E9chiffr\u00E9es qu\u2019au d\u00E9marrage d\u2019une ex\u00E9cution.
 </p>`,
         tip: '\u00C9vitez de stocker des identifiants hautement sensibles comme variables d\u2019environnement. Envisagez d\u2019utiliser un gestionnaire de secrets pour les d\u00E9ploiements en production.'
       },

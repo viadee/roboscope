@@ -1895,10 +1895,25 @@ Login Works
   <li>Storing <code>API_KEY</code> or other credentials without hardcoding them in test files.</li>
 </ul>
 <p>
-  To manage variables, navigate to an environment&rsquo;s detail page and use the
-  <strong>Variables</strong> tab. Each variable has a <strong>Key</strong> and
-  <strong>Value</strong>. Click <strong>Add Variable</strong> to create a new entry,
-  or use the edit/delete icons to modify existing ones.
+  To manage variables, expand an environment on the <strong>Environments</strong> page and
+  use the <strong>Variables</strong> section (Editor role or higher). Click
+  <strong>Add Variable</strong> to create an entry, <strong>Edit</strong> to change it, or
+  <strong>Delete</strong> to remove it. Names must be valid environment-variable names
+  (letters, digits, underscores). Names that would break the Python environment or load
+  foreign code &mdash; such as <code>PATH</code>, <code>VIRTUAL_ENV</code>,
+  <code>PYTHONPATH</code>, <code>PYTHONHOME</code>, <code>LD_PRELOAD</code> or
+  <code>DYLD_*</code> &mdash; are rejected.
+</p>
+<p>
+  Every run that uses the environment receives the variables as process environment
+  variables &mdash; for local runs and inside Docker containers. Read them in a suite as
+  <code>%{BASE_URL}</code>, e.g. <code>Should Be Equal    %{BASE_URL}    https://staging</code>.
+  If a run variable (<code>ROBOT_&lt;name&gt;</code> in Docker) has the same name, the run variable wins.
+</p>
+<p>
+  Mark a variable as <strong>Secret</strong> to encrypt it at rest. Secret values are never
+  shown again; when editing, leave the value empty to keep the stored one. They are decrypted
+  only when a run starts.
 </p>`,
         tip: 'Avoid storing highly sensitive credentials as environment variables. Consider using a secrets manager for production deployments.'
       },

@@ -31,8 +31,9 @@ class DockerImageNotFoundError(RuntimeError):
 class DockerRunner(AbstractRunner):
     """Runs Robot Framework tests inside a Docker container."""
 
-    def __init__(self, image: str | None = None):
+    def __init__(self, image: str | None = None, extra_env: dict[str, str] | None = None):
         self.image = image or settings.DOCKER_DEFAULT_IMAGE
+        self.extra_env = extra_env or {}
         self._container = None
         self._client = None
         self._cancelled = False
@@ -144,7 +145,8 @@ class DockerRunner(AbstractRunner):
         )
 
         # Environment variables
-        env_vars = {}
+        # Environment variables first; a clashing run variable wins.
+        env_vars = dict(self.extra_env)
         if variables:
             env_vars.update({f"ROBOT_{k}": str(v) for k, v in variables.items()})
 
