@@ -277,7 +277,12 @@ const de: DocsContent = [
 </p>
 <ol>
   <li>Auf <strong>Änderungen speichern</strong> klicken.</li>
-  <li>Dateien auswählen, die Sie veröffentlichen möchten (Default: alle).</li>
+  <li>Dateien auswählen, die Sie veröffentlichen möchten (Default: alle). Mit
+      <strong>Änderungen anzeigen</strong> neben einer Datei sehen Sie deren Diff
+      gegenüber dem letzten Commit (hinzugefügte Zeilen grün, entfernte rot). Neue
+      Dateien erscheinen komplett hinzugefügt, gelöschte komplett entfernt;
+      Binärdateien zeigen keinen Text-Diff, sehr große Diffs werden bei
+      200&nbsp;KB abgeschnitten. Die Vorschau ändert die Auswahl nicht.</li>
   <li>Eine Commit-Nachricht eintippen, die Ihre Änderung beschreibt.</li>
   <li><strong>Speichern</strong> klicken. RoboScope committet mit Ihrer
       Account-Identität (Benutzername + E-Mail werden Git-Author und

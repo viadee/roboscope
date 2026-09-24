@@ -18,6 +18,7 @@ from src.repos.schemas import (
     BranchResponse,
     CommitRequest,
     CommitResponse,
+    FileDiffResponse,
     ProjectMemberCreate,
     ProjectMemberResponse,
     ProjectMemberUpdate,
@@ -37,6 +38,7 @@ from src.repos.service import (
     commit_changes,
     create_repository,
     delete_repository,
+    get_file_diff,
     get_repo_status,
     get_repository,
     get_repository_by_name,
@@ -266,7 +268,7 @@ def _gitop_to_http(e: GitOperationError) -> HTTPException:
     """Map a service-layer `GitOperationError` to the right HTTP status."""
     if e.kind == "not_a_repo":
         return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    if e.kind == "nothing_to_commit":
+    if e.kind in ("nothing_to_commit", "bad_path"):
         return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     if e.kind == "non_fast_forward":
         return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
@@ -293,6 +295,29 @@ def get_status(
     if repo.repo_type == "local":
         return RepoStatusResponse()
     return RepoStatusResponse(**get_repo_status(repo.local_path))
+
+
+@router.get("/{repo_id}/diff", response_model=FileDiffResponse)
+def get_diff(
+    repo_id: int,
+    path: str,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Unified diff of one file vs HEAD (Story V14.5). Same read access
+    as `GET /status`; 400 on path traversal, 409 for local repos."""
+    repo = get_repository(db, repo_id)
+    if repo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+    if repo.repo_type == "local":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Local repositories have no git history to diff against",
+        )
+    try:
+        return FileDiffResponse(**get_file_diff(repo.local_path, path))
+    except GitOperationError as e:
+        raise _gitop_to_http(e) from e
 
 
 @router.post("/{repo_id}/commit", response_model=CommitResponse)

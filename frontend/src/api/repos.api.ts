@@ -150,3 +150,16 @@ export async function publishRepo(id: number, body: PublishRequest): Promise<Pub
   const response = await apiClient.post<PublishOk>(`/repos/${id}/publish`, body)
   return response.data
 }
+
+/** Story V14.5 — one file's unified diff vs HEAD. `diff` is null for binaries. */
+export interface FileDiff {
+  path: string
+  status: 'modified' | 'untracked' | 'deleted' | 'binary' | 'unchanged'
+  diff: string | null
+  truncated: boolean
+}
+
+export async function getFileDiff(id: number, path: string): Promise<FileDiff> {
+  const response = await apiClient.get<FileDiff>(`/repos/${id}/diff`, { params: { path } })
+  return response.data
+}

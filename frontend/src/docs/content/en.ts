@@ -300,7 +300,12 @@ const en: DocsContent = [
 </p>
 <ol>
   <li>Click <strong>Save N changes</strong>.</li>
-  <li>Tick the files you want to publish (default: all of them).</li>
+  <li>Tick the files you want to publish (default: all of them). Click
+      <strong>Show changes</strong> next to a file to preview its diff against
+      the last commit (added lines green, removed lines red). New files show
+      as fully added, deleted files as fully removed; binary files show no text
+      diff, and very large diffs are cut off at 200&nbsp;KB. Previewing never
+      changes which files are ticked.</li>
   <li>Type a one-line commit message describing what you changed.</li>
   <li>Click <strong>Save</strong>. RoboScope commits with your account&rsquo;s
       identity (your username + email become the git author / committer) and
