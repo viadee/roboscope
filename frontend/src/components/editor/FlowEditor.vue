@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import type { Ref } from 'vue'
 import { VueFlow, useVueFlow, Handle as VueFlowHandle, Position as HandlePosition } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -116,8 +117,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const toast = useToast()
 
-const nodes = ref<Node[]>([])
-const edges = ref<Edge[]>([])
+const nodes = ref([]) as Ref<Node[]> // cast: ref<Node[]> hits TS2589 (UnwrapRef on vue-flow types)
+const edges = ref([]) as Ref<Edge[]>
 
 const { fitView, project } = useVueFlow()
 
@@ -2544,7 +2545,7 @@ function onDebugOverlayClose(): void {
               </div>
               <table class="flow-node-template__table">
                 <tbody>
-                  <tr v-for="(row, r) in nodeProps.data.templateRows" :key="r">
+                  <tr v-for="(row, r) in (nodeProps.data.templateRows as string[][])" :key="r">
                     <td v-for="(cell, c) in row" :key="c">
                       <input
                         class="flow-node-template__cell"
