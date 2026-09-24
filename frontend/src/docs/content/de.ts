@@ -1264,13 +1264,26 @@ Recording 21
 <p>
   Klicken Sie auf den <strong>Download</strong>-Button in der Report-Detail-
   oder der Report-Listen-Ansicht.
+</p>
+<p>
+  Zur Auswertung in einer Tabellenkalkulation oder zur Übergabe an ein Testmanagement-Tool
+  gibt es daneben <strong>CSV exportieren</strong> und <strong>JSON exportieren</strong>. Beide enthalten
+  eine Zeile pro Test (Suite, Testname, Langname, Status, Dauer, Tags, Start/Ende und Fehlermeldung).
+  CSV-Zellen, die mit <code>=</code>, <code>+</code>, <code>-</code> oder <code>@</code> beginnen,
+  erhalten ein vorangestelltes Apostroph, damit Tabellenkalkulationen sie nicht als Formel ausführen.
 </p>`,
         tip: 'Die ZIP-Datei eignet sich ideal zum Archivieren oder Teilen von Ergebnissen mit Teammitgliedern, die keinen RoboScope-Zugang haben.'
       },
       {
         id: 'reports-delete-all',
-        title: 'Alle Reports l\u00F6schen',
+        title: 'Reports l\u00F6schen',
         content: `
+<p>
+  Einen einzelnen Report samt Dateien l\u00F6schen Sie \u00FCber <strong>Report l\u00F6schen</strong> im
+  Detailbereich eines Laufs (Seite Ausf\u00FChrung) oder in der Report-Detailansicht. Daf\u00FCr ist die
+  Rolle <em>Editor</em> im Repository des Reports n\u00F6tig (hochgeladene Archive: globale Rolle
+  <em>Editor</em>). Der zugeh\u00F6rige Lauf bleibt erhalten.
+</p>
 <p>
   Administratoren k\u00F6nnen \u00FCber den Button <strong>Alle l\u00F6schen</strong>
   s\u00E4mtliche Reports auf einmal entfernen. Vor der L\u00F6schung erscheint ein
@@ -1283,7 +1296,7 @@ Recording 21
 </p>
 <p>
   <strong>Berechtigung:</strong> Nur Benutzer mit der Rolle <em>Admin</em>
-  k\u00F6nnen diese Aktion ausf\u00FChren.
+  k\u00F6nnen <strong>Alle l\u00F6schen</strong> ausf\u00FChren.
 </p>`
       },
       {

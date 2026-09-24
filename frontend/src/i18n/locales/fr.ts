@@ -618,6 +618,9 @@ export default {
     successRate: 'Taux de réussite',
     noReports: 'Aucun rapport pour le moment.',
     confirmDeleteAll: 'Tous les rapports et fichiers associés seront définitivement supprimés. Continuer ?',
+    deleteReport: 'Supprimer le rapport',
+    deleteReportConfirm: 'Supprimer le rapport #{id} et ses fichiers ? L’exécution liée est conservée. Cette action est irréversible.',
+    deleted: 'Rapport supprimé',
     upload: {
       button: 'Importer une archive',
       success: 'Archive importée',
@@ -649,6 +652,8 @@ export default {
       htmlReport: 'Rapport HTML',
     },
     downloadZip: 'Télécharger ZIP',
+    exportCsv: 'Exporter CSV',
+    exportJson: 'Exporter JSON',
     reloadReport: 'Recharger',
     openInNewTab: 'Ouvrir dans un nouvel onglet',
     notFound: 'Aucun rapport trouvé pour l\'id {id}.',

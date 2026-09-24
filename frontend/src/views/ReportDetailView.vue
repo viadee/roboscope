@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useReportsStore } from '@/stores/reports.store'
 import { useAiStore } from '@/stores/ai.store'
-import { getReportHtmlBlobUrl, getReportZipBlobUrl, getMissingLibraries } from '@/api/reports.api'
+import { getReportHtmlBlobUrl, getReportZipBlobUrl, getMissingLibraries, exportReportResults } from '@/api/reports.api'
+import { useAuthStore } from '@/stores/auth.store'
+import { useToast } from '@/composables/useToast'
+import { downloadBlob } from '@/utils/download'
 import { installPackage } from '@/api/environments.api'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -17,6 +20,9 @@ import { renderMarkdown } from '@/utils/renderMarkdown'
 import { extractErrorDetail } from '@/utils/errors'
 
 const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
+const toast = useToast()
 const reports = useReportsStore()
 const aiStore = useAiStore()
 const { t, locale } = useI18n()
@@ -82,6 +88,27 @@ async function downloadZip() {
   a.download = `report_${reportId.value}.zip`
   a.click()
   URL.revokeObjectURL(blobUrl)
+}
+
+async function exportResults(format: 'csv' | 'json') {
+  downloadBlob(await exportReportResults(reportId.value, format), `report_${reportId.value}_results.${format}`)
+}
+
+const deletingReport = ref(false)
+
+async function deleteThisReport() {
+  if (!confirm(t('reports.deleteReportConfirm', { id: reportId.value }))) return
+  deletingReport.value = true
+  try {
+    await reports.deleteReport(reportId.value)
+    toast.success(t('reports.deleted'))
+    // The reports list lives on the Execution page (/reports is not a route).
+    router.push('/runs')
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('reports.toasts.deleteError')))
+  } finally {
+    deletingReport.value = false
+  }
 }
 
 // --- Missing Libraries ---
@@ -172,6 +199,21 @@ async function startAnalysis() {
       <div class="header-actions">
         <BaseButton variant="secondary" @click="downloadZip" class="zip-btn">
           &#128230; {{ t('reportDetail.downloadZip') }}
+        </BaseButton>
+        <BaseButton variant="secondary" data-testid="export-csv" @click="exportResults('csv')">
+          {{ t('reportDetail.exportCsv') }}
+        </BaseButton>
+        <BaseButton variant="secondary" data-testid="export-json" @click="exportResults('json')">
+          {{ t('reportDetail.exportJson') }}
+        </BaseButton>
+        <BaseButton
+          v-if="auth.hasMinRole('editor')"
+          variant="danger"
+          data-testid="delete-report"
+          :loading="deletingReport"
+          @click="deleteThisReport"
+        >
+          {{ t('reports.deleteReport') }}
         </BaseButton>
         <router-link to="/reports">
           <BaseButton variant="secondary">&larr; {{ t('common.back') }}</BaseButton>
