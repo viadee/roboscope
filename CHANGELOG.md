@@ -2,6 +2,75 @@
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-24
+
+### Added
+
+- **Run tests with RoboScope's own Python, or import an existing venv**: creating
+  an environment now offers three Python sources. *New virtual environment* is
+  the previous behaviour. *RoboScope's own Python environment* runs tests with the
+  interpreter RoboScope itself was started in, so every library RoboScope ships
+  (Robot Framework, Browser, RoboScopeHeal, …) works without building a venv.
+  *Import existing virtual environment* points RoboScope at a venv that already
+  exists on the server; its Python version is detected by running it. Both new
+  sources are Admin-only, are never auto-created and are never deleted from disk
+  (deleting the environment only removes it from RoboScope). Uninstalling
+  packages from RoboScope's own interpreter is refused, since it could break
+  RoboScope itself. Imported interpreters without a bare `python` (Homebrew,
+  conda on Windows) are found via `python3` / a root `python.exe`.
+- **Scheduled runs actually fire**: schedules could be created, edited and
+  toggled, but nothing ever started a run from them. A once-a-minute job now
+  starts due schedules, skipping a schedule whose previous run is still pending
+  or running and collapsing slots missed during downtime into one run. Cron
+  expressions are validated on save (422 instead of silently storing garbage),
+  and the schedule list shows *Last run* / *Next run*. A new **Run now** button
+  (`POST /schedules/{id}/run`, Runner role on the repo) starts a schedule
+  immediately. Scheduled runs never read the schedule's advanced configuration,
+  so they cannot bypass the advanced-execution gate.
+- **Environment variables reach the test run**: variables defined on an
+  environment were stored but never passed to the test process. They are now
+  injected into both the subprocess and Docker runner and can be read in suites
+  as `%{NAME}`; secrets are decrypted only at injection time. Variables can now
+  be edited and deleted (`PATCH` / `DELETE`), not only created. Names that could
+  hijack the interpreter (`PATH`, `PYTHONPATH`, `PYTHONHOME`, `LD_PRELOAD`,
+  `DYLD_*`, `NODE_OPTIONS`, …) are rejected.
+- **Export report results as CSV or JSON**: `GET /reports/{id}/export` and two
+  buttons on the report detail view and the run detail panel. Cells that a
+  spreadsheet would evaluate as a formula are neutralised.
+- **Delete a single report**: previously only "delete all" existed, for Admins
+  only. `DELETE /reports/{id}` needs Editor on the report's repository (global
+  Editor for uploaded reports) and only removes that report's own folder inside
+  the reports directory.
+- **Per-file diff in the Publish dialog**: every changed file gets a *Show
+  changes* toggle that loads a unified diff against `HEAD` on demand
+  (`GET /repos/{id}/diff`). Paths are guarded against traversal and symlink
+  escape, git pathspec magic is disabled, and diffs are capped at 200 KB.
+
+### Security
+
+- **Listing environment variables could overwrite stored secrets**: the list
+  endpoint masked secret values by writing `********` onto the database row, and
+  the request session committed afterwards. Masking now happens on the response
+  only; the create response is masked too (it used to return the ciphertext).
+
+### Changed
+
+- **Dependency upgrade**: frontend on Vite 8, Vitest 5, vue-tsc 3,
+  TypeScript 5.9, vue-i18n 11, Pinia 4 and Vue Router 5; backend lock refreshed
+  (Robot Framework 7.5, FastAPI 0.141, cryptography 50, reportlab 5,
+  rf-mcp 0.35, fastmcp 3.4) with raised floors for security-relevant packages;
+  Playwright 1.63 for e2e and the Chrome extension (Docker images aligned).
+  `npm audit` is clean in all three Node projects.
+- **Node 24 LTS** replaces the end-of-life Node 20 in CI and the frontend Docker
+  image.
+
+### Fixed
+
+- **Deleting a schedule with runs failed** on the foreign key; its runs are now
+  unlinked first.
+- **Deleting a report failed on PostgreSQL** when an AI analysis job referenced
+  it; the reference is cleared first.
+
 ## [0.13.0] - 2026-07-31
 
 ### Added

@@ -823,12 +823,12 @@
       <div class="feature-card fade-up fade-up-delay-2">
         <div class="feature-icon feature-icon-green">&#x1F40D;</div>
         <h3 data-i18n="features.env.title">Environment Management</h3>
-        <p data-i18n="features.env.desc">Create and manage Python environments with uv. Install packages, run library checks, all in one place.</p>
+        <p data-i18n="features.env.desc">Create Python environments with uv, reuse RoboScope's own Python or import an existing venv. Install packages, set variables, run library checks.</p>
       </div>
       <div class="feature-card fade-up fade-up-delay-1">
         <div class="feature-icon feature-icon-amber">&#x1F4CA;</div>
         <h3 data-i18n="features.reports.title">Reports &amp; Deep Analysis</h3>
-        <p data-i18n="features.reports.desc">Auto-parse output.xml. Detect trends, find flaky tests, 15 KPIs across 5 categories in the deep analysis.</p>
+        <p data-i18n="features.reports.desc">Auto-parse output.xml, export results as CSV/JSON. Detect trends, find flaky tests, 15 KPIs across 5 categories in the deep analysis.</p>
       </div>
       <div class="feature-card fade-up fade-up-delay-2">
         <div class="feature-icon feature-icon-purple">&#x1F916;</div>
@@ -1154,9 +1154,9 @@ const T = {
     'features.git.title': 'Project & Git Management',
     'features.git.desc': 'Clone repos, switch branches, auto-sync. Integrated code explorer with Robot parser and CodeMirror editor.',
     'features.env.title': 'Environment Management',
-    'features.env.desc': 'Create and manage Python environments with uv. Install packages, run library checks, all in one place.',
+    'features.env.desc': 'Create Python environments with uv, reuse RoboScope\u2019s own Python or import an existing venv. Install packages, set variables, run library checks.',
     'features.reports.title': 'Reports & Deep Analysis',
-    'features.reports.desc': 'Auto-parse output.xml. Detect trends, find flaky tests, 15 KPIs across 5 categories in the deep analysis.',
+    'features.reports.desc': 'Auto-parse output.xml, export results as CSV/JSON. Detect trends, find flaky tests, 15 KPIs across 5 categories in the deep analysis.',
     'features.ai.title': 'AI Failure Analysis',
     'features.ai.desc': 'LLM-powered root cause analysis and .roboscope \u2192 .robot generation. OpenAI, Anthropic, OpenRouter, or Ollama.',
     'features.rbac.title': 'Roles & Access Control',
@@ -1235,9 +1235,9 @@ const T = {
     'features.git.title': 'Projekt & Git Management',
     'features.git.desc': 'Repos klonen, Branches wechseln, automatisch synchronisieren. Integrierter Code-Explorer mit Robot-Parser und CodeMirror-Editor.',
     'features.env.title': 'Environment Management',
-    'features.env.desc': 'Python-Umgebungen mit uv erstellen und verwalten. Pakete installieren, Library-Checks, alles an einem Ort.',
+    'features.env.desc': 'Python-Umgebungen mit uv erstellen, RoboScopes eigenes Python nutzen oder ein bestehendes venv importieren. Pakete installieren, Variablen setzen, Library-Checks.',
     'features.reports.title': 'Reports & Tiefenanalyse',
-    'features.reports.desc': 'output.xml automatisch parsen. Trends erkennen, Flaky Tests aufsp\u00fcren, 15 KPIs in 5 Kategorien in der Tiefenanalyse.',
+    'features.reports.desc': 'output.xml automatisch parsen, Ergebnisse als CSV/JSON exportieren. Trends erkennen, Flaky Tests aufsp\u00fcren, 15 KPIs in 5 Kategorien in der Tiefenanalyse.',
     'features.ai.title': 'KI-Fehleranalyse',
     'features.ai.desc': 'LLM-gest\u00fctzte Root-Cause-Analyse und .roboscope \u2192 .robot Generierung. OpenAI, Anthropic, OpenRouter oder Ollama.',
     'features.rbac.title': 'Rollen & Zugriff',
@@ -1316,9 +1316,9 @@ const T = {
     'features.git.title': 'Projets & gestion Git',
     'features.git.desc': 'Cloner des repos, changer de branche, synchronisation automatique. Explorateur de code int\u00e9gr\u00e9 avec parseur Robot et \u00e9diteur CodeMirror.',
     'features.env.title': 'Gestion des environnements',
-    'features.env.desc': 'Cr\u00e9ez et g\u00e9rez des environnements Python avec uv. Installez des paquets, v\u00e9rifiez les biblioth\u00e8ques, tout en un seul endroit.',
+    'features.env.desc': 'Cr\u00e9ez des environnements Python avec uv, r\u00e9utilisez le Python de RoboScope ou importez un venv existant. Installez des paquets, d\u00e9finissez des variables, v\u00e9rifiez les biblioth\u00e8ques.',
     'features.reports.title': 'Rapports & analyse approfondie',
-    'features.reports.desc': 'Analyse automatique d\u2019output.xml. D\u00e9tectez les tendances, trouvez les tests instables, 15 KPIs dans 5 cat\u00e9gories.',
+    'features.reports.desc': 'Analyse automatique d\u2019output.xml, export CSV/JSON. D\u00e9tectez les tendances, trouvez les tests instables, 15 KPIs dans 5 cat\u00e9gories.',
     'features.ai.title': 'Analyse IA des \u00e9checs',
     'features.ai.desc': 'Analyse des causes profondes par LLM et g\u00e9n\u00e9ration .roboscope \u2192 .robot. OpenAI, Anthropic, OpenRouter ou Ollama.',
     'features.rbac.title': 'R\u00f4les & contr\u00f4le d\u2019acc\u00e8s',
@@ -1397,9 +1397,9 @@ const T = {
     'features.git.title': 'Proyectos y gesti\u00f3n Git',
     'features.git.desc': 'Clona repos, cambia ramas, sincronizaci\u00f3n autom\u00e1tica. Explorador de c\u00f3digo integrado con parser Robot y editor CodeMirror.',
     'features.env.title': 'Gesti\u00f3n de entornos',
-    'features.env.desc': 'Crea y gestiona entornos Python con uv. Instala paquetes, verifica bibliotecas, todo en un solo lugar.',
+    'features.env.desc': 'Crea entornos Python con uv, reutiliza el Python de RoboScope o importa un venv existente. Instala paquetes, define variables, verifica bibliotecas.',
     'features.reports.title': 'Informes y an\u00e1lisis profundo',
-    'features.reports.desc': 'Parseo autom\u00e1tico de output.xml. Detecta tendencias, encuentra pruebas inestables, 15 KPIs en 5 categor\u00edas.',
+    'features.reports.desc': 'Parseo autom\u00e1tico de output.xml, exportaci\u00f3n CSV/JSON. Detecta tendencias, encuentra pruebas inestables, 15 KPIs en 5 categor\u00edas.',
     'features.ai.title': 'An\u00e1lisis IA de fallos',
     'features.ai.desc': 'An\u00e1lisis de causa ra\u00edz con LLM y generaci\u00f3n .roboscope \u2192 .robot. OpenAI, Anthropic, OpenRouter u Ollama.',
     'features.rbac.title': 'Roles y control de acceso',

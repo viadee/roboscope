@@ -409,7 +409,7 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
         <!-- Details Panel -->
         <div v-if="selectedEnvId === env.id" class="env-details">
           <p v-if="env.venv_kind === 'system'" class="form-hint" data-testid="env-system-notice">{{ t('environments.addDialog.systemNotice') }}</p>
-          <p v-if="env.venv_kind !== 'managed' && env.venv_path" class="text-muted text-sm"><code>{{ env.venv_path }}</code></p>
+          <p v-if="env.venv_kind && env.venv_kind !== 'managed' && env.venv_path" class="text-muted text-sm" data-testid="env-venv-path-info">{{ env.venv_path }}</p>
           <!-- Packages -->
           <div class="detail-section">
             <div class="section-header">
