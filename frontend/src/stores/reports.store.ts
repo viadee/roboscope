@@ -32,6 +32,12 @@ export const useReportsStore = defineStore('reports', () => {
     return result
   }
 
+  async function deleteReport(id: number) {
+    await reportsApi.deleteReport(id)
+    reports.value = reports.value.filter(r => r.id !== id)
+    if (activeReport.value?.report.id === id) activeReport.value = null
+  }
+
   async function compareReports(reportA: number, reportB: number) {
     return await reportsApi.compareReports(reportA, reportB)
   }
@@ -43,5 +49,5 @@ export const useReportsStore = defineStore('reports', () => {
     return result
   }
 
-  return { reports, activeReport, loading, fetchReports, fetchReport, deleteAllReports, compareReports, uploadArchive }
+  return { reports, activeReport, loading, fetchReports, fetchReport, deleteReport, deleteAllReports,compareReports, uploadArchive }
 })

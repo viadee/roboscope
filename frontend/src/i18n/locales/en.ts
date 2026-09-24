@@ -598,6 +598,9 @@ export default {
     successRate: 'Success Rate',
     noReports: 'No reports yet.',
     confirmDeleteAll: 'All reports and associated files will be permanently deleted. Continue?',
+    deleteReport: 'Delete report',
+    deleteReportConfirm: 'Delete report #{id} and its files? The linked run is kept. This cannot be undone.',
+    deleted: 'Report deleted',
     upload: {
       button: 'Upload Archive',
       success: 'Archive uploaded',
@@ -629,6 +632,8 @@ export default {
       htmlReport: 'HTML Report',
     },
     downloadZip: 'Download ZIP',
+    exportCsv: 'Export CSV',
+    exportJson: 'Export JSON',
     reloadReport: 'Reload',
     openInNewTab: 'Open in new tab',
     notFound: 'No report found for id {id}.',

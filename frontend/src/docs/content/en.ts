@@ -1269,6 +1269,13 @@ Recording 21
 <p>
   Click the <strong>Download ZIP</strong> button on the Report Detail page. The archive
   is generated server-side and streamed to your browser.
+</p>
+<p>
+  To analyse results in a spreadsheet or hand them to a test management tool, use
+  <strong>Export CSV</strong> or <strong>Export JSON</strong> next to it. Both contain one row per
+  test with suite, test name, long name, status, duration, tags, start/end time and error message.
+  CSV cells that start with <code>=</code>, <code>+</code>, <code>-</code> or <code>@</code> are
+  prefixed with an apostrophe so spreadsheets do not execute them as formulas.
 </p>`
       },
       {
@@ -1280,8 +1287,10 @@ Recording 21
   provides two deletion mechanisms:
 </p>
 <ul>
-  <li><strong>Individual Delete</strong> &mdash; Click the delete icon on a report row to remove
-      a single report (requires <strong>Editor+</strong>).</li>
+  <li><strong>Individual Delete</strong> &mdash; Click <strong>Delete report</strong> in a run&rsquo;s detail
+      panel on the Execution page, or on the Report Detail page, to remove a single report and its
+      files. You need the <strong>Editor</strong> role on the report&rsquo;s repository (uploaded
+      archives: global <strong>Editor</strong>). The execution run itself is kept.</li>
   <li><strong>Delete All Reports</strong> &mdash; Click the <strong>Delete All</strong> button to
       remove every report in the system. A confirmation dialog ensures you don&rsquo;t
       accidentally wipe data. This action requires the <strong>Admin</strong> role.</li>

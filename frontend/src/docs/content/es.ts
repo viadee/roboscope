@@ -1283,6 +1283,13 @@ Recording 21
 <p>
   Haga clic en el bot\u00F3n <strong>Descargar ZIP</strong> en la p\u00E1gina de detalle
   del informe. El archivo se genera en el servidor y se transmite a su navegador.
+</p>
+<p>
+  Para analizar los resultados en una hoja de cálculo o entregarlos a una herramienta de gestión
+  de pruebas, use <strong>Exportar CSV</strong> o <strong>Exportar JSON</strong>. Ambos contienen una fila
+  por prueba (suite, nombre, nombre largo, estado, duración, etiquetas, inicio/fin y mensaje de error).
+  Las celdas CSV que empiezan por <code>=</code>, <code>+</code>, <code>-</code> o <code>@</code> se
+  prefijan con un apóstrofo para que las hojas de cálculo no las ejecuten como fórmulas.
 </p>`
       },
       {
@@ -1294,8 +1301,10 @@ Recording 21
   disco. La p\u00E1gina de Informes proporciona dos mecanismos de eliminaci\u00F3n:
 </p>
 <ul>
-  <li><strong>Eliminaci\u00F3n individual</strong> &mdash; Haga clic en el icono de eliminar en una fila
-      de informe para eliminar un solo informe (requiere <strong>Editor+</strong>).</li>
+  <li><strong>Eliminaci\u00F3n individual</strong> &mdash; Haga clic en <strong>Eliminar informe</strong> en el panel de
+      detalle de una ejecuci\u00F3n (p\u00E1gina Ejecuci\u00F3n) o en la p\u00E1gina de detalle del informe, para eliminar un solo informe y
+      sus archivos. Requiere el rol <strong>Editor</strong> en el repositorio del informe (archivos
+      subidos: <strong>Editor</strong> global). La ejecuci\u00F3n vinculada se conserva.</li>
   <li><strong>Eliminar todos los informes</strong> &mdash; Haga clic en el bot\u00F3n <strong>Eliminar
       todo</strong> para eliminar todos los informes del sistema. Un di\u00E1logo de confirmaci\u00F3n
       asegura que no borre datos accidentalmente. Esta acci\u00F3n requiere el rol <strong>Admin</strong>.</li>

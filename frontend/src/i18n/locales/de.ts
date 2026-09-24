@@ -598,6 +598,9 @@ export default {
     successRate: 'Erfolgsquote',
     noReports: 'Noch keine Reports vorhanden.',
     confirmDeleteAll: 'Alle Reports und zugehörige Dateien werden unwiderruflich gelöscht. Fortfahren?',
+    deleteReport: 'Report löschen',
+    deleteReportConfirm: 'Report #{id} und seine Dateien löschen? Der zugehörige Lauf bleibt erhalten. Dies kann nicht rückgängig gemacht werden.',
+    deleted: 'Report gelöscht',
     upload: {
       button: 'Archiv hochladen',
       success: 'Archiv hochgeladen',
@@ -629,6 +632,8 @@ export default {
       htmlReport: 'HTML Report',
     },
     downloadZip: 'ZIP herunterladen',
+    exportCsv: 'CSV exportieren',
+    exportJson: 'JSON exportieren',
     reloadReport: 'Neu laden',
     openInNewTab: 'In neuem Tab öffnen',
     notFound: 'Report mit ID {id} wurde nicht gefunden.',

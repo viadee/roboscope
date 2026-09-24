@@ -1250,6 +1250,13 @@ Recording 21
 <p>
   Cliquez sur le bouton <strong>T\u00E9l\u00E9charger ZIP</strong> sur la page de d\u00E9tail du rapport.
   L\u2019archive est g\u00E9n\u00E9r\u00E9e c\u00F4t\u00E9 serveur et envoy\u00E9e en streaming \u00E0 votre navigateur.
+</p>
+<p>
+  Pour analyser les r\u00E9sultats dans un tableur ou les transmettre \u00E0 un outil de gestion des tests,
+  utilisez <strong>Exporter CSV</strong> ou <strong>Exporter JSON</strong>. Les deux contiennent une ligne
+  par test (suite, nom, nom long, statut, dur\u00E9e, tags, d\u00E9but/fin et message d\u2019erreur). Les cellules
+  CSV commen\u00E7ant par <code>=</code>, <code>+</code>, <code>-</code> ou <code>@</code> sont pr\u00E9fix\u00E9es
+  d\u2019une apostrophe afin que les tableurs ne les ex\u00E9cutent pas comme des formules.
 </p>`
       },
       {
@@ -1261,8 +1268,10 @@ Recording 21
   La page Rapports propose deux m\u00E9canismes de suppression\u00A0:
 </p>
 <ul>
-  <li><strong>Suppression individuelle</strong> &mdash; Cliquez sur l\u2019ic\u00F4ne de suppression d\u2019une
-      ligne de rapport pour supprimer un seul rapport (r\u00F4le <strong>Editor+</strong> requis).</li>
+  <li><strong>Suppression individuelle</strong> &mdash; Cliquez sur <strong>Supprimer le rapport</strong> dans le panneau
+      de d\u00E9tail d\u2019une ex\u00E9cution (page Ex\u00E9cution) ou dans la page de d\u00E9tail du rapport, pour supprimer un seul rapport
+      et ses fichiers. Le r\u00F4le <strong>Editor</strong> sur le d\u00E9p\u00F4t du rapport est requis (archives
+      import\u00E9es\u00A0: <strong>Editor</strong> global). L\u2019ex\u00E9cution li\u00E9e est conserv\u00E9e.</li>
   <li><strong>Supprimer tous les rapports</strong> &mdash; Cliquez sur le bouton <strong>Tout supprimer</strong>
       pour effacer tous les rapports du syst\u00E8me. Un dialogue de confirmation vous \u00E9vite de
       supprimer accidentellement des donn\u00E9es. Cette action n\u00E9cessite le r\u00F4le <strong>Admin</strong>.</li>

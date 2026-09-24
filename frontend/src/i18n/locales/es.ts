@@ -598,6 +598,9 @@ export default {
     successRate: 'Tasa de éxito',
     noReports: 'Aún no hay informes.',
     confirmDeleteAll: 'Todos los informes y archivos asociados se eliminarán permanentemente. ¿Continuar?',
+    deleteReport: 'Eliminar informe',
+    deleteReportConfirm: '¿Eliminar el informe #{id} y sus archivos? La ejecución vinculada se conserva. Esta acción no se puede deshacer.',
+    deleted: 'Informe eliminado',
     upload: {
       button: 'Subir archivo',
       success: 'Archivo subido',
@@ -629,6 +632,8 @@ export default {
       htmlReport: 'Informe HTML',
     },
     downloadZip: 'Descargar ZIP',
+    exportCsv: 'Exportar CSV',
+    exportJson: 'Exportar JSON',
     reloadReport: 'Recargar',
     openInNewTab: 'Abrir en nueva pestaña',
     notFound: 'No se encontró ningún informe con id {id}.',
