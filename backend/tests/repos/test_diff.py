@@ -71,7 +71,7 @@ class TestService:
         (working_clone / "img.bin").write_bytes(b"\x00\x01")
         repo = Repo(working_clone)
         repo.index.add(["img.bin"])
-        repo.git.commit("-m", "bin")
+        repo.index.commit("bin")  # no git identity needed (CI runners have none)
         (working_clone / "img.bin").write_bytes(b"\x00\x02\x03")
         out = get_file_diff(str(working_clone), "img.bin")
         assert out["status"] == "binary" and out["diff"] is None
