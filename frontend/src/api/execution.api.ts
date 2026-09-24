@@ -163,6 +163,12 @@ export async function cancelAllRuns(): Promise<{ cancelled: number }> {
   return response.data
 }
 
+// V14.1: start a run from a schedule right away (next_run_at unchanged).
+export async function runScheduleNow(id: number): Promise<ExecutionRun> {
+  const response = await apiClient.post<ExecutionRun>(`/schedules/${id}/run`)
+  return response.data
+}
+
 export async function toggleSchedule(id: number): Promise<Schedule> {
   const response = await apiClient.post<Schedule>(`/schedules/${id}/toggle`)
   return response.data

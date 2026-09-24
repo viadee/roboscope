@@ -36,6 +36,7 @@ from src.execution.models import ExecutionRun, RunnerType
 from src.execution.service import (
     cancel_run,
     create_run,
+    create_run_from_schedule,
     create_schedule,
     delete_schedule,
     get_run,
@@ -973,3 +974,39 @@ def toggle_schedule_endpoint(
     if schedule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
     return toggle_schedule(db, schedule)
+
+
+@router.post(
+    "/schedules/{schedule_id}/run",
+    response_model=RunResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def run_schedule_now(
+    schedule_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Start a run from a schedule right away (active or paused).
+
+    Requires RUNNER+ effective role on the schedule's repository.
+    `next_run_at` is left untouched.
+    """
+    from src.auth.constants import ERR_INSUFFICIENT_PERMISSIONS, ROLE_HIERARCHY
+    from src.auth.permissions import effective_role
+    from src.repos.models import Repository
+
+    schedule = get_schedule(db, schedule_id)
+    if schedule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    repo = db.get(Repository, schedule.repository_id)
+    if repo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+    if getattr(current_user, "_auth_via_api_token", False):
+        role = Role(current_user.role)  # API tokens: no team/project elevation
+    else:
+        role = effective_role(db, current_user, repo)
+    if ROLE_HIERARCHY.get(role, -1) < ROLE_HIERARCHY[Role.RUNNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=ERR_INSUFFICIENT_PERMISSIONS
+        )
+    return create_run_from_schedule(db, schedule, current_user.id)

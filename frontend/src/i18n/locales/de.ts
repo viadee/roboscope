@@ -1174,6 +1174,10 @@ export default {
     resume: 'Fortsetzen',
     noSchedules: 'Noch keine Zeitpläne konfiguriert.',
     confirmDelete: 'Diesen Zeitplan löschen? Dies kann nicht rückgängig gemacht werden.',
+    runNow: 'Jetzt ausführen',
+    lastRun: 'Letzter Lauf',
+    nextRun: 'Nächster Lauf',
+    invalidCron: 'Ungültiger Cron-Ausdruck. Fünf Felder verwenden: Minute Stunde Tag Monat Wochentag (z. B. 0 2 * * 1-5).',
     cron: {
       minute: 'Minute',
       hour: 'Stunde',
@@ -1203,6 +1207,8 @@ export default {
       deleted: 'Zeitplan gelöscht',
       saveError: 'Zeitplan konnte nicht gespeichert werden',
       deleteError: 'Zeitplan konnte nicht gelöscht werden',
+      runStarted: 'Ausführung gestartet',
+      runError: 'Ausführung konnte nicht gestartet werden',
     },
   },
   notifications: {

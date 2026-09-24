@@ -1190,6 +1190,33 @@ Recording 21
   <strong>Runner</strong> o superior.
 </p>`,
         tip: 'Use "Cancelar todo" con precauci\u00F3n en entornos multiusuario, ya que afecta a las ejecuciones iniciadas por todos los usuarios.'
+      },
+      {
+        id: 'scheduled-runs',
+        title: 'Ejecuciones programadas',
+        content: `
+<p>
+  La pestaña <strong>Programaciones</strong> de la página de Ejecución lanza automáticamente un destino del repositorio
+  según una expresión cron (cinco campos: <code>minuto hora día mes día-de-semana</code>, p.&nbsp;ej.
+  <code>0 2 * * 1-5</code> para las 02:00 en días laborables). Las expresiones no válidas se rechazan al guardar.
+</p>
+<ul>
+  <li><strong>Zona horaria</strong> &mdash; los campos cron se evalúan en la zona horaria del <strong>servidor</strong>.
+      Las columnas <strong>Última ejecución</strong> y <strong>Próxima ejecución</strong> se muestran en la hora local de su navegador.</li>
+  <li><strong>Latido</strong> &mdash; el servidor comprueba las programaciones pendientes una vez por minuto; una ejecución empieza aproximadamente en el minuto siguiente.</li>
+  <li><strong>Sin solapamiento</strong> &mdash; si la ejecución anterior sigue <code>pending</code> o <code>running</code>,
+      se omite el turno y la programación espera al siguiente.</li>
+  <li><strong>Se ejecuta como el creador</strong> &mdash; una ejecución programada la lanza el usuario que creó la programación.
+      Si ese usuario está desactivado o eliminado, o el repositorio ya no existe, no se lanza nada.</li>
+  <li><strong>Turnos perdidos</strong> &mdash; si el servidor estuvo caído, una programación atrasada se ejecuta <strong>una sola vez</strong> tras el reinicio; los turnos perdidos no se repiten.</li>
+  <li><strong>Solo ejecuciones simples</strong> &mdash; las ejecuciones programadas usan repositorio, destino, rama, entorno, runner y filtros de tags.
+      Nunca incluyen variables ni argumentos/modificadores avanzados.</li>
+</ul>
+<p>
+  <strong>Ejecutar ahora</strong> (&#9889;) inicia de inmediato una ejecución desde una programación, aunque esté en pausa,
+  sin cambiar su próxima hora programada. Requiere al menos el rol <strong>Runner</strong> en el repositorio;
+  crear y editar programaciones requiere <strong>Editor</strong>.
+</p>`
       }
     ]
   },

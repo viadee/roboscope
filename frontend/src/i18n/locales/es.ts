@@ -1174,6 +1174,10 @@ export default {
     resume: 'Reanudar',
     noSchedules: 'No hay programaciones configuradas.',
     confirmDelete: 'Eliminar esta programación? Esta acción no se puede deshacer.',
+    runNow: 'Ejecutar ahora',
+    lastRun: 'Última ejecución',
+    nextRun: 'Próxima ejecución',
+    invalidCron: 'Expresión cron no válida. Use cinco campos: minuto hora día mes día-de-semana (p. ej. 0 2 * * 1-5).',
     cron: {
       minute: 'Minuto',
       hour: 'Hora',
@@ -1203,6 +1207,8 @@ export default {
       deleted: 'Programación eliminada',
       saveError: 'No se pudo guardar la programación',
       deleteError: 'No se pudo eliminar la programación',
+      runStarted: 'Ejecución iniciada',
+      runError: 'No se pudo iniciar la ejecución',
     },
   },
   notifications: {

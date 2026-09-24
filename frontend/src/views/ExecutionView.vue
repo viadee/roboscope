@@ -9,7 +9,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useReportsStore } from '@/stores/reports.store'
 import { useToast } from '@/composables/useToast'
 import { extractErrorDetail, extractErrorStatus } from '@/utils/errors'
-import { getRunOutput, type RunModifier } from '@/api/execution.api'
+import { getRunOutput, runScheduleNow, type RunModifier } from '@/api/execution.api'
 import { getRepoTags } from '@/api/explorer.api'
 import { buildDockerImage } from '@/api/environments.api'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -22,7 +22,7 @@ import AdvancedRunConfig from '@/components/execution/AdvancedRunConfig.vue'
 import { useFeatureFlags } from '@/composables/useFeatureFlags'
 import { useRouter } from 'vue-router'
 import { formatDuration } from '@/utils/formatDuration'
-import { formatTimeAgo } from '@/utils/formatDate'
+import { formatTimeAgo, parseBackendDate } from '@/utils/formatDate'
 import type { ExecutionRun, Schedule, RunnerType } from '@/types/domain.types'
 
 const route = useRoute()
@@ -33,7 +33,7 @@ const envs = useEnvironmentsStore()
 const auth = useAuthStore()
 const reportsStore = useReportsStore()
 const toast = useToast()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const activeTab = ref<'runs' | 'schedules'>('runs')
 
@@ -90,7 +90,10 @@ async function saveSchedule() {
     }
     showScheduleDialog.value = false
   } catch (e: unknown) {
-    toast.error(t('common.error'), extractErrorDetail(e, t('schedule.toasts.saveError')))
+    const detail = extractErrorStatus(e) === 422
+      ? t('schedule.invalidCron')
+      : extractErrorDetail(e, t('schedule.toasts.saveError'))
+    toast.error(t('common.error'), detail)
   } finally {
     savingSchedule.value = false
   }
@@ -103,6 +106,22 @@ async function deleteSchedule(id: number) {
     toast.success(t('schedule.toasts.deleted'))
   } catch {
     toast.error(t('schedule.toasts.deleteError'))
+  }
+}
+
+function formatScheduleTime(s: string | null): string {
+  return s ? parseBackendDate(s).toLocaleString(locale.value, { dateStyle: 'short', timeStyle: 'short' }) : '–'
+}
+
+async function runScheduleNowClick(schedule: Schedule) {
+  try {
+    const run = await runScheduleNow(schedule.id)
+    toast.success(t('schedule.toasts.runStarted'))
+    await Promise.all([execution.fetchRuns(), execution.fetchSchedules()])
+    activeTab.value = 'runs'
+    selectedRunId.value = run.id
+  } catch (e) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('schedule.toasts.runError')))
   }
 }
 
@@ -612,8 +631,10 @@ function isTerminal(status: string): boolean {
               <th>{{ t('common.name') }}</th>
               <th>{{ t('schedule.cronExpression') }}</th>
               <th>{{ t('schedule.target') }}</th>
+              <th>{{ t('schedule.lastRun') }}</th>
+              <th>{{ t('schedule.nextRun') }}</th>
               <th>{{ t('common.status') }}</th>
-              <th style="width: 120px;">{{ t('common.actions') }}</th>
+              <th style="width: 150px;">{{ t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -623,12 +644,23 @@ function isTerminal(status: string): boolean {
               <td class="text-sm text-muted">
                 {{ getRepoName(schedule.repository_id) }} / {{ schedule.target_path }}
               </td>
+              <td class="text-sm schedule-last-run">{{ formatScheduleTime(schedule.last_run_at) }}</td>
+              <td class="text-sm schedule-next-run">{{ formatScheduleTime(schedule.next_run_at) }}</td>
               <td>
                 <span class="schedule-status" :class="{ active: schedule.is_active, inactive: !schedule.is_active }">
                   {{ schedule.is_active ? t('schedule.active') : t('schedule.inactive') }}
                 </span>
               </td>
               <td class="row-actions">
+                <button
+                  v-if="auth.hasMinRole('runner')"
+                  class="icon-btn schedule-run-now"
+                  :title="t('schedule.runNow')"
+                  :aria-label="t('schedule.runNow')"
+                  @click="runScheduleNowClick(schedule)"
+                >
+                  &#9889;
+                </button>
                 <button
                   class="icon-btn"
                   :title="schedule.is_active ? t('schedule.pause') : t('schedule.resume')"
