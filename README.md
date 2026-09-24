@@ -24,7 +24,7 @@ Built by [viadee Unternehmensberatung AG](https://www.viadee.de).
 - **Flaky-Test Quarantine** — Mark any flaky test from the Stats page as quarantined. A Robot Framework listener then skips those tests at runtime (SKIP, not FAIL) so CI pipelines stop drowning in known-flaky noise. Per-repository, audit-logged, reversible.
 - **AI Failure Analysis + Patch Suggestions** — The AI analyse pipeline emits prose root-cause analysis plus optional unified-diff patches for concrete fixes. Patches render as copy-to-clipboard diffs on the report page — no auto-commit.
 - **Heal-Rate KPI** — Stats overview shows a 30-day heal-rate card + sparkline as a leading indicator of test drift against the app.
-- **Environment Management** — Create Python virtual environments, install/manage packages, set variables, secrets encryption
+- **Environment Management** — Create Python virtual environments, run on RoboScope's own Python interpreter, or import an existing venv from the server; install/manage packages, set variables, secrets encryption
 - **Report Analysis** — Parse `output.xml`, compare runs, view embedded HTML reports
 - **AI-Powered Analysis** — LLM-based failure root-cause analysis with fix suggestions (OpenAI, Anthropic, OpenRouter, Ollama)
 - **Statistics & KPIs** — Pass rate trends, flaky test detection, heatmaps, deep analysis (15 KPIs in 5 categories)
