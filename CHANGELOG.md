@@ -66,6 +66,11 @@
 
 ### Fixed
 
+- **A failed `git pull` was reported as a successful sync**
+  ([#36](https://github.com/viadee/roboscope/issues/36)): when git refused a pull,
+  for example because an uncommitted edit from the in-app editor would have been
+  overwritten, the repository still showed a green "synced" state. The sync now
+  ends in an error with git's message, and the local edit stays untouched.
 - **Deleting a repository left orphaned data behind**: SQLite does not enforce
   foreign keys, so runs, reports, schedules, recordings and statistics of a
   deleted repository stayed in the database, pointing at a repository that no

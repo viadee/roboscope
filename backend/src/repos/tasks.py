@@ -119,6 +119,16 @@ def sync_repo(repo_id: int, max_retries: int = 3) -> dict:
 
                 # Pull latest changes
                 result = sync_repository(repo.local_path, repo.default_branch)
+                if result.startswith("error:"):
+                    # git refused the pull (dirty tree, conflict, auth, …).
+                    # Deterministic, so no retry — surface it instead of
+                    # reporting success (issue #36).
+                    detail = result.removeprefix("error:").strip() or result
+                    repo.sync_status = "error"
+                    repo.sync_error = detail[:500]
+                    session.commit()
+                    logger.warning("Sync failed for %s: %s", repo.name, detail)
+                    return {"status": "error", "message": detail}
                 repo.last_synced_at = datetime.now(timezone.utc)
                 repo.sync_status = "success"
                 repo.sync_error = None
