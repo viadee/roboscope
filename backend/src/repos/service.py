@@ -93,8 +93,53 @@ def update_repository(
     return repo
 
 
+class RepositoryBusyError(Exception):
+    """Raised when a repository still has pending or running executions."""
+
+
 def delete_repository(db: Session, repo: Repository) -> None:
-    """Delete a repository and its local clone (only for git repos)."""
+    """Delete a repository, everything that references it, and its local clone.
+
+    SQLite does not enforce foreign keys here, so a bare ``db.delete(repo)``
+    used to leave runs, reports, schedules and recordings pointing at a
+    missing repo (undeletable, uncancellable); PostgreSQL rejected it with a
+    500. Runs go through ``delete_report`` so report files are removed too;
+    every other table referencing ``repositories.id`` is found via the
+    metadata: NOT NULL / ON DELETE CASCADE rows are deleted, nullable
+    references are cleared.
+    """
+    from sqlalchemy import delete, update
+
+    from src.database import Base
+    from src.execution.models import ExecutionRun, RunStatus
+    from src.reports.models import Report
+    from src.reports.service import delete_report
+
+    runs = list(db.execute(
+        select(ExecutionRun).where(ExecutionRun.repository_id == repo.id)
+    ).scalars())
+    if any(r.status in (RunStatus.PENDING, RunStatus.RUNNING) for r in runs):
+        raise RepositoryBusyError("Cancel the repository's pending or running runs first")
+
+    run_ids = [r.id for r in runs]
+    if run_ids:
+        for report in db.execute(
+            select(Report).where(Report.execution_run_id.in_(run_ids))
+        ).scalars():
+            delete_report(db, report)
+        db.execute(delete(ExecutionRun).where(ExecutionRun.id.in_(run_ids)))
+
+    for table in Base.metadata.sorted_tables:
+        for fk in table.foreign_keys:
+            if fk.column.table.name != "repositories" or table.name == "execution_runs":
+                continue
+            col = fk.parent
+            where = col == repo.id
+            if col.nullable and fk.ondelete != "CASCADE":
+                db.execute(update(table).where(where).values({col.name: None}))
+            else:
+                db.execute(delete(table).where(where))
+
     if repo.repo_type == "git":
         local_path = Path(repo.local_path)
         if local_path.exists():

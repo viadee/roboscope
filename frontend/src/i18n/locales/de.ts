@@ -250,6 +250,7 @@ export default {
       removed: '{name} wurde entfernt',
       deletedCount: '{count} Projekte gelöscht',
       deleteError: 'Fehler beim Löschen',
+      deleteBusy: "Bitte zuerst die wartenden oder laufenden Läufe des Projekts abbrechen.",
       branchSwitched: 'Branch gewechselt',
       branchSwitchFailed: 'Branch-Wechsel fehlgeschlagen',
     },
@@ -265,7 +266,7 @@ export default {
     deleteAll: 'Alle löschen',
     confirmDeleteSelected: '{count} ausgewählte Projekte löschen? Dies kann nicht rückgängig gemacht werden.',
     confirmDeleteAll: 'ALLE Projekte löschen? Dies kann nicht rückgängig gemacht werden.',
-    confirmDelete: 'Projekt "{name}" wirklich löschen?',
+    confirmDelete: "Projekt \"{name}\" wirklich löschen? Seine Läufe, Reports, Zeitpläne und Aufnahmen werden mitgelöscht.",
   },
   explorer: {
     title: 'Explorer',

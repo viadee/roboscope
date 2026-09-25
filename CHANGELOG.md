@@ -66,6 +66,14 @@
 
 ### Fixed
 
+- **Deleting a repository left orphaned data behind**: SQLite does not enforce
+  foreign keys, so runs, reports, schedules, recordings and statistics of a
+  deleted repository stayed in the database, pointing at a repository that no
+  longer existed. They could then be neither deleted nor cancelled, even by an
+  Admin. On PostgreSQL the delete failed with a 500 instead. Deleting a
+  repository now removes everything that references it, including report files
+  on disk. It is refused with a clear message while one of the repository's runs
+  is still pending or running. The confirmation dialog says what is deleted.
 - **Deleting a schedule with runs failed** on the foreign key; its runs are now
   unlinked first.
 - **Deleting a report failed on PostgreSQL** when an AI analysis job referenced

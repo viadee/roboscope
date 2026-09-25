@@ -414,9 +414,10 @@ const fr: DocsContent = [
 </ul>
 <p>
   <strong>Attention\u00A0:</strong> La suppression d\u2019un d\u00E9p\u00F4t le retire de RoboScope et supprime
-  les donn\u00E9es de l\u2019espace de travail clon\u00E9. Les rapports et l\u2019historique d\u2019ex\u00E9cution
-  associ\u00E9s au d\u00E9p\u00F4t ne sont <em>pas</em> automatiquement supprim\u00E9s. Utilisez la page
-  Rapports pour nettoyer les anciens rapports si n\u00E9cessaire.
+  les donn\u00E9es de l\u2019espace de travail clon\u00E9 (un dossier local reste sur le disque). Ses ex\u00E9cutions,
+  rapports (fichiers compris), planifications, enregistrements et statistiques sont \u00E9galement supprim\u00E9s.
+  Tant qu\u2019une de ses ex\u00E9cutions est en attente ou en cours, le d\u00E9p\u00F4t ne peut pas \u00EAtre supprim\u00E9\u00A0:
+  annulez d\u2019abord l\u2019ex\u00E9cution.
 </p>`
       }
     ]

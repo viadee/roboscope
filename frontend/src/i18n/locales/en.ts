@@ -250,6 +250,7 @@ export default {
       removed: '{name} has been removed',
       deletedCount: '{count} projects deleted',
       deleteError: 'Error deleting',
+      deleteBusy: "Cancel the project's pending or running runs first.",
       branchSwitched: 'Branch switched',
       branchSwitchFailed: 'Branch switch failed',
     },
@@ -265,7 +266,7 @@ export default {
     deleteAll: 'Delete All',
     confirmDeleteSelected: 'Delete {count} selected projects? This cannot be undone.',
     confirmDeleteAll: 'Delete ALL projects? This cannot be undone.',
-    confirmDelete: 'Really delete project "{name}"?',
+    confirmDelete: "Really delete project \"{name}\"? Its runs, reports, schedules and recordings are deleted too.",
   },
   explorer: {
     title: 'Explorer',

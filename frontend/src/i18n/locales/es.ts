@@ -250,6 +250,7 @@ export default {
       removed: '{name} ha sido eliminado',
       deletedCount: '{count} proyectos eliminados',
       deleteError: 'Error al eliminar',
+      deleteBusy: "Cancela primero las ejecuciones pendientes o en curso del proyecto.",
       branchSwitched: 'Rama cambiada',
       branchSwitchFailed: 'Error al cambiar de rama',
     },
@@ -265,7 +266,7 @@ export default {
     deleteAll: 'Eliminar todo',
     confirmDeleteSelected: '¿Eliminar {count} proyectos seleccionados? Esta acción no se puede deshacer.',
     confirmDeleteAll: '¿Eliminar TODOS los proyectos? Esta acción no se puede deshacer.',
-    confirmDelete: '¿Realmente eliminar el proyecto "{name}"?',
+    confirmDelete: "¿Realmente eliminar el proyecto \"{name}\"? También se eliminan sus ejecuciones, informes, programaciones y grabaciones.",
   },
   explorer: {
     title: 'Explorador',

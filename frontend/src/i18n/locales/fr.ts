@@ -250,6 +250,7 @@ export default {
       removed: '{name} a été retiré',
       deletedCount: '{count} projets supprimés',
       deleteError: 'Erreur lors de la suppression',
+      deleteBusy: "Annulez d'abord les exécutions en attente ou en cours du projet.",
       branchSwitched: 'Branche changée',
       branchSwitchFailed: 'Échec du changement de branche',
     },
@@ -265,7 +266,7 @@ export default {
     deleteAll: 'Tout supprimer',
     confirmDeleteSelected: 'Supprimer {count} projets sélectionnés ? Cette action est irréversible.',
     confirmDeleteAll: 'Supprimer TOUS les projets ? Cette action est irréversible.',
-    confirmDelete: 'Vraiment supprimer le projet « {name} » ?',
+    confirmDelete: "Vraiment supprimer le projet « {name} » ? Ses exécutions, rapports, planifications et enregistrements sont également supprimés.",
   },
   explorer: {
     title: 'Explorateur',

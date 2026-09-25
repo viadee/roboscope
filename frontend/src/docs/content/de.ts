@@ -390,9 +390,11 @@ const de: DocsContent = [
   <li>Nutzen Sie die Sammel-Aktionen in der Toolbar (z.\u202FB. <strong>Alle synchronisieren</strong> oder <strong>Ausgew\u00E4hlte l\u00F6schen</strong>)</li>
 </ol>
 <p>
-  Beim L\u00F6schen wird sowohl der Datenbankeintrag als auch das lokale
-  Verzeichnis entfernt. <strong>Dieser Vorgang kann nicht r\u00FCckg\u00E4ngig gemacht
-  werden.</strong>
+  Beim L\u00F6schen werden der Datenbankeintrag und bei Git-Repositories der lokale Klon
+  entfernt (ein lokaler Ordner bleibt auf der Platte). L\u00E4ufe, Reports samt Report-Dateien,
+  Zeitpl\u00E4ne, Aufnahmen und Statistiken des Repositories werden mitgel\u00F6scht. Solange ein
+  Lauf wartet oder l\u00E4uft, ist L\u00F6schen nicht m\u00F6glich: Brechen Sie ihn zuerst ab.
+  <strong>Dieser Vorgang kann nicht r\u00FCckg\u00E4ngig gemacht werden.</strong>
 </p>`,
         tip: 'Gel\u00F6schte Repositories k\u00F6nnen jederzeit erneut hinzugef\u00FCgt werden \u2014 sie werden dann frisch geklont.'
       }

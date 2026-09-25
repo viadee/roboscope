@@ -455,9 +455,9 @@ const en: DocsContent = [
 </ul>
 <p>
   <strong>Warning:</strong> Deleting a repository removes it from RoboScope and deletes
-  the cloned workspace data. Reports and run history associated with the repository
-  are <em>not</em> automatically deleted. Use the Reports page to clean up old reports
-  if needed.
+  the cloned workspace data (a local folder stays on disk). Its runs, reports (including
+  report files), schedules, recordings and statistics are deleted as well. While one of its
+  runs is pending or running, the repository cannot be deleted: cancel the run first.
 </p>`
       }
     ]

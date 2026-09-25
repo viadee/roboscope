@@ -282,6 +282,7 @@ const overrides: Dict = {
       removed: '{name} 已移除',
       deletedCount: '已删除 {count} 个项目',
       deleteError: '删除时出错',
+      deleteBusy: "请先取消该项目中等待或正在运行的运行。",
       branchSwitched: '分支已切换',
       branchSwitchFailed: '分支切换失败',
     },
@@ -297,7 +298,7 @@ const overrides: Dict = {
     deleteAll: '全部删除',
     confirmDeleteSelected: '删除所选的 {count} 个项目？此操作无法撤销。',
     confirmDeleteAll: '删除所有项目？此操作无法撤销。',
-    confirmDelete: '确实要删除项目"{name}"吗？',
+    confirmDelete: "确实要删除项目\"{name}\"吗？其运行、报告、计划和录制也将被删除。",
   },
   explorer: {
     title: '浏览器',

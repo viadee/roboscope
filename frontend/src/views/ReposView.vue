@@ -96,8 +96,8 @@ async function deleteSelected() {
     }
     selectedRepoIds.value.clear()
     toast.success(t('repos.toasts.deleted'), t('repos.toasts.deletedCount', { count }))
-  } catch {
-    toast.error(t('repos.toasts.deleteError'))
+  } catch (e) {
+    toast.error(t(extractErrorStatus(e) === 409 ? 'repos.toasts.deleteBusy' : 'repos.toasts.deleteError'))
   } finally {
     deletingSelected.value = false
   }
@@ -114,8 +114,8 @@ async function deleteAll() {
     }
     selectedRepoIds.value.clear()
     toast.success(t('repos.toasts.deleted'), t('repos.toasts.deletedCount', { count: ids.length }))
-  } catch {
-    toast.error(t('repos.toasts.deleteError'))
+  } catch (e) {
+    toast.error(t(extractErrorStatus(e) === 409 ? 'repos.toasts.deleteBusy' : 'repos.toasts.deleteError'))
   } finally {
     deletingAll.value = false
   }
@@ -314,8 +314,8 @@ async function removeRepo(id: number, name: string) {
   try {
     await repos.removeRepo(id)
     toast.success(t('repos.toasts.deleted'), t('repos.toasts.removed', { name }))
-  } catch {
-    toast.error(t('repos.toasts.deleteError'))
+  } catch (e) {
+    toast.error(t(extractErrorStatus(e) === 409 ? 'repos.toasts.deleteBusy' : 'repos.toasts.deleteError'))
   }
 }
 

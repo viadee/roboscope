@@ -424,9 +424,10 @@ const es: DocsContent = [
 </ul>
 <p>
   <strong>Advertencia:</strong> Eliminar un repositorio lo elimina de RoboScope y
-  borra los datos del espacio de trabajo clonado. Los informes y el historial de
-  ejecuciones asociados al repositorio <em>no</em> se eliminan autom\u00E1ticamente.
-  Use la p\u00E1gina de Informes para limpiar informes antiguos si es necesario.
+  borra los datos del espacio de trabajo clonado (una carpeta local permanece en el disco).
+  Tambi\u00E9n se eliminan sus ejecuciones, informes (incluidos los archivos), programaciones,
+  grabaciones y estad\u00EDsticas. Mientras una de sus ejecuciones est\u00E9 pendiente o en curso,
+  el repositorio no se puede eliminar: cancele antes la ejecuci\u00F3n.
 </p>`
       }
     ]

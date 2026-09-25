@@ -37,6 +37,7 @@ from src.repos.service import (
     checkout_branch,
     commit_changes,
     create_repository,
+    RepositoryBusyError,
     delete_repository,
     get_file_diff,
     get_repo_status,
@@ -166,7 +167,10 @@ def remove_repo(
     repo = get_repository(db, repo_id)
     if repo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
-    delete_repository(db, repo)
+    try:
+        delete_repository(db, repo)
+    except RepositoryBusyError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
 
 @router.put("/{repo_id}/team", response_model=RepoResponse)
