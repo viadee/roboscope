@@ -215,7 +215,8 @@ def parse_robot_keywords_in_repo(base_path: str) -> list[dict]:
 
     for ext in (".robot", ".resource"):
         for rf_file in base.rglob(f"*{ext}"):
-            relative = str(rf_file.relative_to(base))
+            # as_posix: the frontend splits on "/" (Windows gave "a\\b.resource").
+            relative = rf_file.relative_to(base).as_posix()
             try:
                 content = rf_file.read_text(encoding="utf-8-sig", errors="replace")
             except Exception:

@@ -1103,7 +1103,9 @@ function onKeywordInput(step: RobotStep) {
 
 function debouncedKeywordSearch(query: string) {
   if (keywordSearchTimer) clearTimeout(keywordSearchTimer)
-  if (query.trim().length < 2) {
+  const q = query.trim()
+  // One CJK character is already a meaningful search term (issue #58).
+  if (q.length < 2 && !/[^\x00-\x7F]/.test(q)) {
     keywordSuggestions.value = []
     return
   }

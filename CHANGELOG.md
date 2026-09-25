@@ -66,6 +66,16 @@
 
 ### Fixed
 
+- **Resource keywords still missing from the step dropdown**
+  ([#58](https://github.com/viadee/roboscope/issues/58)): 0.13.0 fixed section
+  header recognition for the Explorer and the Flow Editor palette, but the
+  visual editor's keyword search scans the repository with a second parser that
+  kept the old rules. A resource file saved with a UTF-8 byte-order mark (common
+  on Windows) or using translated headers such as `*** 关键字 ***` contributed no
+  keywords there. It now uses the same header rules and reads files BOM-safe.
+  A single Chinese character is now enough to start a keyword search (previously
+  two characters were required). On Windows, resource paths reached the Flow
+  Editor palette with backslashes, which broke grouping and deduplication.
 - **A failed `git pull` was reported as a successful sync**
   ([#36](https://github.com/viadee/roboscope/issues/36)): when git refused a pull,
   for example because an uncommitted edit from the in-app editor would have been
