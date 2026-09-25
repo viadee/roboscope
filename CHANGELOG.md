@@ -2,6 +2,149 @@
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-24
+
+### Added
+
+- **Run tests with RoboScope's own Python, or import an existing venv**: creating
+  an environment now offers three Python sources. *New virtual environment* is
+  the previous behaviour. *RoboScope's own Python environment* runs tests with the
+  interpreter RoboScope itself was started in, so every library RoboScope ships
+  (Robot Framework, Browser, RoboScopeHeal, …) works without building a venv.
+  *Import existing virtual environment* points RoboScope at a venv that already
+  exists on the server; its Python version is detected by running it. Both new
+  sources are Admin-only, are never auto-created and are never deleted from disk
+  (deleting the environment only removes it from RoboScope). Uninstalling
+  packages from RoboScope's own interpreter is refused, since it could break
+  RoboScope itself. Imported interpreters without a bare `python` (Homebrew,
+  conda on Windows) are found via `python3` / a root `python.exe`.
+- **Scheduled runs actually fire**: schedules could be created, edited and
+  toggled, but nothing ever started a run from them. A once-a-minute job now
+  starts due schedules, skipping a schedule whose previous run is still pending
+  or running and collapsing slots missed during downtime into one run. Cron
+  expressions are validated on save (422 instead of silently storing garbage),
+  and the schedule list shows *Last run* / *Next run*. A new **Run now** button
+  (`POST /schedules/{id}/run`, Runner role on the repo) starts a schedule
+  immediately. Scheduled runs never read the schedule's advanced configuration,
+  so they cannot bypass the advanced-execution gate.
+- **Environment variables reach the test run**: variables defined on an
+  environment were stored but never passed to the test process. They are now
+  injected into both the subprocess and Docker runner and can be read in suites
+  as `%{NAME}`; secrets are decrypted only at injection time. Variables can now
+  be edited and deleted (`PATCH` / `DELETE`), not only created. Names that could
+  hijack the interpreter (`PATH`, `PYTHONPATH`, `PYTHONHOME`, `LD_PRELOAD`,
+  `DYLD_*`, `NODE_OPTIONS`, …) are rejected.
+- **Export report results as CSV or JSON**: `GET /reports/{id}/export` and two
+  buttons on the report detail view and the run detail panel. Cells that a
+  spreadsheet would evaluate as a formula are neutralised.
+- **Delete a single report**: previously only "delete all" existed, for Admins
+  only. `DELETE /reports/{id}` needs Editor on the report's repository (global
+  Editor for uploaded reports) and only removes that report's own folder inside
+  the reports directory.
+- **Per-file diff in the Publish dialog**: every changed file gets a *Show
+  changes* toggle that loads a unified diff against `HEAD` on demand
+  (`GET /repos/{id}/diff`). Paths are guarded against traversal and symlink
+  escape, git pathspec magic is disabled, and diffs are capped at 200 KB.
+
+### Security
+
+- **Listing environment variables could overwrite stored secrets**: the list
+  endpoint masked secret values by writing `********` onto the database row, and
+  the request session committed afterwards. Masking now happens on the response
+  only; the create response is masked too (it used to return the ciphertext).
+
+### Changed
+
+- **Dependency upgrade**: frontend on Vite 8, Vitest 5, vue-tsc 3,
+  TypeScript 5.9, vue-i18n 11, Pinia 4 and Vue Router 5; backend lock refreshed
+  (Robot Framework 7.5, FastAPI 0.141, cryptography 50, reportlab 5,
+  rf-mcp 0.35, fastmcp 3.4) with raised floors for security-relevant packages;
+  Playwright 1.63 for e2e and the Chrome extension (Docker images aligned).
+  `npm audit` is clean in all three Node projects.
+- **Node 24 LTS** replaces the end-of-life Node 20 in CI and the frontend Docker
+  image.
+
+### Fixed
+
+- **Resource keywords still missing from the step dropdown**
+  ([#58](https://github.com/viadee/roboscope/issues/58)): 0.13.0 fixed section
+  header recognition for the Explorer and the Flow Editor palette, but the
+  visual editor's keyword search scans the repository with a second parser that
+  kept the old rules. A resource file saved with a UTF-8 byte-order mark (common
+  on Windows) or using translated headers such as `*** 关键字 ***` contributed no
+  keywords there. It now uses the same header rules and reads files BOM-safe.
+  A single Chinese character is now enough to start a keyword search (previously
+  two characters were required). On Windows, resource paths reached the Flow
+  Editor palette with backslashes, which broke grouping and deduplication.
+- **A failed `git pull` was reported as a successful sync**
+  ([#36](https://github.com/viadee/roboscope/issues/36)): when git refused a pull,
+  for example because an uncommitted edit from the in-app editor would have been
+  overwritten, the repository still showed a green "synced" state. The sync now
+  ends in an error with git's message, and the local edit stays untouched.
+- **Deleting a repository left orphaned data behind**: SQLite does not enforce
+  foreign keys, so runs, reports, schedules, recordings and statistics of a
+  deleted repository stayed in the database, pointing at a repository that no
+  longer existed. They could then be neither deleted nor cancelled, even by an
+  Admin. On PostgreSQL the delete failed with a 500 instead. Deleting a
+  repository now removes everything that references it, including report files
+  on disk. It is refused with a clear message while one of the repository's runs
+  is still pending or running. The confirmation dialog says what is deleted.
+- **Deleting a schedule with runs failed** on the foreign key; its runs are now
+  unlinked first.
+- **Deleting a report failed on PostgreSQL** when an AI analysis job referenced
+  it; the reference is cleared first.
+
+## [0.13.0] - 2026-07-31
+
+### Added
+
+- **Keyword documentation inline in the Flow Editor palette**: clicking a keyword
+  lifts it into the add-bar above the tree, which now shows the keyword's
+  documentation and its source (library name, or repo-relative file path for a
+  project keyword) right there — choosing between similarly-named keywords no
+  longer means opening the doc modal first. libdoc HTML is flattened to text for
+  the narrow palette column rather than rendered; BuiltIn docs, which the
+  wildcard preload skips, are lazy-loaded on selection and memoized.
+- **Project keywords now carry their `[Documentation]`**: the repo keyword parser
+  only extracted `[Arguments]`, and project keywords never pass through libdoc,
+  so keywords defined in a repo's own `.robot` / `.resource` files had no
+  documentation anywhere in the UI. The parser now reads `[Documentation]`,
+  joining cells in a row with a space and `...` continuation rows with a newline
+  the way Robot Framework does. Keyword lookup consults project keywords ahead of
+  libraries, matching the precedence already used for argument signatures.
+
+### Fixed
+
+- **Valid Robot Framework files could show no keywords, tests or tags at all**
+  ([#58](https://github.com/viadee/roboscope/issues/58)): the Explorer recognised
+  section headers only in their single canonical spelling `*** Keywords ***`.
+  Every other form Robot Framework accepts — `***Keywords***`, `* Keywords`,
+  `**** Keywords ****`, `*** Keywords` without a closing run, the singular
+  `*** Keyword ***`, a leading UTF-8 byte-order mark, and translated headers such
+  as `*** 关键字 ***` in a file declaring `Language:` — fell through to a branch
+  that *closed* the section instead of opening it. A file using any of them
+  parsed and ran perfectly in Robot Framework while RoboScope showed an empty
+  keyword palette. The same check backed four surfaces at once, so keyword
+  discovery, test-case listing, tag discovery and the file tree's test counts all
+  went blank together. Header recognition now lives in one module that mirrors
+  Robot Framework's own rules, taking translated section names from Robot
+  Framework itself rather than a local table, and deliberately still rejecting
+  what RF rejects (tab-padded headers; translated headers with no `Language:`
+  declaration) so the Explorer never advertises keywords RF cannot resolve.
+  `*** Tasks ***` sections now count towards a file's test count as well.
+  The editor's own `.robot` parser had the same blind spot and rendered such a
+  file as an empty Flow Editor (its content always survived a save, so no data
+  was ever lost); it now accepts the same asterisk and BOM forms. Translated
+  headers remain backend-only there, since that needs Robot Framework's
+  translation table, which the browser does not have.
+- **Adding a keyword from a local resource asked to pip-install it**: picking a
+  keyword from a `.robot` resource file that sits in the same directory as the
+  open file wrote an invalid `Library    09_database.robot` import and popped the
+  "install this package?" dialog. Same-directory resources resolve to a bare
+  filename, which the import classifier read as a third-party library name. Import
+  classification now recognises every Robot Framework resource-file extension
+  (`.robot`, `.resource`, `.txt`, `.tsv`).
+
 ## [0.12.1] - 2026-07-20
 
 ### Security

@@ -72,6 +72,18 @@ export async function getReportTests(id: number, status?: string): Promise<TestR
   return response.data
 }
 
+export async function exportReportResults(id: number, format: 'csv' | 'json'): Promise<Blob> {
+  const response = await apiClient.get(`/reports/${id}/export`, {
+    params: { format },
+    responseType: 'blob',
+  })
+  return response.data
+}
+
+export async function deleteReport(id: number): Promise<void> {
+  await apiClient.delete(`/reports/${id}`)
+}
+
 export async function deleteAllReports(): Promise<{ deleted: number; dirs_cleaned: number }> {
   const response = await apiClient.delete<{ deleted: number; dirs_cleaned: number }>('/reports/all')
   return response.data

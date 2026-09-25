@@ -67,6 +67,10 @@ export interface ProjectKeyword {
   name: string
   file_path: string
   arguments: string[]
+  /** `[Documentation]` value. Project keywords never go through libdoc, so
+   *  the repo parser is their only doc source — may be absent on responses
+   *  from an older backend. */
+  doc?: string
 }
 
 export async function getProjectKeywords(repoId: number): Promise<ProjectKeyword[]> {

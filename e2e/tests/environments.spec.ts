@@ -37,4 +37,43 @@ test.describe('Environments Page', () => {
     await page.getByRole('button', { name: 'Abbrechen' }).click();
     await expect(page.getByPlaceholder('production')).not.toBeVisible({ timeout: 3_000 });
   });
+
+  // V14.2 — variables CRUD in the UI. Injection into runs is covered by pytest
+  // (e2e would need a real venv run).
+  test('should add, edit and delete an environment variable', async ({ page }) => {
+    const token = await page.evaluate(() => localStorage.getItem('access_token'));
+    const name = 'vars-e2e-' + Date.now();
+    // venv_mode=system: no venv build needed for this UI-only test.
+    const envResp = await page.request.post('http://localhost:8000/api/v1/environments', {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { name, python_version: '3.12', venv_mode: 'system' },
+    });
+    expect(envResp.ok()).toBeTruthy();
+
+    await page.goto('/environments');
+    await page.locator('.card-header', { hasText: name }).click();
+
+    // Add
+    await page.getByTestId('env-var-add').click();
+    await page.getByTestId('env-var-key').fill('BASE_URL');
+    await page.getByTestId('env-var-value').fill('https://staging');
+    await page.getByTestId('env-var-save').click();
+    const row = page.getByTestId('env-var-row').filter({ hasText: 'BASE_URL' });
+    await expect(row).toContainText('https://staging', { timeout: 5_000 });
+
+    // Edit
+    await row.getByTestId('env-var-edit').click();
+    await page.getByTestId('env-var-value').fill('https://prod');
+    await page.getByTestId('env-var-save').click();
+    await expect(row).toContainText('https://prod', { timeout: 5_000 });
+
+    // Delete (confirm prompt)
+    page.once('dialog', (d) => d.accept());
+    await row.getByTestId('env-var-delete').click();
+    await expect(row).toHaveCount(0, { timeout: 5_000 });
+
+    await page.request.delete(`http://localhost:8000/api/v1/environments/${(await envResp.json()).id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  });
 });

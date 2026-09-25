@@ -15,6 +15,7 @@ vi.mock('@/api/repos.api', () => ({
   publishRepo: vi.fn(),
   pushRepo: vi.fn(),
   syncRepo: vi.fn(),
+  getFileDiff: vi.fn(),
   getRepoStatus: vi.fn(async () => ({
     current_branch: 'main',
     ahead: 0, behind: 0,
@@ -24,11 +25,12 @@ vi.mock('@/api/repos.api', () => ({
 }))
 
 import PublishModal from '@/components/repos/PublishModal.vue'
-import { publishRepo, pushRepo, syncRepo } from '@/api/repos.api'
+import { publishRepo, pushRepo, syncRepo, getFileDiff } from '@/api/repos.api'
 
 const mockedPublish = publishRepo as unknown as ReturnType<typeof vi.fn>
 const mockedPush = pushRepo as unknown as ReturnType<typeof vi.fn>
 const mockedSync = syncRepo as unknown as ReturnType<typeof vi.fn>
+const mockedDiff = getFileDiff as unknown as ReturnType<typeof vi.fn>
 
 const i18n = createI18n({
   legacy: false,
@@ -41,7 +43,7 @@ const i18n = createI18n({
   silentFallbackWarn: true,
   messages: {
     en: {
-      common: { cancel: 'Cancel' },
+      common: { cancel: 'Cancel', loading: 'Loading' },
       repos: {
         publish: {
           badgeLabel: 'Save {n} changes',
@@ -54,6 +56,12 @@ const i18n = createI18n({
           tagModified: 'modified',
           tagNew: 'new',
           tagDeleted: 'deleted',
+          showChanges: 'Show changes',
+          hideChanges: 'Hide changes',
+          diffTruncated: 'Truncated',
+          binaryFile: 'Binary file',
+          noChanges: 'No changes',
+          diffError: 'Diff error: {detail}',
           conflictHeader: 'Remote moved on',
           conflictBody: 'committed locally as {hash}',
           conflictHint: 'Pull and retry',
@@ -110,6 +118,7 @@ describe('PublishModal', () => {
     mockedPublish.mockReset()
     mockedPush.mockReset()
     mockedSync.mockReset()
+    mockedDiff.mockReset()
   })
 
   it('lists every modified, untracked, and deleted path', () => {
@@ -223,5 +232,59 @@ describe('PublishModal', () => {
     const events = w.emitted('update:modelValue')
     expect(events).toBeTruthy()
     expect(events![events!.length - 1]).toEqual([false])
+  })
+
+  // Story V14.5 — per-file diff preview
+  it('toggle fetches the diff once and renders coloured +/- lines', async () => {
+    mockedDiff.mockResolvedValue({
+      path: 'a.robot',
+      status: 'modified',
+      diff: '--- a/a.robot\n+++ b/a.robot\n@@ -1 +1 @@\n-old line\n+new <b>line</b>',
+      truncated: false,
+    })
+    const w = mountModal()
+    const toggle = w.findAll('[data-testid="publish-diff-toggle"]')[0]
+    expect(toggle.text()).toBe('Show changes')
+    await toggle.trigger('click')
+    await flushPromises()
+    expect(mockedDiff).toHaveBeenCalledTimes(1)
+    expect(mockedDiff).toHaveBeenCalledWith(7, 'a.robot')
+    expect(toggle.text()).toBe('Hide changes')
+    expect(w.get('.diff-add').text()).toBe('+new <b>line</b>')
+    expect(w.get('.diff-del').text()).toBe('-old line')
+    // Raw diff text is escaped, never interpreted as HTML.
+    expect(w.find('.publish-diff-pre b').exists()).toBe(false)
+
+    // Hide + show again uses the cached result.
+    await toggle.trigger('click')
+    expect(w.find('[data-testid="publish-diff"]').exists()).toBe(false)
+    await toggle.trigger('click')
+    await flushPromises()
+    expect(mockedDiff).toHaveBeenCalledTimes(1)
+    expect(w.find('[data-testid="publish-diff"]').exists()).toBe(true)
+  })
+
+  it('toggling a diff does not change the checkbox selection', async () => {
+    mockedDiff.mockResolvedValue({ path: 'a.robot', status: 'modified', diff: '+x', truncated: false })
+    const w = mountModal()
+    const boxes = () => w.findAll('input[type="checkbox"]').map((b) => (b.element as HTMLInputElement).checked)
+    const before = boxes()
+    await w.findAll('[data-testid="publish-diff-toggle"]')[0].trigger('click')
+    await flushPromises()
+    expect(boxes()).toEqual(before)
+    expect(before).toEqual([true, true])
+  })
+
+  it('shows binary and truncated notes', async () => {
+    mockedDiff.mockResolvedValueOnce({ path: 'a.robot', status: 'binary', diff: null, truncated: false })
+    mockedDiff.mockResolvedValueOnce({ path: 'b.robot', status: 'untracked', diff: '+a', truncated: true })
+    const w = mountModal()
+    const toggles = w.findAll('[data-testid="publish-diff-toggle"]')
+    await toggles[0].trigger('click')
+    await toggles[1].trigger('click')
+    await flushPromises()
+    const panels = w.findAll('[data-testid="publish-diff"]')
+    expect(panels[0].text()).toContain('Binary file')
+    expect(panels[1].text()).toContain('Truncated')
   })
 })

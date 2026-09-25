@@ -159,6 +159,60 @@ describe('useKeywordSignatures', () => {
       const info = getKeywordInfo('GET ELEMENT BY XPATH')
       expect(info!.display).toBe('Get Element By XPath')
     })
+
+    // Project keywords never go through libdoc, so the repo parser's
+    // `[Documentation]` is their ONLY doc source — without this branch the
+    // palette's inline doc is permanently empty for local resources.
+    it('serves doc + source file for a project keyword', () => {
+      const explorer = useExplorerStore()
+      explorer.setProjectKeywords([{
+        name: 'Connect And Create Schema',
+        file_path: 'tests/09_database.robot',
+        arguments: [],
+        doc: 'Open the SQLite file.\nDefine a fresh table.',
+      }])
+      const { getKeywordInfo } = useKeywordSignatures()
+      const info = getKeywordInfo('connect and create schema')
+      expect(info).not.toBeNull()
+      expect(info!.display).toBe('Connect And Create Schema')
+      expect(info!.library).toBe('tests/09_database.robot')
+      expect(info!.doc).toBe('Open the SQLite file.\nDefine a fresh table.')
+      // Repo-parsed docs are plain text — never libdoc HTML.
+      expect(info!.docFormat).toBe('text')
+    })
+
+    it('lets a project keyword shadow a same-named library keyword', () => {
+      const explorer = useExplorerStore()
+      explorer.keywords.push({
+        name: 'Click',
+        library: 'Browser',
+        doc: 'The library doc.',
+        args: ['selector: str'],
+      })
+      explorer.setProjectKeywords([{
+        name: 'Click',
+        file_path: 'resources/ui.resource',
+        arguments: ['${locator}'],
+        doc: 'Our wrapper around Browser.Click.',
+      }])
+      const { getKeywordInfo } = useKeywordSignatures()
+      const info = getKeywordInfo('Click')
+      // Same precedence RF itself uses: repo keywords win over libraries.
+      expect(info!.doc).toBe('Our wrapper around Browser.Click.')
+      expect(info!.library).toBe('resources/ui.resource')
+      expect(info!.args).toEqual(['${locator}'])
+    })
+
+    it('tolerates a project keyword from a backend that sends no doc', () => {
+      const explorer = useExplorerStore()
+      explorer.setProjectKeywords([{
+        name: 'Legacy Keyword',
+        file_path: 'resources/old.resource',
+        arguments: [],
+      }])
+      const { getKeywordInfo } = useKeywordSignatures()
+      expect(getKeywordInfo('Legacy Keyword')!.doc).toBe('')
+    })
   })
 
   describe('fetchKeywordInfo (lazy doc lookup for BuiltIn)', () => {

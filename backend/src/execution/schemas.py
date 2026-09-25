@@ -2,7 +2,8 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from apscheduler.triggers.cron import CronTrigger
+from pydantic import BaseModel, Field, field_validator
 
 from src.execution.models import RunnerType, RunStatus, RunType
 
@@ -70,6 +71,20 @@ class ScheduleCreate(BaseModel):
     tags_include: str | None = None
     tags_exclude: str | None = None
 
+    @field_validator("cron_expression")
+    @classmethod
+    def _valid_cron(cls, v: str) -> str:
+        return _validate_cron(v)
+
+
+def _validate_cron(v: str) -> str:
+    v = v.strip()
+    try:
+        CronTrigger.from_crontab(v)
+    except ValueError as e:
+        raise ValueError(f"Invalid cron expression: {e}") from None
+    return v
+
 
 class ScheduleUpdate(BaseModel):
     name: str | None = None
@@ -80,6 +95,11 @@ class ScheduleUpdate(BaseModel):
     tags_include: str | None = None
     tags_exclude: str | None = None
     is_active: bool | None = None
+
+    @field_validator("cron_expression")
+    @classmethod
+    def _valid_cron(cls, v: str | None) -> str | None:
+        return None if v is None else _validate_cron(v)
 
 
 class ScheduleResponse(BaseModel):

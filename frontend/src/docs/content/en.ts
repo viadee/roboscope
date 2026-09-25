@@ -300,7 +300,12 @@ const en: DocsContent = [
 </p>
 <ol>
   <li>Click <strong>Save N changes</strong>.</li>
-  <li>Tick the files you want to publish (default: all of them).</li>
+  <li>Tick the files you want to publish (default: all of them). Click
+      <strong>Show changes</strong> next to a file to preview its diff against
+      the last commit (added lines green, removed lines red). New files show
+      as fully added, deleted files as fully removed; binary files show no text
+      diff, and very large diffs are cut off at 200&nbsp;KB. Previewing never
+      changes which files are ticked.</li>
   <li>Type a one-line commit message describing what you changed.</li>
   <li>Click <strong>Save</strong>. RoboScope commits with your account&rsquo;s
       identity (your username + email become the git author / committer) and
@@ -450,9 +455,9 @@ const en: DocsContent = [
 </ul>
 <p>
   <strong>Warning:</strong> Deleting a repository removes it from RoboScope and deletes
-  the cloned workspace data. Reports and run history associated with the repository
-  are <em>not</em> automatically deleted. Use the Reports page to clean up old reports
-  if needed.
+  the cloned workspace data (a local folder stays on disk). Its runs, reports (including
+  report files), schedules, recordings and statistics are deleted as well. While one of its
+  runs is pending or running, the repository cannot be deleted: cancel the run first.
 </p>`
       }
     ]
@@ -567,6 +572,7 @@ const en: DocsContent = [
 <ul>
   <li><strong>Search</strong> &mdash; Filter keywords by name using the search box.</li>
   <li><strong>Click to Add</strong> &mdash; Click a keyword to select it (an &ldquo;Add&rdquo; bar appears at the top of the palette), then click <strong>+</strong> to insert it after the currently-selected node.</li>
+  <li><strong>Inline documentation</strong> &mdash; The &ldquo;Add&rdquo; bar shows the selected keyword&rsquo;s documentation and where it comes from &mdash; a library name, or the file path for a keyword defined in your own repository. Keywords you define yourself show their <code>[Documentation]</code> text here.</li>
   <li><strong>Drag &amp; Drop</strong> &mdash; Drag a keyword from the palette onto the canvas to position it precisely.</li>
 </ul>
 <h4>Control Structures (IF/ELSE, TRY/EXCEPT, loops)</h4>
@@ -1172,6 +1178,33 @@ Recording 21
   <strong>Runner</strong> role or above.
 </p>`,
         tip: 'Use "Cancel All" cautiously in multi-user environments, as it affects runs started by all users.'
+      },
+      {
+        id: 'scheduled-runs',
+        title: 'Scheduled Runs',
+        content: `
+<p>
+  The <strong>Schedules</strong> tab on the Execution page runs a repository target automatically
+  on a cron expression (five fields: <code>minute hour day month weekday</code>, e.g.
+  <code>0 2 * * 1-5</code> for 02:00 on weekdays). Invalid expressions are rejected when you save.
+</p>
+<ul>
+  <li><strong>Time zone</strong> &mdash; the cron fields are evaluated in the <strong>server's</strong> time zone.
+      The <strong>Last run</strong> and <strong>Next run</strong> columns are shown in your browser's local time.</li>
+  <li><strong>Heartbeat</strong> &mdash; the server checks for due schedules once a minute, so a run starts within about a minute of its slot.</li>
+  <li><strong>No overlap</strong> &mdash; if the schedule's previous run is still <code>pending</code> or <code>running</code>,
+      the slot is skipped and the schedule waits for its next time.</li>
+  <li><strong>Runs as the creator</strong> &mdash; a scheduled run is triggered by the user who created the schedule.
+      If that user is deactivated or deleted, or the repository no longer exists, the schedule does not fire.</li>
+  <li><strong>Missed slots</strong> &mdash; if the server was down, an overdue schedule fires <strong>once</strong> after restart; missed slots are not replayed.</li>
+  <li><strong>Plain runs only</strong> &mdash; scheduled runs use repository, target, branch, environment, runner and tag filters.
+      They never carry variables or advanced arguments/modifiers.</li>
+</ul>
+<p>
+  <strong>Run now</strong> (&#9889;) starts a run from a schedule immediately, even when it is paused, and does not
+  change its next scheduled time. It requires the <strong>Runner</strong> role or above on the repository;
+  creating and editing schedules requires <strong>Editor</strong>.
+</p>`
       }
     ]
   },
@@ -1268,6 +1301,13 @@ Recording 21
 <p>
   Click the <strong>Download ZIP</strong> button on the Report Detail page. The archive
   is generated server-side and streamed to your browser.
+</p>
+<p>
+  To analyse results in a spreadsheet or hand them to a test management tool, use
+  <strong>Export CSV</strong> or <strong>Export JSON</strong> next to it. Both contain one row per
+  test with suite, test name, long name, status, duration, tags, start/end time and error message.
+  CSV cells that start with <code>=</code>, <code>+</code>, <code>-</code> or <code>@</code> are
+  prefixed with an apostrophe so spreadsheets do not execute them as formulas.
 </p>`
       },
       {
@@ -1279,8 +1319,10 @@ Recording 21
   provides two deletion mechanisms:
 </p>
 <ul>
-  <li><strong>Individual Delete</strong> &mdash; Click the delete icon on a report row to remove
-      a single report (requires <strong>Editor+</strong>).</li>
+  <li><strong>Individual Delete</strong> &mdash; Click <strong>Delete report</strong> in a run&rsquo;s detail
+      panel on the Execution page, or on the Report Detail page, to remove a single report and its
+      files. You need the <strong>Editor</strong> role on the report&rsquo;s repository (uploaded
+      archives: global <strong>Editor</strong>). The execution run itself is kept.</li>
   <li><strong>Delete All Reports</strong> &mdash; Click the <strong>Delete All</strong> button to
       remove every report in the system. A confirmation dialog ensures you don&rsquo;t
       accidentally wipe data. This action requires the <strong>Admin</strong> role.</li>
@@ -1801,6 +1843,30 @@ Login Works
         tip: 'Name environments descriptively, e.g., "rf7-browser" or "rf6-selenium", so team members know which libraries are included.'
       },
       {
+        id: 'env-python-source',
+        title: 'Python Source: Own Interpreter or Imported venv',
+        content: `
+<p>
+  When creating an environment you choose where its Python comes from:
+</p>
+<ul>
+  <li><strong>New virtual environment</strong> (default): RoboScope creates and manages a
+  <code>uv</code> venv under <code>VENVS_DIR</code>.</li>
+  <li><strong>RoboScope's own Python environment</strong>: tests run with the interpreter
+  RoboScope itself was started in. No extra venv is created, so all libraries RoboScope ships
+  (Robot Framework, Browser, RoboScopeHeal, …) are available immediately. Packages installed here
+  are shared with RoboScope, so uninstalling is blocked.</li>
+  <li><strong>Import existing virtual environment</strong>: point RoboScope at a venv that already
+  exists on the server (the folder containing <code>bin/python</code>, on Windows
+  <code>Scripts\\python.exe</code>). The Python version is detected automatically.</li>
+</ul>
+<p>
+  The last two options require the <strong>Admin</strong> role. RoboScope never deletes an
+  imported venv or its own interpreter: deleting such an environment only removes it from RoboScope.
+  The environment card shows a <em>RoboScope Python</em> or <em>Imported venv</em> badge.
+</p>`
+      },
+      {
         id: 'install-packages',
         title: 'Installing Packages',
         content: `
@@ -1865,10 +1931,25 @@ Login Works
   <li>Storing <code>API_KEY</code> or other credentials without hardcoding them in test files.</li>
 </ul>
 <p>
-  To manage variables, navigate to an environment&rsquo;s detail page and use the
-  <strong>Variables</strong> tab. Each variable has a <strong>Key</strong> and
-  <strong>Value</strong>. Click <strong>Add Variable</strong> to create a new entry,
-  or use the edit/delete icons to modify existing ones.
+  To manage variables, expand an environment on the <strong>Environments</strong> page and
+  use the <strong>Variables</strong> section (Editor role or higher). Click
+  <strong>Add Variable</strong> to create an entry, <strong>Edit</strong> to change it, or
+  <strong>Delete</strong> to remove it. Names must be valid environment-variable names
+  (letters, digits, underscores). Names that would break the Python environment or load
+  foreign code &mdash; such as <code>PATH</code>, <code>VIRTUAL_ENV</code>,
+  <code>PYTHONPATH</code>, <code>PYTHONHOME</code>, <code>LD_PRELOAD</code> or
+  <code>DYLD_*</code> &mdash; are rejected.
+</p>
+<p>
+  Every run that uses the environment receives the variables as process environment
+  variables &mdash; for local runs and inside Docker containers. Read them in a suite as
+  <code>%{BASE_URL}</code>, e.g. <code>Should Be Equal    %{BASE_URL}    https://staging</code>.
+  If a run variable (<code>ROBOT_&lt;name&gt;</code> in Docker) has the same name, the run variable wins.
+</p>
+<p>
+  Mark a variable as <strong>Secret</strong> to encrypt it at rest. Secret values are never
+  shown again; when editing, leave the value empty to keep the stored one. They are decrypted
+  only when a run starts.
 </p>`,
         tip: 'Avoid storing highly sensitive credentials as environment variables. Consider using a secrets manager for production deployments.'
       },

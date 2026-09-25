@@ -571,7 +571,7 @@ function formatDate(d: string | null) {
               <table class="data-table">
                 <thead><tr><th>#</th><th>{{ t('stats.analysis.keyword') }}</th><th>{{ t('stats.analysis.library') }}</th><th>{{ t('stats.analysis.count') }}</th><th>%</th></tr></thead>
                 <tbody>
-                  <tr v-for="(kw, i) in stats.currentAnalysis.results.keyword_frequency.top_keywords" :key="i">
+                  <tr v-for="(kw, i) in (stats.currentAnalysis.results.keyword_frequency.top_keywords as any[])" :key="i">
                     <td>{{ i + 1 }}</td><td><strong>{{ kw.name }}</strong></td><td class="text-muted text-sm">{{ kw.library }}</td><td>{{ kw.count }}</td><td>{{ kw.percentage }}%</td>
                   </tr>
                 </tbody>
@@ -737,7 +737,7 @@ function formatDate(d: string | null) {
                 <table class="data-table">
                   <thead><tr><th>#</th><th>{{ t('stats.analysis.keyword') }}</th><th>{{ t('stats.analysis.library') }}</th><th>{{ t('stats.analysis.count') }}</th><th>%</th></tr></thead>
                   <tbody>
-                    <tr v-for="(kw, i) in stats.currentAnalysis.results.source_test_stats.top_keywords" :key="i">
+                    <tr v-for="(kw, i) in (stats.currentAnalysis.results.source_test_stats.top_keywords as any[])" :key="i">
                       <td>{{ i + 1 }}</td><td><strong>{{ kw.name }}</strong></td><td class="text-muted text-sm">{{ kw.library }}</td><td>{{ kw.count }}</td><td>{{ kw.percentage }}%</td>
                     </tr>
                   </tbody>

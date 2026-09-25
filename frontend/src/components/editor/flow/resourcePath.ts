@@ -27,3 +27,25 @@ export function resourceImportPath(openFile: string, resourceFile: string): stri
   const segments = [...Array(ups).fill('..'), ...down]
   return segments.join('/') || target
 }
+
+/**
+ * RF file-based imports. A `.robot` / `.resource` (and the legacy plain-text
+ * `.txt` / `.tsv`) file is ALWAYS a `Resource`, never a `Library` — RF has no
+ * such thing as `Library    09_database.robot`.
+ */
+const RESOURCE_FILE_RE = /\.(resource|robot|txt|tsv)$/i
+
+/**
+ * Does this import name denote a `Resource` (file) rather than a `Library`?
+ *
+ * The extension check must cover `.robot` too: a resource keyword living next
+ * to the open file resolves to a bare basename (`resourceImportPath` drops the
+ * directory for same-dir files), so a `/`-only heuristic would classify it as
+ * a third-party library — writing an invalid `Library    09_database.robot`
+ * row AND popping the "install 09_database.robot?" pip dialog.
+ * Regression seen 2026-07-31.
+ */
+export function isResourceImport(name: string): boolean {
+  const n = name.trim()
+  return RESOURCE_FILE_RE.test(n) || n.includes('/')
+}

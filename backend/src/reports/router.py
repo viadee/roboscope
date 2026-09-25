@@ -1,20 +1,27 @@
 """Report API endpoints."""
 
+import csv
 import io
+import json
 import logging
 import mimetypes
 import shutil
 import zipfile
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
-from src.auth.dependencies import get_current_user, require_role
+from src.auth.dependencies import (
+    get_current_user,
+    require_effective_role_for_report,
+    require_role,
+)
 from src.auth.models import User
 from src.auth.service import decode_token, get_user_by_id
 from src.database import get_db
@@ -36,6 +43,7 @@ from src.reports.schemas import (
 )
 from src.reports.service import (
     compare_reports,
+    delete_report,
     detect_missing_libraries,
     get_report,
     get_test_history,
@@ -113,31 +121,10 @@ def delete_all_reports(
     _current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     """Delete all reports, test results, and associated files on disk."""
-    # Get all reports to find output dirs
-    result = db.execute(select(Report))
-    reports = list(result.scalars().all())
-
-    # Delete files from disk
-    deleted_dirs = 0
-    for report in reports:
-        if report.output_xml_path:
-            output_dir = Path(report.output_xml_path).parent
-            if output_dir.exists():
-                try:
-                    shutil.rmtree(output_dir)
-                    deleted_dirs += 1
-                except Exception as e:
-                    logger.warning("Failed to delete %s: %s", output_dir, e)
-
-    # Delete all test results first (FK constraint)
-    db.execute(delete(TestResult))
-    # Delete all reports
-    count = len(reports)
-    db.execute(delete(Report))
-    db.flush()
-
-    logger.info("Deleted %d reports and %d output directories", count, deleted_dirs)
-    return {"deleted": count, "dirs_cleaned": deleted_dirs}
+    reports = list(db.execute(select(Report)).scalars().all())
+    deleted_dirs = sum(delete_report(db, report) for report in reports)
+    logger.info("Deleted %d reports and %d output directories", len(reports), deleted_dirs)
+    return {"deleted": len(reports), "dirs_cleaned": deleted_dirs}
 
 
 @router.post("/upload", response_model=ReportDetailResponse, status_code=status.HTTP_201_CREATED)
@@ -676,3 +663,65 @@ def get_report_tests(
         results = [r for r in results if r.status == status_filter.upper()]
 
     return [TestResultResponse.model_validate(r) for r in results]
+
+
+_EXPORT_COLUMNS = (
+    "suite_name", "test_name", "long_name", "status", "duration_seconds",
+    "tags", "start_time", "end_time", "error_message",
+)
+
+
+def _csv_safe(value: object) -> object:
+    """Neutralise spreadsheet formula injection (OWASP CSV injection)."""
+    if isinstance(value, str) and value.startswith(("=", "+", "-", "@", "\t", "\r")):
+        return "'" + value
+    return value
+
+
+@router.get("/{report_id}/export")
+def export_report_results(
+    report_id: int,
+    format: Literal["csv", "json"] = Query(...),
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Download a report's test results as CSV or JSON."""
+    if get_report(db, report_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    rows = [
+        TestResultResponse.model_validate(r).model_dump(mode="json")
+        for r in get_test_results(db, report_id)
+    ]
+    filename = f"report_{report_id}_results.{format}"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+
+    if format == "json":
+        return Response(
+            content=json.dumps(rows, ensure_ascii=False, indent=2),
+            media_type="application/json",
+            headers=headers,
+        )
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(_EXPORT_COLUMNS)
+    for row in rows:
+        writer.writerow([_csv_safe(row[c]) for c in _EXPORT_COLUMNS])
+    return Response(
+        content=buf.getvalue(), media_type="text/csv; charset=utf-8", headers=headers
+    )
+
+
+@router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_single_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_effective_role_for_report(Role.EDITOR)),
+):
+    """Delete one report (EDITOR on the report's repo; global EDITOR for uploads)."""
+    report = get_report(db, report_id)
+    if report is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+    delete_report(db, report)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

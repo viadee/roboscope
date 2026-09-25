@@ -1,8 +1,10 @@
 """Pydantic schemas for environment management."""
 
+import re
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class EnvCreate(BaseModel):
@@ -15,6 +17,11 @@ class EnvCreate(BaseModel):
     description: str | None = None
     index_url: str | None = None
     extra_index_url: str | None = None
+    # "managed": RoboScope creates + owns a uv venv under VENVS_DIR (default).
+    # "system": run with the interpreter RoboScope itself was started in.
+    # "existing": import an existing venv at ``venv_path`` (never deleted).
+    venv_mode: Literal["managed", "system", "existing"] = "managed"
+    venv_path: str | None = Field(default=None, max_length=500)
 
 
 class EnvUpdate(BaseModel):
@@ -51,11 +58,15 @@ class EnvResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     python_version_warning: str | None = None
+    venv_kind: str = "managed"
 
     model_config = {"from_attributes": True}
 
     @model_validator(mode="after")
     def compute_docker_image_stale(self) -> "EnvResponse":
+        from src.environments.venv_utils import venv_kind
+
+        self.venv_kind = venv_kind(self.venv_path)
         if self.docker_image:
             if self.docker_image_built_at is None:
                 self.docker_image_stale = True
@@ -94,10 +105,51 @@ class PyPISearchResult(BaseModel):
     author: str = ""
 
 
+_ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Names that would break venv activation or hijack the interpreter / code
+# loading of the ``robot`` child (PYTHONPATH would bypass the EXEC
+# ``--pythonpath`` deny-list). Compared case-insensitively.
+RESERVED_ENV_KEYS = frozenset({
+    "PATH", "VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP",
+    "PYTHONUSERBASE", "PYTHONINSPECT", "PYTHONEXECUTABLE", "PYTHONPLATLIBDIR",
+    "LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "NODE_OPTIONS", "BASH_ENV",
+})
+
+
+def is_reserved_env_key(key: str) -> bool:
+    upper = key.upper()
+    return upper in RESERVED_ENV_KEYS or upper.startswith("DYLD_")
+
+
+def _validate_env_key(key: str) -> str:
+    if not _ENV_KEY_RE.match(key):
+        raise ValueError("invalid environment variable name")
+    if is_reserved_env_key(key):
+        raise ValueError(f"reserved environment variable name: {key}")
+    return key
+
+
 class EnvVarCreate(BaseModel):
     key: str = Field(..., min_length=1, max_length=255)
     value: str
     is_secret: bool = False
+
+    @field_validator("key")
+    @classmethod
+    def _check_key(cls, v: str) -> str:
+        return _validate_env_key(v)
+
+
+class EnvVarUpdate(BaseModel):
+    key: str | None = Field(None, min_length=1, max_length=255)
+    # Empty value on a secret keeps the stored value (the form never echoes it).
+    value: str | None = None
+    is_secret: bool | None = None
+
+    @field_validator("key")
+    @classmethod
+    def _check_key(cls, v: str | None) -> str | None:
+        return None if v is None else _validate_env_key(v)
 
 
 class EnvVarResponse(BaseModel):

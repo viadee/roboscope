@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test'
 import { loginAndGoToDashboard } from '../helpers'
 
+const API = 'http://localhost:8000/api/v1'
+
 test.describe('Scheduling UX', () => {
   test.beforeEach(async ({ page }) => {
     await loginAndGoToDashboard(page)
@@ -140,5 +142,53 @@ test.describe('Scheduling UX', () => {
 
     // Should show the hourly cron expression
     await expect(page.locator('.cron-raw')).toContainText('0 * * * *')
+  })
+
+  test('Run now starts a run from a schedule (V14.1)', async ({ page }) => {
+    // Real backend: create a paused schedule via the API, then trigger it from the UI.
+    const token = await page.evaluate(() => localStorage.getItem('access_token'))
+    const headers = { Authorization: `Bearer ${token}` }
+    const repos = await (await page.request.get(`${API}/repos`, { headers })).json()
+    test.skip(!repos.length, 'needs at least one repository')
+    const created = await page.request.post(`${API}/schedules`, {
+      headers,
+      data: {
+        name: `e2e-run-now-${Date.now()}`,
+        cron_expression: '0 3 1 1 *',
+        repository_id: repos[0].id,
+        target_path: '.',
+        branch: repos[0].default_branch ?? 'main',
+      },
+    })
+    expect(created.status()).toBe(201)
+    const schedule = await created.json()
+    expect(schedule.next_run_at).toBeTruthy()
+
+    let runId: number | undefined
+    try {
+      await page.goto('/runs')
+      await page.locator('.tab-btn', { hasText: /Schedules|Zeitpläne|Planifications|Programaciones/ }).click()
+      const row = page.locator('tr', { hasText: schedule.name })
+      const runResponse = page.waitForResponse(
+        (r) => r.url().endsWith(`/schedules/${schedule.id}/run`) && r.request().method() === 'POST',
+      )
+      await row.locator('.schedule-run-now').click()
+      const run = await (await runResponse).json()
+      runId = run.id
+
+      // UI switches to the Runs tab and highlights the new run.
+      await expect(page.locator('.tab-btn.active', { hasText: /Runs|Ausführungen|Exécutions|Ejecuciones/ })).toBeVisible()
+      await expect(page.locator('tr.selected-row', { hasText: `#${run.id}` })).toBeVisible({ timeout: 10_000 })
+
+      // next_run_at is untouched by "Run now".
+      const after = await (await page.request.get(`${API}/schedules`, { headers })).json()
+      const same = after.find((s: { id: number }) => s.id === schedule.id)
+      expect(same.next_run_at).toBe(schedule.next_run_at)
+      expect(same.last_run_at).toBeTruthy()
+    } finally {
+      // Don't leave a whole-repo run occupying the single-worker executor.
+      if (runId) await page.request.post(`${API}/runs/${runId}/cancel`, { headers })
+      await page.request.delete(`${API}/schedules/${schedule.id}`, { headers })
+    }
   })
 })

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import DOMPurify from 'dompurify'
 import { useExplorerStore } from '@/stores/explorer.store'
 import { searchKeywords, type RfKeywordResult } from '@/api/ai.api'
 import { getProjectKeywords, type ProjectKeyword } from '@/api/explorer.api'
+import { useKeywordSignatures } from '@/composables/useKeywordSignatures'
 import { resourceImportPath } from './resourcePath'
 import {
   type PaletteFilter,
@@ -17,6 +19,7 @@ import {
   hiddenCount,
   sortLibraries,
   resourceFileStems,
+  docPreviewText,
   type CatLike,
 } from './paletteView'
 import type { StepType, RobotStep } from './flowConverter'
@@ -204,6 +207,84 @@ function importHintFor(cat: PaletteCategory, keyword: string): string | undefine
   if (cat.name === 'BuiltIn') return undefined
   return cat.name
 }
+
+// --- Inline documentation for the selected keyword ---
+//
+// Clicking a keyword lifts it into the add-bar above the tree; that bar shows
+// its `[Documentation]` / libdoc summary right there, so picking the right
+// keyword doesn't require opening the doc modal first.
+//
+// Sources, in the same precedence order `useKeywordSignatures` uses for args:
+// repo project keywords (parsed `[Documentation]`) > libdoc cache. BuiltIn
+// keywords are the awkward tier — the wildcard preload skips them, so their
+// doc is lazy-fetched on selection and memoized here.
+const { getKeywordInfo, fetchKeywordInfo } = useKeywordSignatures()
+
+const fetchedDocs = ref<Map<string, { doc: string; docFormat: string }>>(new Map())
+const docLoading = ref(false)
+/** Guards against an out-of-order lazy fetch clobbering a newer selection. */
+let docFetchToken = 0
+
+function stripTags(html: string): string {
+  // ALLOWED_TAGS: [] reduces the markup to its text content; DOMPurify also
+  // decodes entities, which a regex strip would leave as `&amp;`.
+  return DOMPurify.sanitize(html, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
+}
+
+function isProjectKeyword(lowerName: string): boolean {
+  return explorer.projectKeywords.some(k => k.name.toLowerCase() === lowerName)
+}
+
+/** Synchronous info for the selected keyword. Control items (IF / FOR / …)
+ *  are editor constructs, not keywords — they have no signature to show. */
+const selectedInfo = computed(() => {
+  const sel = selectedKeyword.value
+  if (!sel || sel.type) return null
+  return getKeywordInfo(sel.name)
+})
+
+/** Where the selected keyword comes from — a repo-relative file path for
+ *  project keywords, a library name otherwise. */
+const selectedSource = computed<string>(() => selectedInfo.value?.library ?? '')
+
+const selectedDocText = computed<string>(() => {
+  const sel = selectedKeyword.value
+  if (!sel || sel.type) return ''
+  const info = selectedInfo.value
+  if (info?.doc && info.doc.trim()) return docPreviewText(info.doc, info.docFormat, stripTags)
+  const lazy = fetchedDocs.value.get(sel.name.toLowerCase())
+  if (lazy) return docPreviewText(lazy.doc, lazy.docFormat, stripTags)
+  return ''
+})
+
+watch(selectedKeyword, async (sel) => {
+  const token = ++docFetchToken
+  docLoading.value = false
+  if (!sel || sel.type) return
+  const lower = sel.name.toLowerCase()
+  if (fetchedDocs.value.has(lower)) return
+  // A project keyword's doc comes from the repo parser only. Asking
+  // rf-knowledge for it would either miss or — worse — return a same-named
+  // library keyword's doc, so never lazy-fetch for those.
+  if (isProjectKeyword(lower)) return
+  const info = getKeywordInfo(sel.name)
+  if (info?.doc && info.doc.trim()) return
+  docLoading.value = true
+  try {
+    const fresh = await fetchKeywordInfo(sel.name, props.repoId)
+    if (token !== docFetchToken) return
+    // `fetchKeywordInfo` falls back to the first search hit when nothing
+    // matches exactly — only trust an exact name match, otherwise we'd
+    // caption this keyword with an unrelated one's documentation.
+    if (fresh && fresh.display.toLowerCase() === lower) {
+      fetchedDocs.value.set(lower, { doc: fresh.doc, docFormat: fresh.docFormat })
+      // Reassign so the computed re-evaluates (Map mutation isn't reactive).
+      fetchedDocs.value = new Map(fetchedDocs.value)
+    }
+  } finally {
+    if (token === docFetchToken) docLoading.value = false
+  }
+})
 
 function selectKeyword(name: string, type?: StepType, library?: string) {
   selectedKeyword.value = { name, type, library }
@@ -607,12 +688,28 @@ function onControlDragStart(event: DragEvent, type: StepType) {
     <div v-if="selectedKeyword" class="palette-add-bar">
       <div class="palette-add-info">
         <span class="palette-add-label" :title="selectedKeyword.name">{{ selectedKeyword.name }}</span>
+        <span
+          v-if="selectedSource"
+          class="palette-add-source"
+          :title="selectedSource"
+        >{{ selectedSource }}</span>
         <div v-if="!selectedKeyword.type && getKeywordArgs(selectedKeyword.name).length" class="palette-args-preview">
           <span
             v-for="(arg, i) in getKeywordArgs(selectedKeyword.name)"
             :key="i"
             class="palette-arg-tag"
           >{{ arg }}</span>
+        </div>
+        <!-- Inline documentation — the reason to click a keyword before adding it. -->
+        <div v-if="!selectedKeyword.type" class="palette-add-doc" data-testid="palette-add-doc">
+          <span v-if="docLoading" class="palette-add-doc-muted">{{ t('flowEditor.docModal.loading') }}</span>
+          <p
+            v-else-if="selectedDocText"
+            class="palette-add-doc-text"
+            data-testid="palette-add-doc-text"
+            :title="selectedDocText"
+          >{{ selectedDocText }}</p>
+          <span v-else class="palette-add-doc-muted">{{ t('flowEditor.docModal.noDoc') }}</span>
         </div>
       </div>
       <button class="palette-add-btn" @click="addSelectedKeyword">+</button>
@@ -860,7 +957,9 @@ function onControlDragStart(event: DragEvent, type: StepType) {
 }
 .palette-add-bar {
   display: flex;
-  align-items: center;
+  /* flex-start, not center: the bar grows with the inline doc block and the
+     + button must stay pinned next to the keyword name. */
+  align-items: flex-start;
   gap: 6px;
   margin: 0 10px 8px;
   padding: 5px 8px;
@@ -899,6 +998,41 @@ function onControlDragStart(event: DragEvent, type: StepType) {
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.palette-add-source {
+  display: block;
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--color-text-muted, #5A6380);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+.palette-add-doc {
+  margin-top: 4px;
+}
+.palette-add-doc-text {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-text, #1A2D50);
+  /* Docs run long; the palette column is narrow. Clamp to 4 lines and keep
+     the full text reachable via the title tooltip + the doc modal. */
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  /* `[Documentation]` continuation rows are newline-joined — preserve them
+     while still wrapping long lines. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.palette-add-doc-muted {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--color-text-muted, #5A6380);
 }
 .palette-add-btn {
   width: 24px;

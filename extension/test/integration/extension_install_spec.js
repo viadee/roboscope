@@ -6,7 +6,7 @@ const pathLib = require('path');
 const assert = require('assert');
 
 describe('playwright-integration-tests', (async function () {
-  this.timeout(10000);
+  this.timeout(30000); // headed Chromium cold start regularly exceeds 10s
   let context;
 
   before(async () => {

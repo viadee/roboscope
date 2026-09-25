@@ -293,6 +293,18 @@ const fr: DocsContent = [
   Le statut de synchronisation est indiqu\u00E9 par un horodatage montrant la derni\u00E8re
   synchronisation r\u00E9ussie. Si une synchronisation \u00E9choue (par exemple en cas de conflit
   de fusion), un badge d\u2019erreur appara\u00EEt \u00E0 c\u00F4t\u00E9 du nom du d\u00E9p\u00F4t.
+</p>
+<h4>Enregistrer vos modifications</h4>
+<p>
+  Le bouton <strong>Enregistrer N modifications</strong> de l\u2019Explorateur ouvre
+  une fen\u00EAtre listant les fichiers modifi\u00E9s&nbsp;: cochez ceux \u00E0 publier,
+  saisissez un message de commit, puis enregistrez (commit + push). Cliquez sur
+  <strong>Voir les modifications</strong> \u00E0 c\u00F4t\u00E9 d\u2019un fichier pour
+  afficher son diff par rapport au dernier commit (lignes ajout\u00E9es en vert,
+  supprim\u00E9es en rouge). Les nouveaux fichiers apparaissent enti\u00E8rement
+  ajout\u00E9s, les fichiers supprim\u00E9s enti\u00E8rement retir\u00E9s&nbsp;; les
+  fichiers binaires n\u2019ont pas de diff texte et les tr\u00E8s gros diffs sont
+  tronqu\u00E9s \u00E0 200&nbsp;Ko. L\u2019aper\u00E7u ne modifie pas la s\u00E9lection.
 </p>`,
         tip: 'La synchronisation automatique garantit que vous testez toujours le code le plus r\u00E9cent. Auto-Sync ex\u00E9cute maintenant un git pull en arri\u00E8re-plan toutes les sync_interval_minutes (15 min par d\u00E9faut), via un planificateur qui tique toutes les 5 min.'
       },
@@ -402,9 +414,10 @@ const fr: DocsContent = [
 </ul>
 <p>
   <strong>Attention\u00A0:</strong> La suppression d\u2019un d\u00E9p\u00F4t le retire de RoboScope et supprime
-  les donn\u00E9es de l\u2019espace de travail clon\u00E9. Les rapports et l\u2019historique d\u2019ex\u00E9cution
-  associ\u00E9s au d\u00E9p\u00F4t ne sont <em>pas</em> automatiquement supprim\u00E9s. Utilisez la page
-  Rapports pour nettoyer les anciens rapports si n\u00E9cessaire.
+  les donn\u00E9es de l\u2019espace de travail clon\u00E9 (un dossier local reste sur le disque). Ses ex\u00E9cutions,
+  rapports (fichiers compris), planifications, enregistrements et statistiques sont \u00E9galement supprim\u00E9s.
+  Tant qu\u2019une de ses ex\u00E9cutions est en attente ou en cours, le d\u00E9p\u00F4t ne peut pas \u00EAtre supprim\u00E9\u00A0:
+  annulez d\u2019abord l\u2019ex\u00E9cution.
 </p>`
       }
     ]
@@ -520,6 +533,7 @@ const fr: DocsContent = [
 <ul>
   <li><strong>Rechercher</strong> &mdash; Filtrer les mots-cl\u00E9s par nom gr\u00E2ce \u00E0 la bo\u00EEte de recherche.</li>
   <li><strong>Cliquer pour ajouter</strong> &mdash; Cliquez sur un mot-cl\u00E9 pour le s\u00E9lectionner (une barre \u00AB&nbsp;Ajouter&nbsp;\u00BB appara\u00EEt en haut de la palette), puis cliquez sur <strong>+</strong> pour l\u2019ins\u00E9rer apr\u00E8s le n\u0153ud actuellement s\u00E9lectionn\u00E9.</li>
+  <li><strong>Documentation int\u00E9gr\u00E9e</strong> &mdash; La barre \u00AB&nbsp;Ajouter&nbsp;\u00BB affiche la documentation du mot-cl\u00E9 s\u00E9lectionn\u00E9 et sa provenance &mdash; un nom de biblioth\u00E8que, ou le chemin du fichier pour un mot-cl\u00E9 d\u00E9fini dans votre propre d\u00E9p\u00F4t. Les mots-cl\u00E9s que vous d\u00E9finissez affichent ici leur texte <code>[Documentation]</code>.</li>
   <li><strong>Glisser-d\u00E9poser</strong> &mdash; Faites glisser un mot-cl\u00E9 depuis la palette sur le canevas pour le positionner pr\u00E9cis\u00E9ment.</li>
 </ul>
 <h4>Structures de contr\u00F4le (IF/ELSE, TRY/EXCEPT, boucles)</h4>
@@ -1149,6 +1163,33 @@ Recording 21
   <strong>Runner</strong> ou sup\u00E9rieur.
 </p>`,
         tip: 'Utilisez \u00AB\u00A0Tout annuler\u00A0\u00BB avec pr\u00E9caution dans les environnements multi-utilisateurs, car cela affecte les ex\u00E9cutions lanc\u00E9es par tous les utilisateurs.'
+      },
+      {
+        id: 'scheduled-runs',
+        title: 'Exécutions planifiées',
+        content: `
+<p>
+  L'onglet <strong>Planifications</strong> de la page Exécution lance automatiquement une cible de dépôt
+  selon une expression cron (cinq champs : <code>minute heure jour mois jour-de-semaine</code>, p.&nbsp;ex.
+  <code>0 2 * * 1-5</code> pour 02:00 en semaine). Les expressions invalides sont refusées à l'enregistrement.
+</p>
+<ul>
+  <li><strong>Fuseau horaire</strong> &mdash; les champs cron sont évalués dans le fuseau horaire du <strong>serveur</strong>.
+      Les colonnes <strong>Dernière exécution</strong> et <strong>Prochaine exécution</strong> s'affichent à l'heure locale de votre navigateur.</li>
+  <li><strong>Pulsation</strong> &mdash; le serveur vérifie les planifications échues une fois par minute ; une exécution démarre donc dans la minute environ.</li>
+  <li><strong>Pas de chevauchement</strong> &mdash; si l'exécution précédente est encore <code>pending</code> ou <code>running</code>,
+      le créneau est ignoré et la planification attend le suivant.</li>
+  <li><strong>Exécutée au nom du créateur</strong> &mdash; une exécution planifiée est déclenchée par l'utilisateur qui a créé la planification.
+      Si cet utilisateur est désactivé ou supprimé, ou si le dépôt n'existe plus, rien n'est lancé.</li>
+  <li><strong>Créneaux manqués</strong> &mdash; si le serveur était arrêté, une planification en retard s'exécute <strong>une seule fois</strong> après le redémarrage ; les créneaux manqués ne sont pas rejoués.</li>
+  <li><strong>Exécutions simples uniquement</strong> &mdash; les exécutions planifiées utilisent dépôt, cible, branche, environnement, runner et filtres de tags.
+      Elles ne transportent jamais de variables ni d'arguments/modificateurs avancés.</li>
+</ul>
+<p>
+  <strong>Exécuter maintenant</strong> (&#9889;) lance immédiatement une exécution depuis une planification, même en pause,
+  sans modifier sa prochaine échéance. Il faut au moins le rôle <strong>Runner</strong> sur le dépôt ;
+  créer et modifier des planifications nécessite <strong>Editor</strong>.
+</p>`
       }
     ]
   },
@@ -1249,6 +1290,13 @@ Recording 21
 <p>
   Cliquez sur le bouton <strong>T\u00E9l\u00E9charger ZIP</strong> sur la page de d\u00E9tail du rapport.
   L\u2019archive est g\u00E9n\u00E9r\u00E9e c\u00F4t\u00E9 serveur et envoy\u00E9e en streaming \u00E0 votre navigateur.
+</p>
+<p>
+  Pour analyser les r\u00E9sultats dans un tableur ou les transmettre \u00E0 un outil de gestion des tests,
+  utilisez <strong>Exporter CSV</strong> ou <strong>Exporter JSON</strong>. Les deux contiennent une ligne
+  par test (suite, nom, nom long, statut, dur\u00E9e, tags, d\u00E9but/fin et message d\u2019erreur). Les cellules
+  CSV commen\u00E7ant par <code>=</code>, <code>+</code>, <code>-</code> ou <code>@</code> sont pr\u00E9fix\u00E9es
+  d\u2019une apostrophe afin que les tableurs ne les ex\u00E9cutent pas comme des formules.
 </p>`
       },
       {
@@ -1260,8 +1308,10 @@ Recording 21
   La page Rapports propose deux m\u00E9canismes de suppression\u00A0:
 </p>
 <ul>
-  <li><strong>Suppression individuelle</strong> &mdash; Cliquez sur l\u2019ic\u00F4ne de suppression d\u2019une
-      ligne de rapport pour supprimer un seul rapport (r\u00F4le <strong>Editor+</strong> requis).</li>
+  <li><strong>Suppression individuelle</strong> &mdash; Cliquez sur <strong>Supprimer le rapport</strong> dans le panneau
+      de d\u00E9tail d\u2019une ex\u00E9cution (page Ex\u00E9cution) ou dans la page de d\u00E9tail du rapport, pour supprimer un seul rapport
+      et ses fichiers. Le r\u00F4le <strong>Editor</strong> sur le d\u00E9p\u00F4t du rapport est requis (archives
+      import\u00E9es\u00A0: <strong>Editor</strong> global). L\u2019ex\u00E9cution li\u00E9e est conserv\u00E9e.</li>
   <li><strong>Supprimer tous les rapports</strong> &mdash; Cliquez sur le bouton <strong>Tout supprimer</strong>
       pour effacer tous les rapports du syst\u00E8me. Un dialogue de confirmation vous \u00E9vite de
       supprimer accidentellement des donn\u00E9es. Cette action n\u00E9cessite le r\u00F4le <strong>Admin</strong>.</li>
@@ -1750,6 +1800,32 @@ Login Works
         tip: 'Nommez les environnements de mani\u00E8re descriptive, par ex. \u00AB\u00A0rf7-browser\u00A0\u00BB ou \u00AB\u00A0rf6-selenium\u00A0\u00BB, pour que les membres de l\u2019\u00E9quipe sachent quelles biblioth\u00E8ques sont incluses.'
       },
       {
+        id: 'env-python-source',
+        title: 'Source Python : interpréteur de RoboScope ou venv importé',
+        content: `
+<p>
+  Lors de la création d'un environnement, vous choisissez l'origine de son Python :
+</p>
+<ul>
+  <li><strong>Nouvel environnement virtuel</strong> (par défaut) : RoboScope crée et gère un venv
+  <code>uv</code> sous <code>VENVS_DIR</code>.</li>
+  <li><strong>Environnement Python de RoboScope</strong> : les tests s'exécutent avec l'interpréteur
+  dans lequel RoboScope a été démarré. Aucun venv supplémentaire n'est créé ; toutes les
+  bibliothèques livrées avec RoboScope (Robot Framework, Browser, RoboScopeHeal, …) sont
+  disponibles immédiatement. Les paquets installés ici sont partagés avec RoboScope, la
+  désinstallation est donc bloquée.</li>
+  <li><strong>Importer un environnement virtuel existant</strong> : RoboScope utilise un venv déjà
+  présent sur le serveur (le dossier contenant <code>bin/python</code>, sous Windows
+  <code>Scripts\\python.exe</code>). La version de Python est détectée automatiquement.</li>
+</ul>
+<p>
+  Ces deux dernières options nécessitent le rôle <strong>Admin</strong>. RoboScope ne supprime
+  jamais un venv importé ni son propre interpréteur : supprimer un tel environnement le retire
+  seulement de RoboScope. La carte affiche un badge <em>Python de RoboScope</em> ou
+  <em>venv importé</em>.
+</p>`
+      },
+      {
         id: 'install-packages',
         title: 'Installer des paquets',
         content: `
@@ -1797,10 +1873,26 @@ Login Works
   <li>Stocker <code>API_KEY</code> ou d\u2019autres identifiants sans les coder en dur dans les fichiers de test.</li>
 </ul>
 <p>
-  Pour g\u00E9rer les variables, acc\u00E9dez \u00E0 la page de d\u00E9tail d\u2019un environnement et utilisez
-  l\u2019onglet <strong>Variables</strong>. Chaque variable a une <strong>Cl\u00E9</strong> et une
-  <strong>Valeur</strong>. Cliquez sur <strong>Ajouter une variable</strong> pour cr\u00E9er une
-  nouvelle entr\u00E9e, ou utilisez les ic\u00F4nes d\u2019\u00E9dition/suppression pour modifier les entr\u00E9es existantes.
+  Pour g\u00E9rer les variables, d\u00E9pliez un environnement sur la page
+  <strong>Environnements</strong> et utilisez la section <strong>Variables</strong> (r\u00F4le
+  \u00C9diteur ou sup\u00E9rieur). Cliquez sur <strong>Ajouter une variable</strong> pour cr\u00E9er une
+  entr\u00E9e, sur <strong>Modifier</strong> pour la changer ou sur <strong>Supprimer</strong> pour
+  la retirer. Les noms doivent \u00EAtre des noms de variables d\u2019environnement valides (lettres,
+  chiffres, tirets bas). Les noms qui casseraient l\u2019environnement Python ou chargeraient du code
+  tiers \u2014 comme <code>PATH</code>, <code>VIRTUAL_ENV</code>, <code>PYTHONPATH</code>,
+  <code>PYTHONHOME</code>, <code>LD_PRELOAD</code> ou <code>DYLD_*</code> \u2014 sont refus\u00E9s.
+</p>
+<p>
+  Chaque ex\u00E9cution qui utilise l\u2019environnement re\u00E7oit les variables comme variables
+  d\u2019environnement du processus \u2014 en local comme dans les conteneurs Docker. Lisez-les dans une
+  suite via <code>%{BASE_URL}</code>, p. ex. <code>Should Be Equal    %{BASE_URL}    https://staging</code>.
+  Si une variable d\u2019ex\u00E9cution (<code>ROBOT_&lt;nom&gt;</code> dans Docker) porte le m\u00EAme nom,
+  la variable d\u2019ex\u00E9cution l\u2019emporte.
+</p>
+<p>
+  Cochez <strong>Secret</strong> pour chiffrer une variable au repos. Les valeurs secr\u00E8tes ne sont
+  plus jamais affich\u00E9es\u00A0; lors de la modification, laissez la valeur vide pour conserver
+  l\u2019ancienne. Elles ne sont d\u00E9chiffr\u00E9es qu\u2019au d\u00E9marrage d\u2019une ex\u00E9cution.
 </p>`,
         tip: '\u00C9vitez de stocker des identifiants hautement sensibles comme variables d\u2019environnement. Envisagez d\u2019utiliser un gestionnaire de secrets pour les d\u00E9ploiements en production.'
       },

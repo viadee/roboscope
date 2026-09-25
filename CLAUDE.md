@@ -51,7 +51,7 @@ Web-based Robot Framework test management (Git, GUI execution, reports, environm
 ## Roadmap (open phases — not in code)
 
 - **Phase 4 — Auth**: OAuth2/SSO (Azure AD, Google, GitHub), SAML 2.0, Team/Org model with inherited roles. (Much already shipped — see `_bmad-output/implementation-artifacts/`.)
-- **Phase 5 — Scale/Reporting**: CSV/JSON/PDF export; distributed execution (N workers, K8s runner); Prometheus `/metrics`.
+- **Phase 5 — Scale/Reporting**: PDF report export (CSV/JSON result export shipped in 0.14.0); distributed execution (N workers, K8s runner); Prometheus `/metrics`.
 - **Phase 6 — Quality**: saved run templates; Jira plugin; Helm chart.
 
 ## BMAD

@@ -13,10 +13,10 @@ Built by [viadee Unternehmensberatung AG](https://www.viadee.de).
 
 ## Features
 
-- **Project Management** — Clone Git repos or link local folders, branch management, auto-sync
+- **Project Management** — Clone Git repos or link local folders, branch management, auto-sync, per-file diff preview before publishing
 - **Test Explorer** — Browse test files, parse Robot Framework keywords/tests, library dependency check
 - **Visual Flow Editor** — Node-based graphical test editor with keyword palette, drag & drop, control structures (IF/FOR/WHILE/TRY)
-- **Test Execution** — Run tests via subprocess or Docker, live WebSocket status updates, scheduling
+- **Test Execution** — Run tests via subprocess or Docker, live WebSocket status updates, cron schedules with "Run now" and last/next-run tracking
 - **Advanced Run Configuration** — Governed "Advanced" section in the run dialog (feature-flagged): variables, validated freeform `robot` arguments (three-zone safety model, code-loading flags always rejected), curated pre-/post-run modifiers and listeners with organization-extensible registry, optional DataDriver CSV test generation
 - **Recorder v2** — Record browser flows into `.robot` files end-to-end. Launch from the sidebar (Recorder) or from the Explorer toolbar (the Explorer button pre-selects the current repository). Transport picker for Web (Playwright) and Desktop Windows; each captured action streams live over SSE with ranked selector candidates (test-id, ARIA, text, CSS, XPath, Playwright locator). Saves a sidecar `<name>.rbs.json` alongside the `.robot` carrying all candidates — consumed later by the self-healing library. The external Chrome Recorder extension remains available as a separate HTTP client.
 - **Self-Healing Selectors** — Opt-in `RoboScopeHeal` Robot Framework library (Heal Click, Heal Fill Text, Heal Upload File, Heal Drag And Drop, ...). When a selector times out at runtime the library falls through three tiers: sidecar-stored alternatives → cross-strategy transposition (`id=X` → `[data-testid=X]` → `text=X` → ...) → DOM-walk fingerprint scoring (Healenium-style). Confirmed heals land as a "🩹 Apply patch" button on the run-detail panel; suspect heals (test still failed) never offer a patch. Per-test budget, confidence thresholds, and a `no-heal` tag keep the blast radius bounded.
@@ -24,8 +24,8 @@ Built by [viadee Unternehmensberatung AG](https://www.viadee.de).
 - **Flaky-Test Quarantine** — Mark any flaky test from the Stats page as quarantined. A Robot Framework listener then skips those tests at runtime (SKIP, not FAIL) so CI pipelines stop drowning in known-flaky noise. Per-repository, audit-logged, reversible.
 - **AI Failure Analysis + Patch Suggestions** — The AI analyse pipeline emits prose root-cause analysis plus optional unified-diff patches for concrete fixes. Patches render as copy-to-clipboard diffs on the report page — no auto-commit.
 - **Heal-Rate KPI** — Stats overview shows a 30-day heal-rate card + sparkline as a leading indicator of test drift against the app.
-- **Environment Management** — Create Python virtual environments, install/manage packages, set variables, secrets encryption
-- **Report Analysis** — Parse `output.xml`, compare runs, view embedded HTML reports
+- **Environment Management** — Create Python virtual environments, run on RoboScope's own Python interpreter, or import an existing venv from the server; install/manage packages, environment variables injected into runs (`%{NAME}`), secrets encryption
+- **Report Analysis** — Parse `output.xml`, compare runs, view embedded HTML reports, export results as CSV/JSON, delete single reports
 - **AI-Powered Analysis** — LLM-based failure root-cause analysis with fix suggestions (OpenAI, Anthropic, OpenRouter, Ollama)
 - **Statistics & KPIs** — Pass rate trends, flaky test detection, heatmaps, deep analysis (15 KPIs in 5 categories)
 - **AI Code Generation** — Generate `.robot` files from `.roboscope` YAML specs, reverse-engineer specs from `.robot` files

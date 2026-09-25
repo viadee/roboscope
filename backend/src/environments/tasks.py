@@ -15,6 +15,7 @@ from src.environments.venv_utils import (
     check_rfbrowser_initialized,
     create_venv_cmd,
     get_venv_bin_dir,
+    is_managed_venv,
     pip_install_cmd,
     pip_show_cmd,
     pip_uninstall_cmd,
@@ -391,6 +392,8 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
 
         # Auto-create venv if it doesn't exist
         venv_path = Path(env.venv_path)
+        if not venv_path.exists() and not is_managed_venv(env.venv_path):
+            return {"status": "error", "message": f"Python environment not found: {venv_path}"}
         if not venv_path.exists():
             logger.info("venv missing for env %d, creating %s", env_id, venv_path)
             result = subprocess.run(

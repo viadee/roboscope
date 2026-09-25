@@ -1,9 +1,12 @@
 """Report service: CRUD, comparison, test history."""
 
+import logging
 import re
+import shutil
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from src.reports.models import Report, TestResult
@@ -17,11 +20,66 @@ from src.reports.schemas import (
     UniqueTestResponse,
 )
 
+logger = logging.getLogger("roboscope.reports")
+
 
 def get_report(db: Session, report_id: int) -> Report | None:
     """Get a report by ID."""
     result = db.execute(select(Report).where(Report.id == report_id))
     return result.scalar_one_or_none()
+
+
+def _report_output_dir(report: Report) -> Path | None:
+    """The report's own top-level directory under REPORTS_DIR, or None.
+
+    Run output lives in ``REPORTS_DIR/run_<id>_<hex>/`` and uploads in
+    ``REPORTS_DIR/archives/<name>_<hex>/`` (output.xml may sit one level
+    deeper). Anything outside the root, or the root/``archives`` itself,
+    is never returned — a tampered/legacy path must not rmtree elsewhere.
+    """
+    from src.config import settings
+
+    if not report.output_xml_path:
+        return None
+    root = Path(settings.REPORTS_DIR).resolve()
+    try:
+        parts = Path(report.output_xml_path).resolve().parent.relative_to(root).parts
+    except ValueError:
+        return None
+    depth = 2 if parts[:1] == ("archives",) else 1
+    if len(parts) < depth:
+        return None
+    return root.joinpath(*parts[:depth])
+
+
+def delete_report(db: Session, report: Report) -> bool:
+    """Delete one report, its test results and its output directory.
+
+    Shared by ``DELETE /reports/{id}`` and ``DELETE /reports/all``.
+    Returns True when an output directory was removed. The linked
+    ExecutionRun is kept (its report link then resolves to None).
+    """
+    from src.ai.models import AiJob
+
+    removed = False
+    output_dir = _report_output_dir(report)
+    if output_dir is not None and output_dir.exists():
+        try:
+            shutil.rmtree(output_dir)
+            removed = True
+        except OSError as e:
+            logger.warning("Failed to delete %s: %s", output_dir, e)
+    elif report.output_xml_path and output_dir is None:
+        logger.warning(
+            "Not deleting %s: outside the reports root", Path(report.output_xml_path).parent
+        )
+
+    # ai_jobs.report_id has no ON DELETE — detach history instead of failing.
+    db.execute(update(AiJob).where(AiJob.report_id == report.id).values(report_id=None))
+    db.execute(delete(TestResult).where(TestResult.report_id == report.id))
+    db.delete(report)
+    db.flush()
+    return removed
 
 
 def get_report_by_run(db: Session, run_id: int) -> Report | None:

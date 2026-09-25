@@ -14,6 +14,7 @@ import {
   parseStoredFilter,
   parseStoredSort,
   resourceFileStems,
+  docPreviewText,
   SOPHISTICATED_MIN_STEPS,
   type CatLike,
   type PaletteFilter,
@@ -139,5 +140,61 @@ describe('parseStoredFilter / parseStoredSort (persistence)', () => {
     expect(parseStoredSort('importedFirst')).toBe('importedFirst')
     expect(parseStoredSort('bogus')).toBeNull()
     expect(parseStoredSort(null)).toBeNull()
+  })
+})
+
+/**
+ * Inline keyword documentation in the palette's selected-keyword bar.
+ * `stripTags` is DOMPurify in the component; here a minimal stand-in keeps
+ * the helper's own contract (block tags → newlines, whitespace tidy-up)
+ * under test without pulling in the DOM.
+ */
+describe('docPreviewText', () => {
+  const stripTags = (html: string) =>
+    html.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+
+  it('returns plain-text docs untouched apart from trimming', () => {
+    expect(docPreviewText('  Opens the SQLite file.  ', 'text', stripTags))
+      .toBe('Opens the SQLite file.')
+  })
+
+  it('preserves the newlines RF puts between continuation rows', () => {
+    // The repo parser joins `...` rows with \n — the palette renders
+    // pre-wrap, so they must survive.
+    expect(docPreviewText('First line\nSecond line', 'text', stripTags))
+      .toBe('First line\nSecond line')
+  })
+
+  it('returns empty string for a missing or blank doc', () => {
+    expect(docPreviewText('', 'text', stripTags)).toBe('')
+    expect(docPreviewText('   \n  ', 'html', stripTags)).toBe('')
+  })
+
+  it('separates libdoc HTML block elements instead of running them together', () => {
+    expect(docPreviewText('<p>First para.</p><p>Second para.</p>', 'html', stripTags))
+      .toBe('First para.\nSecond para.')
+  })
+
+  it('turns <br> and list items into line breaks', () => {
+    expect(docPreviewText('Line one<br/>Line two', 'html', stripTags))
+      .toBe('Line one\nLine two')
+    expect(docPreviewText('<ul><li>alpha</li><li>beta</li></ul>', 'html', stripTags))
+      .toBe('alpha\nbeta')
+  })
+
+  it('drops inline markup but keeps its text', () => {
+    expect(docPreviewText('Use <code>Get Text</code> for <b>values</b>.', 'html', stripTags))
+      .toBe('Use Get Text for values.')
+  })
+
+  it('collapses runs of whitespace and caps blank lines at one', () => {
+    expect(docPreviewText('<p>a</p><p></p><p></p><p>b</p>', 'html', stripTags)).toBe('a\n\nb')
+    expect(docPreviewText('<p>spaced    out</p>', 'html', stripTags)).toBe('spaced out')
+  })
+
+  it('leaves plain-text docs alone even when they contain angle brackets', () => {
+    // docFormat drives the branch — a text doc mentioning <tag> keeps it.
+    expect(docPreviewText('Pass <name> as the first argument', 'text', stripTags))
+      .toBe('Pass <name> as the first argument')
   })
 })

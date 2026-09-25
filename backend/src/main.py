@@ -353,11 +353,23 @@ async def lifespan(app: FastAPI):
         coalesce=True,
         misfire_grace_time=60,
     )
+    # Story V14.1: per-minute heartbeat that fires due test schedules.
+    # coalesce + next_run_at recomputed from "now" => a missed window fires once.
+    from src.execution.schedule_trigger import run_due_schedules
+    _scheduler.add_job(
+        run_due_schedules,
+        trigger=IntervalTrigger(minutes=1),
+        id="schedule_heartbeat",
+        name="Test schedule heartbeat (every 1 min)",
+        replace_existing=True,
+        coalesce=True,
+        misfire_grace_time=60,
+    )
     _scheduler.start()
     logger.info(
         "Scheduler started: retention (every 24h), OIDC discovery refresh "
         "(every 24h, first run deferred), Phase 4 cleanup (every 1h), "
-        "repo auto-sync (every 5m)"
+        "repo auto-sync (every 5m), test schedules (every 1m)"
     )
 
     # DEBUG-2: wire the in-process debug-session manager. The manager

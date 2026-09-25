@@ -24,6 +24,7 @@ from typing import Any
 import httpx
 
 from src.config import settings
+from src.explorer.rf_sections import KEYWORDS, SETTINGS, build_section_matcher, is_section_start
 
 logger = logging.getLogger("roboscope.ai.rf_knowledge")
 
@@ -294,10 +295,15 @@ def _scan_repo_files(repo_id: int) -> tuple[list[dict], set[str]]:
 
     for f in files:
         try:
-            content = f.read_text(encoding="utf-8", errors="ignore")
+            # utf-8-sig: Windows editors often save a BOM, which would hide the
+            # first section header (issue #58).
+            content = f.read_text(encoding="utf-8-sig", errors="replace")
         except Exception:
             continue
 
+        # Same header rules as the Explorer (asterisk variants, singular
+        # forms, translated headers via `Language:`) — issue #58.
+        section_of = build_section_matcher(content)
         in_settings = False
         in_keywords = False
         current_kw: dict | None = None
@@ -305,15 +311,15 @@ def _scan_repo_files(repo_id: int) -> tuple[list[dict], set[str]]:
         for line in content.splitlines():
             stripped = line.strip()
 
-            if stripped.startswith("***"):
-                lower = stripped.lower().replace("*", "").strip()
+            if is_section_start(line):
+                section = section_of(line)
                 # Flush pending keyword
                 if current_kw and current_kw["name"].lower() not in seen_kw:
                     seen_kw.add(current_kw["name"].lower())
                     keywords.append(current_kw)
                 current_kw = None
-                in_settings = lower in ("settings", "setting")
-                in_keywords = lower in ("keywords", "keyword")
+                in_settings = section == SETTINGS
+                in_keywords = section == KEYWORDS
                 continue
 
             # Parse Library imports from Settings

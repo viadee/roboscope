@@ -7,7 +7,9 @@ import { useAiStore } from '@/stores/ai.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useDebugStore } from '@/stores/debug.store'
 import { getRunReport } from '@/api/execution.api'
-import { getReportHtmlBlobUrl, getReportZipBlobUrl } from '@/api/reports.api'
+import { getReportHtmlBlobUrl, getReportZipBlobUrl, exportReportResults } from '@/api/reports.api'
+import { useToast } from '@/composables/useToast'
+import { downloadBlob } from '@/utils/download'
 import { extractErrorDetail } from '@/utils/errors'
 import { useEnvironmentsStore } from '@/stores/environments.store'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
@@ -161,6 +163,29 @@ async function downloadZip() {
   a.download = `report_${reportId.value}.zip`
   a.click()
   URL.revokeObjectURL(blobUrl)
+}
+
+async function exportResults(format: 'csv' | 'json') {
+  if (!reportId.value) return
+  downloadBlob(await exportReportResults(reportId.value, format), `report_${reportId.value}_results.${format}`)
+}
+
+const toast = useToast()
+const deletingReport = ref(false)
+
+async function deleteReport() {
+  const id = reportId.value
+  if (!id || !confirm(t('reports.deleteReportConfirm', { id }))) return
+  deletingReport.value = true
+  try {
+    await reports.deleteReport(id)
+    reportId.value = null
+    toast.success(t('reports.deleted'))
+  } catch (e: unknown) {
+    toast.error(t('common.error'), extractErrorDetail(e, t('reports.toasts.deleteError')))
+  } finally {
+    deletingReport.value = false
+  }
 }
 
 async function fetchReport(retries = 5) {
@@ -367,6 +392,21 @@ watch(() => props.run.status, (newStatus, oldStatus) => {
           @click="downloadZip"
         >
           {{ t('reportDetail.downloadZip') }}
+        </BaseButton>
+        <BaseButton v-if="hasReport" variant="ghost" size="sm" data-testid="export-csv" @click="exportResults('csv')">
+          {{ t('reportDetail.exportCsv') }}
+        </BaseButton>
+        <BaseButton v-if="hasReport" variant="ghost" size="sm" data-testid="export-json" @click="exportResults('json')">
+          {{ t('reportDetail.exportJson') }}
+        </BaseButton>
+        <BaseButton
+          v-if="hasReport && auth.hasMinRole('editor')"
+          variant="danger" size="sm"
+          data-testid="delete-report"
+          :loading="deletingReport"
+          @click="deleteReport"
+        >
+          {{ t('reports.deleteReport') }}
         </BaseButton>
       </div>
     </div>

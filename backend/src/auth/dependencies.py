@@ -328,6 +328,7 @@ def require_effective_role_for_report(min_role: Role):
 
     Reads `report_id` from the path, joins report → run → repo, then
     reuses the effective-role computation. Story 3-9 migration entry.
+    Reports without a resolvable repo (uploads) use the global role.
     """
 
     def check(
@@ -356,25 +357,17 @@ def require_effective_role_for_report(min_role: Role):
                 detail="Report not found",
             )
 
-        if report.execution_run_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report is not linked to a run",
-            )
-
-        run = db.get(ExecutionRun, report.execution_run_id)
-        if run is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Run not found",
-            )
-
-        repo = db.get(Repository, run.repository_id)
+        # Uploaded reports (no run) — and runs/repos deleted since — have no
+        # repo to scope to: fall back to the global role floor.
+        run = db.get(ExecutionRun, report.execution_run_id) if report.execution_run_id else None
+        repo = db.get(Repository, run.repository_id) if run else None
         if repo is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Repository not found",
-            )
+            if ROLE_HIERARCHY.get(Role(current_user.role), -1) < ROLE_HIERARCHY.get(min_role, 999):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=ERR_INSUFFICIENT_PERMISSIONS,
+                )
+            return current_user
 
         if getattr(current_user, "_auth_via_api_token", False):
             user_level = ROLE_HIERARCHY.get(Role(current_user.role), -1)

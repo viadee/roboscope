@@ -277,7 +277,12 @@ const de: DocsContent = [
 </p>
 <ol>
   <li>Auf <strong>Änderungen speichern</strong> klicken.</li>
-  <li>Dateien auswählen, die Sie veröffentlichen möchten (Default: alle).</li>
+  <li>Dateien auswählen, die Sie veröffentlichen möchten (Default: alle). Mit
+      <strong>Änderungen anzeigen</strong> neben einer Datei sehen Sie deren Diff
+      gegenüber dem letzten Commit (hinzugefügte Zeilen grün, entfernte rot). Neue
+      Dateien erscheinen komplett hinzugefügt, gelöschte komplett entfernt;
+      Binärdateien zeigen keinen Text-Diff, sehr große Diffs werden bei
+      200&nbsp;KB abgeschnitten. Die Vorschau ändert die Auswahl nicht.</li>
   <li>Eine Commit-Nachricht eintippen, die Ihre Änderung beschreibt.</li>
   <li><strong>Speichern</strong> klicken. RoboScope committet mit Ihrer
       Account-Identität (Benutzername + E-Mail werden Git-Author und
@@ -385,9 +390,11 @@ const de: DocsContent = [
   <li>Nutzen Sie die Sammel-Aktionen in der Toolbar (z.\u202FB. <strong>Alle synchronisieren</strong> oder <strong>Ausgew\u00E4hlte l\u00F6schen</strong>)</li>
 </ol>
 <p>
-  Beim L\u00F6schen wird sowohl der Datenbankeintrag als auch das lokale
-  Verzeichnis entfernt. <strong>Dieser Vorgang kann nicht r\u00FCckg\u00E4ngig gemacht
-  werden.</strong>
+  Beim L\u00F6schen werden der Datenbankeintrag und bei Git-Repositories der lokale Klon
+  entfernt (ein lokaler Ordner bleibt auf der Platte). L\u00E4ufe, Reports samt Report-Dateien,
+  Zeitpl\u00E4ne, Aufnahmen und Statistiken des Repositories werden mitgel\u00F6scht. Solange ein
+  Lauf wartet oder l\u00E4uft, ist L\u00F6schen nicht m\u00F6glich: Brechen Sie ihn zuerst ab.
+  <strong>Dieser Vorgang kann nicht r\u00FCckg\u00E4ngig gemacht werden.</strong>
 </p>`,
         tip: 'Gel\u00F6schte Repositories k\u00F6nnen jederzeit erneut hinzugef\u00FCgt werden \u2014 sie werden dann frisch geklont.'
       }
@@ -513,6 +520,7 @@ const de: DocsContent = [
 <ul>
   <li><strong>Suche</strong> &mdash; Keywords \u00FCber das Suchfeld nach Namen filtern.</li>
   <li><strong>Klick zum Ausw\u00E4hlen</strong> &mdash; Klicken Sie auf ein Keyword, um es auszuw\u00E4hlen (oben in der Palette erscheint eine \u201EHinzuf\u00FCgen\u201C-Leiste), dann klicken Sie auf <strong>+</strong>, um es nach dem aktuell ausgew\u00E4hlten Knoten einzuf\u00FCgen.</li>
+  <li><strong>Inline-Dokumentation</strong> &mdash; Die \u201EHinzuf\u00FCgen\u201C-Leiste zeigt die Dokumentation des ausgew\u00E4hlten Keywords und dessen Herkunft &mdash; einen Bibliotheksnamen oder den Dateipfad bei einem Keyword aus Ihrem eigenen Repository. Selbst definierte Keywords zeigen hier ihren <code>[Documentation]</code>-Text.</li>
   <li><strong>Drag &amp; Drop</strong> &mdash; Ziehen Sie ein Keyword aus der Palette auf die Canvas, um es pr\u00E4zise zu platzieren.</li>
 </ul>
 <h4>Kontrollstrukturen (IF/ELSE, TRY/EXCEPT, Schleifen)</h4>
@@ -1139,6 +1147,33 @@ Recording 21
   Run bleibt im Verlauf erhalten.
 </p>`,
         tip: 'Abgebrochene Runs erzeugen keine Reports. Wenn der Prozess bereits Teilergebnisse geschrieben hat, werden diese nicht verarbeitet.'
+      },
+      {
+        id: 'execution-scheduled-runs',
+        title: 'Geplante Ausführungen',
+        content: `
+<p>
+  Der Tab <strong>Zeitpläne</strong> auf der Ausführungsseite startet ein Repository-Ziel automatisch
+  nach einem Cron-Ausdruck (fünf Felder: <code>Minute Stunde Tag Monat Wochentag</code>, z.&nbsp;B.
+  <code>0 2 * * 1-5</code> für 02:00 an Werktagen). Ungültige Ausdrücke werden beim Speichern abgelehnt.
+</p>
+<ul>
+  <li><strong>Zeitzone</strong> &mdash; die Cron-Felder werden in der Zeitzone des <strong>Servers</strong> ausgewertet.
+      Die Spalten <strong>Letzter Lauf</strong> und <strong>Nächster Lauf</strong> zeigen die lokale Zeit Ihres Browsers.</li>
+  <li><strong>Takt</strong> &mdash; der Server prüft einmal pro Minute auf fällige Zeitpläne; eine Ausführung startet also etwa innerhalb einer Minute.</li>
+  <li><strong>Keine Überlappung</strong> &mdash; läuft die vorherige Ausführung des Zeitplans noch (<code>pending</code> oder <code>running</code>),
+      wird der Termin übersprungen und der Zeitplan wartet auf den nächsten.</li>
+  <li><strong>Läuft als Ersteller</strong> &mdash; eine geplante Ausführung wird im Namen des Benutzers gestartet, der den Zeitplan angelegt hat.
+      Ist dieser deaktiviert oder gelöscht oder existiert das Repository nicht mehr, wird nichts gestartet.</li>
+  <li><strong>Verpasste Termine</strong> &mdash; war der Server offline, startet ein überfälliger Zeitplan nach dem Neustart <strong>einmal</strong>; verpasste Termine werden nicht nachgeholt.</li>
+  <li><strong>Nur einfache Ausführungen</strong> &mdash; geplante Ausführungen nutzen Repository, Ziel, Branch, Umgebung, Runner und Tag-Filter.
+      Variablen oder erweiterte Argumente/Modifier werden nie übernommen.</li>
+</ul>
+<p>
+  <strong>Jetzt ausführen</strong> (&#9889;) startet sofort eine Ausführung aus einem Zeitplan, auch wenn er pausiert ist,
+  und ändert den nächsten geplanten Termin nicht. Dafür ist mindestens die Rolle <strong>Runner</strong> auf dem Repository nötig;
+  Zeitpläne anlegen und bearbeiten erfordert <strong>Editor</strong>.
+</p>`
       }
     ]
   },
@@ -1231,13 +1266,26 @@ Recording 21
 <p>
   Klicken Sie auf den <strong>Download</strong>-Button in der Report-Detail-
   oder der Report-Listen-Ansicht.
+</p>
+<p>
+  Zur Auswertung in einer Tabellenkalkulation oder zur Übergabe an ein Testmanagement-Tool
+  gibt es daneben <strong>CSV exportieren</strong> und <strong>JSON exportieren</strong>. Beide enthalten
+  eine Zeile pro Test (Suite, Testname, Langname, Status, Dauer, Tags, Start/Ende und Fehlermeldung).
+  CSV-Zellen, die mit <code>=</code>, <code>+</code>, <code>-</code> oder <code>@</code> beginnen,
+  erhalten ein vorangestelltes Apostroph, damit Tabellenkalkulationen sie nicht als Formel ausführen.
 </p>`,
         tip: 'Die ZIP-Datei eignet sich ideal zum Archivieren oder Teilen von Ergebnissen mit Teammitgliedern, die keinen RoboScope-Zugang haben.'
       },
       {
         id: 'reports-delete-all',
-        title: 'Alle Reports l\u00F6schen',
+        title: 'Reports l\u00F6schen',
         content: `
+<p>
+  Einen einzelnen Report samt Dateien l\u00F6schen Sie \u00FCber <strong>Report l\u00F6schen</strong> im
+  Detailbereich eines Laufs (Seite Ausf\u00FChrung) oder in der Report-Detailansicht. Daf\u00FCr ist die
+  Rolle <em>Editor</em> im Repository des Reports n\u00F6tig (hochgeladene Archive: globale Rolle
+  <em>Editor</em>). Der zugeh\u00F6rige Lauf bleibt erhalten.
+</p>
 <p>
   Administratoren k\u00F6nnen \u00FCber den Button <strong>Alle l\u00F6schen</strong>
   s\u00E4mtliche Reports auf einmal entfernen. Vor der L\u00F6schung erscheint ein
@@ -1250,7 +1298,7 @@ Recording 21
 </p>
 <p>
   <strong>Berechtigung:</strong> Nur Benutzer mit der Rolle <em>Admin</em>
-  k\u00F6nnen diese Aktion ausf\u00FChren.
+  k\u00F6nnen <strong>Alle l\u00F6schen</strong> ausf\u00FChren.
 </p>`
       },
       {
@@ -1712,6 +1760,31 @@ Login Works
 </p>`
       },
       {
+        id: 'environments-python-source',
+        title: 'Python-Quelle: eigener Interpreter oder importiertes venv',
+        content: `
+<p>
+  Beim Anlegen einer Umgebung legen Sie fest, woher ihr Python kommt:
+</p>
+<ul>
+  <li><strong>Neue virtuelle Umgebung</strong> (Standard): RoboScope erstellt und verwaltet ein
+  <code>uv</code>-venv unter <code>VENVS_DIR</code>.</li>
+  <li><strong>RoboScopes eigene Python-Umgebung</strong>: Tests laufen mit dem Interpreter, in dem
+  RoboScope selbst gestartet wurde. Es wird kein zusätzliches venv angelegt; alle mit RoboScope
+  gelieferten Bibliotheken (Robot Framework, Browser, RoboScopeHeal, …) stehen sofort bereit. Hier
+  installierte Pakete teilt sich die Umgebung mit RoboScope, daher ist Deinstallieren gesperrt.</li>
+  <li><strong>Bestehende virtuelle Umgebung importieren</strong>: RoboScope nutzt ein venv, das auf
+  dem Server bereits existiert (der Ordner mit <code>bin/python</code>, unter Windows
+  <code>Scripts\\python.exe</code>). Die Python-Version wird automatisch erkannt.</li>
+</ul>
+<p>
+  Die beiden letzten Optionen erfordern die Rolle <strong>Admin</strong>. RoboScope löscht ein
+  importiertes venv oder den eigenen Interpreter nie: Beim Löschen der Umgebung wird sie nur aus
+  RoboScope entfernt. Die Umgebungskarte zeigt ein Badge <em>RoboScope-Python</em> bzw.
+  <em>Importiertes venv</em>.
+</p>`
+      },
+      {
         id: 'environments-packages',
         title: 'Pakete installieren',
         content: `
@@ -1771,8 +1844,25 @@ Login Works
   <li><code>HEADLESS</code> \u2014 Ob der Browser im Headless-Modus laufen soll</li>
 </ul>
 <p>
-  Variablen werden als Schl\u00FCssel-Wert-Paare angelegt und k\u00F6nnen jederzeit
-  bearbeitet oder gel\u00F6scht werden.
+  Verwaltet werden die Variablen auf der Seite <strong>Umgebungen</strong>: Umgebung aufklappen
+  und den Abschnitt <strong>Variablen</strong> nutzen (ab Rolle Editor). Mit
+  <strong>Variable hinzuf\u00FCgen</strong> legen Sie einen Eintrag an, mit
+  <strong>Bearbeiten</strong> \u00E4ndern und mit <strong>L\u00F6schen</strong> entfernen Sie ihn.
+  Namen m\u00FCssen g\u00FCltige Umgebungsvariablen-Namen sein (Buchstaben, Ziffern, Unterstriche).
+  Namen, die die Python-Umgebung brechen oder fremden Code laden w\u00FCrden \u2014 etwa
+  <code>PATH</code>, <code>VIRTUAL_ENV</code>, <code>PYTHONPATH</code>, <code>PYTHONHOME</code>,
+  <code>LD_PRELOAD</code> oder <code>DYLD_*</code> \u2014 werden abgelehnt.
+</p>
+<p>
+  Jeder Run mit dieser Umgebung erh\u00E4lt die Variablen als Prozess-Umgebungsvariablen \u2014 lokal
+  wie im Docker-Container. In einer Suite lesen Sie sie als <code>%{BASE_URL}</code>, z.\u202FB.
+  <code>Should Be Equal    %{BASE_URL}    https://staging</code>. Hat eine Run-Variable
+  (<code>ROBOT_&lt;Name&gt;</code> in Docker) denselben Namen, gewinnt die Run-Variable.
+</p>
+<p>
+  Markieren Sie eine Variable als <strong>Geheim</strong>, um sie verschl\u00FCsselt zu speichern.
+  Geheime Werte werden nie wieder angezeigt; beim Bearbeiten ein leeres Feld lassen, um den
+  gespeicherten Wert zu behalten. Entschl\u00FCsselt wird erst beim Start eines Runs.
 </p>`
       },
       {

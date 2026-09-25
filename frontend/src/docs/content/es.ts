@@ -301,6 +301,17 @@ const es: DocsContent = [
   muestra la \u00FAltima sincronizaci\u00F3n exitosa. Si una sincronizaci\u00F3n falla
   (por ejemplo, conflictos de fusi\u00F3n), aparece una insignia de error junto
   al nombre del repositorio.
+</p>
+<h4>Guardar sus cambios</h4>
+<p>
+  El botón <strong>Guardar N cambios</strong> del Explorador abre una ventana
+  con los archivos modificados: marque los que quiera publicar, escriba un mensaje
+  de commit y guarde (commit + push). Haga clic en <strong>Ver cambios</strong>
+  junto a un archivo para ver su diff respecto al último commit (líneas
+  añadidas en verde, eliminadas en rojo). Los archivos nuevos aparecen
+  completamente añadidos y los eliminados completamente borrados; los archivos
+  binarios no muestran diff de texto y los diffs muy grandes se cortan a
+  200&nbsp;KB. La vista previa no cambia la selección.
 </p>`,
         tip: 'Importante: Auto-Sync ahora ejecuta un git pull en segundo plano cada sync_interval_minutes (15 min por defecto). El planificador se activa cada 5 min, los intervalos cortos se redondean a 5 min. Use el bot\u00F3n "Sincronizar" expl\u00EDcito y guarde sus cambios antes con "Guardar N cambios" para evitar sobrescrituras.'
       },
@@ -413,9 +424,10 @@ const es: DocsContent = [
 </ul>
 <p>
   <strong>Advertencia:</strong> Eliminar un repositorio lo elimina de RoboScope y
-  borra los datos del espacio de trabajo clonado. Los informes y el historial de
-  ejecuciones asociados al repositorio <em>no</em> se eliminan autom\u00E1ticamente.
-  Use la p\u00E1gina de Informes para limpiar informes antiguos si es necesario.
+  borra los datos del espacio de trabajo clonado (una carpeta local permanece en el disco).
+  Tambi\u00E9n se eliminan sus ejecuciones, informes (incluidos los archivos), programaciones,
+  grabaciones y estad\u00EDsticas. Mientras una de sus ejecuciones est\u00E9 pendiente o en curso,
+  el repositorio no se puede eliminar: cancele antes la ejecuci\u00F3n.
 </p>`
       }
     ]
@@ -535,6 +547,7 @@ const es: DocsContent = [
 <ul>
   <li><strong>Buscar</strong> &mdash; Filtrar palabras clave por nombre usando el cuadro de b\u00FAsqueda.</li>
   <li><strong>Clic para a\u00F1adir</strong> &mdash; Haga clic en una palabra clave para seleccionarla (aparece una barra \u00ABA\u00F1adir\u00BB en la parte superior de la paleta), luego haga clic en <strong>+</strong> para insertarla despu\u00E9s del nodo seleccionado actualmente.</li>
+  <li><strong>Documentaci\u00F3n integrada</strong> &mdash; La barra \u00ABA\u00F1adir\u00BB muestra la documentaci\u00F3n de la palabra clave seleccionada y su origen &mdash; un nombre de biblioteca, o la ruta del archivo si la palabra clave est\u00E1 definida en su propio repositorio. Las palabras clave que usted define muestran aqu\u00ED su texto <code>[Documentation]</code>.</li>
   <li><strong>Arrastrar y soltar</strong> &mdash; Arrastre una palabra clave desde la paleta al lienzo para posicionarla con precisi\u00F3n.</li>
 </ul>
 <h4>Estructuras de control (IF/ELSE, TRY/EXCEPT, bucles)</h4>
@@ -1178,6 +1191,33 @@ Recording 21
   <strong>Runner</strong> o superior.
 </p>`,
         tip: 'Use "Cancelar todo" con precauci\u00F3n en entornos multiusuario, ya que afecta a las ejecuciones iniciadas por todos los usuarios.'
+      },
+      {
+        id: 'scheduled-runs',
+        title: 'Ejecuciones programadas',
+        content: `
+<p>
+  La pestaña <strong>Programaciones</strong> de la página de Ejecución lanza automáticamente un destino del repositorio
+  según una expresión cron (cinco campos: <code>minuto hora día mes día-de-semana</code>, p.&nbsp;ej.
+  <code>0 2 * * 1-5</code> para las 02:00 en días laborables). Las expresiones no válidas se rechazan al guardar.
+</p>
+<ul>
+  <li><strong>Zona horaria</strong> &mdash; los campos cron se evalúan en la zona horaria del <strong>servidor</strong>.
+      Las columnas <strong>Última ejecución</strong> y <strong>Próxima ejecución</strong> se muestran en la hora local de su navegador.</li>
+  <li><strong>Latido</strong> &mdash; el servidor comprueba las programaciones pendientes una vez por minuto; una ejecución empieza aproximadamente en el minuto siguiente.</li>
+  <li><strong>Sin solapamiento</strong> &mdash; si la ejecución anterior sigue <code>pending</code> o <code>running</code>,
+      se omite el turno y la programación espera al siguiente.</li>
+  <li><strong>Se ejecuta como el creador</strong> &mdash; una ejecución programada la lanza el usuario que creó la programación.
+      Si ese usuario está desactivado o eliminado, o el repositorio ya no existe, no se lanza nada.</li>
+  <li><strong>Turnos perdidos</strong> &mdash; si el servidor estuvo caído, una programación atrasada se ejecuta <strong>una sola vez</strong> tras el reinicio; los turnos perdidos no se repiten.</li>
+  <li><strong>Solo ejecuciones simples</strong> &mdash; las ejecuciones programadas usan repositorio, destino, rama, entorno, runner y filtros de tags.
+      Nunca incluyen variables ni argumentos/modificadores avanzados.</li>
+</ul>
+<p>
+  <strong>Ejecutar ahora</strong> (&#9889;) inicia de inmediato una ejecución desde una programación, aunque esté en pausa,
+  sin cambiar su próxima hora programada. Requiere al menos el rol <strong>Runner</strong> en el repositorio;
+  crear y editar programaciones requiere <strong>Editor</strong>.
+</p>`
       }
     ]
   },
@@ -1282,6 +1322,13 @@ Recording 21
 <p>
   Haga clic en el bot\u00F3n <strong>Descargar ZIP</strong> en la p\u00E1gina de detalle
   del informe. El archivo se genera en el servidor y se transmite a su navegador.
+</p>
+<p>
+  Para analizar los resultados en una hoja de cálculo o entregarlos a una herramienta de gestión
+  de pruebas, use <strong>Exportar CSV</strong> o <strong>Exportar JSON</strong>. Ambos contienen una fila
+  por prueba (suite, nombre, nombre largo, estado, duración, etiquetas, inicio/fin y mensaje de error).
+  Las celdas CSV que empiezan por <code>=</code>, <code>+</code>, <code>-</code> o <code>@</code> se
+  prefijan con un apóstrofo para que las hojas de cálculo no las ejecuten como fórmulas.
 </p>`
       },
       {
@@ -1293,8 +1340,10 @@ Recording 21
   disco. La p\u00E1gina de Informes proporciona dos mecanismos de eliminaci\u00F3n:
 </p>
 <ul>
-  <li><strong>Eliminaci\u00F3n individual</strong> &mdash; Haga clic en el icono de eliminar en una fila
-      de informe para eliminar un solo informe (requiere <strong>Editor+</strong>).</li>
+  <li><strong>Eliminaci\u00F3n individual</strong> &mdash; Haga clic en <strong>Eliminar informe</strong> en el panel de
+      detalle de una ejecuci\u00F3n (p\u00E1gina Ejecuci\u00F3n) o en la p\u00E1gina de detalle del informe, para eliminar un solo informe y
+      sus archivos. Requiere el rol <strong>Editor</strong> en el repositorio del informe (archivos
+      subidos: <strong>Editor</strong> global). La ejecuci\u00F3n vinculada se conserva.</li>
   <li><strong>Eliminar todos los informes</strong> &mdash; Haga clic en el bot\u00F3n <strong>Eliminar
       todo</strong> para eliminar todos los informes del sistema. Un di\u00E1logo de confirmaci\u00F3n
       asegura que no borre datos accidentalmente. Esta acci\u00F3n requiere el rol <strong>Admin</strong>.</li>
@@ -1786,6 +1835,31 @@ Login Works
         tip: 'Nombre los entornos de forma descriptiva, por ejemplo, "rf7-browser" o "rf6-selenium", para que los miembros del equipo sepan qu\u00E9 bibliotecas est\u00E1n incluidas.'
       },
       {
+        id: 'env-python-source',
+        title: 'Origen de Python: intérprete de RoboScope o venv importado',
+        content: `
+<p>
+  Al crear un entorno eliges de dónde procede su Python:
+</p>
+<ul>
+  <li><strong>Nuevo entorno virtual</strong> (por defecto): RoboScope crea y gestiona un venv de
+  <code>uv</code> en <code>VENVS_DIR</code>.</li>
+  <li><strong>Entorno de Python propio de RoboScope</strong>: las pruebas se ejecutan con el
+  intérprete con el que se inició RoboScope. No se crea ningún venv adicional; todas las
+  bibliotecas que incluye RoboScope (Robot Framework, Browser, RoboScopeHeal, …) están disponibles
+  al instante. Los paquetes instalados aquí se comparten con RoboScope, por eso la desinstalación
+  está bloqueada.</li>
+  <li><strong>Importar entorno virtual existente</strong>: RoboScope usa un venv que ya existe en el
+  servidor (la carpeta que contiene <code>bin/python</code>, en Windows
+  <code>Scripts\\python.exe</code>). La versión de Python se detecta automáticamente.</li>
+</ul>
+<p>
+  Las dos últimas opciones requieren el rol <strong>Admin</strong>. RoboScope nunca elimina un venv
+  importado ni su propio intérprete: al borrar un entorno así solo se quita de RoboScope. La tarjeta
+  muestra una insignia <em>Python de RoboScope</em> o <em>venv importado</em>.
+</p>`
+      },
+      {
         id: 'install-packages',
         title: 'Instalar paquetes',
         content: `
@@ -1834,11 +1908,26 @@ Login Works
   <li>Almacenar <code>API_KEY</code> u otras credenciales sin codificarlas en los archivos de prueba.</li>
 </ul>
 <p>
-  Para gestionar variables, navegue a la p\u00E1gina de detalle de un entorno y use
-  la pesta\u00F1a <strong>Variables</strong>. Cada variable tiene una <strong>Clave</strong>
-  y un <strong>Valor</strong>. Haga clic en <strong>A\u00F1adir variable</strong> para
-  crear una nueva entrada, o use los iconos de editar/eliminar para modificar las
-  existentes.
+  Para gestionar variables, despliegue un entorno en la p\u00E1gina <strong>Entornos</strong>
+  y use la secci\u00F3n <strong>Variables</strong> (rol Editor o superior). Haga clic en
+  <strong>A\u00F1adir variable</strong> para crear una entrada, en <strong>Editar</strong> para
+  cambiarla o en <strong>Eliminar</strong> para borrarla. Los nombres deben ser nombres v\u00E1lidos
+  de variables de entorno (letras, d\u00EDgitos, guiones bajos). Se rechazan los nombres que
+  romper\u00EDan el entorno de Python o cargar\u00EDan c\u00F3digo ajeno, como <code>PATH</code>,
+  <code>VIRTUAL_ENV</code>, <code>PYTHONPATH</code>, <code>PYTHONHOME</code>,
+  <code>LD_PRELOAD</code> o <code>DYLD_*</code>.
+</p>
+<p>
+  Cada ejecuci\u00F3n que usa el entorno recibe las variables como variables de entorno del
+  proceso, tanto en local como dentro de contenedores Docker. L\u00E9alas en una suite como
+  <code>%{BASE_URL}</code>, p. ej. <code>Should Be Equal    %{BASE_URL}    https://staging</code>.
+  Si una variable de ejecuci\u00F3n (<code>ROBOT_&lt;nombre&gt;</code> en Docker) tiene el mismo
+  nombre, gana la variable de ejecuci\u00F3n.
+</p>
+<p>
+  Marque una variable como <strong>Secreto</strong> para cifrarla en reposo. Los valores secretos
+  no se vuelven a mostrar; al editar, deje el valor vac\u00EDo para conservar el guardado. Solo se
+  descifran al iniciar una ejecuci\u00F3n.
 </p>`,
         tip: 'Evite almacenar credenciales altamente sensibles como variables de entorno. Considere usar un gestor de secretos para despliegues en producci\u00F3n.'
       },
