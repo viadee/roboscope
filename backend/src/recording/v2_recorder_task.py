@@ -26,6 +26,7 @@ from typing import Any
 import src.auth.models  # noqa: F401
 import src.repos.models  # noqa: F401
 
+from src.config import settings
 from src.database import get_sync_session
 from src.recording.capture_script import CAPTURE_SCRIPT
 from src.recording.context_menu_script import CONTEXT_MENU_SCRIPT
@@ -682,7 +683,7 @@ async def _recorder_loop(
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=headless)
-        context = await browser.new_context()
+        context = await browser.new_context(ignore_https_errors=settings.INSECURE_TLS)
 
         # Inject the three IIFE scripts. `add_init_script` runs on every
         # new document, surviving SPA nav + full reload (AR-4).

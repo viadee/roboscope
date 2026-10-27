@@ -2288,6 +2288,30 @@ Login Works
         tip: 'Utilisez toujours un SECRET_KEY fort et unique en production. Si le SECRET_KEY change, les secrets pr\u00E9c\u00E9demment chiffr\u00E9s deviendront illisibles.'
       },
       {
+        id: 'insecure-tls',
+        title: 'Réseaux d&rsquo;entreprise &amp; certificats auto-signés',
+        content: `
+<p>
+  Derrière un proxy d&rsquo;entreprise qui intercepte HTTPS avec sa propre autorité de certification,
+  les installations de paquets, <code>rfbrowser init</code>, les synchronisations Git et les requêtes PyPI
+  échouent avec <em>certificate verify failed</em> / <em>self-signed certificate in certificate chain</em>.
+</p>
+<h4>Recommandé : faire confiance à la CA d&rsquo;entreprise</h4>
+<p>
+  Indiquez votre bundle CA avant de démarrer RoboScope : <code>SSL_CERT_FILE</code> (uv, Python),
+  <code>NODE_EXTRA_CA_CERTS</code> (Node.js / téléchargement Playwright) et <code>GIT_SSL_CAINFO</code> (Git).
+</p>
+<h4>Issue de secours : ignorer la chaîne de confiance</h4>
+<p>
+  Définissez <code>INSECURE_TLS=true</code> dans <code>.env</code> et redémarrez. RoboScope désactive
+  alors la vérification des certificats pour toutes ses connexions : uv (création de venv, installation
+  de paquets), npm et le téléchargement du navigateur Playwright lors de <code>rfbrowser init</code>,
+  Git clone/pull/push, recherche de paquets PyPI, fournisseurs IA, webhooks, fournisseurs d&rsquo;identité SSO,
+  builds d&rsquo;images Docker et le navigateur de l&rsquo;enregistreur. Un avertissement est journalisé au démarrage.
+</p>`,
+        tip: 'INSECURE_TLS désactive toute vérification de certificat — un homme du milieu peut lire et modifier tout le trafic. À utiliser uniquement dans un réseau de confiance, à vos risques et périls.'
+      },
+      {
         id: 'identity-providers',
         title: 'Fournisseurs d’identité (SSO)',
         content: `

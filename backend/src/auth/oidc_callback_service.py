@@ -35,6 +35,7 @@ from src.auth.oidc_discovery import (
     get_or_fetch_discovery,
 )
 from src.encryption import decrypt_value
+from src.insecure_tls import tls_verify
 from src.teams.models import TeamMember
 
 logger = logging.getLogger("roboscope.auth.oidc_callback")
@@ -207,7 +208,7 @@ def _exchange_code(
             "token.invalid", {"idp_id": idp.id, "reason": "pkce_verifier_decrypt_failed"}
         ) from exc
 
-    verify: object = True if _ALLOW_INSECURE_IDP else _TLS_CONTEXT
+    verify = tls_verify(True if _ALLOW_INSECURE_IDP else _TLS_CONTEXT)
     try:
         with OAuth2Client(
             client_id=idp.client_id,
@@ -263,7 +264,7 @@ def _verify_id_token(
     if not isinstance(jwks_uri, str) or not jwks_uri:
         raise SsoCallbackError("token.invalid", {"reason": "no_jwks_uri"})
 
-    verify: object = True if _ALLOW_INSECURE_IDP else _TLS_CONTEXT
+    verify = tls_verify(True if _ALLOW_INSECURE_IDP else _TLS_CONTEXT)
     try:
         with httpx.Client(timeout=_HTTP_TIMEOUT, verify=verify) as http:
             jwks_resp = http.get(jwks_uri)

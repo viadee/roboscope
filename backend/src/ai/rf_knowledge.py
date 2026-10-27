@@ -25,6 +25,7 @@ import httpx
 
 from src.config import settings
 from src.explorer.rf_sections import KEYWORDS, SETTINGS, build_section_matcher, is_section_start
+from src.insecure_tls import tls_verify
 
 logger = logging.getLogger("roboscope.ai.rf_knowledge")
 
@@ -173,7 +174,9 @@ async def _call_mcp_tool(tool_name: str, arguments: dict[str, Any] | None = None
         return None
 
     try:
-        async with httpx.AsyncClient(timeout=settings.RF_MCP_TIMEOUT) as client:
+        async with httpx.AsyncClient(
+            timeout=settings.RF_MCP_TIMEOUT, verify=tls_verify()
+        ) as client:
             # Ensure we have a valid session
             session_id = await _ensure_session(client, url)
             if not session_id:

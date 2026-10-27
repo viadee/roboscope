@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from src.ai.encryption import decrypt_api_key
 from src.ai.models import AiProvider
+from src.insecure_tls import tls_verify
 
 logger = logging.getLogger("roboscope.ai.llm_client")
 
@@ -86,7 +87,7 @@ def _call_openai_compatible(
     # timeout errors into a clear, actionable message.
     timeout = httpx.Timeout(120.0, connect=5.0)
     try:
-        with httpx.Client(timeout=timeout) as client:
+        with httpx.Client(timeout=timeout, verify=tls_verify()) as client:
             response = client.post(url, json=payload, headers=headers)
             if response.status_code >= 400:
                 _raise_with_body(response)
@@ -163,7 +164,7 @@ def _call_anthropic(
     # timeout errors into a clear, actionable message.
     timeout = httpx.Timeout(120.0, connect=5.0)
     try:
-        with httpx.Client(timeout=timeout) as client:
+        with httpx.Client(timeout=timeout, verify=tls_verify()) as client:
             response = client.post(url, json=payload, headers=headers)
             if response.status_code >= 400:
                 _raise_with_body(response)

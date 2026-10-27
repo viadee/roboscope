@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from src.config import settings
+from src.insecure_tls import uv_insecure_host_args
 
 logger = logging.getLogger("roboscope.environments.venv_utils")
 
@@ -197,6 +198,7 @@ def pip_install_cmd(
         cmd += ["--index-url", index_url]
     if extra_index_url:
         cmd += ["--extra-index-url", extra_index_url]
+    cmd += uv_insecure_host_args(index_url, extra_index_url)
     cmd += list(packages)
     return cmd
 

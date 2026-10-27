@@ -155,13 +155,17 @@ Swagger UI available at `http://localhost:8000/api/v1/docs`
 ## Testing
 
 ```bash
-make test-backend       # Backend unit tests (pytest)
+make test-backend       # Backend tests (pytest)
 make test-backend-fast  # Fast dev loop (parallel, skips slow subprocess/venv/browser tests)
+make test-unit          # Unit tier only (backend `-m unit` + frontend pure-TS specs)
 make test-frontend      # Frontend unit tests (Vitest)
 make test-e2e           # Playwright E2E tests
 make test               # All tests
+make mutation           # Mutation-test the unit tier (mutmut + Stryker)
 make lint               # Ruff + ESLint + vue-tsc
 ```
+
+Tiers, markers and mutation testing are described in [docs/TESTING.md](docs/TESTING.md).
 
 ## Building
 
@@ -183,6 +187,7 @@ bash scripts/build-mac-and-linux.sh
 | `WORKSPACE_DIR` | `~/.roboscope/workspace` | Git repos directory |
 | `REPORTS_DIR` | `~/.roboscope/reports` | Report files directory |
 | `VENVS_DIR` | `~/.roboscope/venvs` | Virtual environments directory |
+| `INSECURE_TLS` | `false` | Ignore the whole TLS trust chain (corporate MITM proxies / self-signed certs) for uv, npm/Playwright, Git, PyPI, AI providers, webhooks, SSO and Docker builds. **At your own risk.** Prefer `SSL_CERT_FILE` / `NODE_EXTRA_CA_CERTS` / `GIT_SSL_CAINFO` with your CA bundle. |
 
 ### Single Sign-On (SSO)
 

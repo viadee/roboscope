@@ -12,6 +12,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src.insecure_tls import tls_verify
 from src.webhooks.models import ApiToken, Webhook, WebhookDelivery
 from src.webhooks.schemas import VALID_EVENTS
 
@@ -254,7 +255,7 @@ def dispatch_webhook_event(
             for attempt in range(max_retries):
                 start = time.monotonic()
                 try:
-                    with httpx.Client(timeout=10.0) as client:
+                    with httpx.Client(timeout=10.0, verify=tls_verify()) as client:
                         resp = client.post(
                             webhook.url,
                             content=payload_json,
@@ -309,7 +310,7 @@ def test_webhook(webhook: Webhook) -> dict:
         headers["X-RoboScope-Signature"] = f"sha256={signature}"
 
     try:
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=10.0, verify=tls_verify()) as client:
             resp = client.post(webhook.url, content=payload, headers=headers)
         return {
             "success": resp.status_code < 400,

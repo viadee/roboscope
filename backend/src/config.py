@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
+    # TLS — ignore the whole trust chain (corporate MITM proxies / self-signed
+    # certs). Affects uv, rfbrowser init (npm + Playwright), git, PyPI, LLM,
+    # webhooks, SSO and the recorder browser. See src/insecure_tls.py.
+    INSECURE_TLS: bool = False
+
     # uv (package manager — replaces pip/venv)
     UV_PATH: str = ""  # Optional explicit path to uv binary; auto-detected if empty
 

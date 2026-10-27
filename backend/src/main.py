@@ -118,6 +118,10 @@ async def lifespan(app: FastAPI):
     logger.info(f"Database: {'SQLite' if settings.is_sqlite else 'PostgreSQL'}")
     logger.info("Task executor: in-process ThreadPoolExecutor (max_workers=1)")
 
+    from src.insecure_tls import apply_insecure_tls
+
+    apply_insecure_tls()
+
     # Require SECRET_KEY to be set explicitly
     if not settings.SECRET_KEY:
         logger.error(

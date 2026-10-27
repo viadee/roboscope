@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import src.auth.models  # noqa: F401
 import src.repos.models  # noqa: F401
 
+from src.config import settings
 from src.database import get_sync_session
 from src.recording.generator import generate_robot_file
 from src.recording.models import RecordingSession, RecordingStatus
@@ -87,7 +88,7 @@ def run_playwright_recorder(recording_id: int, target_url: str | None = None) ->
     try:
         pw = sync_playwright().start()
         browser = pw.chromium.launch(headless=False)
-        context = browser.new_context()
+        context = browser.new_context(ignore_https_errors=settings.INSECURE_TLS)
         page = context.new_page()
 
         def _store_event(event_data: dict) -> None:

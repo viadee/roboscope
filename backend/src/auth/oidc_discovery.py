@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from src.auth.models import IdentityProvider
 from src.auth.schemas import DryRunCheckRow, DryRunProbeResponse
+from src.insecure_tls import tls_verify
 
 DISCOVERY_CACHE_TTL_HOURS = 24
 
@@ -68,10 +69,8 @@ def _fetch_json_object(
 
     Raises httpx.TimeoutException or httpx.HTTPError on network failure.
     """
-    if _ALLOW_INSECURE_IDP:
-        client_ctx = httpx.Client(timeout=_PHASE_TIMEOUT)
-    else:
-        client_ctx = httpx.Client(timeout=_PHASE_TIMEOUT, verify=_TLS_CONTEXT)
+    verify = tls_verify(True if _ALLOW_INSECURE_IDP else _TLS_CONTEXT)
+    client_ctx = httpx.Client(timeout=_PHASE_TIMEOUT, verify=verify)
     with client_ctx as client:
         resp = client.get(url)
     if len(resp.content) > _MAX_RESPONSE_SIZE:

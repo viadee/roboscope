@@ -247,6 +247,12 @@ LOG_FORMAT=text
 # (commented) so headless installs don't surprise you. Set to 1 to enable.
 # OPEN_BROWSER=1
 
+# Corporate network with a self-signed / MITM certificate authority?
+# Preferred: SSL_CERT_FILE / NODE_EXTRA_CA_CERTS / GIT_SSL_CAINFO = your CA bundle.
+# Escape hatch (AT YOUR OWN RISK): skip ALL certificate verification
+# (uv, npm/Playwright, git, PyPI, AI providers, webhooks, SSO, Docker builds).
+# INSECURE_TLS=true
+
 # Directories (defaults shown — adjust if needed)
 # WORKSPACE_DIR=~/.roboscope/workspace
 # REPORTS_DIR=~/.roboscope/reports

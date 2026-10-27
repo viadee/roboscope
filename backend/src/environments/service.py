@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.config import settings
+from src.insecure_tls import tls_verify
 from src.environments.models import (
     Environment,
     EnvironmentKeywordCache,
@@ -381,7 +382,7 @@ def search_pypi(query: str) -> list[dict]:
     """Search PyPI for packages using the JSON API."""
     results = []
     try:
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=10.0, verify=tls_verify()) as client:
             # PyPI doesn't have a search API anymore, use the simple JSON endpoint
             # Search by trying exact match first, then fall back to warehouse search
             response = client.get(
@@ -754,6 +755,13 @@ def generate_dockerfile(
             "    && rm -rf /var/lib/apt/lists/*",
             "",
         ]
+
+    if settings.INSECURE_TLS:
+        from src.insecure_tls import CHILD_ENV
+
+        lines.append("# INSECURE_TLS: skip certificate verification inside the build")
+        lines.append("ENV " + " ".join(f'{k}="{v}"' for k, v in CHILD_ENV.items()))
+        lines.append("")
 
     lines.append("RUN uv pip install --system --no-cache-dir \\")
     for i, pkg in enumerate(packages):
