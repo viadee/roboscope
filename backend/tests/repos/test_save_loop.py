@@ -32,6 +32,8 @@ from src.repos.service import (
 )
 from tests.conftest import auth_header
 
+pytestmark = pytest.mark.slow  # real subprocess / git in tmp_path — out of the fast dev loop
+
 
 # ---------------------------------------------------------------------------
 # fixtures

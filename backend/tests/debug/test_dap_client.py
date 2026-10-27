@@ -17,6 +17,8 @@ import pytest
 from src.debug.dap_client import DapApplicationError, DapClient
 from src.debug.dap_protocol import encode_message
 
+pytestmark = pytest.mark.slow  # real subprocess / git in tmp_path — out of the fast dev loop
+
 # ---------------------------------------------------------------------------
 # Test harness — minimal DAP fake server
 # ---------------------------------------------------------------------------

@@ -18,6 +18,8 @@ from tests.repos.test_save_loop import (  # noqa: F401  (fixtures)
     working_clone,
 )
 
+pytestmark = pytest.mark.slow  # real subprocess / git in tmp_path — out of the fast dev loop
+
 
 class TestService:
     def test_modified(self, working_clone: Path):

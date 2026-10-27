@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from git import Repo
 
 from src.repos.tasks import sync_repo
@@ -13,6 +14,8 @@ from tests.repos.test_save_loop import (  # noqa: F401  (fixtures)
     seed_repo_for_clone,
     working_clone,
 )
+
+pytestmark = pytest.mark.slow  # real subprocess / git in tmp_path — out of the fast dev loop
 
 _IDENT = dict(GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
               GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")

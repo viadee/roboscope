@@ -3,8 +3,12 @@
 import csv
 import io
 
+import pytest
+
 from tests.conftest import auth_header
 from tests.reports.test_router import _make_test_result, _setup_report
+
+pytestmark = pytest.mark.slow  # real subprocess / git in tmp_path — out of the fast dev loop
 
 
 def _seed(db_session, admin_user):

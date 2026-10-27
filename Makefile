@@ -36,6 +36,36 @@ test-backend-fast: ## Fast dev loop: skip slow subprocess/venv/browser tests, pa
 test-backend-cov: ## Run backend tests with coverage
 	cd backend && .venv/bin/pytest --cov=src --cov-report=html --cov-report=term
 
+# --- Test tiers (docs/TESTING.md) ---
+# unit: no DB / app / subprocess (auto-marked in backend/tests/conftest.py)
+# db:   TestClient + in-memory SQLite (auto-marked)
+# slow: real subprocess / venv / git; integration: real browser (opt-in)
+
+test-unit: test-backend-unit test-frontend-unit ## Unit tier only (backend + frontend)
+
+test-backend-unit: ## Backend unit tier
+	cd backend && .venv/bin/pytest -q --tb=short -n auto -m unit
+
+test-backend-db: ## Backend DB/API tier (TestClient + SQLite)
+	cd backend && .venv/bin/pytest -q --tb=short -n auto -m db
+
+test-backend-slow: ## Backend subprocess/git tier
+	cd backend && .venv/bin/pytest -q --tb=short -m slow
+
+test-backend-integration: ## Backend browser tier (needs playwright chromium)
+	cd backend && .venv/bin/pytest -q --tb=short -m integration -o addopts=
+
+test-frontend-unit: ## Frontend pure-TS unit specs (no Vue mount)
+	cd frontend && npx vitest run src/tests/utils src/tests/types src/tests/i18n
+
+mutation: mutation-backend mutation-frontend ## Mutation-test the unit tier (slow — minutes)
+
+mutation-backend: ## mutmut over the pure modules listed in backend/pyproject.toml [tool.mutmut]
+	cd backend && .venv/bin/mutmut run --rerun-all && .venv/bin/mutmut results
+
+mutation-frontend: ## Stryker over the pure-TS modules listed in frontend/stryker.config.json
+	cd frontend && ./node_modules/.bin/stryker run
+
 test-frontend: ## Run frontend unit tests
 	cd frontend && npm run test:unit -- --run
 

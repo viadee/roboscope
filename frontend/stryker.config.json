@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the pure-TS unit tier: `make mutation-frontend` (docs/TESTING.md). Only I/O-free modules with dedicated specs are mutated; Vue SFCs and stores are not.",
+  "testRunner": "vitest",
+  "vitest": { "configFile": "vitest.config.ts" },
+  "mutate": [
+    "src/components/editor/robotTextIO.ts",
+    "src/components/editor/flow/flowConverter.ts",
+    "src/components/editor/flow/reorderDrag.ts",
+    "src/components/editor/flow/paletteView.ts",
+    "src/components/editor/flow/resourcePath.ts",
+    "src/utils/robotEnvVars.ts",
+    "src/utils/healToggle.ts",
+    "src/utils/formatDate.ts",
+    "src/utils/formatDuration.ts",
+    "src/utils/errors.ts",
+    "src/utils/chartGaps.ts",
+    "src/utils/effectiveSelector.ts"
+  ],
+  "ignorePatterns": ["/dist", "/coverage", "/reports"],
+  "coverageAnalysis": "perTest",
+  "reporters": ["clear-text", "progress", "html"],
+  "htmlReporter": { "fileName": "reports/mutation/index.html" },
+  "thresholds": { "high": 80, "low": 60, "break": null },
+  "timeoutMS": 30000,
+  "tempDirName": ".stryker-tmp"
+}

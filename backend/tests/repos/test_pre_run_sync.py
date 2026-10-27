@@ -19,6 +19,8 @@ from sqlalchemy.orm import Session
 from src.repos.models import Repository
 from src.repos.service import sync_for_run
 
+pytestmark = pytest.mark.slow  # real subprocess / git in tmp_path — out of the fast dev loop
+
 
 # ---------------------------------------------------------------------------
 # fixtures — bare-remote + working-clone, same shape as test_save_loop.py

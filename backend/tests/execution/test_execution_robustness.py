@@ -19,11 +19,15 @@ import sys
 from contextlib import contextmanager
 from unittest.mock import patch
 
+import pytest
+
 from src.execution.models import ExecutionRun, RunnerType, RunStatus
 from src.execution.runners.base import RunResult
 from src.execution.runners.docker_runner import DockerRunner
 from src.execution.runners.subprocess_runner import SubprocessRunner
 from src.repos.models import Repository
+
+pytestmark = pytest.mark.slow  # real subprocess / git in tmp_path — out of the fast dev loop
 
 
 @contextmanager
