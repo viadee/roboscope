@@ -750,7 +750,7 @@ function onSecretInput(value: string) {
 
 .handoff-description {
   font-size: 13px;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-muted);
   margin: 0 0 12px;
 }
 

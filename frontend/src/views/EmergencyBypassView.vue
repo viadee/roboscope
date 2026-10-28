@@ -137,7 +137,7 @@ onUnmounted(() => {
 }
 
 .bypass-admin__hint {
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
 }
 
 .bypass-admin__status {

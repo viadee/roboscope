@@ -633,7 +633,7 @@ const addEffectiveIsOverride = computed(() => {
   border: none;
   padding: 0 4px;
   cursor: pointer;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
 }
 
 .selector-picker__menu {
@@ -674,7 +674,7 @@ const addEffectiveIsOverride = computed(() => {
 
 .selector-picker__strategy {
   font-family: var(--font-sans, sans-serif);
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -702,7 +702,7 @@ const addEffectiveIsOverride = computed(() => {
 
 .selector-picker__score {
   font-family: var(--font-mono, monospace);
-  color: var(--color-text-secondary, #777);
+  color: var(--color-text-muted);
   font-size: 0.75rem;
 }
 
@@ -719,7 +719,7 @@ const addEffectiveIsOverride = computed(() => {
   padding: 0 6px;
   cursor: pointer;
   font-size: 0.85rem;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   line-height: 1.6;
 }
 
@@ -781,7 +781,7 @@ const addEffectiveIsOverride = computed(() => {
 
 .selector-picker__effective-label {
   font-family: var(--font-sans, sans-serif);
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -814,7 +814,7 @@ const addEffectiveIsOverride = computed(() => {
   padding: 0 6px;
   cursor: pointer;
   font-size: 0.85rem;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   line-height: 1.6;
   flex-shrink: 0;
 }

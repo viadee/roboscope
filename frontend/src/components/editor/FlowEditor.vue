@@ -3272,7 +3272,7 @@ function onDebugOverlayClose(): void {
   background: #fff;
   font-size: 15px;
   font-weight: 600;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   cursor: pointer;
 }
 .flow-libs-toggle:hover {
@@ -3401,7 +3401,7 @@ function onDebugOverlayClose(): void {
   border: 1px dashed var(--color-border, #e2e8f0);
   border-radius: 4px;
   background: transparent;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   font-size: 11px;
   cursor: pointer;
 }
@@ -3435,7 +3435,7 @@ function onDebugOverlayClose(): void {
   display: inline-flex;
   align-items: center;
   background: var(--color-bg-subtle, #f1f5f9);
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   white-space: nowrap;
 }
 .flow-vars__envrefs {
@@ -3453,7 +3453,7 @@ function onDebugOverlayClose(): void {
 }
 .flow-vars__envrefs-title {
   font-size: 11px;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
 }
 /* Story FE-TPL — data-driven template table node. */
 .flow-node-template {
@@ -3483,7 +3483,7 @@ function onDebugOverlayClose(): void {
 .flow-node-template__actions button {
   border: 1px solid var(--color-border, #e2e8f0);
   background: transparent; border-radius: 4px;
-  font-size: 11px; cursor: pointer; color: var(--color-text-secondary, #555);
+  font-size: 11px; cursor: pointer; color: var(--color-text-muted);
 }
 .flow-node-template__rm { padding: 0 6px; }
 .flow-node-template__actions { display: flex; gap: 6px; margin-top: 6px; }

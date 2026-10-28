@@ -262,7 +262,7 @@ function truncate(s: string, max = 200): string {
 .debug-panel__paused-at {
   font-family: var(--font-mono, ui-monospace, "Cascadia Code", monospace);
   font-size: 12px;
-  color: var(--color-text-secondary, #4a5b75);
+  color: var(--color-text-muted);
 }
 .debug-panel__badge {
   padding: 2px 8px;
@@ -276,7 +276,7 @@ function truncate(s: string, max = 200): string {
 }
 .debug-panel__badge--terminated {
   background: var(--color-bg-tertiary, #e5e7eb);
-  color: var(--color-text-secondary, #4a5b75);
+  color: var(--color-text-muted);
 }
 .debug-panel__toolbar {
   display: flex;
@@ -347,7 +347,7 @@ function truncate(s: string, max = 200): string {
 .debug-panel__line-file {
   font-family: var(--font-mono, ui-monospace, "Cascadia Code", monospace);
   font-size: 12px;
-  color: var(--color-text-secondary, #4a5b75);
+  color: var(--color-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -445,7 +445,7 @@ function truncate(s: string, max = 200): string {
 }
 .debug-panel__var-name { font-weight: 600; color: var(--color-text-primary, #111827); }
 .debug-panel__var-type { color: var(--color-text-tertiary, #6b7280); }
-.debug-panel__var-value { color: var(--color-text-secondary, #4a5b75); word-break: break-all; }
+.debug-panel__var-value { color: var(--color-text-muted); word-break: break-all; }
 .debug-panel__empty {
   font-size: 12px;
   color: var(--color-text-tertiary, #6b7280);

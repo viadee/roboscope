@@ -110,7 +110,7 @@ async function submit(approve: boolean) {
 }
 
 .sso-consent__question {
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   margin: 1rem 0 2rem;
 }
 

@@ -2875,7 +2875,7 @@ watch(() => props.content, (newContent) => {
 /* Auto-install dialog body */
 .lib-install-intro {
   margin: 0 0 1rem;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   font-size: 0.9rem;
   line-height: 1.45;
 }

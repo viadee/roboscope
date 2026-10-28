@@ -266,7 +266,7 @@ onMounted(async () => {
 }
 
 .launcher__hint {
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   margin-bottom: 1.5rem;
 }
 
@@ -301,7 +301,7 @@ onMounted(async () => {
 }
 
 .launcher__field-hint {
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-muted);
 }
 
 .launcher__field-error {
@@ -325,7 +325,7 @@ onMounted(async () => {
 }
 
 .launcher__soon {
-  color: var(--color-text-secondary, #777);
+  color: var(--color-text-muted);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -394,14 +394,14 @@ onMounted(async () => {
 .launcher__reset-hint {
   margin: 0;
   font-size: 0.85rem;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-muted);
 }
 
 .launcher__reset-btn {
   align-self: flex-start;
   padding: 0.4rem 0.9rem;
   background: transparent;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-muted);
   border: 1px solid var(--color-border, #ccc);
   border-radius: 4px;
   font-size: 0.85rem;

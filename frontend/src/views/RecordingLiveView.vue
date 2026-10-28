@@ -562,7 +562,7 @@ const uptimeLabel = computed<string | null>(() => {
 .recording-live__effective-value {
   font-family: var(--font-mono, ui-monospace, "Cascadia Code", monospace);
   font-size: 0.78rem;
-  color: var(--color-text-secondary, #4a5b75);
+  color: var(--color-text-muted);
   background: var(--color-bg, #fff);
   padding: 1px 5px;
   border-radius: 3px;
@@ -606,7 +606,7 @@ const uptimeLabel = computed<string | null>(() => {
 .recording-live__args {
   font-family: var(--font-mono, monospace);
   font-size: 0.8rem;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
 }
 
 .recording-live__frame-badge {
@@ -629,7 +629,7 @@ const uptimeLabel = computed<string | null>(() => {
   padding: 0 8px;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--color-text-secondary, #888);
+  color: var(--color-text-muted);
   font-size: 0.85rem;
   line-height: 1.6;
   cursor: pointer;
@@ -652,7 +652,7 @@ const uptimeLabel = computed<string | null>(() => {
 }
 
 .recording-live__hint {
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   font-style: italic;
   margin: 1rem 0;
 }
