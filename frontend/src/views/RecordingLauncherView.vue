@@ -20,6 +20,7 @@ import { useReposStore } from '@/stores/repos.store'
 import { useToast } from '@/composables/useToast'
 import { extractErrorDetail } from '@/utils/errors'
 import type { RecordingTransport } from '@/types/recorder.types'
+import { isValidTargetUrl, stashTargetUrl } from '@/utils/recorderLaunch'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -36,12 +37,9 @@ const repoId = ref<number | null>(null)
 // applies (`http(s)://` only) is mirrored here so users see an inline
 // validation message instead of a 400 round-trip.
 const targetUrl = ref<string>('')
-const targetUrlError = computed<string | null>(() => {
-  const v = targetUrl.value.trim()
-  if (v === '') return null
-  if (v.startsWith('http://') || v.startsWith('https://')) return null
-  return t('recorder.launcher.targetUrlInvalid')
-})
+const targetUrlError = computed<string | null>(() =>
+  isValidTargetUrl(targetUrl.value) ? null : t('recorder.launcher.targetUrlInvalid'),
+)
 const starting = ref(false)
 const error = ref<string | null>(null)
 // RECORDER-RESET-1 — panic-button state for the "click here when
@@ -121,13 +119,8 @@ async function start() {
     // without re-prompting the user.
     sessionStorage.setItem(`recorder.repo.${session.session_id}`, String(repoId.value))
     // Stash the target URL (if any) so the live view's
-    // `startV2Browser(sessionId, targetUrl)` call carries it through
-    // to the recorder. Trim + empty-check matches the backend's
-    // normalisation in v2_start_browser.
-    const trimmedUrl = targetUrl.value.trim()
-    if (trimmedUrl) {
-      sessionStorage.setItem(`recorder.url.${session.session_id}`, trimmedUrl)
-    }
+    // `startV2Browser(sessionId, targetUrl)` call carries it through.
+    stashTargetUrl(session.session_id, targetUrl.value)
     router.push(`/recordings/live/${session.session_id}`)
   } catch (e: unknown) {
     error.value = extractErrorDetail(e, t('recorder.launcher.startFailed'))

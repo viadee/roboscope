@@ -21,15 +21,12 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest'
 
-// Mirror of RecordingLauncherView's `targetUrlError` computed.
-const TARGET_URL_INVALID_MSG = 'URL must start with http:// or https://'
+import { isValidTargetUrl, stashTargetUrl } from '@/utils/recorderLaunch'
 
-function targetUrlError(targetUrl: string): string | null {
-  const v = targetUrl.trim()
-  if (v === '') return null
-  if (v.startsWith('http://') || v.startsWith('https://')) return null
-  return TARGET_URL_INVALID_MSG
-}
+// The view's `targetUrlError` computed is `isValidTargetUrl(...) ? null : t(...)`.
+const TARGET_URL_INVALID_MSG = 'URL must start with http:// or https://'
+const targetUrlError = (raw: string): string | null =>
+  isValidTargetUrl(raw) ? null : TARGET_URL_INVALID_MSG
 
 // Mirror of `canStart` (just the URL-related portion).
 function canStart(opts: {
@@ -44,16 +41,6 @@ function canStart(opts: {
     && !opts.starting
     && targetUrlError(opts.targetUrl) === null
   )
-}
-
-// Mirror of the launch-time stash logic.
-function stashTargetUrl(sessionId: number, targetUrl: string): string | null {
-  const trimmed = targetUrl.trim()
-  if (trimmed) {
-    sessionStorage.setItem(`recorder.url.${sessionId}`, trimmed)
-    return trimmed
-  }
-  return null
 }
 
 beforeEach(() => {

@@ -15,18 +15,7 @@
  */
 import { describe, it, expect } from 'vitest'
 
-// Mirrors `RobotEditor.vue::escapeRfToken` (and
-// `backend/src/recording/robot_emit.py::_escape_rf_token`).
-function escapeRfToken(s: string): string {
-  if (!s) return s
-  return s.startsWith('#') ? '\\' + s : s
-}
-
-// Mirrors `RobotEditor.vue::unescapeRfToken`.
-function unescapeRfToken(s: string): string {
-  if (s.startsWith('\\#')) return s.slice(1)
-  return s
-}
+import { escapeRfToken, unescapeRfToken } from '@/components/editor/robotTextIO'
 
 describe('escapeRfToken / unescapeRfToken — round-trip', () => {
   it('escapes `#login-form` → `\\#login-form`', () => {
