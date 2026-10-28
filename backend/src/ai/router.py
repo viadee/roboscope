@@ -6,13 +6,6 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from src.auth.constants import Role
-from src.auth.dependencies import get_current_user, require_role
-from src.auth.models import User
-from src.task_executor import TaskDispatchError, dispatch_task
-from src.database import get_db
-from src.repos.models import Repository
-
 from src.ai.models import AiJob, AiProvider
 from src.ai.schemas import (
     AiJobResponse,
@@ -54,6 +47,12 @@ from src.ai.service import (
     write_generated_file,
 )
 from src.ai.tasks import run_analyze, run_generate, run_reverse
+from src.auth.constants import Role
+from src.auth.dependencies import get_current_user, require_role
+from src.auth.models import User
+from src.database import get_db
+from src.repos.models import Repository
+from src.task_executor import TaskDispatchError, dispatch_task
 
 logger = logging.getLogger("roboscope.ai.router")
 
@@ -238,6 +237,7 @@ def analyze_failures(
 ):
     """Analyze test failures in a report using an LLM."""
     from sqlalchemy import select as sa_select
+
     from src.reports.models import Report
 
     report = db.execute(
@@ -289,9 +289,10 @@ def apply_patch(
     never silently corrupts the test. The change lands on disk in the repo
     (reversible via Git) and is captured by the audit middleware.
     """
+    from sqlalchemy import select as sa_select
+
     from src.ai.patch_apply import PatchApplyError, apply_unified_diff
     from src.explorer.service import read_file, write_file
-    from sqlalchemy import select as sa_select
 
     repo = db.execute(
         sa_select(Repository).where(Repository.id == data.repository_id)
@@ -302,23 +303,23 @@ def apply_patch(
     try:
         current = read_file(repo.local_path, data.file_path)
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(status_code=404, detail="File not found") from None
     except ValueError:
-        raise HTTPException(status_code=403, detail="Path traversal not allowed")
+        raise HTTPException(status_code=403, detail="Path traversal not allowed") from None
     if current.content is None:
         raise HTTPException(status_code=400, detail="Cannot patch a binary file")
 
     try:
         patched = apply_unified_diff(current.content, data.unified_diff)
     except PatchApplyError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
     try:
         result = write_file(repo.local_path, data.file_path, patched)
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(status_code=404, detail="File not found") from None
     except ValueError:
-        raise HTTPException(status_code=403, detail="Path traversal not allowed")
+        raise HTTPException(status_code=403, detail="Path traversal not allowed") from None
 
     logger.info(
         "Applied AI patch to %s in repo %d (user %d)",
@@ -509,6 +510,7 @@ def rf_mcp_status(
     env_id = status.get("environment_id")
     if env_id:
         from sqlalchemy import select as sa_select
+
         from src.environments.models import Environment
 
         env = db.execute(
@@ -538,8 +540,9 @@ def rf_mcp_setup(
 ):
     """Start the rf-mcp server with an environment for library discovery."""
     from sqlalchemy import select as sa_select
-    from src.environments.models import Environment
+
     from src.ai import rf_mcp_manager
+    from src.environments.models import Environment
 
     # Validate environment exists
     env = db.execute(
@@ -561,11 +564,11 @@ def rf_mcp_setup(
     try:
         dispatch_task(rf_mcp_manager.start_bundled, data.environment_id, data.port)
     except TaskDispatchError as e:
-        raise HTTPException(status_code=500, detail=f"Failed to dispatch setup task: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to dispatch setup task: {e}") from None
 
     # Persist settings for auto-start on next restart
-    from src.settings.service import update_settings
     from src.settings.schemas import SettingUpdate
+    from src.settings.service import update_settings
 
     update_settings(db, [
         SettingUpdate(key="rf_mcp_auto_start", value="true"),
@@ -594,8 +597,8 @@ def rf_mcp_stop(
     rf_mcp_manager.stop_server()
 
     # Disable auto-start so server doesn't restart on next app startup
-    from src.settings.service import update_settings
     from src.settings.schemas import SettingUpdate
+    from src.settings.service import update_settings
 
     update_settings(db, [
         SettingUpdate(key="rf_mcp_auto_start", value="false"),
@@ -628,7 +631,7 @@ def xray_export(
     try:
         spec = yaml_lib.safe_load(data.content)
     except yaml_lib.YAMLError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}") from None
 
     if not isinstance(spec, dict):
         raise HTTPException(status_code=400, detail="Spec must be a YAML mapping")

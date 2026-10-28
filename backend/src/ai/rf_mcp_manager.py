@@ -18,7 +18,6 @@ import time
 from pathlib import Path
 
 from src.config import settings
-from src.environments.venv_utils import get_venv_bin_dir
 
 logger = logging.getLogger("roboscope.ai.rf_mcp_manager")
 

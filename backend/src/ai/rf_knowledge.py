@@ -340,7 +340,13 @@ def _scan_repo_files(repo_id: int) -> tuple[list[dict], set[str]]:
                 if current_kw and current_kw["name"].lower() not in seen_kw:
                     seen_kw.add(current_kw["name"].lower())
                     keywords.append(current_kw)
-                current_kw = {"name": stripped, "library": f.stem, "doc": "", "doc_format": "text", "args": []}
+                current_kw = {
+                    "name": stripped,
+                    "library": f.stem,
+                    "doc": "",
+                    "doc_format": "text",
+                    "args": [],
+                }
             elif current_kw and stripped.lower().startswith("[documentation]"):
                 doc = stripped.split("]", 1)[1].strip() if "]" in stripped else ""
                 current_kw["doc"] = doc[:4000]
@@ -404,7 +410,7 @@ def _resolve_library_keywords(library_names: set[str], venv_path: str) -> list[d
         "            fmt = 'text'\n"
         "        for kw in libdoc.keywords:\n"
         "            kw_args = [str(a) for a in (kw.args or [])]\n"
-        "            results.append({'name': kw.name, 'library': lib_name, 'doc': (kw.doc or '')[:4000], 'doc_format': fmt, 'args': kw_args})\n"
+        "            results.append({'name': kw.name, 'library': lib_name, 'doc': (kw.doc or '')[:4000], 'doc_format': fmt, 'args': kw_args})\n"  # noqa: E501
         "    except Exception:\n"
         "        pass\n"
         "print(json.dumps(results))\n"
@@ -542,10 +548,11 @@ async def search_keywords(query: str, repo_id: int | None = None) -> list[dict]:
                 lib_keywords = _resolve_library_keywords(all_libraries, venv_path)
                 for kw in lib_keywords:
                     name_lower = kw["name"].lower()
-                    if match_all or query_lower in name_lower or name_lower in query_lower:
-                        if name_lower not in seen:
-                            seen.add(name_lower)
-                            results.append(kw)
+                    if (
+                        match_all or query_lower in name_lower or name_lower in query_lower
+                    ) and name_lower not in seen:
+                        seen.add(name_lower)
+                        results.append(kw)
 
     # 3. Optional: rf-mcp for built-in keyword semantic search
     if is_available():
