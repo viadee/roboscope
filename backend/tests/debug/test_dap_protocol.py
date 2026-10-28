@@ -60,18 +60,14 @@ class TestReadMessage:
     @pytest.mark.asyncio
     async def test_reads_minimal_request(self) -> None:
         body = b'{"seq":1,"type":"request"}'
-        reader = _stream_from_bytes(
-            f"Content-Length: {len(body)}\r\n\r\n".encode("ascii") + body
-        )
+        reader = _stream_from_bytes(f"Content-Length: {len(body)}\r\n\r\n".encode("ascii") + body)
         msg = await read_message(reader)
         assert msg == {"seq": 1, "type": "request"}
 
     @pytest.mark.asyncio
     async def test_tolerates_lowercase_header_key(self) -> None:
         body = b'{"seq":1,"type":"event"}'
-        reader = _stream_from_bytes(
-            f"content-length: {len(body)}\r\n\r\n".encode("ascii") + body
-        )
+        reader = _stream_from_bytes(f"content-length: {len(body)}\r\n\r\n".encode("ascii") + body)
         msg = await read_message(reader)
         assert msg["type"] == "event"
 
@@ -127,27 +123,21 @@ class TestReadMessage:
     async def test_invalid_utf8_body_is_protocol_error(self) -> None:
         # Lone continuation byte → invalid UTF-8 sequence.
         body = b"\x80\x80"
-        reader = _stream_from_bytes(
-            b"Content-Length: 2\r\n\r\n" + body
-        )
+        reader = _stream_from_bytes(b"Content-Length: 2\r\n\r\n" + body)
         with pytest.raises(DapProtocolError, match="not valid UTF-8 JSON"):
             await read_message(reader)
 
     @pytest.mark.asyncio
     async def test_invalid_json_body_is_protocol_error(self) -> None:
         body = b"{this is not json}"
-        reader = _stream_from_bytes(
-            f"Content-Length: {len(body)}\r\n\r\n".encode("ascii") + body
-        )
+        reader = _stream_from_bytes(f"Content-Length: {len(body)}\r\n\r\n".encode("ascii") + body)
         with pytest.raises(DapProtocolError, match="not valid UTF-8 JSON"):
             await read_message(reader)
 
     @pytest.mark.asyncio
     async def test_array_body_is_protocol_error(self) -> None:
         body = b"[1,2,3]"
-        reader = _stream_from_bytes(
-            f"Content-Length: {len(body)}\r\n\r\n".encode("ascii") + body
-        )
+        reader = _stream_from_bytes(f"Content-Length: {len(body)}\r\n\r\n".encode("ascii") + body)
         with pytest.raises(DapProtocolError, match="not a JSON object"):
             await read_message(reader)
 
@@ -170,9 +160,7 @@ class TestWriteMessage:
                 host_reader.feed_eof()
 
         # Local TCP loopback for the test.
-        srv = await asyncio.start_server(
-            lambda r, w: None, host="127.0.0.1", port=0
-        )
+        srv = await asyncio.start_server(lambda r, w: None, host="127.0.0.1", port=0)
         port = srv.sockets[0].getsockname()[1]
         srv.close()
         await srv.wait_closed()
@@ -188,9 +176,7 @@ class TestWriteMessage:
 
         server = await asyncio.start_server(handle, host="127.0.0.1", port=0)
         bound_port = server.sockets[0].getsockname()[1]
-        client_reader, client_writer = await asyncio.open_connection(
-            "127.0.0.1", bound_port
-        )
+        client_reader, client_writer = await asyncio.open_connection("127.0.0.1", bound_port)
         try:
             await write_message(client_writer, {"seq": 1, "type": "request"})
             client_writer.close()

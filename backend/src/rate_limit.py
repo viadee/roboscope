@@ -21,9 +21,7 @@ class RateLimitCounter(Base):
 
     __tablename__ = "rate_limit_counters"
     __table_args__ = (
-        UniqueConstraint(
-            "bucket_key", "window_start", name="uq_rate_limit_counters_bucket_window"
-        ),
+        UniqueConstraint("bucket_key", "window_start", name="uq_rate_limit_counters_bucket_window"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

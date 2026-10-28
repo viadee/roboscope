@@ -46,8 +46,13 @@ class TestFormatterDefault:
         # Render a sample record through it — the output should be
         # human-readable, not JSON.
         record = logging.LogRecord(
-            name="roboscope.test", level=logging.INFO, pathname=__file__,
-            lineno=1, msg="hello", args=(), exc_info=None,
+            name="roboscope.test",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="hello",
+            args=(),
+            exc_info=None,
         )
         rendered = formatter.format(record)
         assert "INFO" in rendered
@@ -68,9 +73,7 @@ class TestBannerSuppressionUnderPytest:
         # We're running under pytest right now — PYTEST_CURRENT_TEST is set.
         _print_ready_banner()
         captured = capsys.readouterr()
-        assert captured.out == "", (
-            f"banner leaked under pytest: {captured.out!r}"
-        )
+        assert captured.out == "", f"banner leaked under pytest: {captured.out!r}"
 
     def test_banner_prints_when_not_under_pytest(self, monkeypatch, capsys):
         """Drop the pytest sentinel and the banner should fire."""

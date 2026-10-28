@@ -1,9 +1,9 @@
 """Regression tests for the AI-subsystem QA-audit fixes (demo-readiness Pass 9).
 
-  - C1: write_generated_file must refuse path traversal (a user-authored spec
-        target_file like ../../../x must not escape the repo).
-  - C2: _strip_code_fences must tolerate a prose preamble/epilogue and not
-        corrupt the generated .robot.
+- C1: write_generated_file must refuse path traversal (a user-authored spec
+      target_file like ../../../x must not escape the repo).
+- C2: _strip_code_fences must tolerate a prose preamble/epilogue and not
+      corrupt the generated .robot.
 """
 
 from __future__ import annotations
@@ -55,8 +55,7 @@ def test_write_generated_file_rejects_traversal(tmp_path: Path, evil: str) -> No
         # plain fenced block
         ("```robot\n*** Test Cases ***\nFoo\n```", "*** Test Cases ***\nFoo"),
         # prose PREAMBLE before the fence (the bug that corrupted output)
-        ("Here is your file:\n```robot\n*** Test Cases ***\nFoo\n```",
-         "*** Test Cases ***\nFoo"),
+        ("Here is your file:\n```robot\n*** Test Cases ***\nFoo\n```", "*** Test Cases ***\nFoo"),
         # prose EPILOGUE after the closing fence
         ("```\nFoo\nBar\n```\nHope this helps!", "Foo\nBar"),
         # both

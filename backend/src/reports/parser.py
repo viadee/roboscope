@@ -139,9 +139,7 @@ def _parse_test(test_elem: _Element, suite_name: str) -> ParsedTestResult:
     # a `<tags>` container; pre-RF7 used flat `<tag>` direct children.
     tags_container = test_elem.find("tags")
     tag_source = (
-        tags_container.findall("tag")
-        if tags_container is not None
-        else test_elem.findall("tag")
+        tags_container.findall("tag") if tags_container is not None else test_elem.findall("tag")
     )
     for tag_elem in tag_source:
         if tag_elem.text and tag_elem.text not in result.tags:
@@ -313,11 +311,13 @@ def _parse_keyword_deep(kw_elem: _Element) -> dict:
     # Messages
     messages = []
     for msg_elem in kw_elem.findall("msg"):
-        messages.append({
-            "timestamp": msg_elem.get("timestamp", ""),
-            "level": msg_elem.get("level", "INFO"),
-            "text": msg_elem.text.strip() if msg_elem.text else "",
-        })
+        messages.append(
+            {
+                "timestamp": msg_elem.get("timestamp", ""),
+                "level": msg_elem.get("level", "INFO"),
+                "text": msg_elem.text.strip() if msg_elem.text else "",
+            }
+        )
 
     # Nested keywords
     child_keywords = []

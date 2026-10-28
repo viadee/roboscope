@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import parse_qs, urlparse
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -43,7 +42,7 @@ def _make_idp(
     )
     if with_cache:
         idp.discovery_cache_json = json.dumps(_DISCOVERY_DOC)
-        idp.discovery_cached_at = datetime.now(timezone.utc)
+        idp.discovery_cached_at = datetime.now(UTC)
     db.add(idp)
     db.flush()
     db.refresh(idp)
@@ -98,9 +97,7 @@ def test_login_redirect_302(client: TestClient, db_session: Session):
     assert resp.status_code == 302
 
 
-def test_login_redirect_targets_authorization_endpoint(
-    client: TestClient, db_session: Session
-):
+def test_login_redirect_targets_authorization_endpoint(client: TestClient, db_session: Session):
     idp = _make_idp(db_session)
     resp = client.get(f"{BASE_URL}/{idp.id}/login", follow_redirects=False)
     location = resp.headers["location"]
@@ -136,9 +133,7 @@ def test_login_persists_attempt_row(client: TestClient, db_session: Session):
     assert attempt.return_to == "/"
 
 
-def test_login_pkce_verifier_encrypted_at_rest(
-    client: TestClient, db_session: Session
-):
+def test_login_pkce_verifier_encrypted_at_rest(client: TestClient, db_session: Session):
     """pkce_verifier must be Fernet-encrypted on disk (D1 hardening)."""
     idp = _make_idp(db_session)
     resp = client.get(f"{BASE_URL}/{idp.id}/login", follow_redirects=False)
@@ -151,9 +146,7 @@ def test_login_pkce_verifier_encrypted_at_rest(
     assert len(decrypted) >= 43  # token_urlsafe(32) ≥ 43 chars
 
 
-def test_login_attempt_ttl_is_ten_minutes(
-    client: TestClient, db_session: Session
-):
+def test_login_attempt_ttl_is_ten_minutes(client: TestClient, db_session: Session):
     """AC2: expires_at must be ~10 minutes after created_at."""
     idp = _make_idp(db_session)
     resp = client.get(f"{BASE_URL}/{idp.id}/login", follow_redirects=False)
@@ -164,9 +157,9 @@ def test_login_attempt_ttl_is_ten_minutes(
     created = attempt.created_at
     expires = attempt.expires_at
     if created.tzinfo is None:
-        created = created.replace(tzinfo=timezone.utc)
+        created = created.replace(tzinfo=UTC)
     if expires.tzinfo is None:
-        expires = expires.replace(tzinfo=timezone.utc)
+        expires = expires.replace(tzinfo=UTC)
     delta_s = (expires - created).total_seconds()
     assert 550 < delta_s < 650, f"expected ~600s TTL, got {delta_s}s"
 
@@ -269,9 +262,7 @@ def test_login_does_not_write_audit_log(client: TestClient, db_session: Session)
 # ---------------------------------------------------------------------------
 
 
-def test_login_redirect_has_no_store_cache_control(
-    client: TestClient, db_session: Session
-):
+def test_login_redirect_has_no_store_cache_control(client: TestClient, db_session: Session):
     """state/nonce in Location header must not be cached."""
     idp = _make_idp(db_session)
     resp = client.get(f"{BASE_URL}/{idp.id}/login", follow_redirects=False)
@@ -283,9 +274,7 @@ def test_login_redirect_has_no_store_cache_control(
 # ---------------------------------------------------------------------------
 
 
-def test_authorization_endpoint_with_existing_query_string(
-    client: TestClient, db_session: Session
-):
+def test_authorization_endpoint_with_existing_query_string(client: TestClient, db_session: Session):
     """IdPs like Azure AD B2C ship `authorization_endpoint` with query params.
 
     The auth URL must join with `&`, not `?` (which would produce a second `?`
@@ -302,7 +291,7 @@ def test_authorization_endpoint_with_existing_query_string(
         group_claim_name="groups",
         is_enabled=True,
         discovery_cache_json=json.dumps(doc),
-        discovery_cached_at=datetime.now(timezone.utc),
+        discovery_cached_at=datetime.now(UTC),
     )
     db_session.add(idp)
     db_session.flush()
@@ -317,9 +306,7 @@ def test_authorization_endpoint_with_existing_query_string(
     assert "response_type=code" in location
 
 
-def test_missing_authorization_endpoint_returns_503(
-    client: TestClient, db_session: Session
-):
+def test_missing_authorization_endpoint_returns_503(client: TestClient, db_session: Session):
     """Malformed discovery cache (no authorization_endpoint) yields idp.unreachable."""
     bad_doc = {k: v for k, v in _DISCOVERY_DOC.items() if k != "authorization_endpoint"}
     idp = IdentityProvider(
@@ -332,7 +319,7 @@ def test_missing_authorization_endpoint_returns_503(
         group_claim_name="groups",
         is_enabled=True,
         discovery_cache_json=json.dumps(bad_doc),
-        discovery_cached_at=datetime.now(timezone.utc),
+        discovery_cached_at=datetime.now(UTC),
     )
     db_session.add(idp)
     db_session.flush()
@@ -364,9 +351,7 @@ def test_oversize_return_to_rejected(client: TestClient, db_session: Session):
     assert resp.json()["detail"]["code"] == "return_to.invalid"
 
 
-def test_scope_without_openid_gets_openid_added(
-    client: TestClient, db_session: Session
-):
+def test_scope_without_openid_gets_openid_added(client: TestClient, db_session: Session):
     """Admin misconfiguration: scopes missing 'openid' must still produce an OIDC request."""
     idp = _make_idp(db_session, name="no-openid")
     idp.scopes = "profile email"

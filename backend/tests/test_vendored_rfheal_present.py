@@ -29,12 +29,7 @@ from pathlib import Path
 
 import pytest
 
-
-VENDOR_ROOT = (
-    Path(__file__).resolve().parent.parent
-    / "vendor"
-    / "robotframework-roboscopeheal"
-)
+VENDOR_ROOT = Path(__file__).resolve().parent.parent / "vendor" / "robotframework-roboscopeheal"
 
 
 class TestVendoredHealLibPresent:
@@ -46,16 +41,19 @@ class TestVendoredHealLibPresent:
             f"can't produce the wheel."
         )
 
-    @pytest.mark.parametrize("filename", [
-        "pyproject.toml",
-        "LICENSE",
-        "NOTICE",
-        "src/RoboScopeHeal/__init__.py",
-        "src/RoboScopeHeal/candidate_finder.py",
-        "src/RoboScopeHeal/fingerprint.py",
-        "src/RoboScopeHeal/heal_report.py",
-        "src/RoboScopeHeal/library.py",
-    ])
+    @pytest.mark.parametrize(
+        "filename",
+        [
+            "pyproject.toml",
+            "LICENSE",
+            "NOTICE",
+            "src/RoboScopeHeal/__init__.py",
+            "src/RoboScopeHeal/candidate_finder.py",
+            "src/RoboScopeHeal/fingerprint.py",
+            "src/RoboScopeHeal/heal_report.py",
+            "src/RoboScopeHeal/library.py",
+        ],
+    )
     def test_canonical_file_exists(self, filename: str) -> None:
         path = VENDOR_ROOT / filename
         assert path.is_file(), (
@@ -82,21 +80,24 @@ class TestVendoredHealLibPresent:
             f"repo OR update backend/pyproject.toml in lockstep."
         )
 
-    @pytest.mark.parametrize("keyword_method,positional_only_params", [
-        ("heal_click", ("selector",)),
-        ("heal_fill_text", ("selector",)),
-        ("heal_type_text", ("selector",)),
-        ("heal_hover", ("selector",)),
-        ("heal_press_keys", ("selector",)),
-        ("heal_wait_for_elements_state", ("selector",)),
-        ("heal_upload_file", ("selector",)),
-        ("heal_check_checkbox", ("selector",)),
-        ("heal_uncheck_checkbox", ("selector",)),
-        ("heal_select_options_by", ("selector",)),
-        ("heal_get_text", ("selector",)),
-        ("heal_get_element_count", ("selector",)),
-        ("heal_drag_and_drop", ("source_selector", "target_selector")),
-    ])
+    @pytest.mark.parametrize(
+        "keyword_method,positional_only_params",
+        [
+            ("heal_click", ("selector",)),
+            ("heal_fill_text", ("selector",)),
+            ("heal_type_text", ("selector",)),
+            ("heal_hover", ("selector",)),
+            ("heal_press_keys", ("selector",)),
+            ("heal_wait_for_elements_state", ("selector",)),
+            ("heal_upload_file", ("selector",)),
+            ("heal_check_checkbox", ("selector",)),
+            ("heal_uncheck_checkbox", ("selector",)),
+            ("heal_select_options_by", ("selector",)),
+            ("heal_get_text", ("selector",)),
+            ("heal_get_element_count", ("selector",)),
+            ("heal_drag_and_drop", ("source_selector", "target_selector")),
+        ],
+    )
     def test_selector_params_are_positional_only(
         self, keyword_method: str, positional_only_params: tuple[str, ...]
     ) -> None:

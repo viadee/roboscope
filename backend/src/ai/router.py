@@ -68,9 +68,7 @@ def _resolve_provider(db: Session, provider_id: int | None) -> AiProvider:
     else:
         provider = get_default_provider(db)
         if not provider:
-            provider = db.execute(
-                sa_select(AiProvider).limit(1)
-            ).scalar_one_or_none()
+            provider = db.execute(sa_select(AiProvider).limit(1)).scalar_one_or_none()
     if not provider:
         raise HTTPException(status_code=400, detail="No LLM provider configured")
     return provider
@@ -171,8 +169,9 @@ def generate_robot(
                     "Set force=true to overwrite.",
                 )
 
-    job = create_job(db, "generate", repo.id, provider.id, data.spec_path, target_path,
-                     current_user.id)
+    job = create_job(
+        db, "generate", repo.id, provider.id, data.spec_path, target_path, current_user.id
+    )
     db.commit()
 
     try:
@@ -210,8 +209,9 @@ def reverse_robot(
         robot_p = Path(data.robot_path)
         output_path = str(robot_p.with_suffix(".roboscope"))
 
-    job = create_job(db, "reverse", repo.id, provider.id, data.robot_path, output_path,
-                     current_user.id)
+    job = create_job(
+        db, "reverse", repo.id, provider.id, data.robot_path, output_path, current_user.id
+    )
     db.commit()
 
     try:
@@ -240,9 +240,7 @@ def analyze_failures(
 
     from src.reports.models import Report
 
-    report = db.execute(
-        sa_select(Report).where(Report.id == data.report_id)
-    ).scalar_one_or_none()
+    report = db.execute(sa_select(Report).where(Report.id == data.report_id)).scalar_one_or_none()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     if report.failed_tests == 0:
@@ -254,6 +252,7 @@ def analyze_failures(
     repository_id = 0
     if report.execution_run_id:
         from src.execution.models import ExecutionRun
+
         run = db.execute(
             sa_select(ExecutionRun).where(ExecutionRun.id == report.execution_run_id)
         ).scalar_one_or_none()
@@ -323,7 +322,9 @@ def apply_patch(
 
     logger.info(
         "Applied AI patch to %s in repo %d (user %d)",
-        data.file_path, data.repository_id, current_user.id,
+        data.file_path,
+        data.repository_id,
+        current_user.id,
     )
     return ApplyPatchResponse(
         status="applied", file_path=data.file_path, line_count=result.line_count
@@ -570,11 +571,14 @@ def rf_mcp_setup(
     from src.settings.schemas import SettingUpdate
     from src.settings.service import update_settings
 
-    update_settings(db, [
-        SettingUpdate(key="rf_mcp_auto_start", value="true"),
-        SettingUpdate(key="rf_mcp_environment_id", value=str(data.environment_id)),
-        SettingUpdate(key="rf_mcp_port", value=str(data.port)),
-    ])
+    update_settings(
+        db,
+        [
+            SettingUpdate(key="rf_mcp_auto_start", value="true"),
+            SettingUpdate(key="rf_mcp_environment_id", value=str(data.environment_id)),
+            SettingUpdate(key="rf_mcp_port", value=str(data.port)),
+        ],
+    )
     db.commit()
 
     # Return current status (will be "starting" soon)
@@ -600,9 +604,12 @@ def rf_mcp_stop(
     from src.settings.schemas import SettingUpdate
     from src.settings.service import update_settings
 
-    update_settings(db, [
-        SettingUpdate(key="rf_mcp_auto_start", value="false"),
-    ])
+    update_settings(
+        db,
+        [
+            SettingUpdate(key="rf_mcp_auto_start", value="false"),
+        ],
+    )
     db.commit()
 
     status = rf_mcp_manager.get_status()
@@ -666,9 +673,7 @@ def _get_repo(db: Session, repo_id: int) -> Repository:
     """Get repository or raise 404."""
     from sqlalchemy import select as sa_select
 
-    repo = db.execute(
-        sa_select(Repository).where(Repository.id == repo_id)
-    ).scalar_one_or_none()
+    repo = db.execute(sa_select(Repository).where(Repository.id == repo_id)).scalar_one_or_none()
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
     return repo
@@ -716,5 +721,6 @@ def _job_to_response(job: AiJob) -> dict:
         "completed_at": job.completed_at,
         "created_at": job.created_at,
         "suggested_patches": extract_patch_suggestions(job.result_preview)
-            if job.job_type == "analyze" else [],
+        if job.job_type == "analyze"
+        else [],
     }

@@ -24,14 +24,20 @@ def env(db_session, admin_user):
 
 
 def _add(client, user, env_id, key, value, is_secret=False):
-    return client.post(f"{URL}/{env_id}/variables", headers=auth_header(user),
-                       json={"key": key, "value": value, "is_secret": is_secret})
+    return client.post(
+        f"{URL}/{env_id}/variables",
+        headers=auth_header(user),
+        json={"key": key, "value": value, "is_secret": is_secret},
+    )
 
 
 def test_patch_and_delete_happy_path(client, db_session, admin_user, env):
     var_id = _add(client, admin_user, env.id, "BASE_URL", "https://a").json()["id"]
-    r = client.patch(_vurl(env.id, var_id), headers=auth_header(admin_user),
-                     json={"key": "BASE_URL2", "value": "https://b"})
+    r = client.patch(
+        _vurl(env.id, var_id),
+        headers=auth_header(admin_user),
+        json={"key": "BASE_URL2", "value": "https://b"},
+    )
     assert r.status_code == 200
     assert (r.json()["key"], r.json()["value"]) == ("BASE_URL2", "https://b")
     r = client.delete(_vurl(env.id, var_id), headers=auth_header(admin_user))
@@ -57,9 +63,22 @@ def test_duplicate_key_is_409(client, admin_user, env):
     assert r.status_code == 409
 
 
-@pytest.mark.parametrize("key", ["PATH", "path", "VIRTUAL_ENV", "PYTHONPATH", "PythonHome",
-                                 "LD_PRELOAD", "DYLD_INSERT_LIBRARIES", "NODE_OPTIONS",
-                                 "1BAD", "has-dash", "a b"])
+@pytest.mark.parametrize(
+    "key",
+    [
+        "PATH",
+        "path",
+        "VIRTUAL_ENV",
+        "PYTHONPATH",
+        "PythonHome",
+        "LD_PRELOAD",
+        "DYLD_INSERT_LIBRARIES",
+        "NODE_OPTIONS",
+        "1BAD",
+        "has-dash",
+        "a b",
+    ],
+)
 def test_reserved_or_invalid_key_is_422(client, admin_user, env, key):
     assert _add(client, admin_user, env.id, key, "x").status_code == 422
     var_id = _add(client, admin_user, env.id, "OK_KEY", "x").json()["id"]
@@ -94,8 +113,11 @@ def test_secret_reencrypted_and_empty_value_keeps_old(client, db_session, admin_
 
 def test_toggle_secret_with_empty_value_keeps_value(client, db_session, admin_user, env):
     var_id = _add(client, admin_user, env.id, "TOKEN", "abc").json()["id"]
-    client.patch(_vurl(env.id, var_id), headers=auth_header(admin_user),
-                 json={"value": "", "is_secret": True})
+    client.patch(
+        _vurl(env.id, var_id),
+        headers=auth_header(admin_user),
+        json={"value": "", "is_secret": True},
+    )
     var = db_session.get(EnvironmentVariable, var_id)
     db_session.refresh(var)
     assert var.is_secret and is_encrypted(var.value) and decrypt_variable_value(var) == "abc"
@@ -113,8 +135,9 @@ def test_env_config_resolves_decrypted_env_vars(client, db_session, admin_user, 
     _add(client, admin_user, env.id, "BASE_URL", "https://staging")
     _add(client, admin_user, env.id, "API_KEY", "s3cr3t", is_secret=True)
     # A legacy row predating validation is skipped at injection.
-    db_session.add(EnvironmentVariable(environment_id=env.id, key="PYTHONPATH",
-                                       value="/evil", is_secret=False))
+    db_session.add(
+        EnvironmentVariable(environment_id=env.id, key="PYTHONPATH", value="/evil", is_secret=False)
+    )
     db_session.flush()
     expected = {"BASE_URL": "https://staging", "API_KEY": "s3cr3t"}
     assert resolve_env_vars(db_session, env.id) == expected
@@ -123,7 +146,8 @@ def test_env_config_resolves_decrypted_env_vars(client, db_session, admin_user, 
 
 def test_clone_copies_variables(client, db_session, admin_user, env):
     _add(client, admin_user, env.id, "BASE_URL", "https://staging")
-    r = client.post(f"{URL}/{env.id}/clone", headers=auth_header(admin_user),
-                    params={"new_name": "vars-clone"})
+    r = client.post(
+        f"{URL}/{env.id}/clone", headers=auth_header(admin_user), params={"new_name": "vars-clone"}
+    )
     assert r.status_code == 201
     assert resolve_env_vars(db_session, r.json()["id"]) == {"BASE_URL": "https://staging"}

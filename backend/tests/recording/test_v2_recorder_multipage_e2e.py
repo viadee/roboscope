@@ -27,7 +27,6 @@ from __future__ import annotations
 import http.server
 import importlib.util
 import os
-import shutil
 import socketserver
 import subprocess
 import tempfile
@@ -42,6 +41,7 @@ from src.recording.v2_command_queue import register_session, tear_down_session
 
 try:
     import playwright  # noqa: F401
+
     _HAS_PLAYWRIGHT = True
 except Exception:
     _HAS_PLAYWRIGHT = False
@@ -62,6 +62,7 @@ def multipage_fixture_server():
     Yields the URL of page A; page B is reachable at the same port via
     its filename (the in-fixture link is a relative href).
     """
+
     class _Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kw):
             super().__init__(*args, directory=str(FIXTURE_DIR), **kw)
@@ -95,6 +96,7 @@ class _CommandSpy:
     def install(self):
         from src.recording import v2_command_queue as q
         from src.recording import v2_recorder_task as t
+
         self._orig_q_enqueue = q.enqueue_command
         self._orig_task_enqueue = t.enqueue_command
 
@@ -110,6 +112,7 @@ class _CommandSpy:
         if self._orig_q_enqueue is not None:
             from src.recording import v2_command_queue as q
             from src.recording import v2_recorder_task as t
+
             q.enqueue_command = self._orig_q_enqueue
             t.enqueue_command = self._orig_task_enqueue
 
@@ -185,18 +188,18 @@ def test_recorder_multipage_round_trip(multipage_fixture_server):
 
     # ----- AC1: link click captured -----
     link_clicks = [
-        c for c in payloads
+        c
+        for c in payloads
         if c.keyword == "Click"
         and any("goto-page-b" in cand.value for cand in c.selector_candidates)
     ]
-    assert link_clicks, (
-        f"expected a Click on the Page-A→B link, got keywords={keywords!r}"
-    )
+    assert link_clicks, f"expected a Click on the Page-A→B link, got keywords={keywords!r}"
     link_click_idx = payloads.index(link_clicks[0])
 
     # ----- AC2: page-B button click captured -----
     button_clicks = [
-        c for c in payloads
+        c
+        for c in payloads
         if c.keyword == "Click"
         and any("action-button" in cand.value for cand in c.selector_candidates)
     ]
@@ -208,10 +211,9 @@ def test_recorder_multipage_round_trip(multipage_fixture_server):
     # ----- AC3 (RECORDER-1B): no redundant Go To after the link click -----
     # The click caused page B to load; the post-load `Go To <page-b-url>`
     # would be the duplicate we suppressed.
-    after_link = payloads[link_click_idx + 1:]
+    after_link = payloads[link_click_idx + 1 :]
     duplicate_goto = [
-        c for c in after_link
-        if c.keyword == "Go To" and PAGE_B in (c.args.get("url") or "")
+        c for c in after_link if c.keyword == "Go To" and PAGE_B in (c.args.get("url") or "")
     ]
     assert not duplicate_goto, (
         f"expected NO Go To <page-b-url> after the link click "
@@ -247,7 +249,8 @@ def _find_replay_venv() -> tuple[Path, Path] | None:
         try:
             check = subprocess.run(
                 [str(py), "-c", "import robot, Browser"],
-                capture_output=True, timeout=10,
+                capture_output=True,
+                timeout=10,
             )
             if check.returncode == 0:
                 return py, rb
@@ -330,11 +333,16 @@ def test_recorded_robot_replays_successfully(multipage_fixture_server):
 
         py_bin, robot_bin = replay_venv
         result = subprocess.run(
-            [str(robot_bin),
-             "--variable", "BROWSER:chromium",
-             "--variable", "HEADLESS:True",
-             "--outputdir", str(tmp_path),
-             str(robot_file)],
+            [
+                str(robot_bin),
+                "--variable",
+                "BROWSER:chromium",
+                "--variable",
+                "HEADLESS:True",
+                "--outputdir",
+                str(tmp_path),
+                str(robot_file),
+            ],
             capture_output=True,
             text=True,
             timeout=180,

@@ -5,7 +5,7 @@ import json
 import logging
 import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import select
@@ -14,15 +14,14 @@ from sqlalchemy.orm import Session
 # Import all models so SQLAlchemy can resolve foreign keys.
 import src.auth.models  # noqa: F401
 import src.repos.models  # noqa: F401
-
 from src.config import settings
 from src.database import get_sync_session
+from src.environments.models import Environment, EnvironmentPackage
 from src.environments.service import resolve_env_vars
 from src.environments.tasks import _is_browser_package
 from src.environments.venv_utils import check_rfbrowser_initialized
-from src.execution.models import ExecutionRun, RunStatus, RunnerType
+from src.execution.models import ExecutionRun, RunnerType, RunStatus
 from src.execution.runners.subprocess_runner import SubprocessRunner
-from src.environments.models import Environment, EnvironmentPackage
 
 logger = logging.getLogger("roboscope.execution.tasks")
 
@@ -47,9 +46,7 @@ def reconcile_interrupted_runs() -> int:
         rows = (
             session.execute(
                 select(ExecutionRun).where(
-                    ExecutionRun.status.in_(
-                        [RunStatus.PENDING, RunStatus.RUNNING]
-                    )
+                    ExecutionRun.status.in_([RunStatus.PENDING, RunStatus.RUNNING])
                 )
             )
             .scalars()
@@ -61,13 +58,12 @@ def reconcile_interrupted_runs() -> int:
                 "Run interrupted by a backend restart (no live worker was "
                 "tracking it). Re-run to try again."
             )
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = datetime.now(UTC)
         if rows:
             session.commit()
-            logger.info(
-                "startup: reconciled %d interrupted run(s) to ERROR", len(rows)
-            )
+            logger.info("startup: reconciled %d interrupted run(s) to ERROR", len(rows))
         return len(rows)
+
 
 _PLAYWRIGHT_HINTS = [
     "could not connect to the playwright process",
@@ -106,8 +102,8 @@ def _enrich_error_with_hints(
 
 def _broadcast_run_status(run_id: int, status: str, run: "ExecutionRun | None" = None) -> None:
     """Broadcast a run status change from a sync background thread."""
-    from src.websocket.manager import ws_manager
     from src.main import _event_loop
+    from src.websocket.manager import ws_manager
 
     coro = ws_manager.broadcast_run_status(run_id, status)
 
@@ -121,12 +117,15 @@ def _broadcast_run_status(run_id: int, status: str, run: "ExecutionRun | None" =
 
 
 def _dispatch_run_webhook(
-    run_id: int, status: str, run: "ExecutionRun | None" = None,
+    run_id: int,
+    status: str,
+    run: "ExecutionRun | None" = None,
 ) -> None:
     """Fire outbound webhooks for run status changes."""
     event = f"run.{status}"
     try:
         from src.webhooks.schemas import VALID_EVENTS
+
         if event not in VALID_EVENTS:
             return
 
@@ -137,17 +136,20 @@ def _dispatch_run_webhook(
         }
         repository_id = None
         if run:
-            payload.update({
-                "repository_id": run.repository_id,
-                "target_path": run.target_path,
-                "branch": run.branch,
-                "triggered_by": run.triggered_by,
-                "duration_seconds": run.duration_seconds,
-                "error_message": run.error_message,
-            })
+            payload.update(
+                {
+                    "repository_id": run.repository_id,
+                    "target_path": run.target_path,
+                    "branch": run.branch,
+                    "triggered_by": run.triggered_by,
+                    "duration_seconds": run.duration_seconds,
+                    "error_message": run.error_message,
+                }
+            )
             repository_id = run.repository_id
 
         from src.webhooks.service import dispatch_webhook_event
+
         dispatch_webhook_event(event, payload, repository_id=repository_id)
     except Exception:
         logger.warning("Failed to dispatch webhook for run %d", run_id, exc_info=True)
@@ -171,6 +173,7 @@ def _get_runner(runner_type: str, env_config: dict | None = None):
     """Factory function to get the appropriate runner."""
     if runner_type == RunnerType.DOCKER:
         from src.execution.runners.docker_runner import DockerRunner
+
         image = env_config.get("docker_image") if env_config else None
         extra_env = env_config.get("env_vars") if env_config else None
         return DockerRunner(image=image, extra_env=extra_env)
@@ -212,9 +215,7 @@ def _format_modifiers(entries: list) -> list[str] | None:
     return out or None
 
 
-def _merge_listeners(
-    system: list[str] | None, user: list[str] | None
-) -> list[str] | None:
+def _merge_listeners(system: list[str] | None, user: list[str] | None) -> list[str] | None:
     """Merge system-injected listeners (e.g. the quarantine-skip listener) with
     user/org listeners (EXEC.11). System listeners ALWAYS come first and are never
     dropped/reordered; user listeners are appended, de-duplicated (a user entry
@@ -231,17 +232,19 @@ def _get_env_config(session: Session, env_id: int | None) -> dict | None:
     """Load environment configuration."""
     if env_id is None:
         return None
-    env = session.execute(
-        select(Environment).where(Environment.id == env_id)
-    ).scalar_one_or_none()
+    env = session.execute(select(Environment).where(Environment.id == env_id)).scalar_one_or_none()
     if env is None:
         return None
     # Load installed packages so SubprocessRunner can bootstrap a new venv
-    packages = session.execute(
-        select(EnvironmentPackage)
-        .where(EnvironmentPackage.environment_id == env_id)
-        .where(EnvironmentPackage.install_status == "installed")
-    ).scalars().all()
+    packages = (
+        session.execute(
+            select(EnvironmentPackage)
+            .where(EnvironmentPackage.environment_id == env_id)
+            .where(EnvironmentPackage.install_status == "installed")
+        )
+        .scalars()
+        .all()
+    )
     pkg_specs = []
     for p in packages:
         if p.installed_version:
@@ -291,7 +294,11 @@ def _maybe_auto_retry(session: Session, run: ExecutionRun) -> None:
     session.commit()
     logger.info(
         "Run %d %s: auto-retry %d/%d queued as run %d",
-        run.id, run.status, new_run.retry_count, run.max_retries, new_run.id,
+        run.id,
+        run.status,
+        new_run.retry_count,
+        run.max_retries,
+        new_run.id,
     )
 
 
@@ -308,14 +315,12 @@ def execute_test_run(run_id: int) -> dict:
 
         # Update status to RUNNING
         run.status = RunStatus.RUNNING
-        run.started_at = datetime.now(timezone.utc)
+        run.started_at = datetime.now(UTC)
         session.commit()
         _broadcast_run_status(run_id, RunStatus.RUNNING)
 
         # Prepare output directory
-        output_dir = str(
-            Path(settings.REPORTS_DIR) / f"run_{run.id}_{uuid.uuid4().hex[:8]}"
-        )
+        output_dir = str(Path(settings.REPORTS_DIR) / f"run_{run.id}_{uuid.uuid4().hex[:8]}")
         run.output_dir = output_dir
         session.commit()
 
@@ -328,38 +333,43 @@ def execute_test_run(run_id: int) -> dict:
                 f"Environment #{run.environment_id} no longer exists. "
                 "Please retry with a valid environment."
             )
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = datetime.now(UTC)
             session.commit()
             _broadcast_run_status(run_id, RunStatus.ERROR)
             return {"status": "error", "message": run.error_message}
 
         # Determine effective runner type: use env default if run still has subprocess default
         effective_runner_type = run.runner_type
-        if (env_config
-                and env_config.get("default_runner_type") == RunnerType.DOCKER
-                and run.runner_type == RunnerType.SUBPROCESS):
+        if (
+            env_config
+            and env_config.get("default_runner_type") == RunnerType.DOCKER
+            and run.runner_type == RunnerType.SUBPROCESS
+        ):
             effective_runner_type = RunnerType.DOCKER
 
         # Fail early if Docker runner requested but no Docker image configured
-        if (effective_runner_type == RunnerType.DOCKER
-                and (not env_config or not env_config.get("docker_image"))):
+        if effective_runner_type == RunnerType.DOCKER and (
+            not env_config or not env_config.get("docker_image")
+        ):
             env_name = env_config.get("name", f"#{run.environment_id}") if env_config else "None"
             run.status = RunStatus.ERROR
             run.error_message = (
-                f"Runner type is Docker but environment \"{env_name}\" has no Docker image. "
+                f'Runner type is Docker but environment "{env_name}" has no Docker image. '
                 "Build a Docker image in Package Manager first, or switch to Subprocess runner."
             )
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = datetime.now(UTC)
             session.commit()
             _broadcast_run_status(run_id, RunStatus.ERROR)
             return {"status": "error", "message": run.error_message}
 
         # Pre-run check: verify rfbrowser init if Browser library is installed
-        if (effective_runner_type == RunnerType.SUBPROCESS
-                and env_config and env_config.get("venv_path")):
+        if (
+            effective_runner_type == RunnerType.SUBPROCESS
+            and env_config
+            and env_config.get("venv_path")
+        ):
             has_browser = any(
-                _is_browser_package(p.split("==")[0])
-                for p in (env_config.get("packages") or [])
+                _is_browser_package(p.split("==")[0]) for p in (env_config.get("packages") or [])
             )
             if has_browser and not check_rfbrowser_initialized(env_config["venv_path"]):
                 run.status = RunStatus.ERROR
@@ -371,7 +381,7 @@ def execute_test_run(run_id: int) -> dict:
                     "or ensure Node.js 18+ is installed and run 'rfbrowser init' "
                     "manually in the environment's venv."
                 )
-                run.finished_at = datetime.now(timezone.utc)
+                run.finished_at = datetime.now(UTC)
                 session.commit()
                 _broadcast_run_status(run_id, RunStatus.ERROR)
                 return {"status": "error", "message": run.error_message}
@@ -386,6 +396,7 @@ def execute_test_run(run_id: int) -> dict:
         try:
             # Prepare runner
             from src.repos.models import Repository
+
             repo = session.execute(
                 select(Repository).where(Repository.id == run.repository_id)
             ).scalar_one_or_none()
@@ -393,7 +404,7 @@ def execute_test_run(run_id: int) -> dict:
             if repo is None:
                 run.status = RunStatus.ERROR
                 run.error_message = "Repository not found"
-                run.finished_at = datetime.now(timezone.utc)
+                run.finished_at = datetime.now(UTC)
                 session.commit()
                 _broadcast_run_status(run_id, RunStatus.ERROR)
                 return {"status": "error", "message": "Repository not found"}
@@ -403,18 +414,24 @@ def execute_test_run(run_id: int) -> dict:
             # The helper itself flips `sync_status` (see review fix M2)
             # so the REPO-2 auto-sync scheduler can't race us.
             from src.repos.service import sync_for_run
+
             pre_status, pre_detail = sync_for_run(repo, session)
             if pre_status == "ok":
                 logger.info(
                     "pre-run sync for repo %d (%s): %s",
-                    repo.id, repo.name, pre_detail,
+                    repo.id,
+                    repo.name,
+                    pre_detail,
                 )
-                repo.last_synced_at = datetime.now(timezone.utc)
+                repo.last_synced_at = datetime.now(UTC)
                 session.commit()
             elif pre_status in ("error", "timeout"):
                 logger.warning(
                     "pre-run sync %s for repo %d (%s): %s — running with on-disk state",
-                    pre_status, repo.id, repo.name, pre_detail,
+                    pre_status,
+                    repo.id,
+                    repo.name,
+                    pre_detail,
                 )
 
             runner.prepare(repo.local_path, run.target_path, env_config)
@@ -453,15 +470,21 @@ def execute_test_run(run_id: int) -> dict:
             # has no quarantine rows (no file, no listener).
             listeners: list[str] | None = None
             from src.stats.models import FlakyQuarantine
-            quarantine_rows = session.execute(
-                select(FlakyQuarantine).where(
-                    FlakyQuarantine.repository_id == run.repository_id
+
+            quarantine_rows = (
+                session.execute(
+                    select(FlakyQuarantine).where(
+                        FlakyQuarantine.repository_id == run.repository_id
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             if quarantine_rows:
                 from src.execution.runners.quarantine_listener import (
                     write_quarantine_snapshot,
                 )
+
                 snapshot_path = write_quarantine_snapshot(
                     Path(output_dir),
                     [
@@ -509,10 +532,11 @@ def execute_test_run(run_id: int) -> dict:
             # prepare()/sync, and that signal must win even if the cancelling
             # request's commit hasn't propagated to this session yet (C1).
             if run.status == RunStatus.CANCELLED or result.cancelled:
-                logger.info("Run %d was cancelled (db=%s, result=%s)",
-                            run_id, run.status, result.cancelled)
+                logger.info(
+                    "Run %d was cancelled (db=%s, result=%s)", run_id, run.status, result.cancelled
+                )
                 run.status = RunStatus.CANCELLED
-                run.finished_at = datetime.now(timezone.utc)
+                run.finished_at = datetime.now(UTC)
                 run.duration_seconds = result.duration_seconds
                 session.commit()
                 _broadcast_run_status(run_id, RunStatus.CANCELLED, run)
@@ -520,7 +544,7 @@ def execute_test_run(run_id: int) -> dict:
 
             # Update run with results
             run.duration_seconds = result.duration_seconds
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = datetime.now(UTC)
 
             if result.success:
                 run.status = RunStatus.PASSED
@@ -537,7 +561,9 @@ def execute_test_run(run_id: int) -> dict:
                 )
                 combined = (result.stdout or "") + (result.stderr or "")
                 run.error_message = _enrich_error_with_hints(
-                    raw_error or "", combined, effective_runner_type,
+                    raw_error or "",
+                    combined,
+                    effective_runner_type,
                 )[:1000]
 
             session.commit()
@@ -555,11 +581,13 @@ def execute_test_run(run_id: int) -> dict:
             if result.output_xml_path and Path(result.output_xml_path).exists():
                 try:
                     from src.reports.tasks import parse_report
+
                     parse_report(run.id, result.output_xml_path)
                 except Exception as report_exc:
                     logger.warning(
                         "Failed to parse report for run %d: %s",
-                        run.id, report_exc,
+                        run.id,
+                        report_exc,
                     )
 
             # V15.3 — after parse_report so each attempt keeps its own report.
@@ -583,7 +611,7 @@ def execute_test_run(run_id: int) -> dict:
             if run.status != RunStatus.CANCELLED:
                 run.status = RunStatus.ERROR
                 run.error_message = str(e)[:1000]
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = datetime.now(UTC)
             session.commit()
             _broadcast_run_status(run_id, run.status, run)
             return {"status": "error", "message": str(e)}

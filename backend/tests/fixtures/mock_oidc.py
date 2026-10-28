@@ -52,6 +52,7 @@ def _mint_id_token(claims: dict[str, Any]) -> str:
 # MockOidcProvider
 # ---------------------------------------------------------------------------
 
+
 class MockOidcProvider:
     """Stateful mock for a minimal OIDC provider.
 
@@ -88,7 +89,7 @@ class MockOidcProvider:
     # Claims injection
     # ------------------------------------------------------------------
 
-    def with_claims(self, **overrides: Any) -> "MockOidcProvider":
+    def with_claims(self, **overrides: Any) -> MockOidcProvider:
         """Override claims for the next token-endpoint response."""
         self._pending_claims.update(overrides)
         return self
@@ -130,6 +131,7 @@ class MockOidcProvider:
 # ---------------------------------------------------------------------------
 # pytest fixture
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_oidc() -> Generator[MockOidcProvider, None, None]:

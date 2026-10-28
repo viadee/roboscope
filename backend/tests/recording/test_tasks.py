@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlalchemy.orm import Session
 
-from src.recording.models import RecordingSession, RecordingStatus, RecordingSource
+from src.recording.models import RecordingSession, RecordingSource, RecordingStatus
 from src.recording.tasks import (
     run_playwright_recorder,
     signal_stop_playwright,
@@ -149,7 +149,6 @@ def _wait_for_registration(listeners: _FakeListeners, event: str, timeout: float
 
 
 class TestBrowserLifecycle:
-
     def test_browser_disconnect_event_stops_recorder(self, recording_id: int) -> None:
         """AC4: browser 'disconnected' → stop event set → loop exits cleanly."""
         sync_pw, browser_listeners, _page_listeners, browser = _build_fake_playwright()
@@ -158,9 +157,7 @@ class TestBrowserLifecycle:
             patch("playwright.sync_api.sync_playwright", sync_pw),
             patch("src.recording.tasks._broadcast_recording_status"),
             patch("src.recording.tasks._broadcast_recording_event"),
-            patch(
-                "src.recording.tasks.generate_robot_for_recording"
-            ) as mock_generate,
+            patch("src.recording.tasks.generate_robot_for_recording") as mock_generate,
         ):
             thread = _run_in_thread(recording_id)
             _wait_for_registration(browser_listeners, "disconnected")
@@ -216,9 +213,7 @@ class TestBrowserLifecycle:
             assert not thread.is_alive()
             browser.close.assert_called_once()
 
-    def test_navigation_transient_does_not_stop_recorder(
-        self, recording_id: int
-    ) -> None:
+    def test_navigation_transient_does_not_stop_recorder(self, recording_id: int) -> None:
         """AC1: transient navigation errors no longer tear down the session.
 
         The old code polled `page.evaluate("1")` every 500 ms and treated
@@ -238,7 +233,9 @@ class TestBrowserLifecycle:
 
         # Extract page off the chain so we can control its behavior.
         pw_instance = sync_pw.return_value.start.return_value
-        page = pw_instance.chromium.launch.return_value.new_context.return_value.new_page.return_value
+        page = (
+            pw_instance.chromium.launch.return_value.new_context.return_value.new_page.return_value
+        )
         page.evaluate.side_effect = _evaluate_side_effect
 
         with (

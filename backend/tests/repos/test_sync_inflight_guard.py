@@ -33,9 +33,7 @@ class TestSyncInFlightGuard:
     @patch("src.repos.router.dispatch_task")
     def test_dispatches_when_no_sync_in_flight(self, mock_dispatch, client, git_repo, admin_user):
         mock_dispatch.return_value = MagicMock(id="task-1")
-        resp = client.post(
-            f"/api/v1/repos/{git_repo.id}/sync", headers=auth_header(admin_user)
-        )
+        resp = client.post(f"/api/v1/repos/{git_repo.id}/sync", headers=auth_header(admin_user))
         assert resp.status_code == 200
         assert resp.json()["status"] == "syncing"
         assert mock_dispatch.call_count == 1
@@ -49,9 +47,7 @@ class TestSyncInFlightGuard:
         db_session.refresh(git_repo)
         assert git_repo.updated_at is not None
 
-        resp = client.post(
-            f"/api/v1/repos/{git_repo.id}/sync", headers=auth_header(admin_user)
-        )
+        resp = client.post(f"/api/v1/repos/{git_repo.id}/sync", headers=auth_header(admin_user))
         assert resp.status_code == 200
         assert resp.json()["status"] == "syncing"
         assert resp.json()["message"] == "Sync already in progress"
@@ -69,8 +65,6 @@ class TestSyncInFlightGuard:
         )
         db_session.commit()
 
-        resp = client.post(
-            f"/api/v1/repos/{git_repo.id}/sync", headers=auth_header(admin_user)
-        )
+        resp = client.post(f"/api/v1/repos/{git_repo.id}/sync", headers=auth_header(admin_user))
         assert resp.status_code == 200
         assert mock_dispatch.call_count == 1

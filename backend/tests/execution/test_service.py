@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
 from src.auth.service import hash_password
-from src.execution.models import ExecutionRun, RunStatus, RunType, RunnerType, Schedule
-from src.execution.schemas import RunCreate, ScheduleCreate, ScheduleUpdate
+from src.execution.models import RunnerType, RunStatus, RunType
+from src.execution.schemas import RunCreate, ScheduleCreate
 from src.execution.service import (
     cancel_run,
     create_run,
@@ -251,18 +251,14 @@ class TestUpdateRunStatus:
 
     def test_update_with_error_message(self, db_session, user, repo):
         run = create_run(db_session, _run_create(repo.id), user.id)
-        updated = update_run_status(
-            db_session, run, RunStatus.ERROR, error_message="Segfault"
-        )
+        updated = update_run_status(db_session, run, RunStatus.ERROR, error_message="Segfault")
         assert updated.status == RunStatus.ERROR
         assert updated.error_message == "Segfault"
         assert updated.finished_at is not None
 
     def test_update_task_id(self, db_session, user, repo):
         run = create_run(db_session, _run_create(repo.id), user.id)
-        updated = update_run_status(
-            db_session, run, RunStatus.RUNNING, task_id="abc-123"
-        )
+        updated = update_run_status(db_session, run, RunStatus.RUNNING, task_id="abc-123")
         assert updated.task_id == "abc-123"
 
 
@@ -277,9 +273,7 @@ class TestCancelRun:
 
     def test_cancel_running_run(self, db_session, user, repo):
         run = create_run(db_session, _run_create(repo.id), user.id)
-        update_run_status(
-            db_session, run, RunStatus.RUNNING, task_id="task-xyz"
-        )
+        update_run_status(db_session, run, RunStatus.RUNNING, task_id="task-xyz")
 
         cancelled = cancel_run(db_session, run)
         assert cancelled.status == RunStatus.CANCELLED
@@ -402,12 +396,8 @@ class TestListSchedules:
         assert schedules == []
 
     def test_list_schedules_returns_all(self, db_session, user, repo):
-        create_schedule(
-            db_session, _schedule_create(repo.id, name="Alpha"), user.id
-        )
-        create_schedule(
-            db_session, _schedule_create(repo.id, name="Beta"), user.id
-        )
+        create_schedule(db_session, _schedule_create(repo.id, name="Alpha"), user.id)
+        create_schedule(db_session, _schedule_create(repo.id, name="Beta"), user.id)
 
         schedules = list_schedules(db_session)
         assert len(schedules) == 2
@@ -418,27 +408,21 @@ class TestListSchedules:
 
 class TestToggleSchedule:
     def test_toggle_active_to_inactive(self, db_session, user, repo):
-        schedule = create_schedule(
-            db_session, _schedule_create(repo.id), user.id
-        )
+        schedule = create_schedule(db_session, _schedule_create(repo.id), user.id)
         assert schedule.is_active is True
 
         toggled = toggle_schedule(db_session, schedule)
         assert toggled.is_active is False
 
     def test_toggle_inactive_to_active(self, db_session, user, repo):
-        schedule = create_schedule(
-            db_session, _schedule_create(repo.id), user.id
-        )
+        schedule = create_schedule(db_session, _schedule_create(repo.id), user.id)
         toggle_schedule(db_session, schedule)  # -> inactive
 
         toggled = toggle_schedule(db_session, schedule)
         assert toggled.is_active is True
 
     def test_double_toggle_returns_to_original(self, db_session, user, repo):
-        schedule = create_schedule(
-            db_session, _schedule_create(repo.id), user.id
-        )
+        schedule = create_schedule(db_session, _schedule_create(repo.id), user.id)
         original_state = schedule.is_active
 
         toggle_schedule(db_session, schedule)
@@ -449,9 +433,7 @@ class TestToggleSchedule:
 
 class TestDeleteSchedule:
     def test_delete_schedule_removes_it(self, db_session, user, repo):
-        schedule = create_schedule(
-            db_session, _schedule_create(repo.id), user.id
-        )
+        schedule = create_schedule(db_session, _schedule_create(repo.id), user.id)
         schedule_id = schedule.id
 
         delete_schedule(db_session, schedule)
@@ -460,12 +442,8 @@ class TestDeleteSchedule:
         assert result is None
 
     def test_delete_schedule_does_not_affect_others(self, db_session, user, repo):
-        s1 = create_schedule(
-            db_session, _schedule_create(repo.id, name="Keep me"), user.id
-        )
-        s2 = create_schedule(
-            db_session, _schedule_create(repo.id, name="Delete me"), user.id
-        )
+        s1 = create_schedule(db_session, _schedule_create(repo.id, name="Keep me"), user.id)
+        s2 = create_schedule(db_session, _schedule_create(repo.id, name="Delete me"), user.id)
 
         delete_schedule(db_session, s2)
 

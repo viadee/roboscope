@@ -31,9 +31,8 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy.orm import Session
 
-from src.execution.models import ExecutionRun, RunStatus, RunnerType
+from src.execution.models import ExecutionRun, RunnerType, RunStatus
 from src.repos.models import Repository
-
 
 # ---------------------------------------------------------------------------
 # fixtures
@@ -59,7 +58,10 @@ def repo(db_session: Session, admin_user, tmp_path) -> Repository:
 
 
 def _make_run(
-    db: Session, repo: Repository, admin_user, **overrides,
+    db: Session,
+    repo: Repository,
+    admin_user,
+    **overrides,
 ) -> ExecutionRun:
     defaults = dict(
         repository_id=repo.id,
@@ -87,9 +89,11 @@ def _patched_session(test_db: Session):
     Mirrors the same trick used in `tests/repos/test_auto_sync.py`
     and elsewhere.
     """
+
     @contextmanager
     def reuse():
         yield test_db
+
     with patch("src.execution.tasks.get_sync_session", reuse):
         yield
 
@@ -104,10 +108,13 @@ class TestRunNotFound:
         from src.execution.tasks import execute_test_run
 
         broadcasts: list = []
-        with patch(
-            "src.execution.tasks._broadcast_run_status",
-            side_effect=lambda *a, **kw: broadcasts.append((a, kw)),
-        ), _patched_session(db_session):
+        with (
+            patch(
+                "src.execution.tasks._broadcast_run_status",
+                side_effect=lambda *a, **kw: broadcasts.append((a, kw)),
+            ),
+            _patched_session(db_session),
+        ):
             result = execute_test_run(99999)
 
         assert result == {"status": "error", "message": "Run not found"}
@@ -123,7 +130,10 @@ class TestRunNotFound:
 
 class TestEnvironmentMissing:
     def test_returns_error_and_broadcasts(
-        self, db_session: Session, admin_user, repo,
+        self,
+        db_session: Session,
+        admin_user,
+        repo,
     ):
         # Reference an environment id that doesn't exist.
         run = _make_run(db_session, repo, admin_user, environment_id=99999)
@@ -131,10 +141,13 @@ class TestEnvironmentMissing:
         from src.execution.tasks import execute_test_run
 
         broadcasts: list = []
-        with patch(
-            "src.execution.tasks._broadcast_run_status",
-            side_effect=lambda *a, **kw: broadcasts.append(a),
-        ), _patched_session(db_session):
+        with (
+            patch(
+                "src.execution.tasks._broadcast_run_status",
+                side_effect=lambda *a, **kw: broadcasts.append(a),
+            ),
+            _patched_session(db_session),
+        ):
             result = execute_test_run(run.id)
 
         assert result["status"] == "error"
@@ -159,33 +172,43 @@ class TestEnvironmentMissing:
 
 class TestDockerRunnerMissingImage:
     def test_returns_error_and_broadcasts(
-        self, db_session: Session, admin_user, repo,
+        self,
+        db_session: Session,
+        admin_user,
+        repo,
     ):
         # Run requests Docker; env_config exists but has no docker_image
         # → orchestrator must fail-early with the configurable-image
         # guidance, NOT call into the docker SDK.
         run = _make_run(
-            db_session, repo, admin_user,
-            runner_type=RunnerType.DOCKER, environment_id=42,
+            db_session,
+            repo,
+            admin_user,
+            runner_type=RunnerType.DOCKER,
+            environment_id=42,
         )
 
         # Stub _get_env_config to return an env without docker_image.
         from src.execution.tasks import execute_test_run
 
         broadcasts: list = []
-        with patch(
-            "src.execution.tasks._get_env_config",
-            return_value={
-                "name": "stubbed-env",
-                "default_runner_type": RunnerType.SUBPROCESS,
-                "docker_image": None,
-                "venv_path": None,
-                "packages": [],
-            },
-        ), patch(
-            "src.execution.tasks._broadcast_run_status",
-            side_effect=lambda *a, **kw: broadcasts.append(a),
-        ), _patched_session(db_session):
+        with (
+            patch(
+                "src.execution.tasks._get_env_config",
+                return_value={
+                    "name": "stubbed-env",
+                    "default_runner_type": RunnerType.SUBPROCESS,
+                    "docker_image": None,
+                    "venv_path": None,
+                    "packages": [],
+                },
+            ),
+            patch(
+                "src.execution.tasks._broadcast_run_status",
+                side_effect=lambda *a, **kw: broadcasts.append(a),
+            ),
+            _patched_session(db_session),
+        ):
             result = execute_test_run(run.id)
 
         assert result["status"] == "error"

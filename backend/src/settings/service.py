@@ -1,7 +1,5 @@
 """Application settings service."""
 
-import json
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,44 +8,218 @@ from src.settings.schemas import SettingUpdate
 
 # Default settings to seed on first start
 DEFAULT_SETTINGS = [
-    {"key": "default_runner", "value": "subprocess", "value_type": "string", "category": "execution", "description": "Default runner type (subprocess or docker)"},
-    {"key": "default_timeout", "value": "3600", "value_type": "int", "category": "execution", "description": "Default timeout in seconds"},
-    {"key": "git_sync_interval", "value": "15", "value_type": "int", "category": "git", "description": "Git auto-sync interval in minutes"},
-    {"key": "report_retention_days", "value": "90", "value_type": "int", "category": "retention", "description": "Days to keep reports"},
-    {"key": "log_retention_days", "value": "30", "value_type": "int", "category": "retention", "description": "Days to keep logs"},
-    {"key": "log_level", "value": "INFO", "value_type": "string", "category": "general", "description": "Application log level"},
-    {"key": "enable_notifications", "value": "true", "value_type": "bool", "category": "general", "description": "Enable WebSocket notifications"},
-    {"key": "docker_default_image", "value": "python:3.12-slim", "value_type": "string", "category": "docker", "description": "Default Docker image for test execution"},
-    {"key": "docker_memory_limit", "value": "2g", "value_type": "string", "category": "docker", "description": "Docker container memory limit"},
-    {"key": "rf_mcp_auto_start", "value": "false", "value_type": "bool", "category": "ai", "description": "Auto-start rf-mcp server on app startup"},
-    {"key": "rf_mcp_environment_id", "value": "", "value_type": "string", "category": "ai", "description": "Environment ID for rf-mcp server"},
-    {"key": "rf_mcp_port", "value": "9090", "value_type": "int", "category": "ai", "description": "Port for rf-mcp server"},
-    {"key": "sso_emergency_bypass", "value": "false", "value_type": "bool", "category": "auth", "description": "Enable local-login fallback during SSO outage."},
-    {"key": "sso_emergency_bypass_expires_at", "value": "", "value_type": "string", "category": "auth", "description": "ISO-8601 auto-expiry for emergency bypass (empty = inactive)."},
-    {"key": "deprovision_retention_days", "value": "90", "value_type": "int", "category": "auth", "description": "Days before deprovisioned-user cleanup."},
-    {"key": "admin_contact_email", "value": "admin@roboscope.local", "value_type": "string", "category": "auth", "description": "Displayed on SSO outage screen as admin contact."},
-    {"key": "hide_local_login_form", "value": "false", "value_type": "bool", "category": "auth", "description": "Hide the email/password login form when SSO is the only permitted login path."},
+    {
+        "key": "default_runner",
+        "value": "subprocess",
+        "value_type": "string",
+        "category": "execution",
+        "description": "Default runner type (subprocess or docker)",
+    },
+    {
+        "key": "default_timeout",
+        "value": "3600",
+        "value_type": "int",
+        "category": "execution",
+        "description": "Default timeout in seconds",
+    },
+    {
+        "key": "git_sync_interval",
+        "value": "15",
+        "value_type": "int",
+        "category": "git",
+        "description": "Git auto-sync interval in minutes",
+    },
+    {
+        "key": "report_retention_days",
+        "value": "90",
+        "value_type": "int",
+        "category": "retention",
+        "description": "Days to keep reports",
+    },
+    {
+        "key": "log_retention_days",
+        "value": "30",
+        "value_type": "int",
+        "category": "retention",
+        "description": "Days to keep logs",
+    },
+    {
+        "key": "log_level",
+        "value": "INFO",
+        "value_type": "string",
+        "category": "general",
+        "description": "Application log level",
+    },
+    {
+        "key": "enable_notifications",
+        "value": "true",
+        "value_type": "bool",
+        "category": "general",
+        "description": "Enable WebSocket notifications",
+    },
+    {
+        "key": "docker_default_image",
+        "value": "python:3.12-slim",
+        "value_type": "string",
+        "category": "docker",
+        "description": "Default Docker image for test execution",
+    },
+    {
+        "key": "docker_memory_limit",
+        "value": "2g",
+        "value_type": "string",
+        "category": "docker",
+        "description": "Docker container memory limit",
+    },
+    {
+        "key": "rf_mcp_auto_start",
+        "value": "false",
+        "value_type": "bool",
+        "category": "ai",
+        "description": "Auto-start rf-mcp server on app startup",
+    },
+    {
+        "key": "rf_mcp_environment_id",
+        "value": "",
+        "value_type": "string",
+        "category": "ai",
+        "description": "Environment ID for rf-mcp server",
+    },
+    {
+        "key": "rf_mcp_port",
+        "value": "9090",
+        "value_type": "int",
+        "category": "ai",
+        "description": "Port for rf-mcp server",
+    },
+    {
+        "key": "sso_emergency_bypass",
+        "value": "false",
+        "value_type": "bool",
+        "category": "auth",
+        "description": "Enable local-login fallback during SSO outage.",
+    },
+    {
+        "key": "sso_emergency_bypass_expires_at",
+        "value": "",
+        "value_type": "string",
+        "category": "auth",
+        "description": "ISO-8601 auto-expiry for emergency bypass (empty = inactive).",
+    },
+    {
+        "key": "deprovision_retention_days",
+        "value": "90",
+        "value_type": "int",
+        "category": "auth",
+        "description": "Days before deprovisioned-user cleanup.",
+    },
+    {
+        "key": "admin_contact_email",
+        "value": "admin@roboscope.local",
+        "value_type": "string",
+        "category": "auth",
+        "description": "Displayed on SSO outage screen as admin contact.",
+    },
+    {
+        "key": "hide_local_login_form",
+        "value": "false",
+        "value_type": "bool",
+        "category": "auth",
+        "description": "Hide the email/password login form when SSO is the only permitted login path.",
+    },
     # Epic GOV — deployment governance feature flags (category "features").
     # Default ON = today's behavior. An ENV override (ROBOSCOPE_FEATURE_<KEY>)
     # wins over this DB value and locks the toggle in the UI.
-    {"key": "features.packageManagement", "value": "true", "value_type": "bool", "category": "features", "description": "Allow users to install/uninstall/upgrade packages, build Docker images, and run rfbrowser init. Turn off on managed/remote installs where environments are administered centrally."},
+    {
+        "key": "features.packageManagement",
+        "value": "true",
+        "value_type": "bool",
+        "category": "features",
+        "description": "Allow users to install/uninstall/upgrade packages, build Docker images, and run rfbrowser init. Turn off on managed/remote installs where environments are administered centrally.",
+    },
     # GOV-4 — minimum role per package operation (only consulted when
     # packageManagement is ON). Default "editor" preserves pre-GOV behavior.
-    {"key": "features.packageManagement.role.install", "value": "editor", "value_type": "string", "category": "features", "description": "Minimum role to install packages / set up the default environment."},
-    {"key": "features.packageManagement.role.uninstall", "value": "editor", "value_type": "string", "category": "features", "description": "Minimum role to uninstall packages."},
-    {"key": "features.packageManagement.role.upgrade", "value": "editor", "value_type": "string", "category": "features", "description": "Minimum role to upgrade packages."},
-    {"key": "features.packageManagement.role.docker_build", "value": "editor", "value_type": "string", "category": "features", "description": "Minimum role to build Docker images."},
-    {"key": "features.packageManagement.role.rfbrowser_init", "value": "editor", "value_type": "string", "category": "features", "description": "Minimum role to run rfbrowser init."},
+    {
+        "key": "features.packageManagement.role.install",
+        "value": "editor",
+        "value_type": "string",
+        "category": "features",
+        "description": "Minimum role to install packages / set up the default environment.",
+    },
+    {
+        "key": "features.packageManagement.role.uninstall",
+        "value": "editor",
+        "value_type": "string",
+        "category": "features",
+        "description": "Minimum role to uninstall packages.",
+    },
+    {
+        "key": "features.packageManagement.role.upgrade",
+        "value": "editor",
+        "value_type": "string",
+        "category": "features",
+        "description": "Minimum role to upgrade packages.",
+    },
+    {
+        "key": "features.packageManagement.role.docker_build",
+        "value": "editor",
+        "value_type": "string",
+        "category": "features",
+        "description": "Minimum role to build Docker images.",
+    },
+    {
+        "key": "features.packageManagement.role.rfbrowser_init",
+        "value": "editor",
+        "value_type": "string",
+        "category": "features",
+        "description": "Minimum role to run rfbrowser init.",
+    },
     # Epic EXEC — advanced execution levers. All default OFF (the deliberate
     # security exception to GOV's default-ON convention). Seeded here so admins
     # can toggle them in Settings → Features; the registry default still backs
     # them when the row is absent (e.g. ENV-locked installs).
-    {"key": "features.executionAdvancedArgs", "value": "false", "value_type": "bool", "category": "features", "description": "Show the run dialog's Advanced section: custom robot args, variables, and curated pre-/post-run modifiers + listeners. EDITOR+."},
-    {"key": "features.executionPreRunModifierUserCode", "value": "false", "value_type": "bool", "category": "features", "description": "Allow ADMINs to run user-authored (non-curated) PreRunModifier code — arbitrary code in the execution environment."},
-    {"key": "features.executionCustomListenerUserCode", "value": "false", "value_type": "bool", "category": "features", "description": "Allow ADMINs to attach user-authored (non-curated) Robot Framework listeners — arbitrary code throughout execution."},
-    {"key": "features.executionPythonPath", "value": "false", "value_type": "bool", "category": "features", "description": "Allow ADMINs to add repo-confined --pythonpath entries to a run."},
-    {"key": "features.executionVariableFile", "value": "false", "value_type": "bool", "category": "features", "description": "Allow ADMINs to load a repo-confined --variablefile in a run."},
-    {"key": "features.executionDataDriver", "value": "false", "value_type": "bool", "category": "features", "description": "Enable DataDriver dynamic test generation from a CSV data source."},
+    {
+        "key": "features.executionAdvancedArgs",
+        "value": "false",
+        "value_type": "bool",
+        "category": "features",
+        "description": "Show the run dialog's Advanced section: custom robot args, variables, and curated pre-/post-run modifiers + listeners. EDITOR+.",
+    },
+    {
+        "key": "features.executionPreRunModifierUserCode",
+        "value": "false",
+        "value_type": "bool",
+        "category": "features",
+        "description": "Allow ADMINs to run user-authored (non-curated) PreRunModifier code — arbitrary code in the execution environment.",
+    },
+    {
+        "key": "features.executionCustomListenerUserCode",
+        "value": "false",
+        "value_type": "bool",
+        "category": "features",
+        "description": "Allow ADMINs to attach user-authored (non-curated) Robot Framework listeners — arbitrary code throughout execution.",
+    },
+    {
+        "key": "features.executionPythonPath",
+        "value": "false",
+        "value_type": "bool",
+        "category": "features",
+        "description": "Allow ADMINs to add repo-confined --pythonpath entries to a run.",
+    },
+    {
+        "key": "features.executionVariableFile",
+        "value": "false",
+        "value_type": "bool",
+        "category": "features",
+        "description": "Allow ADMINs to load a repo-confined --variablefile in a run.",
+    },
+    {
+        "key": "features.executionDataDriver",
+        "value": "false",
+        "value_type": "bool",
+        "category": "features",
+        "description": "Enable DataDriver dynamic test generation from a CSV data source.",
+    },
 ]
 
 

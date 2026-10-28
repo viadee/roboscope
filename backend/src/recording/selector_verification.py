@@ -46,7 +46,8 @@ continue to pass.
 
 from __future__ import annotations
 
-from typing import Awaitable, Callable, NamedTuple, Union
+from collections.abc import Awaitable, Callable
+from typing import NamedTuple
 
 from src.recording.selector_schema import SelectorCandidate
 
@@ -54,18 +55,18 @@ from src.recording.selector_schema import SelectorCandidate
 class MatchInfo(NamedTuple):
     """Resolution result for one selector candidate against a live DOM."""
 
-    total: int       # all DOM matches
-    visible: int     # paint-visible (offsetParent + no hidden ancestor)
+    total: int  # all DOM matches
+    visible: int  # paint-visible (offsetParent + no hidden ancestor)
     actionable: int  # visible AND enabled (Playwright click target)
 
 
 LocatorFactory = Callable[
     [SelectorCandidate],
-    Awaitable[Union[int, MatchInfo, None]],
+    Awaitable[int | MatchInfo | None],
 ]
 
 
-def _coerce_match_info(value: Union[int, MatchInfo]) -> MatchInfo:
+def _coerce_match_info(value: int | MatchInfo) -> MatchInfo:
     """Accept legacy int-returning factories by treating every match
     as fully actionable. Older tests + any in-tree callers that only
     care about uniqueness keep working without rewrites."""
@@ -169,8 +170,11 @@ async def verify_candidates(
     # Build the ranked output with score adjustments + verified flag.
     # `actionable_rank` is 0..3 with 0 best, surfaced via a synthetic
     # tie-break key during sort.
-    def _classify(cand: SelectorCandidate, info: MatchInfo) -> tuple[
-        SelectorCandidate, int,
+    def _classify(
+        cand: SelectorCandidate, info: MatchInfo
+    ) -> tuple[
+        SelectorCandidate,
+        int,
     ]:
         if info.actionable == 1:
             # Gold standard — exactly one visible + clickable match.
@@ -216,17 +220,17 @@ async def verify_candidates(
             return (cand, 3)
         return (disambiguated, 1)  # disambiguated → effectively visible-1
 
-    classified: list[tuple[SelectorCandidate, int]] = [
-        _classify(c, i) for c, i in resolved
-    ]
+    classified: list[tuple[SelectorCandidate, int]] = [_classify(c, i) for c, i in resolved]
     # Sort: lower actionable_rank first, then higher quality_score
     # first, then verified_unique=True first (latter mostly redundant
     # but keeps the original Story-S.2 ordering for ties at rank 3).
-    classified.sort(key=lambda t: (
-        t[1],
-        -t[0].quality_score,
-        not t[0].verified_unique,
-    ))
+    classified.sort(
+        key=lambda t: (
+            t[1],
+            -t[0].quality_score,
+            not t[0].verified_unique,
+        )
+    )
     # Unverifiable candidates (locator_factory raised or returned
     # None) land at the tail with their synthesis-time
     # `verified_unique=False` intact — sorted within the tail by

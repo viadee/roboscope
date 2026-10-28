@@ -2,14 +2,13 @@
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import yaml
 from sqlalchemy import select
 
 import src.auth.models  # noqa: F401 — FK resolution
 import src.repos.models  # noqa: F401 — FK resolution
-
 from src.ai.llm_client import call_llm
 from src.ai.models import AiJob, AiProvider
 from src.ai.prompts import (
@@ -23,8 +22,8 @@ from src.ai.prompts import (
     verbosity_directive,
 )
 from src.database import get_sync_session
-from src.repos.models import Repository
 from src.reports.models import Report, TestResult
+from src.repos.models import Repository
 
 logger = logging.getLogger("roboscope.ai.tasks")
 
@@ -36,6 +35,7 @@ def _run_async(coro):
         if loop.is_running():
             # We're in a thread with a running loop — create a new one
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 return pool.submit(asyncio.run, coro).result()
         return loop.run_until_complete(coro)
@@ -153,7 +153,7 @@ def run_generate(job_id: int) -> None:
             return
 
         job.status = "running"
-        job.started_at = datetime.now(timezone.utc)
+        job.started_at = datetime.now(UTC)
         session.commit()
 
         try:
@@ -187,9 +187,7 @@ def run_generate(job_id: int) -> None:
                         existing_robot = target_file.read_text(encoding="utf-8")
 
             # Gather rf-mcp enrichment (optional)
-            keyword_docs, library_recs = _run_async(
-                _gather_rf_knowledge(spec_content)
-            )
+            keyword_docs, library_recs = _run_async(_gather_rf_knowledge(spec_content))
 
             user_prompt = enrich_generate_prompt(
                 spec_content, existing_robot, keyword_docs, library_recs
@@ -202,7 +200,7 @@ def run_generate(job_id: int) -> None:
             job.result_preview = content
             job.token_usage = result.tokens_used
             job.status = "completed"
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             session.commit()
 
             logger.info("Generate job %d completed (%d tokens)", job_id, result.tokens_used)
@@ -211,7 +209,7 @@ def run_generate(job_id: int) -> None:
             logger.exception("Generate job %d failed", job_id)
             job.status = "failed"
             job.error_message = str(e)
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             session.commit()
 
 
@@ -224,7 +222,7 @@ def run_reverse(job_id: int) -> None:
             return
 
         job.status = "running"
-        job.started_at = datetime.now(timezone.utc)
+        job.started_at = datetime.now(UTC)
         session.commit()
 
         try:
@@ -263,7 +261,7 @@ def run_reverse(job_id: int) -> None:
             job.result_preview = content
             job.token_usage = result.tokens_used
             job.status = "completed"
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             session.commit()
 
             logger.info("Reverse job %d completed (%d tokens)", job_id, result.tokens_used)
@@ -272,7 +270,7 @@ def run_reverse(job_id: int) -> None:
             logger.exception("Reverse job %d failed", job_id)
             job.status = "failed"
             job.error_message = str(e)
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             session.commit()
 
 
@@ -283,6 +281,7 @@ async def _gather_analysis_knowledge(failed_tests: list[dict]) -> list[dict]:
     documentation to help the LLM provide better fix suggestions.
     """
     import re
+
     from src.ai import rf_knowledge
 
     if not rf_knowledge.is_available():
@@ -316,11 +315,13 @@ async def _gather_analysis_knowledge(failed_tests: list[dict]) -> list[dict]:
                 kw_name = r.get("name", "")
                 if kw_name and kw_name not in seen:
                     seen.add(kw_name)
-                    keyword_docs.append({
-                        "name": kw_name,
-                        "library": r.get("library", "?"),
-                        "doc": r.get("doc", "No documentation"),
-                    })
+                    keyword_docs.append(
+                        {
+                            "name": kw_name,
+                            "library": r.get("library", "?"),
+                            "doc": r.get("doc", "No documentation"),
+                        }
+                    )
             if len(keyword_docs) >= 10:
                 break
 
@@ -344,7 +345,7 @@ def run_analyze(job_id: int, language: str | None = None, verbosity: str | None 
             return
 
         job.status = "running"
-        job.started_at = datetime.now(timezone.utc)
+        job.started_at = datetime.now(UTC)
         session.commit()
 
         try:
@@ -352,23 +353,23 @@ def run_analyze(job_id: int, language: str | None = None, verbosity: str | None 
                 select(AiProvider).where(AiProvider.id == job.provider_id)
             ).scalar_one()
 
-            report = session.execute(
-                select(Report).where(Report.id == job.report_id)
-            ).scalar_one()
+            report = session.execute(select(Report).where(Report.id == job.report_id)).scalar_one()
 
             failed_results = list(
                 session.execute(
                     select(TestResult)
                     .where(TestResult.report_id == report.id)
                     .where(TestResult.status == "FAIL")
-                ).scalars().all()
+                )
+                .scalars()
+                .all()
             )
 
             if not failed_results:
                 job.result_preview = "No failed tests found in this report."
                 job.token_usage = 0
                 job.status = "completed"
-                job.completed_at = datetime.now(timezone.utc)
+                job.completed_at = datetime.now(UTC)
                 session.commit()
                 return
 
@@ -399,9 +400,7 @@ def run_analyze(job_id: int, language: str | None = None, verbosity: str | None 
             # Enrich with rf-mcp keyword docs if available
             keyword_docs = _run_async(_gather_analysis_knowledge(failed_tests))
             if keyword_docs:
-                docs_text = "\n".join(
-                    f"- **{kw['name']}**: {kw['doc']}" for kw in keyword_docs
-                )
+                docs_text = "\n".join(f"- **{kw['name']}**: {kw['doc']}" for kw in keyword_docs)
                 user_prompt += (
                     "\n\n--- RF Keyword Documentation (via rf-mcp by Many Kasiriha) ---\n\n"
                     "Use this documentation to provide more accurate fix suggestions:\n\n"
@@ -418,7 +417,7 @@ def run_analyze(job_id: int, language: str | None = None, verbosity: str | None 
             job.result_preview = result.content
             job.token_usage = result.tokens_used
             job.status = "completed"
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             session.commit()
 
             logger.info("Analyze job %d completed (%d tokens)", job_id, result.tokens_used)
@@ -427,7 +426,7 @@ def run_analyze(job_id: int, language: str | None = None, verbosity: str | None 
             logger.exception("Analyze job %d failed", job_id)
             job.status = "failed"
             job.error_message = str(e)
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             session.commit()
 
 
@@ -443,9 +442,7 @@ def _strip_code_fences(content: str) -> str:
     """
     text = content.strip()
     lines = text.splitlines()
-    open_idx = next(
-        (i for i, ln in enumerate(lines) if ln.lstrip().startswith("```")), None
-    )
+    open_idx = next((i for i, ln in enumerate(lines) if ln.lstrip().startswith("```")), None)
     if open_idx is None:
         return text
     close_idx = next(
@@ -454,5 +451,5 @@ def _strip_code_fences(content: str) -> str:
     )
     if close_idx is None:
         # Unbalanced (opening fence only) — drop the preamble + the fence line.
-        return "\n".join(lines[open_idx + 1:]).strip()
-    return "\n".join(lines[open_idx + 1:close_idx]).strip()
+        return "\n".join(lines[open_idx + 1 :]).strip()
+    return "\n".join(lines[open_idx + 1 : close_idx]).strip()

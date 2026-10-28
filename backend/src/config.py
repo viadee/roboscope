@@ -45,9 +45,8 @@ class Settings(BaseSettings):
         Handles legacy async-style URLs (sqlite+aiosqlite, postgresql+asyncpg)
         by stripping the async driver prefix, so existing .env files keep working.
         """
-        return (
-            self.DATABASE_URL.replace("sqlite+aiosqlite://", "sqlite://")
-            .replace("postgresql+asyncpg://", "postgresql://")
+        return self.DATABASE_URL.replace("sqlite+aiosqlite://", "sqlite://").replace(
+            "postgresql+asyncpg://", "postgresql://"
         )
 
     # JWT Authentication

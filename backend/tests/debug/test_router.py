@@ -117,7 +117,9 @@ def _swap_factory_and_clear():
 # ---------------------------------------------------------------------------
 
 
-def _make_repo_run(db, user, tmp_path: Path, status: str = "failed") -> tuple[Repository, ExecutionRun]:
+def _make_repo_run(
+    db, user, tmp_path: Path, status: str = "failed"
+) -> tuple[Repository, ExecutionRun]:
     """Create a repository + venv-equipped environment + a failed run
     pointing at a small `.robot` file on disk."""
     # Repo on disk so the fallback-line scan can read the file.
@@ -125,9 +127,7 @@ def _make_repo_run(db, user, tmp_path: Path, status: str = "failed") -> tuple[Re
     repo_root.mkdir()
     target = repo_root / "tests.robot"
     target.write_text(
-        "*** Test Cases ***\n"
-        "Sample\n"
-        "    Log    hello\n",
+        "*** Test Cases ***\nSample\n    Log    hello\n",
         encoding="utf-8",
     )
 
@@ -190,9 +190,7 @@ class TestStartSessionRBAC:
         )
         assert resp.status_code == 404
 
-    def test_viewer_is_forbidden(
-        self, client: TestClient, db_session, viewer_user, tmp_path
-    ):
+    def test_viewer_is_forbidden(self, client: TestClient, db_session, viewer_user, tmp_path):
         _, run = _make_repo_run(db_session, viewer_user, tmp_path)
         resp = client.post(
             "/api/v1/debug/sessions",
@@ -201,9 +199,7 @@ class TestStartSessionRBAC:
         )
         assert resp.status_code == 403
 
-    def test_runner_can_start(
-        self, client: TestClient, db_session, runner_user, tmp_path
-    ):
+    def test_runner_can_start(self, client: TestClient, db_session, runner_user, tmp_path):
         _, run = _make_repo_run(db_session, runner_user, tmp_path)
         resp = client.post(
             "/api/v1/debug/sessions",
@@ -218,9 +214,7 @@ class TestStartSessionRBAC:
 
 
 class TestAuditEmission:
-    def test_started_event_logged(
-        self, client: TestClient, db_session, runner_user, tmp_path
-    ):
+    def test_started_event_logged(self, client: TestClient, db_session, runner_user, tmp_path):
         _, run = _make_repo_run(db_session, runner_user, tmp_path)
         resp = client.post(
             "/api/v1/debug/sessions",
@@ -270,9 +264,7 @@ class TestDedup:
 
 
 class TestControl:
-    def test_continue_step_disconnect(
-        self, client: TestClient, db_session, runner_user, tmp_path
-    ):
+    def test_continue_step_disconnect(self, client: TestClient, db_session, runner_user, tmp_path):
         _, run = _make_repo_run(db_session, runner_user, tmp_path)
         start = client.post(
             "/api/v1/debug/sessions",
@@ -337,9 +329,7 @@ class TestControl:
 
 
 class TestState:
-    def test_initial_state_is_blank(
-        self, client: TestClient, db_session, runner_user, tmp_path
-    ):
+    def test_initial_state_is_blank(self, client: TestClient, db_session, runner_user, tmp_path):
         _, run = _make_repo_run(db_session, runner_user, tmp_path)
         start = client.post(
             "/api/v1/debug/sessions",
@@ -376,10 +366,7 @@ def _make_repo_with_test(
     # section header. Means line 3 is the first executable body line
     # and line 2 is the test-header line we MUST reject.
     target.write_text(
-        "*** Test Cases ***\n"
-        f"{test_name}\n"
-        "    Log    starting\n"
-        "    Log    finished\n",
+        f"*** Test Cases ***\n{test_name}\n    Log    starting\n    Log    finished\n",
         encoding="utf-8",
     )
 
@@ -442,14 +429,13 @@ class TestStartFromStepHappyPath:
         )
         assert len(rows) == 1
         import json as _json
+
         details = _json.loads(rows[0].detail) if rows[0].detail else {}
         assert details.get("source") == "flow_editor"
 
 
 class TestStartFromStepValidation:
-    def test_rejects_test_header_line(
-        self, client: TestClient, db_session, runner_user, tmp_path
-    ):
+    def test_rejects_test_header_line(self, client: TestClient, db_session, runner_user, tmp_path):
         """AC4: line == test-case header line is a 422; RF won't break there."""
         repo, rel_path = _make_repo_with_test(db_session, runner_user, tmp_path)
         # The `Login Test` name lives on line 2 (header line above).
@@ -466,9 +452,7 @@ class TestStartFromStepValidation:
         assert resp.status_code == 422
         assert "header" in resp.text.lower()
 
-    def test_rejects_unknown_test_name(
-        self, client: TestClient, db_session, runner_user, tmp_path
-    ):
+    def test_rejects_unknown_test_name(self, client: TestClient, db_session, runner_user, tmp_path):
         repo, rel_path = _make_repo_with_test(db_session, runner_user, tmp_path)
         resp = client.post(
             "/api/v1/debug/sessions",
@@ -483,9 +467,7 @@ class TestStartFromStepValidation:
         assert resp.status_code == 422
         assert "not found" in resp.text.lower()
 
-    def test_rejects_line_outside_test(
-        self, client: TestClient, db_session, runner_user, tmp_path
-    ):
+    def test_rejects_line_outside_test(self, client: TestClient, db_session, runner_user, tmp_path):
         repo, rel_path = _make_repo_with_test(db_session, runner_user, tmp_path)
         # Line 1 is the section header, before the test starts.
         resp = client.post(
@@ -500,9 +482,7 @@ class TestStartFromStepValidation:
         )
         assert resp.status_code == 422
 
-    def test_rejects_missing_file(
-        self, client: TestClient, db_session, runner_user, tmp_path
-    ):
+    def test_rejects_missing_file(self, client: TestClient, db_session, runner_user, tmp_path):
         repo, _ = _make_repo_with_test(db_session, runner_user, tmp_path)
         resp = client.post(
             "/api/v1/debug/sessions",
@@ -516,9 +496,7 @@ class TestStartFromStepValidation:
         )
         assert resp.status_code == 422
 
-    def test_rejects_path_traversal(
-        self, client: TestClient, db_session, runner_user, tmp_path
-    ):
+    def test_rejects_path_traversal(self, client: TestClient, db_session, runner_user, tmp_path):
         """A `../../etc/passwd` payload must NOT escape the repo root."""
         repo, _ = _make_repo_with_test(db_session, runner_user, tmp_path)
         resp = client.post(
@@ -551,9 +529,7 @@ class TestStartFromStepValidation:
         )
         assert resp.status_code == 422
 
-    def test_rejects_empty_body(
-        self, client: TestClient, runner_user
-    ):
+    def test_rejects_empty_body(self, client: TestClient, runner_user):
         resp = client.post(
             "/api/v1/debug/sessions",
             json={},
@@ -563,9 +539,7 @@ class TestStartFromStepValidation:
 
 
 class TestStartFromStepRBAC:
-    def test_viewer_is_forbidden(
-        self, client: TestClient, db_session, viewer_user, tmp_path
-    ):
+    def test_viewer_is_forbidden(self, client: TestClient, db_session, viewer_user, tmp_path):
         repo, rel_path = _make_repo_with_test(db_session, viewer_user, tmp_path)
         resp = client.post(
             "/api/v1/debug/sessions",
@@ -691,9 +665,7 @@ class TestPrereq424:
         assert resp.status_code == 424
         assert resp.json()["detail"]["code"] == "robotcode_not_installed"
 
-    def test_no_audit_emitted_for_424(
-        self, client: TestClient, db_session, runner_user, tmp_path
-    ):
+    def test_no_audit_emitted_for_424(self, client: TestClient, db_session, runner_user, tmp_path):
         _, run = _make_repo_run(db_session, runner_user, tmp_path)
         env = db_session.query(Environment).first()
         (Path(env.venv_path) / "bin" / "robotcode").unlink()
@@ -741,13 +713,12 @@ class TestPrereqInstallEndpoint:
             v = Path(venv_path)
             (v / "bin" / "robotcode").write_text("# installed", encoding="utf-8")
             (v / "lib" / "python3.12" / "site-packages" / "robotcode" / "debugger").mkdir(
-                parents=True, exist_ok=True,
+                parents=True,
+                exist_ok=True,
             )
             return "Installed robotcode-1.2.3"
 
-        monkeypatch.setattr(
-            "src.debug.router.install_robotcode", fake_install
-        )
+        monkeypatch.setattr("src.debug.router.install_robotcode", fake_install)
 
         resp = client.post(
             "/api/v1/debug/sessions/install-prerequisites",
@@ -780,9 +751,7 @@ class TestPrereqInstallEndpoint:
         async def fail_install(venv_path: str) -> str:
             raise PrereqInstallFailed("uv pip install exited with code 1:\nERROR: …")
 
-        monkeypatch.setattr(
-            "src.debug.router.install_robotcode", fail_install
-        )
+        monkeypatch.setattr("src.debug.router.install_robotcode", fail_install)
 
         resp = client.post(
             "/api/v1/debug/sessions/install-prerequisites",

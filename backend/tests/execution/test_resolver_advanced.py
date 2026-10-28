@@ -127,9 +127,7 @@ def test_pythonpath_and_variablefile_repo_confined(tmp_path):
 @pytest.mark.parametrize("escaping", ["../outside", "/etc/passwd", "libs/../../oops"])
 def test_pythonpath_escaping_repo_is_rejected(tmp_path, escaping):
     with pytest.raises(AdvancedArgError):
-        resolve_run_spec(
-            target_path="s.robot", python_paths=[escaping], repo_root=str(tmp_path)
-        )
+        resolve_run_spec(target_path="s.robot", python_paths=[escaping], repo_root=str(tmp_path))
 
 
 def test_file_lever_without_repo_root_fails_closed():

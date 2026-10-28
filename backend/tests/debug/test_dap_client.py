@@ -37,9 +37,7 @@ class _FakeServer:
         self._client_writer: asyncio.StreamWriter | None = None
 
     async def start(self) -> int:
-        self._server = await asyncio.start_server(
-            self._handle, host="127.0.0.1", port=0
-        )
+        self._server = await asyncio.start_server(self._handle, host="127.0.0.1", port=0)
         return self._server.sockets[0].getsockname()[1]  # type: ignore[no-any-return]
 
     async def stop(self) -> None:
@@ -66,9 +64,7 @@ class _FakeServer:
         self._client_writer.write(encode_message(msg))  # type: ignore[arg-type]
         await self._client_writer.drain()
 
-    async def _handle(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ) -> None:
+    async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         self._client_writer = writer
         # Drain any unsolicited events queued before the connection.
         for evt in self.unsolicited_events:

@@ -18,7 +18,6 @@ from src.recording.selector_schema import (
     SelectorCandidate,
 )
 
-
 _logger = logging.getLogger("roboscope.recording.emit")
 
 
@@ -97,11 +96,7 @@ def _is_already_disambiguated(value: str) -> bool:
     # H5: only an actual nth marker counts. The old code returned True for any
     # `>>`/`>>>`, so an unverified multi-match chained shadow selector skipped
     # the wrap and crashed Browser-library strict mode at replay.
-    return (
-        ">> nth=" in value
-        or ":nth-match(" in value
-        or ":nth-of-type(" in value
-    )
+    return ">> nth=" in value or ":nth-match(" in value or ":nth-of-type(" in value
 
 
 def _render_selector(cand: SelectorCandidate) -> str:
@@ -199,6 +194,7 @@ def _iframe_locator_from_url(frame_url: str) -> str | None:
     `iframe[src*="message-eu.sp-prod.net"] >>> button.message-component`.
     """
     from urllib.parse import urlparse
+
     try:
         parsed = urlparse(frame_url)
     except Exception:
@@ -227,9 +223,7 @@ def _emit_command(cmd: RecordedCommand) -> str:
     selector_needed = cmd.keyword in _TARGETED_KEYWORDS
     if selector_needed:
         active = (
-            cmd.selector_candidates[cmd.active_candidate_index]
-            if cmd.selector_candidates
-            else None
+            cmd.selector_candidates[cmd.active_candidate_index] if cmd.selector_candidates else None
         )
         if active is None:
             # Targeted keyword without a selector — the previous
@@ -245,7 +239,10 @@ def _emit_command(cmd: RecordedCommand) -> str:
                 "emit: targeted keyword %r has no selector candidate "
                 "(cmd.id=%s, index=%d, frame_url=%s) — emitting as a "
                 "comment so replay doesn't crash on a zero-arg call",
-                cmd.keyword, cmd.id or "<none>", cmd.index, cmd.frame_url,
+                cmd.keyword,
+                cmd.id or "<none>",
+                cmd.index,
+                cmd.frame_url,
             )
             comment_line = (
                 f"    # RBSCOPE: dropped {cmd.keyword} — no selector "
@@ -379,9 +376,7 @@ def _emit_desktop_command(cmd: RecordedCommand) -> str:
     targeted = cmd.keyword in _DESKTOP_TARGETED_KEYWORDS
     if targeted:
         active = (
-            cmd.selector_candidates[cmd.active_candidate_index]
-            if cmd.selector_candidates
-            else None
+            cmd.selector_candidates[cmd.active_candidate_index] if cmd.selector_candidates else None
         )
         if active is None:
             # Same fix as the web _emit_command: emit the entire
@@ -393,7 +388,9 @@ def _emit_desktop_command(cmd: RecordedCommand) -> str:
                 "emit (desktop): targeted keyword %r has no selector "
                 "candidate (cmd.id=%s, index=%d) — emitting as a "
                 "comment so replay doesn't crash on a zero-arg call",
-                cmd.keyword, cmd.id or "<none>", cmd.index,
+                cmd.keyword,
+                cmd.id or "<none>",
+                cmd.index,
             )
             return (
                 f"    # RBSCOPE: dropped {cmd.keyword} — no selector "
@@ -468,16 +465,20 @@ def emit_robot(flow: RecordedFlow) -> str:
     # for recorded tests — they're authored by clicking through a real
     # page; running them headed by default is what the user expects.
     if not is_desktop:
-        lines.extend([
-            "*** Variables ***",
-            "${HEADLESS}       false",
-            "",
-        ])
+        lines.extend(
+            [
+                "*** Variables ***",
+                "${HEADLESS}       false",
+                "",
+            ]
+        )
 
-    lines.extend([
-        "*** Test Cases ***",
-        test_name,
-    ])
+    lines.extend(
+        [
+            "*** Test Cases ***",
+            test_name,
+        ]
+    )
 
     if not flow.commands:
         lines.append("    No Operation")
@@ -490,8 +491,11 @@ def emit_robot(flow: RecordedFlow) -> str:
         # `Go To` we see (the captured initial-load) and drop that
         # original Go To since `New Page <url>` already navigates.
         first_goto_idx = next(
-            (i for i, c in enumerate(flow.commands)
-             if c.keyword == "Go To" and isinstance(c.args.get("url"), str)),
+            (
+                i
+                for i, c in enumerate(flow.commands)
+                if c.keyword == "Go To" and isinstance(c.args.get("url"), str)
+            ),
             None,
         )
         initial_url = (
@@ -499,8 +503,8 @@ def emit_robot(flow: RecordedFlow) -> str:
             if first_goto_idx is not None
             else "about:blank"
         )
-        lines.append(f"    New Browser    chromium    headless=${{HEADLESS}}")
-        lines.append(f"    New Context")
+        lines.append("    New Browser    chromium    headless=${HEADLESS}")
+        lines.append("    New Context")
         # Default `wait_until=load` waits for every ad/tracker subresource
         # to settle, which on real-world pages (heise.de etc.) routinely
         # exceeds the Browser-library 10s timeout even when the page is

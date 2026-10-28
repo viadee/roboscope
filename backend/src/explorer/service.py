@@ -17,7 +17,15 @@ from src.explorer.rf_sections import (
 from src.explorer.schemas import FileContent, SearchResult, TestCaseInfo, TreeNode
 
 # Directories and files to skip in the tree
-IGNORE_DIRS = {".git", "__pycache__", ".venv", "node_modules", ".tox", ".pytest_cache", ".mypy_cache"}
+IGNORE_DIRS = {
+    ".git",
+    "__pycache__",
+    ".venv",
+    "node_modules",
+    ".tox",
+    ".pytest_cache",
+    ".mypy_cache",
+}
 IGNORE_FILES = {".gitignore", ".DS_Store", "Thumbs.db"}
 
 # Robot Framework file extensions
@@ -69,7 +77,6 @@ def build_tree(base_path: str, relative_path: str = "") -> TreeNode:
     return root_node
 
 
-
 def _count_tests_in_file(file_path: str) -> int:
     """Count test cases in a robot file."""
     try:
@@ -83,7 +90,12 @@ def _count_tests_in_file(file_path: str) -> int:
                 kind = section_of(line)
                 in_test_section = kind in (TEST_CASES, TASKS)
                 continue
-            if in_test_section and stripped and not stripped.startswith("#") and not line.startswith((" ", "\t")):
+            if (
+                in_test_section
+                and stripped
+                and not stripped.startswith("#")
+                and not line.startswith((" ", "\t"))
+            ):
                 count += 1
         return count
     except Exception:
@@ -254,7 +266,7 @@ def parse_robot_keywords_in_repo(base_path: str) -> list[dict]:
                     }
                     in_doc = False
                 elif current_kw and stripped.lower().startswith("[documentation]"):
-                    current_kw["doc"] = " ".join(_rf_cells(stripped[len("[documentation]"):]))
+                    current_kw["doc"] = " ".join(_rf_cells(stripped[len("[documentation]") :]))
                     in_doc = True
                 elif current_kw and in_doc and stripped.startswith("..."):
                     cont = " ".join(_rf_cells(stripped[3:]))
@@ -306,11 +318,13 @@ def search_in_repo(base_path: str, query: str, file_type: str | None = None) -> 
 
         # Match filename
         if query_lower in file_path.name.lower():
-            results.append(SearchResult(
-                type="file",
-                name=file_path.name,
-                file_path=rel_path,
-            ))
+            results.append(
+                SearchResult(
+                    type="file",
+                    name=file_path.name,
+                    file_path=rel_path,
+                )
+            )
 
         # Search file content
         try:
@@ -321,16 +335,22 @@ def search_in_repo(base_path: str, query: str, file_type: str | None = None) -> 
                     result_type = "file"
                     if file_path.suffix == ".robot":
                         stripped = line.strip()
-                        if not line.startswith((" ", "\t")) and stripped and not stripped.startswith(("*", "#")):
+                        if (
+                            not line.startswith((" ", "\t"))
+                            and stripped
+                            and not stripped.startswith(("*", "#"))
+                        ):
                             result_type = "testcase"
 
-                    results.append(SearchResult(
-                        type=result_type,
-                        name=line.strip()[:100],
-                        file_path=rel_path,
-                        line_number=i,
-                        context=line.strip()[:200],
-                    ))
+                    results.append(
+                        SearchResult(
+                            type=result_type,
+                            name=line.strip()[:100],
+                            file_path=rel_path,
+                            line_number=i,
+                            context=line.strip()[:200],
+                        )
+                    )
         except Exception:
             continue
 
@@ -402,8 +422,8 @@ def list_all_tags(base_path: str) -> list[str]:
                 for prefix in _SUITE_TAG_PREFIXES:
                     # Require a cell separator (tab / 2+ spaces) after the prefix
                     # so "Default Tagsfoo" doesn't match "default tags".
-                    if low.startswith(prefix) and re.match(r"\t| {2,}", stripped[len(prefix):]):
-                        rest = stripped[len(prefix):].strip()
+                    if low.startswith(prefix) and re.match(r"\t| {2,}", stripped[len(prefix) :]):
+                        rest = stripped[len(prefix) :].strip()
                         # RF cell separator is a tab OR two-or-more spaces — NOT
                         # exactly four (the old split silently merged 2-/tab-
                         # separated tags into one bogus value).
@@ -541,9 +561,7 @@ def extract_libraries(base_path: str) -> list[dict]:
     ]
 
 
-def check_libraries_against_env(
-    base_path: str, installed_packages: list[dict]
-) -> list[dict]:
+def check_libraries_against_env(base_path: str, installed_packages: list[dict]) -> list[dict]:
     """Check extracted libraries against installed packages in an environment.
 
     Args:
@@ -568,45 +586,53 @@ def check_libraries_against_env(
         lib_name = lib["library_name"]
 
         if lib_name in BUILTIN_LIBRARIES:
-            results.append({
-                "library_name": lib_name,
-                "pypi_package": None,
-                "status": "builtin",
-                "installed_version": None,
-                "files": lib["files"],
-            })
+            results.append(
+                {
+                    "library_name": lib_name,
+                    "pypi_package": None,
+                    "status": "builtin",
+                    "installed_version": None,
+                    "files": lib["files"],
+                }
+            )
             continue
 
         pypi_package = resolve_pypi_package(lib_name)
         if pypi_package is None:
             # Path-based or relative import, treat as builtin/skip
-            results.append({
-                "library_name": lib_name,
-                "pypi_package": None,
-                "status": "builtin",
-                "installed_version": None,
-                "files": lib["files"],
-            })
+            results.append(
+                {
+                    "library_name": lib_name,
+                    "pypi_package": None,
+                    "status": "builtin",
+                    "installed_version": None,
+                    "files": lib["files"],
+                }
+            )
             continue
 
         # Check if installed (normalize pypi_package for comparison)
         normalized_pypi = pypi_package.lower().replace("-", "_")
         if normalized_pypi in installed_map:
-            results.append({
-                "library_name": lib_name,
-                "pypi_package": pypi_package,
-                "status": "installed",
-                "installed_version": installed_map[normalized_pypi],
-                "files": lib["files"],
-            })
+            results.append(
+                {
+                    "library_name": lib_name,
+                    "pypi_package": pypi_package,
+                    "status": "installed",
+                    "installed_version": installed_map[normalized_pypi],
+                    "files": lib["files"],
+                }
+            )
         else:
-            results.append({
-                "library_name": lib_name,
-                "pypi_package": pypi_package,
-                "status": "missing",
-                "installed_version": None,
-                "files": lib["files"],
-            })
+            results.append(
+                {
+                    "library_name": lib_name,
+                    "pypi_package": pypi_package,
+                    "status": "missing",
+                    "installed_version": None,
+                    "files": lib["files"],
+                }
+            )
 
     return results
 

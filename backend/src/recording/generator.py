@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 logger = logging.getLogger("roboscope.recording.generator")
 
@@ -52,12 +52,10 @@ def generate_robot_file(
     if not events:
         return _empty_robot(target_library, test_name)
 
-    keyword_map = (
-        BROWSER_KEYWORD_MAP if target_library == "Browser" else SELENIUM_KEYWORD_MAP
-    )
+    keyword_map = BROWSER_KEYWORD_MAP if target_library == "Browser" else SELENIUM_KEYWORD_MAP
 
     if not test_name:
-        test_name = f"Recorded Test {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}"
+        test_name = f"Recorded Test {datetime.now(UTC).strftime('%Y-%m-%d %H:%M')}"
 
     lines = []
 
@@ -66,7 +64,7 @@ def generate_robot_file(
     if target_url:
         lines.append(f"Documentation     Recorded test for {target_url}")
     lines.append(f"Library           {target_library}")
-    lines.append(f"Test Teardown     Close Browser")
+    lines.append("Test Teardown     Close Browser")
     lines.append("")
 
     # Variables section
@@ -94,7 +92,7 @@ def generate_robot_file(
 
         if event_type == "navigate":
             if target_library == "Browser":
-                lines.append(f"    New Browser    ${{BROWSER}}    headless=false")
+                lines.append("    New Browser    ${BROWSER}    headless=false")
                 # Default `wait_until=load` waits for every ad/tracker
                 # subresource to settle, which on real-world pages
                 # (heise.de etc.) routinely exceeds the Browser-library

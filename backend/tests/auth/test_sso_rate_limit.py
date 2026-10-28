@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-import pytest
 from sqlalchemy.orm import Session
 
 from src.auth.sso_rate_limit import (
@@ -21,16 +20,12 @@ from src.rate_limit import RateLimitCounter
 
 
 def _count_rows(db: Session, ip: str) -> int:
-    return (
-        db.query(RateLimitCounter)
-        .filter(RateLimitCounter.bucket_key == _bucket_key(ip))
-        .count()
-    )
+    return db.query(RateLimitCounter).filter(RateLimitCounter.bucket_key == _bucket_key(ip)).count()
 
 
 class TestRecordFailure:
     def test_increments_counter_in_current_window(self, db_session: Session) -> None:
-        now = datetime(2026, 4, 22, 10, 0, 30, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 22, 10, 0, 30, tzinfo=UTC)
 
         assert record_failure(db_session, "1.2.3.4", now=now) == 1
         assert record_failure(db_session, "1.2.3.4", now=now) == 2
@@ -39,7 +34,7 @@ class TestRecordFailure:
         assert _count_rows(db_session, "1.2.3.4") == 1  # same window, one row
 
     def test_uses_separate_rows_per_window(self, db_session: Session) -> None:
-        t0 = datetime(2026, 4, 22, 10, 0, 30, tzinfo=timezone.utc)
+        t0 = datetime(2026, 4, 22, 10, 0, 30, tzinfo=UTC)
         t1 = t0 + timedelta(seconds=_WINDOW_SECONDS + 1)  # next window
 
         assert record_failure(db_session, "1.2.3.4", now=t0) == 1
@@ -50,7 +45,7 @@ class TestRecordFailure:
         assert _count_rows(db_session, "1.2.3.4") == 2  # two windows, two rows
 
     def test_distinct_ips_have_distinct_counters(self, db_session: Session) -> None:
-        now = datetime(2026, 4, 22, 10, 0, 30, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 22, 10, 0, 30, tzinfo=UTC)
         record_failure(db_session, "1.1.1.1", now=now)
         record_failure(db_session, "2.2.2.2", now=now)
         assert _count_rows(db_session, "1.1.1.1") == 1
@@ -59,7 +54,7 @@ class TestRecordFailure:
 
 class TestIsRateLimited:
     def test_below_threshold_returns_false(self, db_session: Session) -> None:
-        now = datetime(2026, 4, 22, 10, 0, 30, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 22, 10, 0, 30, tzinfo=UTC)
         for _ in range(_THRESHOLD - 1):
             record_failure(db_session, "1.2.3.4", now=now)
         limited, retry_after = is_rate_limited(db_session, "1.2.3.4", now=now)
@@ -67,7 +62,7 @@ class TestIsRateLimited:
         assert retry_after > 0
 
     def test_at_threshold_returns_true(self, db_session: Session) -> None:
-        now = datetime(2026, 4, 22, 10, 0, 30, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 22, 10, 0, 30, tzinfo=UTC)
         for _ in range(_THRESHOLD):
             record_failure(db_session, "1.2.3.4", now=now)
         limited, retry_after = is_rate_limited(db_session, "1.2.3.4", now=now)
@@ -78,16 +73,10 @@ class TestIsRateLimited:
         limited, _ = is_rate_limited(db_session, "unseen")
         assert limited is False
 
-    def test_retry_after_decreases_through_window(
-        self, db_session: Session
-    ) -> None:
-        window_floor = _window_start(
-            datetime(2026, 4, 22, 10, 0, 0, tzinfo=timezone.utc)
-        )
-        early = window_floor.replace(tzinfo=timezone.utc) + timedelta(seconds=10)
-        late = window_floor.replace(tzinfo=timezone.utc) + timedelta(
-            seconds=_WINDOW_SECONDS - 5
-        )
+    def test_retry_after_decreases_through_window(self, db_session: Session) -> None:
+        window_floor = _window_start(datetime(2026, 4, 22, 10, 0, 0, tzinfo=UTC))
+        early = window_floor.replace(tzinfo=UTC) + timedelta(seconds=10)
+        late = window_floor.replace(tzinfo=UTC) + timedelta(seconds=_WINDOW_SECONDS - 5)
         for _ in range(_THRESHOLD):
             record_failure(db_session, "1.2.3.4", now=early)
         _, retry_early = is_rate_limited(db_session, "1.2.3.4", now=early)
@@ -97,7 +86,7 @@ class TestIsRateLimited:
 
 class TestResetFailures:
     def test_clears_all_windows_for_ip(self, db_session: Session) -> None:
-        t0 = datetime(2026, 4, 22, 10, 0, 30, tzinfo=timezone.utc)
+        t0 = datetime(2026, 4, 22, 10, 0, 30, tzinfo=UTC)
         t1 = t0 + timedelta(seconds=_WINDOW_SECONDS + 1)
         record_failure(db_session, "1.2.3.4", now=t0)
         record_failure(db_session, "1.2.3.4", now=t1)
@@ -108,7 +97,7 @@ class TestResetFailures:
         assert _count_rows(db_session, "1.2.3.4") == 0
 
     def test_does_not_affect_other_ips(self, db_session: Session) -> None:
-        now = datetime(2026, 4, 22, 10, 0, 30, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 22, 10, 0, 30, tzinfo=UTC)
         record_failure(db_session, "1.1.1.1", now=now)
         record_failure(db_session, "2.2.2.2", now=now)
 
@@ -119,7 +108,7 @@ class TestResetFailures:
 
 class TestCleanupStaleCounters:
     def test_removes_rows_older_than_one_hour(self, db_session: Session) -> None:
-        t_now = datetime(2026, 4, 22, 10, 0, 30, tzinfo=timezone.utc)
+        t_now = datetime(2026, 4, 22, 10, 0, 30, tzinfo=UTC)
         t_stale = t_now - timedelta(hours=2)
         t_fresh = t_now - timedelta(minutes=5)
 

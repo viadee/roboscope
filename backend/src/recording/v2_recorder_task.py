@@ -19,19 +19,25 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from datetime import UTC
 from typing import Any
 
 # FK resolution for cross-module SQLAlchemy lookups (tasks run in
 # background threads with fresh sessions — see CLAUDE.md).
 import src.auth.models  # noqa: F401
 import src.repos.models  # noqa: F401
-
 from src.config import settings
 from src.database import get_sync_session
 from src.recording.capture_script import CAPTURE_SCRIPT
 from src.recording.context_menu_script import CONTEXT_MENU_SCRIPT
 from src.recording.models import RecordingSession, RecordingStatus
 from src.recording.overlay_script import OVERLAY_SCRIPT
+from src.recording.selector_schema import (
+    FrameDescriptor,
+    RecordedCommand,
+    SelectorCandidate,
+)
+from src.recording.selector_verification import MatchInfo, verify_candidates
 from src.recording.v2_command_queue import (
     LifecycleEvent,
     enqueue_command,
@@ -39,12 +45,6 @@ from src.recording.v2_command_queue import (
     finalize_session,
     tear_down_session,
 )
-from src.recording.selector_schema import (
-    FrameDescriptor,
-    RecordedCommand,
-    SelectorCandidate,
-)
-from src.recording.selector_verification import MatchInfo, verify_candidates
 from src.recording.v2_payload_translator import translate_payload
 
 logger = logging.getLogger("roboscope.recording.v2_recorder")
@@ -168,18 +168,22 @@ def _candidates_from_inventory(
         # synthesis produced them but they no longer apply.
         if not c or c.get("count", 0) == 0:
             continue
-        out.append(SelectorCandidate(
-            strategy=c.get("strategy", "css"),
-            value=c.get("value", ""),
-            quality_score=int(c.get("quality_score", 0)),
-            verified_unique=(c.get("count", 0) == 1),
-        ))
+        out.append(
+            SelectorCandidate(
+                strategy=c.get("strategy", "css"),
+                value=c.get("value", ""),
+                quality_score=int(c.get("quality_score", 0)),
+                verified_unique=(c.get("count", 0) == 1),
+            )
+        )
     out.sort(key=lambda c: (not c.verified_unique, -c.quality_score))
     return out
 
 
 async def _synthesise_iframe_candidates(
-    element_handle: Any, parent_frame: Any, frame_url: str,
+    element_handle: Any,
+    parent_frame: Any,
+    frame_url: str,
 ) -> list[SelectorCandidate]:
     """Build a ranked list of selectors that point at one specific
     `<iframe>` element from within its parent document.
@@ -225,7 +229,7 @@ async def _synthesise_iframe_candidates(
     raw: list[tuple[str, str, int]] = []  # (strategy, value, quality)
 
     if info.get("id"):
-        raw.append(("css", f'iframe#{info["id"]}', 90))
+        raw.append(("css", f"iframe#{info['id']}", 90))
     if info.get("testid"):
         raw.append(("testid", f'iframe[data-testid="{info["testid"]}"]', 95))
     if info.get("name"):
@@ -248,7 +252,7 @@ async def _synthesise_iframe_candidates(
             raw.append(("css", f'iframe[src*="{host}"]', 65))
     classes = info.get("classes") or []
     if classes:
-        raw.append(("css", f'iframe.{classes[0]}', 40))
+        raw.append(("css", f"iframe.{classes[0]}", 40))
 
     # Verify each candidate by counting matches in the parent frame.
     # The iframe element lives in the parent, NOT in the iframe doc, so
@@ -262,8 +266,10 @@ async def _synthesise_iframe_candidates(
             # Couldn't verify — preserve as-is, unverified.
             out.append(
                 SelectorCandidate(
-                    strategy=strategy, value=value,
-                    quality_score=qs, verified_unique=False,
+                    strategy=strategy,
+                    value=value,
+                    quality_score=qs,
+                    verified_unique=False,
                 ),
             )
             continue
@@ -273,8 +279,10 @@ async def _synthesise_iframe_candidates(
             continue
         out.append(
             SelectorCandidate(
-                strategy=strategy, value=value,
-                quality_score=qs, verified_unique=(count == 1),
+                strategy=strategy,
+                value=value,
+                quality_score=qs,
+                verified_unique=(count == 1),
             ),
         )
     # Sort by (verified_unique DESC, quality_score DESC) — same
@@ -374,8 +382,9 @@ async def _verify_command_candidates(
             # interactive recorder where the user might click 10
             # things in 1 second. 1s is generous for a same-context
             # JS call but fails fast on detached frames.
-            result = await asyncio.wait_for(loc.evaluate_all(
-                """(els) => {
+            result = await asyncio.wait_for(
+                loc.evaluate_all(
+                    """(els) => {
                     let visible = 0, actionable = 0;
                     for (const el of els) {
                         if (!el || !el.ownerDocument || !el.ownerDocument.defaultView) continue;
@@ -397,7 +406,9 @@ async def _verify_command_candidates(
                     }
                     return { total: els.length, visible, actionable };
                 }""",
-            ), timeout=1.0)
+                ),
+                timeout=1.0,
+            )
             if not isinstance(result, dict):
                 # Defensive — Playwright returned something we
                 # don't recognise. Treat as "couldn't verify"
@@ -426,7 +437,8 @@ async def _verify_command_candidates(
     # original click handler runs to completion). Empty list for
     # top-frame events.
     frame_chain = await _capture_frame_chain(
-        frame_or_page, iframe_inventory=iframe_inventory,
+        frame_or_page,
+        iframe_inventory=iframe_inventory,
     )
     # After re-sorting, index 0 is the best (verified > non-verified, then
     # quality_score desc). The original active index is meaningless now —
@@ -453,6 +465,7 @@ async def _verify_command_candidates(
         frame_url=cmd.frame_url,
         frame_chain=frame_chain,
     )
+
 
 # Per-session stop signal. The DELETE endpoint sets this; the recorder
 # loop awaits it via `_wait_for_stop_event`.
@@ -543,8 +556,11 @@ def run_v2_recorder_session(
     try:
         asyncio.run(
             _recorder_loop(
-                session_id, target_url, stop_event,
-                headless=headless, test_actions=test_actions,
+                session_id,
+                target_url,
+                stop_event,
+                headless=headless,
+                test_actions=test_actions,
             )
         )
     except Exception as exc:
@@ -667,7 +683,9 @@ async def _recorder_loop(
             # with `.frame` still work.
             frame = _resolve_frame_target(source)
             cmd = await _verify_command_candidates(
-                cmd, frame, iframe_inventory=iframe_inventory,
+                cmd,
+                frame,
+                iframe_inventory=iframe_inventory,
             )
             enqueue_command(session_id, cmd)
         except Exception:
@@ -802,8 +820,9 @@ def _mark_status(session_id: int, status: str, message: str | None = None) -> No
             row.status = status
             if message:
                 row.error_message = message[:2000]
-            from datetime import datetime, timezone
-            row.finished_at = datetime.now(timezone.utc)
+            from datetime import datetime
+
+            row.finished_at = datetime.now(UTC)
             db.commit()
     except Exception:
         logger.exception("v2 recorder: failed to mark session %d as %s", session_id, status)

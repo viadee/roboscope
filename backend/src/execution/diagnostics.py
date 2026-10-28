@@ -87,7 +87,8 @@ def _detect_playwright_browser_missing(
 
 
 def _gather_error_text(
-    run: ExecutionRun, results: Sequence[TestResult],
+    run: ExecutionRun,
+    results: Sequence[TestResult],
 ) -> str:
     """Concatenate all places the Playwright error message can land:
     the run-level `error_message` (for runs that crashed before
@@ -102,9 +103,7 @@ def _gather_error_text(
     return "\n".join(parts)
 
 
-_DETECTORS = (
-    _detect_playwright_browser_missing,
-)
+_DETECTORS = (_detect_playwright_browser_missing,)
 
 
 def detect_report_diagnostic(

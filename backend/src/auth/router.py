@@ -32,6 +32,10 @@ def _record_failed_attempt(request: Request) -> None:
     """Record a failed login attempt for rate limiting."""
     ip = request.client.host if request.client else "unknown"
     _login_attempts[ip].append(time.monotonic())
+
+
+from sqlalchemy import select
+
 from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
 from src.auth.schemas import (
@@ -46,7 +50,6 @@ from src.auth.schemas import (
     UserResponse,
     UserUpdate,
 )
-from sqlalchemy import select
 from src.auth.service import (
     authenticate_user,
     create_token_response,
@@ -141,15 +144,19 @@ def get_me(
 
     repo_candidates: set[int] = set()
     if team_ids:
-        for rid in db.execute(
-            select(Repository.id).where(Repository.team_id.in_(team_ids))
-        ).scalars().all():
+        for rid in (
+            db.execute(select(Repository.id).where(Repository.team_id.in_(team_ids)))
+            .scalars()
+            .all()
+        ):
             repo_candidates.add(rid)
-    for rid in db.execute(
-        select(ProjectMember.repository_id).where(
-            ProjectMember.user_id == current_user.id
+    for rid in (
+        db.execute(
+            select(ProjectMember.repository_id).where(ProjectMember.user_id == current_user.id)
         )
-    ).scalars().all():
+        .scalars()
+        .all()
+    ):
         repo_candidates.add(rid)
 
     roles_by_repo: dict[int, Role] = {}
@@ -205,7 +212,10 @@ def change_password_endpoint(
 
     try:
         change_password(
-            db, current_user, data.current_password, data.new_password,
+            db,
+            current_user,
+            data.current_password,
+            data.new_password,
         )
     except ValueError as e:
         reason = str(e)
@@ -272,9 +282,7 @@ def get_user(
     return user
 
 
-def _cascade_revoke_on_deactivate(
-    db: Session, target: User, actor_id: int, ip: str | None
-) -> int:
+def _cascade_revoke_on_deactivate(db: Session, target: User, actor_id: int, ip: str | None) -> int:
     """Story 5-3: revoke every active ApiToken owned by `target` and emit
     `user.deactivated` audit event with the cascade count. Returns the
     number of tokens revoked.
@@ -284,15 +292,14 @@ def _cascade_revoke_on_deactivate(
     from src.webhooks.models import ApiToken
 
     tokens = (
-        db.query(ApiToken)
-        .filter(ApiToken.user_id == target.id, ApiToken.is_active.is_(True))
-        .all()
+        db.query(ApiToken).filter(ApiToken.user_id == target.id, ApiToken.is_active.is_(True)).all()
     )
     for t in tokens:
         t.is_active = False
     db.flush()
 
     from src.auth.pii_hash import hash_email
+
     log_event(
         db,
         AuditEventType.USER_DEACTIVATED,
@@ -331,9 +338,7 @@ def patch_user(
         update_data["hashed_password"] = hash_password(update_data.pop("password"))
 
     will_deactivate = (
-        "is_active" in update_data
-        and update_data["is_active"] is False
-        and user.is_active is True
+        "is_active" in update_data and update_data["is_active"] is False and user.is_active is True
     )
 
     updated = update_user(db, user, **update_data)

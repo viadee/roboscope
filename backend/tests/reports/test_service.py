@@ -3,7 +3,6 @@
 import pytest
 
 from src.execution.models import ExecutionRun
-from src.repos.models import Repository
 from src.reports.models import Report, TestResult
 from src.reports.service import (
     compare_reports,
@@ -14,6 +13,7 @@ from src.reports.service import (
     list_reports,
     list_unique_tests,
 )
+from src.repos.models import Repository
 
 
 def _make_repo(user_id: int, **overrides) -> Repository:
@@ -328,13 +328,9 @@ class TestCompareReports:
         report_a, report_b = self._setup_two_reports(db_session, admin_user)
 
         # Report A: test passes
-        db_session.add(
-            _make_test_result(report_a.id, test_name="Fragile Test", status="PASS")
-        )
+        db_session.add(_make_test_result(report_a.id, test_name="Fragile Test", status="PASS"))
         # Report B: same test fails
-        db_session.add(
-            _make_test_result(report_b.id, test_name="Fragile Test", status="FAIL")
-        )
+        db_session.add(_make_test_result(report_b.id, test_name="Fragile Test", status="FAIL"))
         db_session.flush()
 
         comparison = compare_reports(db_session, report_a.id, report_b.id)
@@ -347,12 +343,8 @@ class TestCompareReports:
         """A test that was FAIL in A and PASS in B is fixed."""
         report_a, report_b = self._setup_two_reports(db_session, admin_user)
 
-        db_session.add(
-            _make_test_result(report_a.id, test_name="Fixed Test", status="FAIL")
-        )
-        db_session.add(
-            _make_test_result(report_b.id, test_name="Fixed Test", status="PASS")
-        )
+        db_session.add(_make_test_result(report_a.id, test_name="Fixed Test", status="FAIL"))
+        db_session.add(_make_test_result(report_b.id, test_name="Fixed Test", status="PASS"))
         db_session.flush()
 
         comparison = compare_reports(db_session, report_a.id, report_b.id)
@@ -365,12 +357,8 @@ class TestCompareReports:
         """A test that was FAIL in both A and B is a consistent failure."""
         report_a, report_b = self._setup_two_reports(db_session, admin_user)
 
-        db_session.add(
-            _make_test_result(report_a.id, test_name="Always Broken", status="FAIL")
-        )
-        db_session.add(
-            _make_test_result(report_b.id, test_name="Always Broken", status="FAIL")
-        )
+        db_session.add(_make_test_result(report_a.id, test_name="Always Broken", status="FAIL"))
+        db_session.add(_make_test_result(report_b.id, test_name="Always Broken", status="FAIL"))
         db_session.flush()
 
         comparison = compare_reports(db_session, report_a.id, report_b.id)
@@ -477,16 +465,12 @@ class TestGetTestHistory:
 
     def test_history_with_suite_filter(self, db_session, admin_user):
         """History can be filtered by suite name."""
-        self._create_reports_with_test(
-            db_session, admin_user, "Login Test", ["PASS", "FAIL"]
-        )
+        self._create_reports_with_test(db_session, admin_user, "Login Test", ["PASS", "FAIL"])
 
         result = get_test_history(db_session, "Login Test", suite_name="My Suite")
         assert result.total_runs == 2
 
-        result_wrong_suite = get_test_history(
-            db_session, "Login Test", suite_name="Other Suite"
-        )
+        result_wrong_suite = get_test_history(db_session, "Login Test", suite_name="Other Suite")
         assert result_wrong_suite.total_runs == 0
 
     def test_history_empty_for_unknown_test(self, db_session):
@@ -544,12 +528,8 @@ class TestListUniqueTests:
         db_session.flush()
         db_session.refresh(report)
 
-        db_session.add(
-            _make_test_result(report.id, test_name="Login Test", suite_name="Auth")
-        )
-        db_session.add(
-            _make_test_result(report.id, test_name="Dashboard Load", suite_name="UI")
-        )
+        db_session.add(_make_test_result(report.id, test_name="Login Test", suite_name="Auth"))
+        db_session.add(_make_test_result(report.id, test_name="Dashboard Load", suite_name="UI"))
         db_session.flush()
 
         results = list_unique_tests(db_session, search="Login")

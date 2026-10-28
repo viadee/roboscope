@@ -6,7 +6,7 @@ import json
 import os
 import ssl
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 import httpx
@@ -37,9 +37,7 @@ _MAX_RESPONSE_SIZE = 1_000_000
 # Certificate verification is NOT disabled — an HTTPS IdP with a self-signed cert
 # will still fail. Operators needing self-signed HTTPS should add the CA to the
 # system trust store rather than relying on this flag.
-_ALLOW_INSECURE_IDP = (
-    os.getenv("ALLOW_INSECURE_IDP", "false").lower() == "true"
-)
+_ALLOW_INSECURE_IDP = os.getenv("ALLOW_INSECURE_IDP", "false").lower() == "true"
 
 # NFR13: outbound IdP calls negotiate TLS 1.2 or newer; older versions fail at the client.
 _TLS_CONTEXT = ssl.create_default_context()
@@ -51,10 +49,7 @@ def _validate_https(url: str, target: str) -> str | None:
     if _ALLOW_INSECURE_IDP:
         return None
     if url.lower().startswith("http://"):
-        return (
-            f"{target} must use https:// "
-            f"(set ALLOW_INSECURE_IDP=true to bypass)"
-        )
+        return f"{target} must use https:// (set ALLOW_INSECURE_IDP=true to bypass)"
     return None
 
 
@@ -74,9 +69,7 @@ def _fetch_json_object(
     with client_ctx as client:
         resp = client.get(url)
     if len(resp.content) > _MAX_RESPONSE_SIZE:
-        return resp.status_code, None, (
-            f"Response body exceeded {_MAX_RESPONSE_SIZE} bytes"
-        )
+        return resp.status_code, None, (f"Response body exceeded {_MAX_RESPONSE_SIZE} bytes")
     if resp.status_code != 200:
         return resp.status_code, None, None
     try:
@@ -88,9 +81,7 @@ def _fetch_json_object(
     return resp.status_code, parsed, None
 
 
-def probe_idp_discovery(
-    db: Session, idp: IdentityProvider
-) -> DryRunProbeResponse:
+def probe_idp_discovery(db: Session, idp: IdentityProvider) -> DryRunProbeResponse:
     """Probe an IdP's OIDC discovery and JWKS endpoints.
 
     Returns a structured report with three check rows:
@@ -104,161 +95,182 @@ def probe_idp_discovery(
     # Phase 1: Fetch discovery document
     https_err = _validate_https(idp.issuer_url, "issuer_url")
     if https_err is not None:
-        checks.append(DryRunCheckRow(
-            check_name="issuer_reachable",
-            status="failed",
-            detail=https_err,
-        ))
-    else:
-        discovery_url = (
-            f"{idp.issuer_url.rstrip('/')}"
-            "/.well-known/openid-configuration"
+        checks.append(
+            DryRunCheckRow(
+                check_name="issuer_reachable",
+                status="failed",
+                detail=https_err,
+            )
         )
+    else:
+        discovery_url = f"{idp.issuer_url.rstrip('/')}/.well-known/openid-configuration"
         try:
             status, doc, err = _fetch_json_object(discovery_url)
             if err is not None:
-                checks.append(DryRunCheckRow(
-                    check_name="issuer_reachable",
-                    status="failed",
-                    detail=err,
-                ))
+                checks.append(
+                    DryRunCheckRow(
+                        check_name="issuer_reachable",
+                        status="failed",
+                        detail=err,
+                    )
+                )
             elif status != 200:
-                checks.append(DryRunCheckRow(
-                    check_name="issuer_reachable",
-                    status="failed",
-                    detail=f"Discovery endpoint returned HTTP {status}",
-                ))
+                checks.append(
+                    DryRunCheckRow(
+                        check_name="issuer_reachable",
+                        status="failed",
+                        detail=f"Discovery endpoint returned HTTP {status}",
+                    )
+                )
             else:
                 discovery_doc = doc
-                checks.append(DryRunCheckRow(
-                    check_name="issuer_reachable",
-                    status="passed",
-                    detail="Discovery document fetched successfully",
-                ))
+                checks.append(
+                    DryRunCheckRow(
+                        check_name="issuer_reachable",
+                        status="passed",
+                        detail="Discovery document fetched successfully",
+                    )
+                )
         except httpx.TimeoutException:
-            checks.append(DryRunCheckRow(
-                check_name="issuer_reachable",
-                status="failed",
-                detail=(
-                    f"timeout:discovery — {idp.issuer_url} did not"
-                    f" respond within {_TIMEOUT_SECONDS:.0f}s"
-                ),
-            ))
+            checks.append(
+                DryRunCheckRow(
+                    check_name="issuer_reachable",
+                    status="failed",
+                    detail=(
+                        f"timeout:discovery — {idp.issuer_url} did not"
+                        f" respond within {_TIMEOUT_SECONDS:.0f}s"
+                    ),
+                )
+            )
         except httpx.HTTPError:
-            checks.append(DryRunCheckRow(
-                check_name="issuer_reachable",
-                status="failed",
-                detail=(
-                    f"Cannot reach {idp.issuer_url}."
-                    " Check firewall and egress rules."
-                ),
-            ))
+            checks.append(
+                DryRunCheckRow(
+                    check_name="issuer_reachable",
+                    status="failed",
+                    detail=(f"Cannot reach {idp.issuer_url}. Check firewall and egress rules."),
+                )
+            )
 
     # Phase 2: Validate discovery document
     if discovery_doc is not None:
         missing = _REQUIRED_DISCOVERY_KEYS - discovery_doc.keys()
         if missing:
-            checks.append(DryRunCheckRow(
-                check_name="discovery_valid",
-                status="failed",
-                detail=(
-                    f"Missing required keys: {', '.join(sorted(missing))}"
-                ),
-            ))
+            checks.append(
+                DryRunCheckRow(
+                    check_name="discovery_valid",
+                    status="failed",
+                    detail=(f"Missing required keys: {', '.join(sorted(missing))}"),
+                )
+            )
             discovery_doc = None
         else:
-            checks.append(DryRunCheckRow(
-                check_name="discovery_valid",
-                status="passed",
-                detail="Discovery document contains all required keys",
-            ))
+            checks.append(
+                DryRunCheckRow(
+                    check_name="discovery_valid",
+                    status="passed",
+                    detail="Discovery document contains all required keys",
+                )
+            )
     else:
-        checks.append(DryRunCheckRow(
-            check_name="discovery_valid",
-            status="failed",
-            detail="Skipped — discovery document not available",
-        ))
+        checks.append(
+            DryRunCheckRow(
+                check_name="discovery_valid",
+                status="failed",
+                detail="Skipped — discovery document not available",
+            )
+        )
 
     # Phase 3: Fetch JWKS
     if discovery_doc is not None:
         jwks_uri = discovery_doc.get("jwks_uri")
         if not isinstance(jwks_uri, str) or not jwks_uri:
-            checks.append(DryRunCheckRow(
-                check_name="jwks_fetched",
-                status="failed",
-                detail="Discovery doc has invalid jwks_uri (not a string)",
-            ))
+            checks.append(
+                DryRunCheckRow(
+                    check_name="jwks_fetched",
+                    status="failed",
+                    detail="Discovery doc has invalid jwks_uri (not a string)",
+                )
+            )
         else:
             https_err = _validate_https(jwks_uri, "jwks_uri")
             if https_err is not None:
-                checks.append(DryRunCheckRow(
-                    check_name="jwks_fetched",
-                    status="failed",
-                    detail=https_err,
-                ))
+                checks.append(
+                    DryRunCheckRow(
+                        check_name="jwks_fetched",
+                        status="failed",
+                        detail=https_err,
+                    )
+                )
             else:
                 try:
                     status, jwks_data, err = _fetch_json_object(jwks_uri)
                     if err is not None:
-                        checks.append(DryRunCheckRow(
-                            check_name="jwks_fetched",
-                            status="failed",
-                            detail=err,
-                        ))
+                        checks.append(
+                            DryRunCheckRow(
+                                check_name="jwks_fetched",
+                                status="failed",
+                                detail=err,
+                            )
+                        )
                     elif status != 200:
-                        checks.append(DryRunCheckRow(
-                            check_name="jwks_fetched",
-                            status="failed",
-                            detail=(
-                                f"JWKS endpoint returned HTTP {status}"
-                            ),
-                        ))
+                        checks.append(
+                            DryRunCheckRow(
+                                check_name="jwks_fetched",
+                                status="failed",
+                                detail=(f"JWKS endpoint returned HTTP {status}"),
+                            )
+                        )
                     elif jwks_data is None or not isinstance(jwks_data.get("keys"), list):
-                        checks.append(DryRunCheckRow(
-                            check_name="jwks_fetched",
-                            status="warning",
-                            detail=(
-                                "JWKS response missing or invalid"
-                                " 'keys' array"
-                            ),
-                        ))
+                        checks.append(
+                            DryRunCheckRow(
+                                check_name="jwks_fetched",
+                                status="warning",
+                                detail=("JWKS response missing or invalid 'keys' array"),
+                            )
+                        )
                     else:
                         keys = jwks_data["keys"]
-                        checks.append(DryRunCheckRow(
-                            check_name="jwks_fetched",
-                            status="passed",
-                            detail=(
-                                f"JWKS fetched with {len(keys)} key(s)"
-                            ),
-                        ))
+                        checks.append(
+                            DryRunCheckRow(
+                                check_name="jwks_fetched",
+                                status="passed",
+                                detail=(f"JWKS fetched with {len(keys)} key(s)"),
+                            )
+                        )
                 except httpx.TimeoutException:
-                    checks.append(DryRunCheckRow(
-                        check_name="jwks_fetched",
-                        status="failed",
-                        detail=(
-                            f"timeout:jwks — {jwks_uri} did not respond"
-                            f" within {_TIMEOUT_SECONDS:.0f}s"
-                        ),
-                    ))
+                    checks.append(
+                        DryRunCheckRow(
+                            check_name="jwks_fetched",
+                            status="failed",
+                            detail=(
+                                f"timeout:jwks — {jwks_uri} did not respond"
+                                f" within {_TIMEOUT_SECONDS:.0f}s"
+                            ),
+                        )
+                    )
                 except httpx.HTTPError:
-                    checks.append(DryRunCheckRow(
-                        check_name="jwks_fetched",
-                        status="failed",
-                        detail=f"Cannot reach JWKS endpoint at {jwks_uri}",
-                    ))
+                    checks.append(
+                        DryRunCheckRow(
+                            check_name="jwks_fetched",
+                            status="failed",
+                            detail=f"Cannot reach JWKS endpoint at {jwks_uri}",
+                        )
+                    )
     else:
-        checks.append(DryRunCheckRow(
-            check_name="jwks_fetched",
-            status="failed",
-            detail="Skipped — discovery validation failed",
-        ))
+        checks.append(
+            DryRunCheckRow(
+                check_name="jwks_fetched",
+                status="failed",
+                detail="Skipped — discovery validation failed",
+            )
+        )
 
     elapsed_ms = int((time.monotonic() - start) * 1000)
     all_passed = all(c.status == "passed" for c in checks)
     overall: Literal["passed", "failed"] = "passed" if all_passed else "failed"
 
     # Update IdP dry-run tracking fields
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     idp.last_dry_run_at = now
     idp.last_dry_run_status = overall
 
@@ -276,9 +288,7 @@ def probe_idp_discovery(
     )
 
 
-def get_or_fetch_discovery(
-    db: Session, idp: IdentityProvider
-) -> dict | None:
+def get_or_fetch_discovery(db: Session, idp: IdentityProvider) -> dict | None:
     """Return cached OIDC discovery doc if fresh; otherwise fetch and cache it.
 
     Returns the parsed discovery document dict, or None if fetch fails.
@@ -287,7 +297,7 @@ def get_or_fetch_discovery(
     """
     cached_at = idp.discovery_cached_at
     if cached_at is not None and idp.discovery_cache_json:
-        now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+        now_naive = datetime.now(UTC).replace(tzinfo=None)
         cached_naive = cached_at.replace(tzinfo=None) if cached_at.tzinfo else cached_at
         if (now_naive - cached_naive).total_seconds() < DISCOVERY_CACHE_TTL_HOURS * 3600:
             try:
@@ -309,6 +319,7 @@ def get_or_fetch_discovery(
         return None
     except Exception:
         import logging as _logging
+
         _logging.getLogger("roboscope.auth.oidc_discovery").warning(
             "get_or_fetch_discovery failed for IdP '%s' (id=%d)",
             idp.name,

@@ -57,7 +57,9 @@ class TestPrecedence:
         assert r.value is False
         assert r.locked is True
 
-    @pytest.mark.parametrize("raw,expected", [("yes", True), ("on", True), ("no", False), ("off", False)])
+    @pytest.mark.parametrize(
+        "raw,expected", [("yes", True), ("on", True), ("no", False), ("off", False)]
+    )
     def test_bool_parsing_variants(self, db_session, monkeypatch, raw, expected):
         monkeypatch.setenv("ROBOSCOPE_FEATURE_PACKAGE_MANAGEMENT", raw)
         assert resolve_flag(db_session, "packageManagement").value is expected

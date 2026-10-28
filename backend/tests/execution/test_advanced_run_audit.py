@@ -77,9 +77,7 @@ def test_insufficient_role_blocks_and_audits(db_session, monkeypatch):
     with pytest.raises(HTTPException) as exc:
         gate_advanced_execution(db_session, _FakeRequest(), user, {"args": ["--randomize", "all"]})
     assert exc.value.status_code == 403
-    assert any(
-        "insufficient_role" in (r.detail or "") for r in _audit_rows(db_session, "blocked")
-    )
+    assert any("insufficient_role" in (r.detail or "") for r in _audit_rows(db_session, "blocked"))
 
 
 def test_permitted_advanced_run_is_audited(db_session, monkeypatch):

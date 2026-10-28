@@ -36,7 +36,9 @@ class Webhook(Base, TimestampMixin):
     events: Mapped[str] = mapped_column(Text, default="[]")  # JSON array of event names
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     repository_id: Mapped[int | None] = mapped_column(
-        ForeignKey("repositories.id", ondelete="CASCADE"), default=None, index=True,
+        ForeignKey("repositories.id", ondelete="CASCADE"),
+        default=None,
+        index=True,
     )
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     last_triggered_at: Mapped[datetime | None] = mapped_column(default=None)
@@ -50,7 +52,8 @@ class WebhookDelivery(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     webhook_id: Mapped[int] = mapped_column(
-        ForeignKey("webhooks.id", ondelete="CASCADE"), index=True,
+        ForeignKey("webhooks.id", ondelete="CASCADE"),
+        index=True,
     )
     event: Mapped[str] = mapped_column(String(100))
     payload: Mapped[str] = mapped_column(Text)  # JSON

@@ -43,7 +43,9 @@ def _resolve_context_host() -> str | None:
     """
     try:
         out = subprocess.check_output(
-            ["docker", "context", "inspect"], text=True, timeout=5,
+            ["docker", "context", "inspect"],
+            text=True,
+            timeout=5,
         )
     except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None

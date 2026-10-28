@@ -42,24 +42,25 @@ def working_clone(tmp_path: Path, bare_remote: Path) -> Path:
     seed.write_text("seed\n", encoding="utf-8")
     repo.index.add(["README.md"])
     repo.git.update_environment(
-        GIT_AUTHOR_NAME="seed", GIT_AUTHOR_EMAIL="seed@example.com",
-        GIT_COMMITTER_NAME="seed", GIT_COMMITTER_EMAIL="seed@example.com",
+        GIT_AUTHOR_NAME="seed",
+        GIT_AUTHOR_EMAIL="seed@example.com",
+        GIT_COMMITTER_NAME="seed",
+        GIT_COMMITTER_EMAIL="seed@example.com",
     )
     repo.git.commit("-m", "seed")
     repo.git.push("origin", "main")
     return clone
 
 
-def _mk_repo(
-    db: Session, admin_user, working_clone: Path | None = None, **overrides
-) -> Repository:
+def _mk_repo(db: Session, admin_user, working_clone: Path | None = None, **overrides) -> Repository:
     """Insert a Repository row with sensible defaults for pre-run-sync tests."""
     defaults: dict = {
         "name": f"pre-run-sync-{overrides.get('name', 'r')}",
         "repo_type": "git",
         "git_url": (
             str(working_clone.parent / "remote.git")
-            if working_clone is not None else "https://example.com/x.git"
+            if working_clone is not None
+            else "https://example.com/x.git"
         ),
         "default_branch": "main",
         "local_path": str(working_clone) if working_clone is not None else "/tmp/x",
@@ -85,24 +86,34 @@ def _mk_repo(
 class TestSyncForRunSkip:
     def test_local_repo_skips(self, db_session: Session, admin_user):
         repo = _mk_repo(
-            db_session, admin_user,
-            name="local", repo_type="local", git_url=None, local_path="/tmp/x",
+            db_session,
+            admin_user,
+            name="local",
+            repo_type="local",
+            git_url=None,
+            local_path="/tmp/x",
         )
         status, _ = sync_for_run(repo)
         assert status == "skipped"
 
     def test_flag_off_skips(self, db_session: Session, admin_user, working_clone: Path):
         repo = _mk_repo(
-            db_session, admin_user, working_clone=working_clone,
-            name="off", pre_run_sync=False,
+            db_session,
+            admin_user,
+            working_clone=working_clone,
+            name="off",
+            pre_run_sync=False,
         )
         status, _ = sync_for_run(repo)
         assert status == "skipped"
 
     def test_in_flight_skips(self, db_session: Session, admin_user, working_clone: Path):
         repo = _mk_repo(
-            db_session, admin_user, working_clone=working_clone,
-            name="inflight", sync_status="syncing",
+            db_session,
+            admin_user,
+            working_clone=working_clone,
+            name="inflight",
+            sync_status="syncing",
         )
         status, detail = sync_for_run(repo)
         assert status == "skipped"
@@ -111,8 +122,11 @@ class TestSyncForRunSkip:
     def test_no_git_url_skips(self, db_session: Session, admin_user, working_clone: Path):
         # Defensive: pre_run_sync=True + repo_type='git' but no URL.
         repo = _mk_repo(
-            db_session, admin_user, working_clone=working_clone,
-            name="nourl", git_url=None,
+            db_session,
+            admin_user,
+            working_clone=working_clone,
+            name="nourl",
+            git_url=None,
         )
         status, _ = sync_for_run(repo)
         assert status == "skipped"
@@ -126,7 +140,10 @@ class TestSyncForRunSkip:
 class TestSyncForRunOutcomes:
     def test_success(self, db_session: Session, admin_user, working_clone: Path):
         repo = _mk_repo(
-            db_session, admin_user, working_clone=working_clone, name="ok",
+            db_session,
+            admin_user,
+            working_clone=working_clone,
+            name="ok",
         )
         status, detail = sync_for_run(repo)
         assert status == "ok", f"expected ok, got {status}: {detail}"
@@ -139,8 +156,11 @@ class TestSyncForRunOutcomes:
         bogus = working_clone.parent / "not-a-repo"
         bogus.mkdir()
         repo = _mk_repo(
-            db_session, admin_user, working_clone=working_clone,
-            name="bogus", local_path=str(bogus),
+            db_session,
+            admin_user,
+            working_clone=working_clone,
+            name="bogus",
+            local_path=str(bogus),
         )
         status, detail = sync_for_run(repo)
         assert status == "error"
@@ -152,7 +172,10 @@ class TestSyncForRunOutcomes:
         import time
 
         repo = _mk_repo(
-            db_session, admin_user, working_clone=working_clone, name="slow",
+            db_session,
+            admin_user,
+            working_clone=working_clone,
+            name="slow",
         )
 
         def slow_sync(*_a, **_kw):
@@ -165,10 +188,16 @@ class TestSyncForRunOutcomes:
         assert detail == "1s"
 
     def test_unexpected_exception_surfaces_as_error(
-        self, db_session: Session, admin_user, working_clone: Path,
+        self,
+        db_session: Session,
+        admin_user,
+        working_clone: Path,
     ):
         repo = _mk_repo(
-            db_session, admin_user, working_clone=working_clone, name="boom",
+            db_session,
+            admin_user,
+            working_clone=working_clone,
+            name="boom",
         )
 
         def boom(*_a, **_kw):
@@ -193,11 +222,17 @@ class TestSyncStatusFlipping:
     """
 
     def test_success_flips_to_success(
-        self, db_session: Session, admin_user, working_clone: Path,
+        self,
+        db_session: Session,
+        admin_user,
+        working_clone: Path,
     ):
         repo = _mk_repo(
-            db_session, admin_user, working_clone=working_clone,
-            name="ok-flip", sync_status="idle",
+            db_session,
+            admin_user,
+            working_clone=working_clone,
+            name="ok-flip",
+            sync_status="idle",
         )
         status, _ = sync_for_run(repo, session=db_session)
         assert status == "ok"
@@ -207,13 +242,19 @@ class TestSyncStatusFlipping:
         assert repo.sync_error is None
 
     def test_error_flips_to_error_with_message(
-        self, db_session: Session, admin_user, working_clone: Path,
+        self,
+        db_session: Session,
+        admin_user,
+        working_clone: Path,
     ):
         bogus = working_clone.parent / "not-a-repo-2"
         bogus.mkdir()
         repo = _mk_repo(
-            db_session, admin_user, working_clone=working_clone,
-            name="err-flip", local_path=str(bogus),
+            db_session,
+            admin_user,
+            working_clone=working_clone,
+            name="err-flip",
+            local_path=str(bogus),
         )
         status, _ = sync_for_run(repo, session=db_session)
         assert status == "error"
@@ -222,12 +263,17 @@ class TestSyncStatusFlipping:
         assert repo.sync_error  # non-empty
 
     def test_timeout_flips_to_error(
-        self, db_session: Session, admin_user, working_clone: Path,
+        self,
+        db_session: Session,
+        admin_user,
+        working_clone: Path,
     ):
         import time
 
         repo = _mk_repo(
-            db_session, admin_user, working_clone=working_clone,
+            db_session,
+            admin_user,
+            working_clone=working_clone,
             name="timeout-flip",
         )
 
@@ -243,13 +289,20 @@ class TestSyncStatusFlipping:
         assert repo.sync_error and "1s" in repo.sync_error
 
     def test_skip_paths_do_not_flip(
-        self, db_session: Session, admin_user, working_clone: Path,
+        self,
+        db_session: Session,
+        admin_user,
+        working_clone: Path,
     ):
         # pre_run_sync=False should leave sync_status untouched — we
         # never started a pull, so no surface change.
         repo = _mk_repo(
-            db_session, admin_user, working_clone=working_clone,
-            name="skip-no-flip", pre_run_sync=False, sync_status="idle",
+            db_session,
+            admin_user,
+            working_clone=working_clone,
+            name="skip-no-flip",
+            pre_run_sync=False,
+            sync_status="idle",
         )
         status, _ = sync_for_run(repo, session=db_session)
         assert status == "skipped"
@@ -257,13 +310,19 @@ class TestSyncStatusFlipping:
         assert repo.sync_status == "idle"
 
     def test_no_session_no_flip(
-        self, db_session: Session, admin_user, working_clone: Path,
+        self,
+        db_session: Session,
+        admin_user,
+        working_clone: Path,
     ):
         # Backward-compatible: callers passing only the repo (e.g.
         # the unit tests above) get the return contract without DB writes.
         repo = _mk_repo(
-            db_session, admin_user, working_clone=working_clone,
-            name="no-session", sync_status="idle",
+            db_session,
+            admin_user,
+            working_clone=working_clone,
+            name="no-session",
+            sync_status="idle",
         )
         status, _ = sync_for_run(repo)
         assert status == "ok"
@@ -281,12 +340,17 @@ class TestTimeoutDoesNotBlockOnPoolShutdown:
     """
 
     def test_timeout_returns_promptly(
-        self, db_session: Session, admin_user, working_clone: Path,
+        self,
+        db_session: Session,
+        admin_user,
+        working_clone: Path,
     ):
         import time
 
         repo = _mk_repo(
-            db_session, admin_user, working_clone=working_clone,
+            db_session,
+            admin_user,
+            working_clone=working_clone,
             name="prompt-timeout",
         )
 

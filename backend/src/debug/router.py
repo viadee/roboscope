@@ -376,9 +376,7 @@ async def _start_from_run(
     else:
         # Fall back to the run's target file + first executable line.
         target = run.target_path or ""
-        robot_file_abs = (
-            target if os.path.isabs(target) else str(Path(repo.local_path) / target)
-        )
+        robot_file_abs = target if os.path.isabs(target) else str(Path(repo.local_path) / target)
         bp_line = _fallback_first_executable_line(robot_file_abs)
         test_name = None
 
@@ -566,9 +564,7 @@ def _make_repo_relative(repo_path: str, abs_path: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _get_owned_session(
-    session_id: str, user: User, db: Session
-) -> Any:
+def _get_owned_session(session_id: str, user: User, db: Session) -> Any:
     rec = session_manager.get(session_id)
     if rec is None:
         raise HTTPException(status_code=404, detail="Debug session not found")
@@ -678,9 +674,7 @@ async def get_state(
     rec = _get_owned_session(session_id, user, db)
     if rec.state_cache is not None:
         # Patch the session_id (state_fetcher leaves it blank).
-        snap: DebugSessionState = rec.state_cache.model_copy(
-            update={"session_id": session_id}
-        )
+        snap: DebugSessionState = rec.state_cache.model_copy(update={"session_id": session_id})
         return snap
     return DebugSessionState(session_id=session_id)
 

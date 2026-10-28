@@ -1,13 +1,12 @@
 """Tests for recording API endpoints."""
 
-import json
-
-import pytest
+from datetime import UTC
 from unittest.mock import patch
 
+import pytest
 from sqlalchemy.orm import Session
 
-from src.recording.models import RecordingSession, RecordingStatus, RecordingSource
+from src.recording.models import RecordingSession, RecordingSource, RecordingStatus
 from src.repos.models import Repository
 from tests.conftest import auth_header
 
@@ -263,6 +262,7 @@ class TestRecordingLifecycle:
     @patch("src.recording.router.dispatch_task")
     def test_stop_recording(self, mock_dispatch, client, admin_user, repo):
         from src.task_executor import TaskResult
+
         mock_dispatch.return_value = TaskResult()
 
         create_resp = client.post(
@@ -386,22 +386,21 @@ class TestResetStuckSessions:
         repo_id: int,
         status: RecordingStatus = RecordingStatus.RECORDING,
     ) -> RecordingSession:
-        from datetime import datetime, timezone
+        from datetime import datetime
+
         sess = RecordingSession(
             repository_id=repo_id,
             triggered_by=user_id,
             source=RecordingSource.PLAYWRIGHT,
             status=status,
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
         )
         db_session.add(sess)
         db_session.flush()
         db_session.refresh(sess)
         return sess
 
-    def test_reset_returns_zero_when_no_stuck_sessions(
-        self, client, admin_user
-    ):
+    def test_reset_returns_zero_when_no_stuck_sessions(self, client, admin_user):
         """Idempotent — no rows in `RECORDING` ⇒ aborted=0."""
         resp = client.post(
             "/api/v1/recordings/sessions/reset",

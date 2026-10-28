@@ -302,9 +302,7 @@ class DebugSessionManager:
                     try:
                         snapshot = await self._state_fetcher(rec.session)
                     except Exception:  # noqa: BLE001
-                        logger.exception(
-                            "state-fetcher failed for session %s", rec.session_id
-                        )
+                        logger.exception("state-fetcher failed for session %s", rec.session_id)
                         snapshot = None
                     if snapshot is not None:
                         rec.state_cache = snapshot
@@ -336,7 +334,8 @@ class DebugSessionManager:
                 if idle_for >= self._idle_timeout:
                     logger.info(
                         "debug session %s idle for %.1fs — auto-disconnecting",
-                        rec.session_id, idle_for,
+                        rec.session_id,
+                        idle_for,
                     )
                     asyncio.create_task(self._cleanup(rec))
                     return
@@ -358,9 +357,7 @@ class DebugSessionManager:
         try:
             await asyncio.sleep(0)  # let the forwarder exit first
             with suppress(Exception):
-                await asyncio.wait_for(
-                    rec.session.disconnect(), timeout=self._terminated_grace
-                )
+                await asyncio.wait_for(rec.session.disconnect(), timeout=self._terminated_grace)
             await self._cleanup(rec)
         except Exception:  # noqa: BLE001
             logger.exception("terminated-cleanup crashed for %s", rec.session_id)

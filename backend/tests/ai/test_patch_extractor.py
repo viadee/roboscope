@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from src.ai.patch_extractor import extract_patch_suggestions
 
-
 SINGLE_PATCH = """\
 # Analysis
 
@@ -118,21 +117,13 @@ def test_handles_unicode_in_path_and_body() -> None:
 
 
 def test_plain_path_header_without_a_prefix_accepted() -> None:
-    md = (
-        "```patch\n"
-        "--- tests/foo.robot\n"
-        "+++ tests/foo.robot\n"
-        "@@ -1,1 +1,1 @@\n"
-        "-old\n+new\n"
-        "```\n"
-    )
+    md = "```patch\n--- tests/foo.robot\n+++ tests/foo.robot\n@@ -1,1 +1,1 @@\n-old\n+new\n```\n"
     patches = extract_patch_suggestions(md)
-    assert patches == [{
-        "file_path": "tests/foo.robot",
-        "unified_diff": (
-            "--- tests/foo.robot\n"
-            "+++ tests/foo.robot\n"
-            "@@ -1,1 +1,1 @@\n"
-            "-old\n+new"
-        ),
-    }]
+    assert patches == [
+        {
+            "file_path": "tests/foo.robot",
+            "unified_diff": (
+                "--- tests/foo.robot\n+++ tests/foo.robot\n@@ -1,1 +1,1 @@\n-old\n+new"
+            ),
+        }
+    ]

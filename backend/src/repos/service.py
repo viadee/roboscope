@@ -1,7 +1,7 @@
 """Repository management service: Git operations, CRUD."""
 
 import shutil
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import select
@@ -12,20 +12,22 @@ from src.repos.models import ProjectMember, Repository
 from src.repos.schemas import RepoCreate, RepoUpdate
 
 
-def list_repositories(db: Session, user_id: int | None = None, is_admin: bool = False) -> list[Repository]:
+def list_repositories(
+    db: Session, user_id: int | None = None, is_admin: bool = False
+) -> list[Repository]:
     """List repositories. Admins see all; others see only projects they are members of."""
     if is_admin or user_id is None:
         result = db.execute(select(Repository).order_by(Repository.name))
         return list(result.scalars().all())
     # Return repos where user is creator OR member
-    member_repo_ids = db.execute(
-        select(ProjectMember.repository_id).where(ProjectMember.user_id == user_id)
-    ).scalars().all()
+    member_repo_ids = (
+        db.execute(select(ProjectMember.repository_id).where(ProjectMember.user_id == user_id))
+        .scalars()
+        .all()
+    )
     result = db.execute(
         select(Repository)
-        .where(
-            (Repository.created_by == user_id) | Repository.id.in_(member_repo_ids)
-        )
+        .where((Repository.created_by == user_id) | Repository.id.in_(member_repo_ids))
         .order_by(Repository.name)
     )
     return list(result.scalars().all())
@@ -43,9 +45,7 @@ def get_repository_by_name(db: Session, name: str) -> Repository | None:
     return result.scalar_one_or_none()
 
 
-def create_repository(
-    db: Session, data: RepoCreate, user_id: int
-) -> Repository:
+def create_repository(db: Session, data: RepoCreate, user_id: int) -> Repository:
     """Create a new repository entry."""
     if data.repo_type == "local":
         # `data.local_path` is `str | None` on the schema; the
@@ -83,9 +83,7 @@ def create_repository(
     return repo
 
 
-def update_repository(
-    db: Session, repo: Repository, data: RepoUpdate
-) -> Repository:
+def update_repository(db: Session, repo: Repository, data: RepoUpdate) -> Repository:
     """Update repository fields."""
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -117,9 +115,9 @@ def delete_repository(db: Session, repo: Repository) -> None:
     from src.reports.models import Report
     from src.reports.service import delete_report
 
-    runs = list(db.execute(
-        select(ExecutionRun).where(ExecutionRun.repository_id == repo.id)
-    ).scalars())
+    runs = list(
+        db.execute(select(ExecutionRun).where(ExecutionRun.repository_id == repo.id)).scalars()
+    )
     if any(r.status in (RunStatus.PENDING, RunStatus.RUNNING) for r in runs):
         raise RepositoryBusyError("Cancel the repository's pending or running runs first")
 
@@ -157,7 +155,9 @@ def list_remote_branches(git_url: str) -> list[str]:
     try:
         result = subprocess.run(
             ["git", "ls-remote", "--heads", git_url],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if result.returncode != 0:
             return []
@@ -167,7 +167,7 @@ def list_remote_branches(git_url: str) -> list[str]:
             if len(parts) == 2:
                 ref = parts[1]
                 if ref.startswith("refs/heads/"):
-                    branches.append(ref[len("refs/heads/"):])
+                    branches.append(ref[len("refs/heads/") :])
         return branches
     except Exception:
         return []
@@ -332,12 +332,8 @@ def get_repo_status(local_path: str) -> dict:
         tracking = repo.active_branch.tracking_branch()
         if tracking is not None:
             try:
-                ahead = sum(
-                    1 for _ in repo.iter_commits(f"{tracking.name}..{current_branch}")
-                )
-                behind = sum(
-                    1 for _ in repo.iter_commits(f"{current_branch}..{tracking.name}")
-                )
+                ahead = sum(1 for _ in repo.iter_commits(f"{tracking.name}..{current_branch}"))
+                behind = sum(1 for _ in repo.iter_commits(f"{current_branch}..{tracking.name}"))
             except Exception:
                 pass
 
@@ -422,8 +418,12 @@ def get_file_diff(local_path: str, rel_path: str, max_bytes: int = 200_000) -> d
         body = "".join(f"+{line}\n" for line in lines)
         header = f"--- /dev/null\n+++ b/{git_rel}\n@@ -0,0 +1,{len(lines)} @@\n"
         diff, truncated = _cap(header + body)
-        return {"path": rel_path, "status": "untracked", "diff": diff,
-                "truncated": truncated or len(data) > max_bytes}
+        return {
+            "path": rel_path,
+            "status": "untracked",
+            "diff": diff,
+            "truncated": truncated or len(data) > max_bytes,
+        }
 
     # `-` in --numstat marks a binary change.
     if repo.git.diff("--numstat", "HEAD", "--", git_rel).startswith("-\t-\t"):
@@ -564,9 +564,7 @@ def push_branch(local_path: str, branch: str | None = None) -> dict:
         try:
             tracking = repo.active_branch.tracking_branch()
             if tracking is not None:
-                ahead_after = sum(
-                    1 for _ in repo.iter_commits(f"{tracking.name}..{target_branch}")
-                )
+                ahead_after = sum(1 for _ in repo.iter_commits(f"{tracking.name}..{target_branch}"))
         except Exception:
             pass
         return {
@@ -610,9 +608,7 @@ def publish_changes(
     so the router can include them in the 409 body — the local commit
     stays in place so the user doesn't lose work.
     """
-    commit_result = commit_changes(
-        local_path, message, paths, author_name, author_email
-    )
+    commit_result = commit_changes(local_path, message, paths, author_name, author_email)
     try:
         push_result = push_branch(local_path)
     except GitOperationError as e:
@@ -656,15 +652,19 @@ def due_repos(db: Session, now: datetime | None = None) -> list[Repository]:
     `now` defaults to `datetime.now(UTC)`.
     """
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
-    candidates = db.execute(
-        select(Repository).where(
-            Repository.repo_type == "git",
-            Repository.auto_sync.is_(True),
-            Repository.git_url.is_not(None),
+    candidates = (
+        db.execute(
+            select(Repository).where(
+                Repository.repo_type == "git",
+                Repository.auto_sync.is_(True),
+                Repository.git_url.is_not(None),
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     out: list[Repository] = []
     for repo in candidates:
@@ -680,8 +680,8 @@ def due_repos(db: Session, now: datetime | None = None) -> list[Repository]:
         # for Postgres, this code keeps working without an audit.
         last = repo.last_synced_at
         if last.tzinfo is None:
-            last = last.replace(tzinfo=timezone.utc)
-        now_aware = now if now.tzinfo is not None else now.replace(tzinfo=timezone.utc)
+            last = last.replace(tzinfo=UTC)
+        now_aware = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
         boundary = last + timedelta(minutes=repo.sync_interval_minutes)
         if now_aware >= boundary:
             out.append(repo)
@@ -745,16 +745,12 @@ def sync_for_run(
     # The naive `with ThreadPoolExecutor(...) as pool:` form blocks on
     # __exit__ → shutdown(wait=True), which negates the wall-clock timeout
     # we just imposed.
-    pool = concurrent.futures.ThreadPoolExecutor(
-        max_workers=1, thread_name_prefix="pre-run-sync"
-    )
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="pre-run-sync")
     msg: str | None = None
     status: str
     detail: str | None
     try:
-        future = pool.submit(
-            sync_repository, repo.local_path, repo.default_branch
-        )
+        future = pool.submit(sync_repository, repo.local_path, repo.default_branch)
         try:
             msg = future.result(timeout=timeout_seconds)
         except concurrent.futures.TimeoutError:
@@ -793,7 +789,6 @@ def sync_for_run(
 def list_project_members(db: Session, repo_id: int) -> list[dict]:
     """List all members of a project with user info."""
     import src.auth.models  # noqa: F401
-
     from src.auth.models import User
 
     members = db.execute(
@@ -804,15 +799,17 @@ def list_project_members(db: Session, repo_id: int) -> list[dict]:
     ).all()
     result = []
     for member, username, email in members:
-        result.append({
-            "id": member.id,
-            "user_id": member.user_id,
-            "repository_id": member.repository_id,
-            "role": member.role,
-            "username": username,
-            "email": email,
-            "created_at": member.created_at,
-        })
+        result.append(
+            {
+                "id": member.id,
+                "user_id": member.user_id,
+                "repository_id": member.repository_id,
+                "role": member.role,
+                "username": username,
+                "email": email,
+                "created_at": member.created_at,
+            }
+        )
     return result
 
 
@@ -838,9 +835,7 @@ def add_project_member(
     return member
 
 
-def update_project_member_role(
-    db: Session, member_id: int, role: str
-) -> ProjectMember | None:
+def update_project_member_role(db: Session, member_id: int, role: str) -> ProjectMember | None:
     """Update a project member's role."""
     member = db.execute(
         select(ProjectMember).where(ProjectMember.id == member_id)

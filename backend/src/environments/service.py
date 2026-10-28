@@ -11,7 +11,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.config import settings
-from src.insecure_tls import tls_verify
 from src.environments.models import (
     Environment,
     EnvironmentKeywordCache,
@@ -26,6 +25,7 @@ from src.environments.schemas import (
     PackageCreate,
     is_reserved_env_key,
 )
+from src.insecure_tls import tls_verify
 
 logger = logging.getLogger("roboscope.environments")
 
@@ -201,7 +201,9 @@ def list_packages(db: Session, env_id: int) -> list[EnvironmentPackage]:
                 dirty = True
                 logger.warning(
                     "Reset stuck package '%s' in env %d (was '%s')",
-                    pkg.package_name, env_id, pkg.install_status,
+                    pkg.package_name,
+                    env_id,
+                    pkg.install_status,
                 )
     if dirty:
         db.commit()
@@ -217,12 +219,16 @@ def add_package(db: Session, env_id: int, data: PackageCreate) -> EnvironmentPac
     creating a duplicate row — which would cause MultipleResultsFound errors
     in subsequent retry/upgrade queries.
     """
-    existing = db.execute(
-        select(EnvironmentPackage).where(
-            EnvironmentPackage.environment_id == env_id,
-            EnvironmentPackage.package_name == data.package_name,
+    existing = (
+        db.execute(
+            select(EnvironmentPackage).where(
+                EnvironmentPackage.environment_id == env_id,
+                EnvironmentPackage.package_name == data.package_name,
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
     if existing is not None:
         existing.version = data.version
@@ -248,12 +254,16 @@ def remove_package(db: Session, env_id: int, package_name: str) -> None:
     """Remove a package from an environment."""
     # Use .all() defensively: the unique constraint guarantees at most one row,
     # but pre-migration databases may still have duplicates that need cleaning up.
-    pkgs = db.execute(
-        select(EnvironmentPackage).where(
-            EnvironmentPackage.environment_id == env_id,
-            EnvironmentPackage.package_name == package_name,
+    pkgs = (
+        db.execute(
+            select(EnvironmentPackage).where(
+                EnvironmentPackage.environment_id == env_id,
+                EnvironmentPackage.package_name == package_name,
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     for pkg in pkgs:
         db.delete(pkg)
     db.flush()
@@ -277,6 +287,7 @@ def add_variable(db: Session, env_id: int, data: EnvVarCreate) -> EnvironmentVar
     value = data.value
     if data.is_secret and value:
         from src.encryption import encrypt_value
+
         value = encrypt_value(value)
 
     var = EnvironmentVariable(
@@ -360,6 +371,7 @@ def decrypt_variable_value(var: EnvironmentVariable) -> str:
     if not var.is_secret or not var.value:
         return var.value or ""
     from src.encryption import decrypt_value, is_encrypted
+
     if is_encrypted(var.value):
         return decrypt_value(var.value)
     # Legacy plaintext secret — return as-is
@@ -368,9 +380,7 @@ def decrypt_variable_value(var: EnvironmentVariable) -> str:
 
 def _unset_defaults(db: Session) -> None:
     """Unset all default environments."""
-    result = db.execute(
-        select(Environment).where(Environment.is_default == True)
-    )
+    result = db.execute(select(Environment).where(Environment.is_default == True))
     for env in result.scalars().all():
         env.is_default = False
 
@@ -391,12 +401,14 @@ def search_pypi(query: str) -> list[dict]:
             if response.status_code == 200:
                 data = response.json()
                 info = data.get("info", {})
-                results.append({
-                    "name": info.get("name", query),
-                    "version": info.get("version", ""),
-                    "summary": info.get("summary", ""),
-                    "author": info.get("author", ""),
-                })
+                results.append(
+                    {
+                        "name": info.get("name", query),
+                        "version": info.get("version", ""),
+                        "summary": info.get("summary", ""),
+                        "author": info.get("author", ""),
+                    }
+                )
 
             # Also search for robotframework-related packages if query is short
             if len(query) >= 2:
@@ -408,20 +420,19 @@ def search_pypi(query: str) -> list[dict]:
                     data = search_response.json()
                     projects = data.get("projects", [])
                     query_lower = query.lower()
-                    matched = [
-                        p for p in projects
-                        if query_lower in p.get("name", "").lower()
-                    ][:20]
+                    matched = [p for p in projects if query_lower in p.get("name", "").lower()][:20]
 
                     for proj in matched:
                         name = proj.get("name", "")
                         if not any(r["name"] == name for r in results):
-                            results.append({
-                                "name": name,
-                                "version": "",
-                                "summary": "",
-                                "author": "",
-                            })
+                            results.append(
+                                {
+                                    "name": name,
+                                    "version": "",
+                                    "summary": "",
+                                    "author": "",
+                                }
+                            )
     except Exception as e:
         logger.warning("PyPI search failed: %s", e)
 
@@ -430,7 +441,16 @@ def search_pypi(query: str) -> list[dict]:
 
 def _strip_version(pkg_spec: str) -> str:
     """Strip version specifier from a package spec."""
-    return pkg_spec.split("==")[0].split(">=")[0].split("<=")[0].split("~=")[0].split("!=")[0].strip().lower().replace("_", "-")
+    return (
+        pkg_spec.split("==")[0]
+        .split(">=")[0]
+        .split("<=")[0]
+        .split("~=")[0]
+        .split("!=")[0]
+        .strip()
+        .lower()
+        .replace("_", "-")
+    )
 
 
 def _has_browser_package(packages: list[str]) -> bool:
@@ -535,10 +555,7 @@ def validate_playwright_pin_against_packages(
 
     for pkg in packages:
         pkg_lower = pkg.lower()
-        if not (
-            pkg_lower.startswith("robotframework-browser")
-            or pkg_lower == "playwright"
-        ):
+        if not (pkg_lower.startswith("robotframework-browser") or pkg_lower == "playwright"):
             continue
         spec_str = playwright_constraints_for_browser_package(pkg)
         if not spec_str:
@@ -629,16 +646,14 @@ def rfbrowser_node_playwright_version(
         # Look for the wrapper package.json. Robotframework-browser places it at
         # Browser/wrapper/package.json; tolerate layout drift defensively.
         candidates = [
-            n for n in zf.namelist()
-            if n.endswith("/package.json") and "wrapper" in n.lower()
+            n for n in zf.namelist() if n.endswith("/package.json") and "wrapper" in n.lower()
         ]
         for entry in candidates:
             try:
                 payload = json.loads(zf.read(entry).decode("utf-8", errors="replace"))
             except Exception:
                 continue
-            deps = {**(payload.get("dependencies") or {}),
-                    **(payload.get("devDependencies") or {})}
+            deps = {**(payload.get("dependencies") or {}), **(payload.get("devDependencies") or {})}
             spec = deps.get("playwright") or deps.get("playwright-core")
             if not spec:
                 continue
@@ -778,17 +793,11 @@ def generate_dockerfile(
     # for both rfbrowser variants — batteries had the same browser-
     # missing problem; only its grpc_server differs.
     if needs_browser_any:
-        lines.append(
-            "# Story Playwright-fix-E: rfbrowser init lays down browsers"
-        )
-        lines.append(
-            "# matching its Node-side Playwright wrapper; install-deps"
-        )
+        lines.append("# Story Playwright-fix-E: rfbrowser init lays down browsers")
+        lines.append("# matching its Node-side Playwright wrapper; install-deps")
         lines.append("# adds the system libs Chromium needs at runtime.")
         lines.append("RUN rfbrowser init \\")
-        lines.append(
-            "    && cd /usr/local/lib/python3.12/site-packages/Browser/wrapper \\"
-        )
+        lines.append("    && cd /usr/local/lib/python3.12/site-packages/Browser/wrapper \\")
         lines.append("    && npx playwright install-deps chromium \\")
         lines.append("    && rm -rf /var/lib/apt/lists/*")
         lines.append("")
@@ -802,7 +811,17 @@ def docker_pip_list(docker_image: str) -> list[dict]:
     """List packages installed in a Docker image via 'docker run --rm <image> uv pip list'."""
     try:
         result = subprocess.run(
-            ["docker", "run", "--rm", docker_image, "uv", "pip", "list", "--system", "--format=json"],
+            [
+                "docker",
+                "run",
+                "--rm",
+                docker_image,
+                "uv",
+                "pip",
+                "list",
+                "--system",
+                "--format=json",
+            ],
             capture_output=True,
             text=True,
             timeout=30,
@@ -817,12 +836,11 @@ def docker_pip_list(docker_image: str) -> list[dict]:
 
 # --- Keyword cache (libdoc-per-environment discovery) ---
 
+
 def get_keyword_cache(db: Session, env_id: int) -> EnvironmentKeywordCache | None:
     """Return the cached keyword-introspection row for an environment, if any."""
     return db.execute(
-        select(EnvironmentKeywordCache).where(
-            EnvironmentKeywordCache.environment_id == env_id
-        )
+        select(EnvironmentKeywordCache).where(EnvironmentKeywordCache.environment_id == env_id)
     ).scalar_one_or_none()
 
 
@@ -890,7 +908,7 @@ def pip_list_installed(venv_path: str | None) -> list[dict]:
     if not venv_path:
         return []
 
-    from src.environments.venv_utils import pip_list_cmd, get_python_path
+    from src.environments.venv_utils import get_python_path, pip_list_cmd
 
     python_path = get_python_path(venv_path)
     if not Path(python_path).exists():

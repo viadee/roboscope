@@ -2,13 +2,13 @@
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from src.execution.models import ExecutionRun, RunStatus, RunType, RunnerType, Schedule
+from src.execution.models import ExecutionRun, RunStatus, RunType, Schedule
 from src.execution.schemas import RunCreate, ScheduleCreate, ScheduleUpdate
 from src.task_executor import TaskDispatchError, dispatch_task
 
@@ -90,9 +90,15 @@ def update_run_status(
     run.status = status
 
     if status == RunStatus.RUNNING:
-        run.started_at = datetime.now(timezone.utc)
-    elif status in (RunStatus.PASSED, RunStatus.FAILED, RunStatus.ERROR, RunStatus.CANCELLED, RunStatus.TIMEOUT):
-        run.finished_at = datetime.now(timezone.utc)
+        run.started_at = datetime.now(UTC)
+    elif status in (
+        RunStatus.PASSED,
+        RunStatus.FAILED,
+        RunStatus.ERROR,
+        RunStatus.CANCELLED,
+        RunStatus.TIMEOUT,
+    ):
+        run.finished_at = datetime.now(UTC)
 
     if error_message is not None:
         run.error_message = error_message
@@ -117,6 +123,7 @@ def cancel_run(db: Session, run: ExecutionRun) -> ExecutionRun:
 
     # Kill the spawned process if the run is currently executing
     from src.execution.tasks import cancel_active_run
+
     cancel_active_run(run.id)
 
     return result
@@ -156,14 +163,14 @@ def compute_next_run(cron_expression: str, now: datetime | None = None) -> datet
     The cron fields are read in the server's local time zone (APScheduler's
     default), so "0 2 * * *" means 02:00 server time.
     """
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     if now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
+        now = now.replace(tzinfo=UTC)
     # +1s: CronTrigger returns a time >= now; a tick landing exactly on a
     # match must not compute the same slot again.
     trigger = CronTrigger.from_crontab(cron_expression)
     nxt = trigger.get_next_fire_time(None, now + timedelta(seconds=1))
-    return nxt.astimezone(timezone.utc).replace(tzinfo=None)
+    return nxt.astimezone(UTC).replace(tzinfo=None)
 
 
 def _refresh_next_run(schedule: Schedule) -> None:
@@ -182,7 +189,7 @@ def create_run_from_schedule(
     `gate_advanced_execution` (see the Schedule model + tripwire test).
     Sets `last_run_at`; the caller owns `next_run_at`.
     """
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     run = ExecutionRun(
         repository_id=schedule.repository_id,
         environment_id=schedule.environment_id,
@@ -197,7 +204,7 @@ def create_run_from_schedule(
         schedule_id=schedule.id,
     )
     db.add(run)
-    schedule.last_run_at = now.astimezone(timezone.utc).replace(tzinfo=None) if now.tzinfo else now
+    schedule.last_run_at = now.astimezone(UTC).replace(tzinfo=None) if now.tzinfo else now
     # Commit so the background thread (separate session) sees the run.
     db.commit()
 
@@ -262,9 +269,7 @@ def update_schedule(db: Session, schedule: Schedule, data: ScheduleUpdate) -> Sc
 def delete_schedule(db: Session, schedule: Schedule) -> None:
     """Delete a schedule. Its past runs stay, detached from it."""
     db.execute(
-        update(ExecutionRun)
-        .where(ExecutionRun.schedule_id == schedule.id)
-        .values(schedule_id=None)
+        update(ExecutionRun).where(ExecutionRun.schedule_id == schedule.id).values(schedule_id=None)
     )
     db.delete(schedule)
     db.flush()

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -15,7 +14,6 @@ from src.auth.models import User
 from src.auth.service import hash_password
 from src.repos.models import Repository
 from tests.conftest import auth_header
-
 
 ENDPOINT = "/api/v1/recordings/save"
 
@@ -97,11 +95,7 @@ class TestSaveHappyPath:
         assert "New Page    https://example.com" in content
         assert 'Click    [data-testid="submit"]' in content
 
-        audits = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "recording.flow.saved")
-            .all()
-        )
+        audits = db_session.query(AuditLog).filter(AuditLog.action == "recording.flow.saved").all()
         assert len(audits) == 1
         detail = json.loads(audits[0].detail)
         assert detail["command_count"] == 2
@@ -130,8 +124,10 @@ class TestPermissions:
         repo_with_tmpdir: Repository,
     ) -> None:
         viewer = User(
-            email="v-save@test.com", username="v-save",
-            hashed_password=hash_password("pw"), role="viewer",
+            email="v-save@test.com",
+            username="v-save",
+            hashed_password=hash_password("pw"),
+            role="viewer",
         )
         db_session.add(viewer)
         db_session.commit()
@@ -227,9 +223,7 @@ class TestFlowValidation:
 
 
 class TestRepoNotFound:
-    def test_unknown_repo_404(
-        self, client: TestClient, admin_user: User
-    ) -> None:
+    def test_unknown_repo_404(self, client: TestClient, admin_user: User) -> None:
         resp = client.post(
             ENDPOINT,
             json={"flow": _mk_flow(), "repo_id": 99999, "path": "a.robot"},
@@ -301,9 +295,7 @@ class TestIdMapRoundTrip:
             ],
         }
 
-    def test_robot_lines_carry_id_comments(
-        self, client, admin_user, repo_with_tmpdir
-    ):
+    def test_robot_lines_carry_id_comments(self, client, admin_user, repo_with_tmpdir):
         resp = client.post(
             ENDPOINT,
             json={
@@ -324,22 +316,15 @@ class TestIdMapRoundTrip:
         assert "# rbs:cmd-click-1" in content
         assert "# rbs:cmd-click-2" in content
         # The login-click line specifically carries cmd-click-1.
-        click_1_line = next(
-            ln for ln in content.splitlines()
-            if '[data-testid="login"]' in ln
-        )
+        click_1_line = next(ln for ln in content.splitlines() if '[data-testid="login"]' in ln)
         assert click_1_line.rstrip().endswith("# rbs:cmd-click-1")
         # And the submit-click line carries cmd-click-2 — AND its
         # CSS-ID gets the leading-`#` escape (RECORDER-RF-ESCAPE).
-        click_2_line = next(
-            ln for ln in content.splitlines() if "#submit" in ln
-        )
+        click_2_line = next(ln for ln in content.splitlines() if "#submit" in ln)
         assert "\\#submit" in click_2_line
         assert click_2_line.rstrip().endswith("# rbs:cmd-click-2")
 
-    def test_sidecar_preserves_explicit_ids(
-        self, client, admin_user, repo_with_tmpdir
-    ):
+    def test_sidecar_preserves_explicit_ids(self, client, admin_user, repo_with_tmpdir):
         """The sidecar `.rbs.json` must carry the same ids as the
         `.robot` lines, otherwise the FlowEditor's ID-based matcher
         has nothing to look up."""
@@ -359,14 +344,13 @@ class TestIdMapRoundTrip:
         ids = [c["id"] for c in sidecar["commands"]]
         assert ids == ["cmd-go-to", "cmd-click-1", "cmd-click-2"]
 
-    def test_robot_and_sidecar_ids_correspond(
-        self, client, admin_user, repo_with_tmpdir
-    ):
+    def test_robot_and_sidecar_ids_correspond(self, client, admin_user, repo_with_tmpdir):
         """The ACTUAL contract: every `# rbs:<id>` in the .robot must
         match a command id in the .rbs.json. This is what the
         FlowEditor's matcher relies on; if the wire format ever
         drifts, this test fires."""
         import re
+
         resp = client.post(
             ENDPOINT,
             json={
@@ -391,9 +375,7 @@ class TestIdMapRoundTrip:
         assert ids_in_robot, "Expected at least one # rbs:<id> in the .robot"
         assert ids_in_robot.issubset(ids_in_sidecar)
 
-    def test_default_factory_fires_when_id_omitted(
-        self, client, admin_user, repo_with_tmpdir
-    ):
+    def test_default_factory_fires_when_id_omitted(self, client, admin_user, repo_with_tmpdir):
         """A frontend that posts a flow without ids on commands
         (legacy / hand-built sidecar) gets ids minted by Pydantic's
         default factory. The sidecar always carries valid ids;

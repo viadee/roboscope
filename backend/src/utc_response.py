@@ -35,9 +35,7 @@ from fastapi.responses import JSONResponse
 # else inside the quotes — that's how Pydantic v2 emits naive datetime.
 # The leading/trailing quote bytes are kept so the substitution leaves
 # the surrounding JSON intact.
-_NAIVE_ISO_DT_RE = re.compile(
-    rb'"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?)"'
-)
+_NAIVE_ISO_DT_RE = re.compile(rb'"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?)"')
 
 
 class UtcJSONResponse(JSONResponse):

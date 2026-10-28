@@ -48,9 +48,7 @@ class IdentityProvider(Base, TimestampMixin):
     discovery_cache_json: Mapped[str | None] = mapped_column(Text, default=None, nullable=True)
     discovery_cached_at: Mapped[datetime | None] = mapped_column(default=None, nullable=True)
     last_dry_run_at: Mapped[datetime | None] = mapped_column(default=None, nullable=True)
-    last_dry_run_status: Mapped[str | None] = mapped_column(
-        String(20), default=None, nullable=True
-    )
+    last_dry_run_status: Mapped[str | None] = mapped_column(String(20), default=None, nullable=True)
 
 
 class IdPGroupMapping(Base, TimestampMixin):
@@ -58,9 +56,7 @@ class IdPGroupMapping(Base, TimestampMixin):
 
     __tablename__ = "idp_group_mappings"
     __table_args__ = (
-        UniqueConstraint(
-            "idp_id", "group_claim_value", name="uq_idp_group_mappings_idp_group"
-        ),
+        UniqueConstraint("idp_id", "group_claim_value", name="uq_idp_group_mappings_idp_group"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -68,9 +64,7 @@ class IdPGroupMapping(Base, TimestampMixin):
         ForeignKey("identity_providers.id", ondelete="CASCADE"), index=True
     )
     group_claim_value: Mapped[str] = mapped_column(String(255))
-    team_id: Mapped[int] = mapped_column(
-        ForeignKey("teams.id", ondelete="CASCADE"), index=True
-    )
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"), index=True)
     role: Mapped[str] = mapped_column(String(20), default="viewer")
 
 
@@ -83,9 +77,7 @@ class OidcLoginAttempt(Base):
     state: Mapped[str] = mapped_column(String(128), unique=True, index=True)
     nonce: Mapped[str] = mapped_column(String(128))
     pkce_verifier: Mapped[str] = mapped_column(String(128))
-    idp_id: Mapped[int] = mapped_column(
-        ForeignKey("identity_providers.id", ondelete="CASCADE")
-    )
+    idp_id: Mapped[int] = mapped_column(ForeignKey("identity_providers.id", ondelete="CASCADE"))
     return_to: Mapped[str] = mapped_column(String(500), default="/")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(index=True, nullable=False)

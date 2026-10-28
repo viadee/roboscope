@@ -38,9 +38,7 @@ def seed_settings(db_session: Session) -> None:
 
 
 class TestPublicSsoSettings:
-    def test_endpoint_is_unauthenticated(
-        self, client: TestClient, seed_settings
-    ) -> None:
+    def test_endpoint_is_unauthenticated(self, client: TestClient, seed_settings) -> None:
         """No Authorization header → 200 with the expected shape."""
         resp = client.get(ENDPOINT)
         assert resp.status_code == 200
@@ -53,11 +51,7 @@ class TestPublicSsoSettings:
         self, client: TestClient, db_session: Session, seed_settings
     ) -> None:
         """Flipping the setting to 'true' is reflected in the response."""
-        row = (
-            db_session.query(AppSetting)
-            .filter(AppSetting.key == "hide_local_login_form")
-            .one()
-        )
+        row = db_session.query(AppSetting).filter(AppSetting.key == "hide_local_login_form").one()
         row.value = "true"
         db_session.commit()
 
@@ -69,11 +63,7 @@ class TestPublicSsoSettings:
         self, client: TestClient, db_session: Session, seed_settings
     ) -> None:
         """The service stores the string value verbatim; parsing is lower()."""
-        row = (
-            db_session.query(AppSetting)
-            .filter(AppSetting.key == "hide_local_login_form")
-            .one()
-        )
+        row = db_session.query(AppSetting).filter(AppSetting.key == "hide_local_login_form").one()
         row.value = "True"
         db_session.commit()
 

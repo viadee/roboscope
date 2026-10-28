@@ -46,18 +46,14 @@ def _create_user(db: Session, role: str, suffix: str = ""):
     return user
 
 
-def _create_idp(
-    client: TestClient, headers: dict, name_suffix: str = ""
-) -> int:
+def _create_idp(client: TestClient, headers: dict, name_suffix: str = "") -> int:
     data = {**VALID_IDP_DATA, "name": f"{VALID_IDP_DATA['name']}{name_suffix}"}
     resp = client.post(BASE_URL, json=data, headers=headers)
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
 
 
-def test_client_secret_encrypted_at_rest(
-    client: TestClient, db_session: Session
-):
+def test_client_secret_encrypted_at_rest(client: TestClient, db_session: Session):
     """AC1: ciphertext in DB != plaintext; Fernet-encrypted."""
     admin = _create_user(db_session, Role.ADMIN, "_cs1")
     headers = auth_header(admin)
@@ -71,9 +67,7 @@ def test_client_secret_encrypted_at_rest(
     assert is_encrypted(idp.client_secret_encrypted.decode("utf-8")) is True
 
 
-def test_client_secret_not_in_response_body(
-    client: TestClient, db_session: Session
-):
+def test_client_secret_not_in_response_body(client: TestClient, db_session: Session):
     """AC1 + AC4: plaintext secret never appears in API response bodies."""
     admin = _create_user(db_session, Role.ADMIN, "_cs2")
     headers = auth_header(admin)
@@ -106,9 +100,7 @@ def test_client_secret_not_in_response_body(
     assert SECRET not in patch_resp.text
 
 
-def test_get_decrypted_client_secret_roundtrip(
-    client: TestClient, db_session: Session
-):
+def test_get_decrypted_client_secret_roundtrip(client: TestClient, db_session: Session):
     """AC2: decrypt helper returns the original plaintext."""
     admin = _create_user(db_session, Role.ADMIN, "_cs3")
     headers = auth_header(admin)
@@ -165,18 +157,14 @@ def test_audit_middleware_does_not_capture_request_body():
         "request.scope",
     ]
     for pat in forbidden:
-        assert pat not in src, (
-            f"Audit middleware must stay body-blind; found '{pat}'"
-        )
+        assert pat not in src, f"Audit middleware must stay body-blind; found '{pat}'"
     # Positive assertion: detail payload is limited to method/path/status
     assert '"method": method' in src
     assert '"path": path' in src
     assert '"status": status_code' in src
 
 
-def test_client_secret_not_in_logs(
-    client: TestClient, db_session: Session, caplog
-):
+def test_client_secret_not_in_logs(client: TestClient, db_session: Session, caplog):
     """AC1: plaintext secret must not appear in any captured log record."""
     caplog.set_level(logging.DEBUG)
     admin = _create_user(db_session, Role.ADMIN, "_cs6")
@@ -189,10 +177,9 @@ def test_client_secret_not_in_logs(
         headers=headers,
     )
 
-    serialized = json.dumps([
-        {"msg": r.getMessage(), "name": r.name, "level": r.levelname}
-        for r in caplog.records
-    ])
+    serialized = json.dumps(
+        [{"msg": r.getMessage(), "name": r.name, "level": r.levelname} for r in caplog.records]
+    )
     assert SECRET not in serialized
     assert "second-rotated-secret" not in serialized
 
@@ -231,15 +218,12 @@ def test_rotated_secret_key_falls_back_with_warning(
 
     # Fallback returns the ciphertext string as-is; a warning is emitted
     assert result == stale_ciphertext
-    assert any(
-        "legacy-plaintext fallback" in r.getMessage()
-        for r in caplog.records
-    ), "expected a warning log on fallback"
+    assert any("legacy-plaintext fallback" in r.getMessage() for r in caplog.records), (
+        "expected a warning log on fallback"
+    )
 
 
-def test_422_validation_error_does_not_echo_client_secret(
-    client: TestClient, db_session: Session
-):
+def test_422_validation_error_does_not_echo_client_secret(client: TestClient, db_session: Session):
     """AC1/AC4: 422 responses from Pydantic validation must not echo
     the submitted `client_secret` value into the error envelope."""
     admin = _create_user(db_session, Role.ADMIN, "_cs8")

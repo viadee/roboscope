@@ -14,7 +14,7 @@ encrypted: they carry no secrets, only identifiers.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 
@@ -34,7 +34,7 @@ def encode_consent_token(
     groups: list[str],
     return_to: str,
 ) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "type": _TOKEN_TYPE,
         "user_id": user_id,

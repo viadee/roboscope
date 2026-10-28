@@ -238,9 +238,7 @@ class DockerRunner(AbstractRunner):
                 output_dir=output_dir,
                 timed_out=timed_out,
                 stdout="".join(stdout_lines),
-                error_message=(
-                    f"Timeout after {timeout} seconds" if timed_out else str(e)
-                ),
+                error_message=(f"Timeout after {timeout} seconds" if timed_out else str(e)),
                 duration_seconds=duration,
             )
 

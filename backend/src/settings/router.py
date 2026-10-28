@@ -2,7 +2,7 @@
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
@@ -48,6 +48,7 @@ def get_docker_status(
     """Probe Docker daemon and return status info."""
     # Story REFACTOR-1 — shared bootstrap helper.
     from src.docker_client import get_docker_client
+
     try:
         client = get_docker_client()
         version_info = client.version()
@@ -67,12 +68,14 @@ def get_docker_status(
                 parts = tags[0].split(":", 1)
                 repo = parts[0]
                 tag = parts[1] if len(parts) > 1 else "latest"
-            images.append({
-                "repository": repo,
-                "tag": tag,
-                "size": img.attrs.get("Size", 0),
-                "created": img.attrs.get("Created", ""),
-            })
+            images.append(
+                {
+                    "repository": repo,
+                    "tag": tag,
+                    "size": img.attrs.get("Size", 0),
+                    "created": img.attrs.get("Created", ""),
+                }
+            )
 
         return {
             "connected": True,
@@ -95,9 +98,7 @@ def get_docker_status(
 
 # --- Story 5-1: SSO Emergency Bypass API ---
 
-_SSO_EMERGENCY_BYPASS_MAX_HOURS = int(
-    os.environ.get("SSO_EMERGENCY_BYPASS_MAX_HOURS", "24")
-)
+_SSO_EMERGENCY_BYPASS_MAX_HOURS = int(os.environ.get("SSO_EMERGENCY_BYPASS_MAX_HOURS", "24"))
 
 
 class SsoEmergencyBypassActivate(BaseModel):
@@ -152,18 +153,24 @@ def activate_emergency_bypass(
     exp = get_setting(db, "sso_emergency_bypass_expires_at")
     if flag is None:
         flag = AppSetting(
-            key="sso_emergency_bypass", value="false", value_type="bool",
-            category="auth", description="Enable local-login fallback during SSO outage.",
+            key="sso_emergency_bypass",
+            value="false",
+            value_type="bool",
+            category="auth",
+            description="Enable local-login fallback during SSO outage.",
         )
         db.add(flag)
     if exp is None:
         exp = AppSetting(
-            key="sso_emergency_bypass_expires_at", value="", value_type="string",
-            category="auth", description="ISO-8601 auto-expiry for emergency bypass (empty = inactive).",
+            key="sso_emergency_bypass_expires_at",
+            value="",
+            value_type="string",
+            category="auth",
+            description="ISO-8601 auto-expiry for emergency bypass (empty = inactive).",
         )
         db.add(exp)
 
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=data.hours)
+    expires_at = datetime.now(UTC) + timedelta(hours=data.hours)
     flag.value = "true"
     exp.value = expires_at.isoformat()
     db.flush()

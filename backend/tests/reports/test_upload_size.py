@@ -53,7 +53,10 @@ class TestUploadStreamingSizeGuard:
         assert "exceeds" in body.lower() or "exceeded" in body.lower()
 
     def test_rejects_streamed_overflow_when_no_content_length(
-        self, client, admin_user, monkeypatch,
+        self,
+        client,
+        admin_user,
+        monkeypatch,
     ):
         """If Content-Length is missing or wrong, the chunk loop must
         still abort once `total_bytes` crosses the cap. We simulate by
@@ -73,9 +76,7 @@ class TestUploadStreamingSizeGuard:
         """A small, valid ZIP under the cap still ingests successfully."""
         resp = client.post(
             "/api/v1/reports/upload",
-            files=(
-                ("file", ("small.zip", small_valid_zip, "application/zip")),
-            ),
+            files=(("file", ("small.zip", small_valid_zip, "application/zip")),),
             headers=auth_header(admin_user),
         )
         # 201 on success; the ingest pipeline may produce 400 if the

@@ -23,7 +23,7 @@ if "DATABASE_URL" not in os.environ or os.environ.get("_ROBOSCOPE_PYTEST_DB"):
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine, event  # noqa: E402
-from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
 from src.auth.constants import Role  # noqa: E402
 from src.auth.service import create_access_token, hash_password  # noqa: E402
@@ -98,6 +98,7 @@ def db_session(engine):
 @pytest.fixture(scope="function")
 def client(db_session: Session):
     """Provide a test client with overridden DB dependency."""
+
     def override_get_db():
         yield db_session
 
@@ -178,11 +179,13 @@ def _reset_process_level_caches():
     """
     try:
         from src.auth.sso_router import _clear_audit_dedup_state
+
         _clear_audit_dedup_state()
     except Exception:
         pass
     try:
         from src.rate_limit import limiter
+
         limiter.reset()
     except Exception:
         pass

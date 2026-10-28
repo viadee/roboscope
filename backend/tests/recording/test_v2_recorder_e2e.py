@@ -21,7 +21,6 @@ from __future__ import annotations
 import http.server
 import socketserver
 import threading
-import time
 from pathlib import Path
 
 import pytest
@@ -33,6 +32,7 @@ from src.recording.v2_command_queue import (
 
 try:
     import playwright  # noqa: F401
+
     _HAS_PLAYWRIGHT = True
 except Exception:
     _HAS_PLAYWRIGHT = False
@@ -82,6 +82,7 @@ class _CommandSpy:
     def install(self):
         from src.recording import v2_command_queue as q
         from src.recording import v2_recorder_task as t
+
         self._orig_q_enqueue = q.enqueue_command
         self._orig_task_enqueue = t.enqueue_command
 
@@ -99,6 +100,7 @@ class _CommandSpy:
         if self._orig_q_enqueue is not None:
             from src.recording import v2_command_queue as q
             from src.recording import v2_recorder_task as t
+
             q.enqueue_command = self._orig_q_enqueue
             t.enqueue_command = self._orig_task_enqueue
 
@@ -126,6 +128,7 @@ def test_recorder_captures_click_type_navigate(fixture_http_server):
             return False
 
     import asyncio
+
     if not asyncio.run(_chromium_available()):
         pytest.skip("playwright chromium not installed — run `playwright install chromium`")
 
@@ -176,27 +179,27 @@ def test_recorder_captures_click_type_navigate(fixture_http_server):
     type_cmds = [c for c in payloads if c.keyword == "Type Text"]
 
     # AC3 assertions.
-    assert len(click_cmds) >= 1, (
-        f"expected at least one Click command, got keywords={keywords!r}"
-    )
+    assert len(click_cmds) >= 1, f"expected at least one Click command, got keywords={keywords!r}"
     submit_clicks = [
-        c for c in click_cmds
+        c
+        for c in click_cmds
         if any("submit-button" in cand.value for cand in c.selector_candidates)
     ]
     assert submit_clicks, (
         f"expected a Click command targeting the submit-button testid, "
-        f"got click_cmds={[ [cand.value for cand in c.selector_candidates] for c in click_cmds]!r}"
+        f"got click_cmds={[[cand.value for cand in c.selector_candidates] for c in click_cmds]!r}"
     )
 
     assert len(type_cmds) >= 1, f"expected at least one Type Text, got keywords={keywords!r}"
-    assert any(
-        c.args.get("text") == "alice@example.com" for c in type_cmds
-    ), f"expected Type Text with 'alice@example.com', got {[c.args for c in type_cmds]!r}"
+    assert any(c.args.get("text") == "alice@example.com" for c in type_cmds), (
+        f"expected Type Text with 'alice@example.com', got {[c.args for c in type_cmds]!r}"
+    )
 
     # Either a `Go To` (full nav) OR a second Click on the next-link is
     # acceptable — both prove the navigation path is captured.
     nav_or_link_click = [
-        c for c in payloads
+        c
+        for c in payloads
         if c.keyword == "Go To"
         or (
             c.keyword == "Click"
@@ -204,8 +207,7 @@ def test_recorder_captures_click_type_navigate(fixture_http_server):
         )
     ]
     assert nav_or_link_click, (
-        f"expected a Go To or Click on next-link after the link click, "
-        f"got keywords={keywords!r}"
+        f"expected a Go To or Click on next-link after the link click, got keywords={keywords!r}"
     )
 
 
@@ -281,6 +283,7 @@ def test_click_that_navigates_preserves_selector_candidates():
             return False
 
     import asyncio
+
     if not asyncio.run(_chromium_available()):
         pytest.skip("playwright chromium not installed — run `playwright install chromium`")
 
@@ -330,32 +333,30 @@ def test_click_that_navigates_preserves_selector_candidates():
         )
 
         assert click_cmds, (
-            f"expected at least one Click command, got keywords="
-            f"{[c.keyword for c in payloads]!r}"
+            f"expected at least one Click command, got keywords={[c.keyword for c in payloads]!r}"
         )
         # THE assertion that the bug ships against: the captured
         # Click must have AT LEAST ONE selector candidate. Pre-fix,
         # this was empty because the verifier dropped them all.
         nav_click = next(
             (
-                c for c in click_cmds
+                c
+                for c in click_cmds
                 if any("goto-page-b" in cand.value for cand in c.selector_candidates)
             ),
             None,
         )
         # If verifier kept the candidate(s), great. Even if it
         # couldn't verify (timing varies), there should be SOMETHING.
-        assert nav_click is not None or (
-            click_cmds[0].selector_candidates
-        ), (
+        assert nav_click is not None or (click_cmds[0].selector_candidates), (
             "no Click command landed with selector candidates after a "
             "navigation-triggering click — verifier likely dropped them "
-            f"all. Got: {[ [cand.value for cand in c.selector_candidates] for c in click_cmds]!r}"
+            f"all. Got: {[[cand.value for cand in c.selector_candidates] for c in click_cmds]!r}"
         )
         # The CRITICAL assertion: at least one candidate exists.
         assert all(c.selector_candidates for c in click_cmds), (
             f"some Click ended up with ZERO selector candidates — "
-            f"regression. Got: {[ (c.keyword, [cand.value for cand in c.selector_candidates]) for c in click_cmds]!r}"
+            f"regression. Got: {[(c.keyword, [cand.value for cand in c.selector_candidates]) for c in click_cmds]!r}"
         )
     finally:
         tear_down_server()
@@ -386,6 +387,7 @@ def test_click_inside_iframe_that_removes_itself_preserves_selectors():
             return False
 
     import asyncio
+
     if not asyncio.run(_chromium_available()):
         pytest.skip("playwright chromium not installed — run `playwright install chromium`")
 
@@ -510,11 +512,12 @@ def test_iframe_click_records_frame_chain_with_id_candidate_in_sidecar():
             return False
 
     import asyncio
+
     if not asyncio.run(_chromium_available()):
         pytest.skip("playwright chromium not installed")
 
-    from src.recording.v2_recorder_task import run_v2_recorder_session
     from src.recording.robot_emit import _emit_command
+    from src.recording.v2_recorder_task import run_v2_recorder_session
 
     base_url, tear_down_server = _http_server_for_dir(FIXTURE_PATH.parent)
     try:
@@ -526,7 +529,8 @@ def test_iframe_click_records_frame_chain_with_id_candidate_in_sidecar():
 
         async def actions(page):
             await page.wait_for_selector(
-                '[data-testid="consent-banner"]', timeout=5000,
+                '[data-testid="consent-banner"]',
+                timeout=5000,
             )
             iframe_locator = page.frame_locator('[data-testid="consent-banner"]')
             await iframe_locator.locator(
@@ -551,41 +555,34 @@ def test_iframe_click_records_frame_chain_with_id_candidate_in_sidecar():
         click_cmds = [c for c in spy.commands if c.keyword == "Click"]
         iframe_clicks = [c for c in click_cmds if c.frame_url is not None]
         assert iframe_clicks, (
-            f"expected an iframe click, got "
-            f"frame_urls={[c.frame_url for c in click_cmds]!r}"
+            f"expected an iframe click, got frame_urls={[c.frame_url for c in click_cmds]!r}"
         )
         cmd = iframe_clicks[0]
 
         # (1) The sidecar payload itself carries the chain.
         assert cmd.frame_chain, (
-            f"frame_chain is empty on an iframe click — RECORDER-FRAMES-2 "
-            f"regression. Got: {cmd}"
+            f"frame_chain is empty on an iframe click — RECORDER-FRAMES-2 regression. Got: {cmd}"
         )
         assert len(cmd.frame_chain) == 1, (
-            f"expected 1 rung (no nesting), got "
-            f"{len(cmd.frame_chain)}: {cmd.frame_chain!r}"
+            f"expected 1 rung (no nesting), got {len(cmd.frame_chain)}: {cmd.frame_chain!r}"
         )
         rung = cmd.frame_chain[0]
         cand_values = [c.value for c in rung.selector_candidates]
         print(f"\n[frames-2] frame_chain rung candidates: {cand_values!r}")
         assert rung.selector_candidates, (
-            f"frame_chain rung has no candidates — synthesis failed. "
-            f"rung={rung}"
+            f"frame_chain rung has no candidates — synthesis failed. rung={rung}"
         )
         first = rung.selector_candidates[0]
         assert any(
-            s in first.value for s in [
+            s in first.value
+            for s in [
                 "iframe#consent-banner",
                 'iframe[data-testid="consent-banner"]',
                 'iframe[name="consent"]',
             ]
-        ), (
-            f"best iframe candidate isn't id/testid/name strategy: "
-            f"{first.value!r}"
-        )
+        ), f"best iframe candidate isn't id/testid/name strategy: {first.value!r}"
         assert first.verified_unique is True, (
-            f"best iframe candidate not verified_unique on a "
-            f"single-iframe fixture: {first!r}"
+            f"best iframe candidate not verified_unique on a single-iframe fixture: {first!r}"
         )
 
         # (2) Emitter uses the chain, NOT the legacy URL-host pattern.
@@ -593,15 +590,13 @@ def test_iframe_click_records_frame_chain_with_id_candidate_in_sidecar():
         print(f"[frames-2] emitted line: {line}")
         assert 'iframe[src*="127.0.0.1"]' not in line
         assert any(
-            s in line for s in [
+            s in line
+            for s in [
                 "iframe#consent-banner >>>",
                 'iframe[data-testid="consent-banner"] >>>',
                 'iframe[name="consent"] >>>',
             ]
-        ), (
-            f"emitted line doesn't use a high-quality iframe candidate: "
-            f"{line!r}"
-        )
+        ), f"emitted line doesn't use a high-quality iframe candidate: {line!r}"
     finally:
         tear_down_server()
 
@@ -624,11 +619,12 @@ def test_iframe_click_when_iframe_detaches_falls_back_to_url_strategy():
             return False
 
     import asyncio
+
     if not asyncio.run(_chromium_available()):
         pytest.skip("playwright chromium not installed")
 
-    from src.recording.v2_recorder_task import run_v2_recorder_session
     from src.recording.robot_emit import _emit_command
+    from src.recording.v2_recorder_task import run_v2_recorder_session
 
     base_url, tear_down_server = _http_server_for_dir(FIXTURE_PATH.parent)
     try:
@@ -640,7 +636,8 @@ def test_iframe_click_when_iframe_detaches_falls_back_to_url_strategy():
 
         async def actions(page):
             await page.wait_for_selector(
-                '[data-testid="banner-frame"]', timeout=5000,
+                '[data-testid="banner-frame"]',
+                timeout=5000,
             )
             iframe_locator = page.frame_locator('[data-testid="banner-frame"]')
             await iframe_locator.locator(
@@ -668,8 +665,7 @@ def test_iframe_click_when_iframe_detaches_falls_back_to_url_strategy():
         cmd = iframe_clicks[0]
         assert cmd.frame_url is not None
         assert cmd.selector_candidates, (
-            "iframe click lost all inner selectors — preserve-on-exception "
-            "regression"
+            "iframe click lost all inner selectors — preserve-on-exception regression"
         )
         # RECORDER-FRAMES-2 — the proactive inventory should have
         # registered the iframe BEFORE the user click detached it, so
@@ -682,24 +678,19 @@ def test_iframe_click_when_iframe_detaches_falls_back_to_url_strategy():
         )
         rung = cmd.frame_chain[0]
         assert rung.selector_candidates, (
-            "frame_chain rung has no candidates — inventory entry "
-            "missing for url=" + repr(rung.url)
+            "frame_chain rung has no candidates — inventory entry missing for url=" + repr(rung.url)
         )
         cand_values = [c.value for c in rung.selector_candidates]
-        print(
-            f"\n[frames-2-detach] frame_chain candidates (post-detach): "
-            f"{cand_values!r}"
-        )
+        print(f"\n[frames-2-detach] frame_chain candidates (post-detach): {cand_values!r}")
         line = _emit_command(cmd)
         print(f"[frames-2-detach] emitted line: {line}")
         # Now the chain has a high-quality iframe selector, so the
         # emitted line MUST use one of those — NOT just the URL host
         # fallback (which used to be the only option pre-inventory).
-        assert "iframe" in line and ">>>" in line, (
-            f"emitted line lost its iframe wrapper: {line!r}"
-        )
+        assert "iframe" in line and ">>>" in line, f"emitted line lost its iframe wrapper: {line!r}"
         assert any(
-            s in line for s in [
+            s in line
+            for s in [
                 "iframe#banner-frame",
                 'iframe[data-testid="banner-frame"]',
             ]
@@ -739,11 +730,12 @@ def test_iframe_loaded_after_DOMContentLoaded_still_registered():
             return False
 
     import asyncio
+
     if not asyncio.run(_chromium_available()):
         pytest.skip("playwright chromium not installed")
 
-    from src.recording.v2_recorder_task import run_v2_recorder_session
     from src.recording.robot_emit import _emit_command
+    from src.recording.v2_recorder_task import run_v2_recorder_session
 
     base_url, tear_down_server = _http_server_for_dir(FIXTURE_PATH.parent)
     try:
@@ -759,7 +751,8 @@ def test_iframe_loaded_after_DOMContentLoaded_still_registered():
             # covers 100/300/700/1500/3000/5000ms — by 1500ms we're
             # safely past the injection.
             await page.wait_for_selector(
-                '[data-testid="cmp-banner"]', timeout=5000,
+                '[data-testid="cmp-banner"]',
+                timeout=5000,
             )
             iframe_locator = page.frame_locator('[data-testid="cmp-banner"]')
             await iframe_locator.locator(
@@ -790,24 +783,20 @@ def test_iframe_loaded_after_DOMContentLoaded_still_registered():
         # late-injected iframe BEFORE the user clicked, so the chain
         # has real candidates.
         assert cmd.frame_chain, (
-            "frame_chain is empty — retry-scan didn't catch the "
-            "late-loaded iframe in time"
+            "frame_chain is empty — retry-scan didn't catch the late-loaded iframe in time"
         )
         rung = cmd.frame_chain[0]
         assert rung.selector_candidates, (
-            "frame_chain rung is empty — retry-scan didn't register "
-            "the iframe (URL match miss?)"
+            "frame_chain rung is empty — retry-scan didn't register the iframe (URL match miss?)"
         )
         cand_values = [c.value for c in rung.selector_candidates]
-        print(
-            f"\n[frames-2-late-load] frame_chain candidates: "
-            f"{cand_values!r}"
-        )
+        print(f"\n[frames-2-late-load] frame_chain candidates: {cand_values!r}")
 
         line = _emit_command(cmd)
         print(f"[frames-2-late-load] emitted line: {line}")
         assert any(
-            s in line for s in [
+            s in line
+            for s in [
                 "iframe#sp_message_iframe_1234567",
                 'iframe[data-testid="cmp-banner"]',
                 'iframe[name="consent"]',

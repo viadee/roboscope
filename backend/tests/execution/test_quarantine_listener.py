@@ -6,14 +6,11 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from src.execution.runners.quarantine_listener import (
     QuarantineSkipListener,
     write_quarantine_snapshot,
 )
 from src.execution.runners.subprocess_runner import SubprocessRunner
-
 
 # ---------------------------------------------------------------------------
 # Snapshot writer
@@ -99,11 +96,10 @@ class TestListener:
             listener.start_test(data, MagicMock())
             BuiltIn_cls.return_value.skip.assert_not_called()
 
-    def test_builtin_unavailable_falls_back_to_result_mutation(
-        self, tmp_path: Path
-    ) -> None:
+    def test_builtin_unavailable_falls_back_to_result_mutation(self, tmp_path: Path) -> None:
         p = write_quarantine_snapshot(
-            tmp_path, [{"suite_name": "S", "test_name": "flaky"}],
+            tmp_path,
+            [{"suite_name": "S", "test_name": "flaky"}],
         )
         listener = QuarantineSkipListener(str(p))
         data = MagicMock()
@@ -128,15 +124,21 @@ class TestCommandBuilder:
     def test_no_listeners_arg_omits_flag(self) -> None:
         runner = SubprocessRunner()
         cmd = runner._build_command(
-            repo_path="/x", target_path="tests/", output_dir="/tmp/o",
+            repo_path="/x",
+            target_path="tests/",
+            output_dir="/tmp/o",
         )
         assert "--listener" not in cmd
 
     def test_single_listener_adds_flag(self) -> None:
         runner = SubprocessRunner()
         cmd = runner._build_command(
-            repo_path="/x", target_path="tests/", output_dir="/tmp/o",
-            listeners=["src.execution.runners.quarantine_listener.QuarantineSkipListener:/tmp/q.json"],
+            repo_path="/x",
+            target_path="tests/",
+            output_dir="/tmp/o",
+            listeners=[
+                "src.execution.runners.quarantine_listener.QuarantineSkipListener:/tmp/q.json"
+            ],
         )
         assert cmd.count("--listener") == 1
         idx = cmd.index("--listener")
@@ -145,7 +147,9 @@ class TestCommandBuilder:
     def test_blank_entries_filtered(self) -> None:
         runner = SubprocessRunner()
         cmd = runner._build_command(
-            repo_path="/x", target_path="t/", output_dir="/tmp/o",
+            repo_path="/x",
+            target_path="t/",
+            output_dir="/tmp/o",
             listeners=["", "   ", "valid.Listener"],
         )
         # Only the valid one contributes a --listener pair.

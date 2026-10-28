@@ -1,25 +1,22 @@
 """Tests for Browser vs Browser-Batteries variant detection and mutual exclusion."""
 
-import pytest
-from unittest.mock import MagicMock
-
 from src.environments.models import Environment, EnvironmentPackage
-from src.environments.tasks import (
-    _is_browser_package,
-    _is_batteries_package,
-    _is_any_browser_variant,
-    _get_conflicting_browser_package,
-)
 from src.environments.service import (
-    _has_browser_package,
     _has_batteries_package,
+    _has_browser_package,
     generate_dockerfile,
 )
-
+from src.environments.tasks import (
+    _get_conflicting_browser_package,
+    _is_any_browser_variant,
+    _is_batteries_package,
+    _is_browser_package,
+)
 
 # ---------------------------------------------------------------------------
 # Detection helpers
 # ---------------------------------------------------------------------------
+
 
 class TestDetectionHelpers:
     """Test the _is_*_package helper functions."""
@@ -64,6 +61,7 @@ class TestDetectionHelpers:
 # Conflict detection
 # ---------------------------------------------------------------------------
 
+
 class TestConflictDetection:
     """Test _get_conflicting_browser_package."""
 
@@ -87,7 +85,9 @@ class TestConflictDetection:
 
     def test_conflict_when_browser_installed_and_batteries_requested(self, db_session):
         env = self._make_env_with_pkg(db_session, "robotframework-browser")
-        result = _get_conflicting_browser_package(env.id, "robotframework-browser-batteries", db_session)
+        result = _get_conflicting_browser_package(
+            env.id, "robotframework-browser-batteries", db_session
+        )
         assert result == "robotframework-browser"
 
     def test_conflict_when_batteries_installed_and_browser_requested(self, db_session):
@@ -102,13 +102,16 @@ class TestConflictDetection:
 
     def test_no_conflict_when_other_is_failed(self, db_session):
         env = self._make_env_with_pkg(db_session, "robotframework-browser", pkg_status="failed")
-        result = _get_conflicting_browser_package(env.id, "robotframework-browser-batteries", db_session)
+        result = _get_conflicting_browser_package(
+            env.id, "robotframework-browser-batteries", db_session
+        )
         assert result is None  # Failed packages don't count as conflicting
 
 
 # ---------------------------------------------------------------------------
 # Dockerfile generation
 # ---------------------------------------------------------------------------
+
 
 class TestDockerfileGeneration:
     """Test generate_dockerfile for both Browser variants."""
@@ -126,9 +129,7 @@ class TestDockerfileGeneration:
         NOT bundle browser binaries. Both variants now go through
         the same nodejs + rfbrowser init pipeline so the browsers
         match rfbrowser's Node-side Playwright wrapper."""
-        df = generate_dockerfile(
-            "3.12", ["robotframework", "robotframework-browser-batteries"]
-        )
+        df = generate_dockerfile("3.12", ["robotframework", "robotframework-browser-batteries"])
         assert "nodejs" in df
         assert "rfbrowser init" in df
         assert "FROM python:3.12-slim" in df
@@ -148,13 +149,16 @@ class TestDockerfileGeneration:
 # Router conflict check (HTTP 409)
 # ---------------------------------------------------------------------------
 
+
 class TestRouterConflictCheck:
     """Test that the install endpoint returns 409 on browser variant conflict."""
 
     def test_install_browser_when_batteries_exists(self, client, admin_user, db_session):
         from tests.conftest import auth_header
 
-        env = Environment(name="test", venv_path="/tmp/v", python_version="3.12", created_by=admin_user.id)
+        env = Environment(
+            name="test", venv_path="/tmp/v", python_version="3.12", created_by=admin_user.id
+        )
         db_session.add(env)
         db_session.flush()
         pkg = EnvironmentPackage(
@@ -176,7 +180,9 @@ class TestRouterConflictCheck:
     def test_install_non_browser_succeeds(self, client, admin_user, db_session):
         from tests.conftest import auth_header
 
-        env = Environment(name="test2", venv_path="/tmp/v2", python_version="3.12", created_by=admin_user.id)
+        env = Environment(
+            name="test2", venv_path="/tmp/v2", python_version="3.12", created_by=admin_user.id
+        )
         db_session.add(env)
         db_session.flush()
         pkg = EnvironmentPackage(

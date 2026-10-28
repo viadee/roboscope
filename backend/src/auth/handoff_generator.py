@@ -5,22 +5,18 @@ from __future__ import annotations
 from io import BytesIO
 from typing import TypedDict
 
-from reportlab.graphics.shapes import Drawing, Line, PolyLine, Rect, String
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (
     Flowable,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
-    Table,
-    TableStyle,
 )
 
 from src.auth.models import IdentityProvider
-
 
 # ---------------------------------------------------------------------------
 # Locale data

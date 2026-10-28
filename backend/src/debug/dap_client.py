@@ -111,9 +111,7 @@ class DapClient:
             raise ConnectionResetError("DAP client is closed")
         seq = self._next_seq
         self._next_seq += 1
-        fut: asyncio.Future[dict[str, Any]] = (
-            asyncio.get_running_loop().create_future()
-        )
+        fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
         self._pending[seq] = fut
         msg: DapMessage = {
             "seq": seq,
@@ -189,9 +187,7 @@ class DapClient:
                 try:
                     h(body)
                 except Exception:  # noqa: BLE001
-                    logger.exception(
-                        "DAP event handler for %r raised", event
-                    )
+                    logger.exception("DAP event handler for %r raised", event)
         else:
             # Unknown message types are logged and ignored — DAP is
             # forward-extensible and we don't want to crash the loop

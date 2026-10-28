@@ -21,7 +21,6 @@ from src.recording.selector_synthesis import (
     synthesise_selectors,
 )
 
-
 _logger = logging.getLogger("roboscope.recording.translate")
 
 
@@ -76,32 +75,34 @@ def _candidates_for(el: ElementSnapshot | None) -> list[SelectorCandidate]:
 # captured row in the live view (with the iframe-host chip from
 # c1b0feb) and can delete it before saving. False-positive
 # suppression is harder to recover from than false-positive capture.
-_AD_IFRAME_HOST_SUBSTRINGS: frozenset[str] = frozenset({
-    # Google ad networks
-    "doubleclick.net",
-    "googlesyndication.com",
-    "2mdn.net",
-    "googleadservices.com",
-    # Major ad exchanges / DSPs
-    "adnxs.com",       # AppNexus / Xandr
-    "pubmatic.com",
-    "rubiconproject.com",
-    "openx.net",
-    "adsrvr.org",      # The Trade Desk
-    "criteo.com",
-    "criteo.net",
-    "amazon-adsystem.com",
-    "yieldlab.com",
-    "yieldmo.com",
-    # Recommendation / native-ad widgets (no user-meaningful interaction)
-    "taboola.com",
-    "outbrain.com",
-    # Analytics / measurement
-    "scorecardresearch.com",
-    "chartbeat.com",
-    "quantserve.com",
-    "moatads.com",
-})
+_AD_IFRAME_HOST_SUBSTRINGS: frozenset[str] = frozenset(
+    {
+        # Google ad networks
+        "doubleclick.net",
+        "googlesyndication.com",
+        "2mdn.net",
+        "googleadservices.com",
+        # Major ad exchanges / DSPs
+        "adnxs.com",  # AppNexus / Xandr
+        "pubmatic.com",
+        "rubiconproject.com",
+        "openx.net",
+        "adsrvr.org",  # The Trade Desk
+        "criteo.com",
+        "criteo.net",
+        "amazon-adsystem.com",
+        "yieldlab.com",
+        "yieldmo.com",
+        # Recommendation / native-ad widgets (no user-meaningful interaction)
+        "taboola.com",
+        "outbrain.com",
+        # Analytics / measurement
+        "scorecardresearch.com",
+        "chartbeat.com",
+        "quantserve.com",
+        "moatads.com",
+    }
+)
 
 
 def _is_ad_iframe(frame_url: str) -> bool:
@@ -113,6 +114,7 @@ def _is_ad_iframe(frame_url: str) -> bool:
     without enumerating every CDN flavour.
     """
     from urllib.parse import urlparse
+
     try:
         host = urlparse(frame_url).netloc.lower()
     except Exception:
@@ -156,9 +158,7 @@ _KIND_TO_KEYWORD: dict[str, str] = {
 }
 
 
-def translate_payload(
-    payload: dict[str, Any], index: int
-) -> RecordedCommand | None:
+def translate_payload(payload: dict[str, Any], index: int) -> RecordedCommand | None:
     """Return a `RecordedCommand` for the given JS payload, or None if the
     payload is not convertible (e.g. unknown kind). Never raises.
 
@@ -176,7 +176,8 @@ def translate_payload(
         # capture-pipeline bug worth surfacing in logs at debug.
         _logger.debug(
             "translate.dropped reason=missing_kind index=%d payload_keys=%s",
-            index, sorted((payload or {}).keys()),
+            index,
+            sorted((payload or {}).keys()),
         )
         return None
 
@@ -187,7 +188,8 @@ def translate_payload(
         # would defeat the point.
         _logger.debug(
             "translate.dropped reason=ad_iframe kind=%s frame=%s",
-            kind, frame_url,
+            kind,
+            frame_url,
         )
         return None
 
@@ -196,8 +198,9 @@ def translate_payload(
         keyword = payload.get("keyword")
         if not isinstance(keyword, str) or not keyword:
             _logger.debug(
-                "translate.dropped reason=custom_action_missing_keyword "
-                "index=%d frame=%s", index, frame_url,
+                "translate.dropped reason=custom_action_missing_keyword index=%d frame=%s",
+                index,
+                frame_url,
             )
             return None
         args = dict(payload.get("args") or {})
@@ -233,8 +236,9 @@ def translate_payload(
         url = payload.get("url")
         if not isinstance(url, str) or not url:
             _logger.debug(
-                "translate.dropped reason=navigate_missing_url "
-                "index=%d frame=%s", index, frame_url,
+                "translate.dropped reason=navigate_missing_url index=%d frame=%s",
+                index,
+                frame_url,
             )
             return None
         return RecordedCommand(
@@ -270,7 +274,9 @@ def translate_payload(
         # but no command appeared" need this to land somewhere.
         _logger.debug(
             "translate.dropped reason=unknown_kind kind=%s index=%d frame=%s",
-            kind, index, frame_url,
+            kind,
+            index,
+            frame_url,
         )
         return None
 
@@ -300,7 +306,8 @@ def translate_payload(
         if el is None:
             _logger.debug(
                 "translate.dropped reason=scroll_no_element index=%d frame=%s",
-                index, frame_url,
+                index,
+                frame_url,
             )
             return None
 

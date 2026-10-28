@@ -11,7 +11,6 @@ from src.auth.models import User
 from src.auth.service import hash_password
 from tests.conftest import auth_header
 
-
 BASE = "/api/v1/teams"
 
 
@@ -57,16 +56,10 @@ class TestTeamCrudEndpoints:
         assert body["name"] == "Alpha"
         assert body["external_id"] is None
 
-        audits = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "team.created")
-            .all()
-        )
+        audits = db_session.query(AuditLog).filter(AuditLog.action == "team.created").all()
         assert len(audits) == 1
 
-    def test_create_team_as_editor_forbidden(
-        self, client: TestClient, editor_user: User
-    ) -> None:
+    def test_create_team_as_editor_forbidden(self, client: TestClient, editor_user: User) -> None:
         resp = client.post(
             BASE,
             json={"name": "Alpha"},
@@ -74,38 +67,22 @@ class TestTeamCrudEndpoints:
         )
         assert resp.status_code == 403
 
-    def test_list_teams(
-        self, client: TestClient, db_session: Session, admin_user: User
-    ) -> None:
-        client.post(
-            BASE, json={"name": "Alpha"}, headers=auth_header(admin_user)
-        )
-        client.post(
-            BASE, json={"name": "Bravo"}, headers=auth_header(admin_user)
-        )
+    def test_list_teams(self, client: TestClient, db_session: Session, admin_user: User) -> None:
+        client.post(BASE, json={"name": "Alpha"}, headers=auth_header(admin_user))
+        client.post(BASE, json={"name": "Bravo"}, headers=auth_header(admin_user))
         resp = client.get(BASE, headers=auth_header(admin_user))
         assert resp.status_code == 200
         names = [t["name"] for t in resp.json()]
         assert names == ["Alpha", "Bravo"]
 
-    def test_duplicate_name_returns_400(
-        self, client: TestClient, admin_user: User
-    ) -> None:
-        client.post(
-            BASE, json={"name": "Dup"}, headers=auth_header(admin_user)
-        )
-        resp = client.post(
-            BASE, json={"name": "Dup"}, headers=auth_header(admin_user)
-        )
+    def test_duplicate_name_returns_400(self, client: TestClient, admin_user: User) -> None:
+        client.post(BASE, json={"name": "Dup"}, headers=auth_header(admin_user))
+        resp = client.post(BASE, json={"name": "Dup"}, headers=auth_header(admin_user))
         assert resp.status_code == 400
         assert resp.json()["detail"] == "team.name_taken"
 
-    def test_update_team(
-        self, client: TestClient, db_session: Session, admin_user: User
-    ) -> None:
-        team_resp = client.post(
-            BASE, json={"name": "Alpha"}, headers=auth_header(admin_user)
-        )
+    def test_update_team(self, client: TestClient, db_session: Session, admin_user: User) -> None:
+        team_resp = client.post(BASE, json={"name": "Alpha"}, headers=auth_header(admin_user))
         tid = team_resp.json()["id"]
         resp = client.put(
             f"{BASE}/{tid}",
@@ -115,27 +92,17 @@ class TestTeamCrudEndpoints:
         assert resp.status_code == 200
         assert resp.json()["description"] == "new description"
 
-    def test_delete_team(
-        self, client: TestClient, db_session: Session, admin_user: User
-    ) -> None:
-        team_resp = client.post(
-            BASE, json={"name": "Alpha"}, headers=auth_header(admin_user)
-        )
+    def test_delete_team(self, client: TestClient, db_session: Session, admin_user: User) -> None:
+        team_resp = client.post(BASE, json={"name": "Alpha"}, headers=auth_header(admin_user))
         tid = team_resp.json()["id"]
-        resp = client.delete(
-            f"{BASE}/{tid}", headers=auth_header(admin_user)
-        )
+        resp = client.delete(f"{BASE}/{tid}", headers=auth_header(admin_user))
         assert resp.status_code == 204
 
         follow = client.get(f"{BASE}/{tid}", headers=auth_header(admin_user))
         assert follow.status_code == 404
 
-    def test_delete_nonexistent_returns_404(
-        self, client: TestClient, admin_user: User
-    ) -> None:
-        resp = client.delete(
-            f"{BASE}/99999", headers=auth_header(admin_user)
-        )
+    def test_delete_nonexistent_returns_404(self, client: TestClient, admin_user: User) -> None:
+        resp = client.delete(f"{BASE}/99999", headers=auth_header(admin_user))
         assert resp.status_code == 404
 
 
@@ -147,9 +114,7 @@ class TestMemberCrudEndpoints:
         admin_user: User,
         member_user: User,
     ) -> None:
-        team_resp = client.post(
-            BASE, json={"name": "Alpha"}, headers=auth_header(admin_user)
-        )
+        team_resp = client.post(BASE, json={"name": "Alpha"}, headers=auth_header(admin_user))
         tid = team_resp.json()["id"]
 
         add_resp = client.post(
@@ -160,9 +125,7 @@ class TestMemberCrudEndpoints:
         assert add_resp.status_code == 201
         assert add_resp.json()["source"] == "manual"
 
-        detail = client.get(
-            f"{BASE}/{tid}", headers=auth_header(admin_user)
-        )
+        detail = client.get(f"{BASE}/{tid}", headers=auth_header(admin_user))
         assert detail.status_code == 200
         body = detail.json()
         assert len(body["members"]) == 1
@@ -175,9 +138,7 @@ class TestMemberCrudEndpoints:
         admin_user: User,
         member_user: User,
     ) -> None:
-        team_resp = client.post(
-            BASE, json={"name": "Alpha"}, headers=auth_header(admin_user)
-        )
+        team_resp = client.post(BASE, json={"name": "Alpha"}, headers=auth_header(admin_user))
         tid = team_resp.json()["id"]
         add_resp = client.post(
             f"{BASE}/{tid}/members",
@@ -201,9 +162,7 @@ class TestMemberCrudEndpoints:
         admin_user: User,
         member_user: User,
     ) -> None:
-        team_resp = client.post(
-            BASE, json={"name": "Alpha"}, headers=auth_header(admin_user)
-        )
+        team_resp = client.post(BASE, json={"name": "Alpha"}, headers=auth_header(admin_user))
         tid = team_resp.json()["id"]
         add_resp = client.post(
             f"{BASE}/{tid}/members",
@@ -225,9 +184,7 @@ class TestMemberCrudEndpoints:
         admin_user: User,
         member_user: User,
     ) -> None:
-        team_resp = client.post(
-            BASE, json={"name": "Alpha"}, headers=auth_header(admin_user)
-        )
+        team_resp = client.post(BASE, json={"name": "Alpha"}, headers=auth_header(admin_user))
         tid = team_resp.json()["id"]
         client.post(
             f"{BASE}/{tid}/members",
@@ -249,9 +206,7 @@ class TestMemberCrudEndpoints:
         admin_user: User,
         member_user: User,
     ) -> None:
-        team_resp = client.post(
-            BASE, json={"name": "Alpha"}, headers=auth_header(admin_user)
-        )
+        team_resp = client.post(BASE, json={"name": "Alpha"}, headers=auth_header(admin_user))
         tid = team_resp.json()["id"]
         add_resp = client.post(
             f"{BASE}/{tid}/members",
@@ -271,9 +226,7 @@ class TestMemberCrudEndpoints:
 
         actions = {
             a.action
-            for a in db_session.query(AuditLog)
-            .filter(AuditLog.action.like("team_member.%"))
-            .all()
+            for a in db_session.query(AuditLog).filter(AuditLog.action.like("team_member.%")).all()
         }
         assert {
             "team_member.added",
@@ -289,9 +242,7 @@ class TestMemberCrudEndpoints:
         editor_user: User,
         member_user: User,
     ) -> None:
-        team_resp = client.post(
-            BASE, json={"name": "Alpha"}, headers=auth_header(admin_user)
-        )
+        team_resp = client.post(BASE, json={"name": "Alpha"}, headers=auth_header(admin_user))
         tid = team_resp.json()["id"]
         resp = client.post(
             f"{BASE}/{tid}/members",

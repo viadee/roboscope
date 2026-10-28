@@ -145,7 +145,9 @@ class TestDecryptApiKey:
 
             # Flip a character in the middle of the ciphertext
             mid = len(ciphertext) // 2
-            tampered = ciphertext[:mid] + ("A" if ciphertext[mid] != "A" else "B") + ciphertext[mid + 1:]
+            tampered = (
+                ciphertext[:mid] + ("A" if ciphertext[mid] != "A" else "B") + ciphertext[mid + 1 :]
+            )
 
             with pytest.raises(Exception):  # InvalidToken or binascii.Error
                 decrypt_api_key(tampered)

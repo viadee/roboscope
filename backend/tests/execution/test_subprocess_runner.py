@@ -1,13 +1,9 @@
 """Unit tests for SubprocessRunner timeout behavior."""
 
-import subprocess
 import threading
 import time
-from io import StringIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from src.execution.runners.subprocess_runner import SubprocessRunner
 
@@ -55,8 +51,10 @@ class TestInactivityTimeout:
 
         output_dir = str(tmp_path / "output")
 
-        with patch("subprocess.Popen", return_value=mock_proc), \
-             patch.object(runner, "_build_command", return_value=["robot", "test.robot"]):
+        with (
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch.object(runner, "_build_command", return_value=["robot", "test.robot"]),
+        ):
             # Monkey-patch INACTIVITY_TIMEOUT via the execute method
             # We'll patch time so inactivity appears to exceed threshold
             original_time = time.time
@@ -99,11 +97,14 @@ class TestInactivityTimeout:
         output_dir2 = str(tmp_path / "output2")
 
         # Patch the INACTIVITY_TIMEOUT to 1 second for fast test
-        with patch("subprocess.Popen", return_value=mock_proc2), \
-             patch.object(runner2, "_build_command", return_value=["robot", "test.robot"]):
+        with (
+            patch("subprocess.Popen", return_value=mock_proc2),
+            patch.object(runner2, "_build_command", return_value=["robot", "test.robot"]),
+        ):
             # We need to override the INACTIVITY_TIMEOUT constant inside execute()
             # Since it's a local variable, we patch it via the source
             import src.execution.runners.subprocess_runner as mod
+
             original_execute = runner2.execute
 
             # Call execute with a very short timeout context
@@ -164,9 +165,11 @@ class TestInactivityTimeout:
             elapsed = real_time() - start
             return start + elapsed * 500
 
-        with patch("subprocess.Popen", return_value=mock_proc), \
-             patch.object(runner, "_build_command", return_value=["robot", "test.robot"]), \
-             patch.object(mod.time, "time", side_effect=accelerated_time):
+        with (
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch.object(runner, "_build_command", return_value=["robot", "test.robot"]),
+            patch.object(mod.time, "time", side_effect=accelerated_time),
+        ):
             result = runner.execute(
                 repo_path=str(tmp_path),
                 target_path="test.robot",
@@ -197,8 +200,10 @@ class TestInactivityTimeout:
 
         output_dir = str(tmp_path / "output")
 
-        with patch("subprocess.Popen", return_value=mock_proc), \
-             patch.object(runner, "_build_command", return_value=["robot", "test.robot"]):
+        with (
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch.object(runner, "_build_command", return_value=["robot", "test.robot"]),
+        ):
             result = runner.execute(
                 repo_path=str(tmp_path),
                 target_path="test.robot",
@@ -207,8 +212,8 @@ class TestInactivityTimeout:
             )
 
         assert result.exit_code == 0
-        assert "line 1\nline 2\nline 3\n" == result.stdout
-        assert "warn: something\n" == result.stderr
+        assert result.stdout == "line 1\nline 2\nline 3\n"
+        assert result.stderr == "warn: something\n"
 
     def test_cancelled_flag_stops_reader(self, tmp_path: Path):
         """Setting _cancelled should cause the reader thread to exit."""
@@ -237,8 +242,10 @@ class TestInactivityTimeout:
 
         output_dir = str(tmp_path / "output")
 
-        with patch("subprocess.Popen", return_value=mock_proc), \
-             patch.object(runner, "_build_command", return_value=["robot", "test.robot"]):
+        with (
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch.object(runner, "_build_command", return_value=["robot", "test.robot"]),
+        ):
             result = runner.execute(
                 repo_path=str(tmp_path),
                 target_path="test.robot",
@@ -259,10 +266,13 @@ class TestExtraEnvInjection:
         mock_proc.stderr.readline.return_value = ""
         mock_proc.poll.return_value = 0
         mock_proc.returncode = 0
-        with patch("subprocess.Popen", return_value=mock_proc) as popen, \
-             patch.object(runner, "_build_command", return_value=["robot", "t.robot"]):
-            runner.execute(repo_path=str(tmp_path), target_path="t.robot",
-                           output_dir=str(tmp_path / "out"))
+        with (
+            patch("subprocess.Popen", return_value=mock_proc) as popen,
+            patch.object(runner, "_build_command", return_value=["robot", "t.robot"]),
+        ):
+            runner.execute(
+                repo_path=str(tmp_path), target_path="t.robot", output_dir=str(tmp_path / "out")
+            )
         return popen.call_args.kwargs["env"]
 
     def test_extra_env_reaches_popen(self, tmp_path: Path):
@@ -273,7 +283,9 @@ class TestExtraEnvInjection:
 
     def test_path_and_virtual_env_not_overridable(self, tmp_path: Path):
         venv = str(tmp_path / "venv")
-        runner = SubprocessRunner(venv_path=venv, extra_env={"PATH": "/evil", "VIRTUAL_ENV": "/evil"})
+        runner = SubprocessRunner(
+            venv_path=venv, extra_env={"PATH": "/evil", "VIRTUAL_ENV": "/evil"}
+        )
         env = self._run(runner, tmp_path)
         assert env["VIRTUAL_ENV"] == venv
         assert not env["PATH"].startswith("/evil")

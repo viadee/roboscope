@@ -365,7 +365,10 @@ def _scan_repo_files(repo_id: int) -> tuple[list[dict], set[str]]:
     _imported_repos.add(repo_id)
     logger.info(
         "Scanned repo %d: %d keywords, %d library imports from %d files",
-        repo_id, len(keywords), len(library_imports), len(files),
+        repo_id,
+        len(keywords),
+        len(library_imports),
+        len(files),
     )
     return keywords, library_imports
 
@@ -419,7 +422,9 @@ def _resolve_library_keywords(library_names: set[str], venv_path: str) -> list[d
     try:
         result = subprocess.run(
             [python_path, "-c", script, *library_names],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if result.returncode == 0 and result.stdout.strip():
             kws = json.loads(result.stdout.strip())
@@ -449,6 +454,7 @@ def _get_repo_env_venv_path(repo_id: int) -> str | None:
             return None
 
         from src.environments.models import Environment
+
         env = session.execute(
             select(Environment).where(Environment.id == repo.environment_id)
         ).scalar_one_or_none()
@@ -504,7 +510,9 @@ def _get_env_installed_libraries(venv_path: str) -> set[str]:
     try:
         result = subprocess.run(
             [python_path, "-c", script],
-            capture_output=True, text=True, timeout=20,
+            capture_output=True,
+            text=True,
+            timeout=20,
         )
         if result.returncode == 0 and result.stdout.strip():
             names = json.loads(result.stdout.strip())
@@ -569,12 +577,14 @@ async def search_keywords(query: str, repo_id: int | None = None) -> list[dict]:
                 name = m.get("keyword_name", m.get("name", ""))
                 if name.lower() not in seen:
                     seen.add(name.lower())
-                    results.append({
-                        "name": name,
-                        "library": m.get("library", ""),
-                        "doc": (m.get("documentation", "") or "")[:4000],
-                        "doc_format": "text",
-                    })
+                    results.append(
+                        {
+                            "name": name,
+                            "library": m.get("library", ""),
+                            "doc": (m.get("documentation", "") or "")[:4000],
+                            "doc_format": "text",
+                        }
+                    )
 
     return results
 

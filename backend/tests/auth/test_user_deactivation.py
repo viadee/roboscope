@@ -43,9 +43,7 @@ def _mk_user(db: Session, email: str) -> User:
 
 def _active_tokens(db: Session, user_id: int) -> list[ApiToken]:
     return (
-        db.query(ApiToken)
-        .filter(ApiToken.user_id == user_id, ApiToken.is_active.is_(True))
-        .all()
+        db.query(ApiToken).filter(ApiToken.user_id == user_id, ApiToken.is_active.is_(True)).all()
     )
 
 
@@ -105,6 +103,7 @@ class TestDeactivationCascade:
         assert detail["revoked_api_tokens"] == 3
         assert len(detail["revoked_token_ids"]) == 3
         from src.auth.pii_hash import hash_email, is_email_hash
+
         assert "email" not in detail, "plaintext email must not leak into audit detail"
         assert is_email_hash(detail["email_hash"])
         assert detail["email_hash"] == hash_email(target.email)

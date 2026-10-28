@@ -112,9 +112,7 @@ class TestDeleteRecordingRepoScoped:
         )
         db_session.commit()
 
-        resp = client.delete(
-            f"/api/v1/recordings/{rec.id}", headers=auth_header(scoped_viewer)
-        )
+        resp = client.delete(f"/api/v1/recordings/{rec.id}", headers=auth_header(scoped_viewer))
         assert resp.status_code == 204
 
     def test_no_grant_rejects_delete(self, client, db_session, admin_user, scoped_viewer):
@@ -122,9 +120,7 @@ class TestDeleteRecordingRepoScoped:
         rec = _mk_recording(db_session, admin_user, repo_b)
         db_session.commit()
 
-        resp = client.delete(
-            f"/api/v1/recordings/{rec.id}", headers=auth_header(scoped_viewer)
-        )
+        resp = client.delete(f"/api/v1/recordings/{rec.id}", headers=auth_header(scoped_viewer))
         assert resp.status_code == 403
 
     def test_runner_grant_is_insufficient_for_delete(
@@ -138,22 +134,16 @@ class TestDeleteRecordingRepoScoped:
         )
         db_session.commit()
 
-        resp = client.delete(
-            f"/api/v1/recordings/{rec.id}", headers=auth_header(scoped_viewer)
-        )
+        resp = client.delete(f"/api/v1/recordings/{rec.id}", headers=auth_header(scoped_viewer))
         assert resp.status_code == 403
 
     def test_delete_404s_on_missing_recording(self, client, scoped_viewer):
-        resp = client.delete(
-            "/api/v1/recordings/999999", headers=auth_header(scoped_viewer)
-        )
+        resp = client.delete("/api/v1/recordings/999999", headers=auth_header(scoped_viewer))
         assert resp.status_code == 404
 
 
 class TestStartRecordingRepoScoped:
-    def test_project_runner_grant_allows_start(
-        self, client, db_session, admin_user, scoped_viewer
-    ):
+    def test_project_runner_grant_allows_start(self, client, db_session, admin_user, scoped_viewer):
         repo_a = _mk_repo(db_session, admin_user, "repo-a5")
         rec = _mk_recording(db_session, admin_user, repo_a)
         db_session.add(
@@ -161,9 +151,7 @@ class TestStartRecordingRepoScoped:
         )
         db_session.commit()
 
-        resp = client.post(
-            f"/api/v1/recordings/{rec.id}/start", headers=auth_header(scoped_viewer)
-        )
+        resp = client.post(f"/api/v1/recordings/{rec.id}/start", headers=auth_header(scoped_viewer))
         assert resp.status_code == 200
 
     def test_no_grant_rejects_start(self, client, db_session, admin_user, scoped_viewer):
@@ -171,7 +159,5 @@ class TestStartRecordingRepoScoped:
         rec = _mk_recording(db_session, admin_user, repo_b)
         db_session.commit()
 
-        resp = client.post(
-            f"/api/v1/recordings/{rec.id}/start", headers=auth_header(scoped_viewer)
-        )
+        resp = client.post(f"/api/v1/recordings/{rec.id}/start", headers=auth_header(scoped_viewer))
         assert resp.status_code == 403

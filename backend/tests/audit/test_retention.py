@@ -1,9 +1,8 @@
 """Tests for retention enforcement."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
-import pytest
 from sqlalchemy.orm import Session
 
 from tests.conftest import auth_header
@@ -14,11 +13,11 @@ class TestRetentionService:
 
     def _make_old_report(self, db_session, days_old=100):
         """Create a report with an old created_at timestamp."""
-        from src.reports.models import Report
         import src.auth.models  # noqa: F401
         import src.repos.models  # noqa: F401
+        from src.reports.models import Report
 
-        old_date = datetime.now(timezone.utc) - timedelta(days=days_old)
+        old_date = datetime.now(UTC) - timedelta(days=days_old)
         report = Report(
             total_tests=5,
             passed_tests=3,
@@ -38,6 +37,7 @@ class TestRetentionService:
     def _make_recent_report(self, db_session):
         """Create a report with a recent timestamp."""
         from src.reports.models import Report
+
         report = Report(
             total_tests=1,
             passed_tests=1,
@@ -60,14 +60,17 @@ class TestRetentionService:
             mock_session.return_value.__exit__ = lambda s, *a: None
 
             from src.audit.retention import enforce_retention
+
             result = enforce_retention(dry_run=True)
 
         assert result["status"] == "dry_run"
         assert result["deleted_reports"] == 1
 
         # Report should still exist
-        from src.reports.models import Report
         from sqlalchemy import select
+
+        from src.reports.models import Report
+
         reports = db_session.execute(select(Report)).scalars().all()
         assert len(reports) == 1
 
@@ -81,14 +84,17 @@ class TestRetentionService:
             mock_session.return_value.__exit__ = lambda s, *a: None
 
             from src.audit.retention import enforce_retention
+
             result = enforce_retention(dry_run=False)
 
         assert result["status"] == "completed"
         assert result["deleted_reports"] == 1
 
         # Recent report should still exist
-        from src.reports.models import Report
         from sqlalchemy import select
+
+        from src.reports.models import Report
+
         reports = db_session.execute(select(Report)).scalars().all()
         assert len(reports) == 1
 
@@ -100,11 +106,15 @@ class TestRetentionService:
 
             # Seed setting with 0
             from src.settings.models import AppSetting
-            setting = AppSetting(key="report_retention_days", value="0", value_type="int", category="retention")
+
+            setting = AppSetting(
+                key="report_retention_days", value="0", value_type="int", category="retention"
+            )
             db_session.add(setting)
             db_session.flush()
 
             from src.audit.retention import enforce_retention
+
             result = enforce_retention()
 
         assert result["status"] == "disabled"

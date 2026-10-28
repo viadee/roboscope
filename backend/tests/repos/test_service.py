@@ -1,9 +1,9 @@
 """Tests for repos service (CRUD operations)."""
 
-import pytest
-from src.repos.models import Repository
 from unittest.mock import MagicMock, patch
 
+from src.repos.models import Repository
+from src.repos.schemas import RepoCreate, RepoUpdate
 from src.repos.service import (
     checkout_branch,
     create_repository,
@@ -15,7 +15,6 @@ from src.repos.service import (
     list_repositories,
     update_repository,
 )
-from src.repos.schemas import RepoCreate, RepoUpdate
 
 
 def _make_repo(user_id: int, **overrides) -> Repository:
@@ -112,9 +111,7 @@ class TestCreateRepository:
         assert repo.auto_sync is True
         assert repo.sync_interval_minutes == 15
 
-    def test_create_derives_name_from_git_url_when_omitted(
-        self, db_session, admin_user
-    ):
+    def test_create_derives_name_from_git_url_when_omitted(self, db_session, admin_user):
         """When `name` is omitted on a git repo, derive it from the URL
         basename. The schema validator runs before the service ever
         sees the data, so by the time we hit `create_repository` the
@@ -354,11 +351,24 @@ def test_create_keeps_environment_and_pre_run_sync(db_session, admin_user, tmp_p
     env = Environment(name="bound-env", python_version="3.12", created_by=admin_user.id)
     db_session.add(env)
     db_session.flush()
-    repo = create_repository(db_session, RepoCreate(
-        name="bound", repo_type="local", local_path=str(tmp_path / "bound"), environment_id=env.id,
-    ), admin_user.id)
+    repo = create_repository(
+        db_session,
+        RepoCreate(
+            name="bound",
+            repo_type="local",
+            local_path=str(tmp_path / "bound"),
+            environment_id=env.id,
+        ),
+        admin_user.id,
+    )
     assert repo.environment_id == env.id
-    git_repo = create_repository(db_session, RepoCreate(
-        name="git-bound", git_url="https://example.com/x.git", pre_run_sync=True,
-    ), admin_user.id)
+    git_repo = create_repository(
+        db_session,
+        RepoCreate(
+            name="git-bound",
+            git_url="https://example.com/x.git",
+            pre_run_sync=True,
+        ),
+        admin_user.id,
+    )
     assert git_repo.pre_run_sync is True

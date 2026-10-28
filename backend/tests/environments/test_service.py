@@ -1,7 +1,5 @@
 """Tests for environment management service."""
 
-import pytest
-
 from src.environments.models import Environment, EnvironmentPackage, EnvironmentVariable
 from src.environments.schemas import EnvCreate, EnvUpdate, EnvVarCreate, PackageCreate
 from src.environments.service import (
@@ -188,15 +186,9 @@ class TestCloneEnvironment:
         source = create_environment(db_session, data, admin_user.id)
 
         # Add packages and variables to source
-        add_package(
-            db_session, source.id, PackageCreate(package_name="requests", version="2.31.0")
-        )
-        add_package(
-            db_session, source.id, PackageCreate(package_name="pytest", version="8.0.0")
-        )
-        add_variable(
-            db_session, source.id, EnvVarCreate(key="DB_HOST", value="localhost")
-        )
+        add_package(db_session, source.id, PackageCreate(package_name="requests", version="2.31.0"))
+        add_package(db_session, source.id, PackageCreate(package_name="pytest", version="8.0.0"))
+        add_variable(db_session, source.id, EnvVarCreate(key="DB_HOST", value="localhost"))
         add_variable(
             db_session, source.id, EnvVarCreate(key="SECRET", value="hidden", is_secret=True)
         )
@@ -377,6 +369,7 @@ class TestVariables:
         # Secret values are encrypted at rest
         assert var.value != "super-secret-token"
         from src.environments.service import decrypt_variable_value
+
         assert decrypt_variable_value(var) == "super-secret-token"
         assert var.is_secret is True
 

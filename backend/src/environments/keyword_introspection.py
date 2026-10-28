@@ -82,9 +82,7 @@ def compute_packages_hash(venv_path: str | None) -> str:
     if not venv_path:
         return ""
     pkgs = pip_list_installed(venv_path)
-    items = sorted(
-        f"{p.get('name', '').lower()}=={p.get('version', '')}" for p in pkgs
-    )
+    items = sorted(f"{p.get('name', '').lower()}=={p.get('version', '')}" for p in pkgs)
     return hashlib.sha256("\n".join(items).encode()).hexdigest()
 
 

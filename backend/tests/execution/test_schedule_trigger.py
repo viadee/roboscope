@@ -1,7 +1,7 @@
 """Story V14.1 — scheduled runs fire (heartbeat + "Run now")."""
 
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,7 +14,7 @@ from src.execution.service import compute_next_run
 from src.repos.models import Repository
 from tests.conftest import auth_header
 
-NOW = datetime(2026, 9, 24, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 24, 12, 0, tzinfo=UTC)
 NOW_NAIVE = NOW.replace(tzinfo=None)
 
 
@@ -113,7 +113,7 @@ class TestCronValidation:
         )
         assert resp.status_code == 201
         nxt = datetime.fromisoformat(resp.json()["next_run_at"].rstrip("Z"))
-        assert nxt > datetime.now(timezone.utc).replace(tzinfo=None)
+        assert nxt > datetime.now(UTC).replace(tzinfo=None)
 
     def test_compute_next_run_is_strictly_after_now(self):
         at_slot = compute_next_run("* * * * *", NOW)

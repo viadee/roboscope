@@ -1,8 +1,8 @@
 """AI module business logic — spec parsing, provider CRUD, drift detection."""
 
 import hashlib
-import json
 import logging
+from datetime import UTC
 from pathlib import Path
 
 import yaml
@@ -96,9 +96,7 @@ def list_providers(db: Session) -> list[AiProvider]:
 
 def get_provider(db: Session, provider_id: int) -> AiProvider | None:
     """Get a single provider by ID."""
-    return db.execute(
-        select(AiProvider).where(AiProvider.id == provider_id)
-    ).scalar_one_or_none()
+    return db.execute(select(AiProvider).where(AiProvider.id == provider_id)).scalar_one_or_none()
 
 
 def get_default_provider(db: Session) -> AiProvider | None:
@@ -110,9 +108,9 @@ def get_default_provider(db: Session) -> AiProvider | None:
 
 def _unset_defaults(db: Session) -> None:
     """Unset is_default on all providers."""
-    providers = db.execute(
-        select(AiProvider).where(AiProvider.is_default.is_(True))
-    ).scalars().all()
+    providers = (
+        db.execute(select(AiProvider).where(AiProvider.is_default.is_(True))).scalars().all()
+    )
     for p in providers:
         p.is_default = False
 
@@ -176,8 +174,7 @@ def parse_spec(content: str) -> dict:
     parsed = yaml.safe_load(content)
     if not isinstance(parsed, dict):
         raise ValueError(
-            f"Spec must be a YAML mapping at the top level; got "
-            f"{type(parsed).__name__}",
+            f"Spec must be a YAML mapping at the top level; got {type(parsed).__name__}",
         )
     return parsed
 
@@ -269,9 +266,7 @@ def validate_spec(content: str) -> tuple[bool, list[str], int]:
                     steps = tc.get("steps")
                     if steps is not None:
                         if not isinstance(steps, list):
-                            errors.append(
-                                f"test_sets[{i}].test_cases[{j}].steps must be a list"
-                            )
+                            errors.append(f"test_sets[{i}].test_cases[{j}].steps must be a list")
                         else:
                             for k, step in enumerate(steps):
                                 if isinstance(step, str):
@@ -323,26 +318,24 @@ def check_drift(repo_path: Path) -> list[DriftResult]:
         robot_path = repo_path / target
         gen_hash = metadata.get("generation_hash")
 
-        if not robot_path.exists():
-            results.append(DriftResult(
-                spec_file=str(spec_file.relative_to(repo_path)),
-                target_file=target,
-                status="missing",
-            ))
-        elif not gen_hash:
-            results.append(DriftResult(
-                spec_file=str(spec_file.relative_to(repo_path)),
-                target_file=target,
-                status="missing",
-            ))
+        if not robot_path.exists() or not gen_hash:
+            results.append(
+                DriftResult(
+                    spec_file=str(spec_file.relative_to(repo_path)),
+                    target_file=target,
+                    status="missing",
+                )
+            )
         else:
             current_hash = compute_file_hash(robot_path)
             status = "in_sync" if current_hash == gen_hash else "drifted"
-            results.append(DriftResult(
-                spec_file=str(spec_file.relative_to(repo_path)),
-                target_file=target,
-                status=status,
-            ))
+            results.append(
+                DriftResult(
+                    spec_file=str(spec_file.relative_to(repo_path)),
+                    target_file=target,
+                    status=status,
+                )
+            )
 
     return results
 
@@ -363,9 +356,7 @@ def _contained_target(repo_path: Path, relative_path: str) -> Path:
     try:
         target.relative_to(repo_root)
     except ValueError as e:
-        raise ValueError(
-            f"Refusing to write outside the repository: {relative_path!r}"
-        ) from e
+        raise ValueError(f"Refusing to write outside the repository: {relative_path!r}") from e
     return target
 
 
@@ -395,10 +386,10 @@ def update_spec_hash(repo_path: Path, spec_relative: str, new_hash: str) -> None
     if not isinstance(spec, dict) or "metadata" not in spec:
         return
 
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     spec["metadata"]["generation_hash"] = new_hash
-    spec["metadata"]["last_generated"] = datetime.now(timezone.utc).isoformat()
+    spec["metadata"]["last_generated"] = datetime.now(UTC).isoformat()
 
     spec_path.write_text(
         yaml.dump(spec, default_flow_style=False, allow_unicode=True, sort_keys=False),

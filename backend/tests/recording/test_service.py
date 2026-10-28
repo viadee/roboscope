@@ -5,7 +5,7 @@ import json
 import pytest
 from sqlalchemy.orm import Session
 
-from src.recording.models import RecordingSession, RecordingStatus, RecordingSource
+from src.recording.models import RecordingSource, RecordingStatus
 from src.recording.schemas import RecordingCreate
 from src.recording.service import (
     append_event,
@@ -49,7 +49,6 @@ def _make_create(repo_id: int, **kwargs) -> RecordingCreate:
 
 
 class TestRecordingService:
-
     def test_create_recording(self, db_session, admin_user, repo):
         rec = create_recording(db_session, _make_create(repo.id), admin_user.id)
         assert rec.id is not None
@@ -125,7 +124,9 @@ class TestRecordingService:
 
     def test_complete_recording(self, db_session, admin_user, repo):
         rec = create_recording(db_session, _make_create(repo.id), admin_user.id)
-        complete_recording(db_session, rec, generated_robot="*** Test Cases ***\nTest\n    Log    ok")
+        complete_recording(
+            db_session, rec, generated_robot="*** Test Cases ***\nTest\n    Log    ok"
+        )
         assert rec.status == RecordingStatus.COMPLETED
         assert "*** Test Cases ***" in rec.generated_robot
 

@@ -1,11 +1,12 @@
 """Execution API endpoints: runs and schedules."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,13 +17,9 @@ from src.auth.dependencies import (
     require_role,
 )
 from src.auth.models import User
-from src.governance.dependencies import require_feature
 from src.database import get_db
-from src.rate_limit import limiter
-from src.task_executor import TaskDispatchError, dispatch_task
-from src.execution.models import RunStatus
-from pydantic import BaseModel
-
+from src.environments.models import Environment
+from src.execution.models import ExecutionRun, RunnerType, RunStatus
 from src.execution.schemas import (
     RunCreate,
     RunListResponse,
@@ -31,8 +28,6 @@ from src.execution.schemas import (
     ScheduleResponse,
     ScheduleUpdate,
 )
-from src.environments.models import Environment
-from src.execution.models import ExecutionRun, RunnerType
 from src.execution.service import (
     cancel_run,
     create_run,
@@ -47,7 +42,10 @@ from src.execution.service import (
     toggle_schedule,
     update_schedule,
 )
+from src.governance.dependencies import require_feature
+from src.rate_limit import limiter
 from src.reports.models import Report
+from src.task_executor import TaskDispatchError, dispatch_task
 
 logger = logging.getLogger("roboscope.execution")
 
@@ -84,6 +82,7 @@ def start_run(
     # Override runner_type from environment's default if an environment is set
     if data.environment_id:
         from src.environments.models import Environment
+
         env = db.execute(
             select(Environment).where(Environment.id == data.environment_id)
         ).scalar_one_or_none()
@@ -208,9 +207,7 @@ def get_run_pending_activity(
     """
     run = db.get(ExecutionRun, run_id)
     if run is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Run not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
 
     # Queue position — only meaningful while pending. Runs created before
     # this one that are still in pending / running contend for the single
@@ -237,7 +234,11 @@ def get_run_pending_activity(
     env: Environment | None = (
         db.get(Environment, run.environment_id) if run.environment_id else None
     )
-    if env is not None and env.default_runner_type == RunnerType.DOCKER and run.runner_type == RunnerType.SUBPROCESS:
+    if (
+        env is not None
+        and env.default_runner_type == RunnerType.DOCKER
+        and run.runner_type == RunnerType.SUBPROCESS
+    ):
         effective_runner_type = RunnerType.DOCKER
 
     # Active build detection — any env row whose `docker_build_status`
@@ -334,44 +335,38 @@ def get_run_selector_health(
 
     run = db.get(ExecutionRun, run_id)
     if run is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Run not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
 
     # Locate the .robot file in its repository; the sidecar sits next to it.
     from src.repos.models import Repository
+
     repo = db.get(Repository, run.repository_id) if run.repository_id else None
     if repo is None or not run.target_path:
-        return SelectorHealthResponse(
-            has_sidecar=False, sidecar_path=None, failed_locators=[]
-        )
+        return SelectorHealthResponse(has_sidecar=False, sidecar_path=None, failed_locators=[])
     repo_root = Path(repo.local_path).resolve()
     robot_path = (repo_root / run.target_path).resolve()
     try:
         robot_path.relative_to(repo_root)
     except ValueError:
-        return SelectorHealthResponse(
-            has_sidecar=False, sidecar_path=None, failed_locators=[]
-        )
+        return SelectorHealthResponse(has_sidecar=False, sidecar_path=None, failed_locators=[])
     sidecar_path = robot_path.with_suffix(".rbs.json")
     if not sidecar_path.is_file():
-        return SelectorHealthResponse(
-            has_sidecar=False, sidecar_path=None, failed_locators=[]
-        )
+        return SelectorHealthResponse(has_sidecar=False, sidecar_path=None, failed_locators=[])
 
     # Load sidecar — build a locator → candidate-list index.
     try:
         flow_data = _json.loads(sidecar_path.read_text(encoding="utf-8"))
     except Exception:
         return SelectorHealthResponse(
-            has_sidecar=False, sidecar_path=str(sidecar_path.relative_to(repo_root)),
+            has_sidecar=False,
+            sidecar_path=str(sidecar_path.relative_to(repo_root)),
             failed_locators=[],
         )
     commands = flow_data.get("commands") or []
     # Build lookup: raw candidate string (e.g. "id=submit") → full command.
     locator_to_command: dict[str, dict] = {}
     for cmd in commands:
-        for cand in (cmd.get("selector_candidates") or []):
+        for cand in cmd.get("selector_candidates") or []:
             value = cand.get("value")
             if value:
                 locator_to_command.setdefault(value, cmd)
@@ -465,13 +460,12 @@ def get_run_heal_report(
     (tests without any `Heal *` keywords).
     """
     from pathlib import Path
+
     from RoboScopeHeal.heal_report import parse_heal_audit
 
     run = db.get(ExecutionRun, run_id)
     if run is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Run not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
     if not run.output_dir:
         return HealReportOut(total_heals=0, confirmed=0, suspect=0, entries=[])
 
@@ -525,9 +519,10 @@ def apply_heal_patch(
     import tempfile
     from pathlib import Path
 
+    from RoboScopeHeal.heal_report import parse_heal_audit
+
     from src.audit.event_types import AuditEventType
     from src.audit.service import log_event
-    from RoboScopeHeal.heal_report import parse_heal_audit
     from src.repos.models import Repository
 
     run = db.get(ExecutionRun, run_id)
@@ -582,6 +577,7 @@ def apply_heal_patch(
     # the comment when rewriting so the FlowEditor's id-based
     # selector matcher keeps working after the patch lands.
     import re as _re_idmap
+
     _RBS_TAIL = _re_idmap.compile(r"(\s+# rbs:[A-Za-z0-9-]+)\s*$")
     _RBS_TAIL_ID = _re_idmap.compile(r"\s+# rbs:([A-Za-z0-9-]+)\s*$")
 
@@ -608,9 +604,8 @@ def apply_heal_patch(
     # needle with the same escape applied so heals against
     # `#`-prefixed selectors actually find their line.
     from src.recording.robot_emit import _escape_rf_token
-    needle_original = (
-        f"    {entry.keyword}    {_escape_rf_token(entry.original_selector)}"
-    )
+
+    needle_original = f"    {entry.keyword}    {_escape_rf_token(entry.original_selector)}"
 
     candidates_with_match: list[tuple[Path, int, list[str]]] = []
 
@@ -657,27 +652,21 @@ def apply_heal_patch(
                 lines = path.read_text(encoding="utf-8").splitlines()
             except OSError:
                 continue
-            hits = [
-                i for i, ln in enumerate(lines)
-                if _strip_rbs(ln.rstrip()) == needle_original
-            ]
+            hits = [i for i, ln in enumerate(lines) if _strip_rbs(ln.rstrip()) == needle_original]
             if len(hits) == 1:
                 candidates_with_match.append((path, hits[0], lines))
 
     if not candidates_with_match:
         # Is it already applied? Idempotent check — if exactly one file
         # already carries the healed line, report applied=false.
-        needle_healed = (
-            f"    {entry.keyword}    {_escape_rf_token(entry.healed_selector)}"
-        )
+        needle_healed = f"    {entry.keyword}    {_escape_rf_token(entry.healed_selector)}"
         for path in target_candidates:
             try:
                 lines = path.read_text(encoding="utf-8").splitlines()
             except OSError:
                 continue
             healed_hits = [
-                i for i, ln in enumerate(lines)
-                if _strip_rbs(ln.rstrip()) == needle_healed
+                i for i, ln in enumerate(lines) if _strip_rbs(ln.rstrip()) == needle_healed
             ]
             if len(healed_hits) == 1:
                 return HealPatchApplyResponse(
@@ -715,7 +704,9 @@ def apply_heal_patch(
     # Atomic write via temp-file-and-rename so a crash mid-write leaves
     # either the old file or the new one, never a truncated hybrid.
     tmp_fd, tmp_path = tempfile.mkstemp(
-        dir=str(target.parent), prefix=f".{target.name}.", suffix=".tmp",
+        dir=str(target.parent),
+        prefix=f".{target.name}.",
+        suffix=".tmp",
     )
     try:
         with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
@@ -792,9 +783,7 @@ def cancel_all_runs(
     from src.repos.models import Repository
 
     result = db.execute(
-        select(ExecutionRun).where(
-            ExecutionRun.status.in_([RunStatus.PENDING, RunStatus.RUNNING])
-        )
+        select(ExecutionRun).where(ExecutionRun.status.in_([RunStatus.PENDING, RunStatus.RUNNING]))
     )
     all_runs = list(result.scalars().all())
 
@@ -823,12 +812,13 @@ def cancel_all_runs(
     cancelled = 0
     for run in runs:
         run.status = RunStatus.CANCELLED
-        run.finished_at = datetime.now(timezone.utc)
+        run.finished_at = datetime.now(UTC)
         cancelled += 1
     db.flush()
 
     # Kill active runner processes
     from src.execution.tasks import cancel_active_run
+
     for run in runs:
         cancel_active_run(run.id)
 
@@ -836,7 +826,9 @@ def cancel_all_runs(
     return {"cancelled": cancelled}
 
 
-@router.post("/runs/{run_id}/retry", response_model=RunResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/runs/{run_id}/retry", response_model=RunResponse, status_code=status.HTTP_201_CREATED
+)
 def retry_run_endpoint(
     run_id: int,
     db: Session = Depends(get_db),
@@ -905,9 +897,7 @@ def get_run_report(
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
 
-    result = db.execute(
-        select(Report).where(Report.execution_run_id == run_id)
-    )
+    result = db.execute(select(Report).where(Report.execution_run_id == run_id))
     report = result.scalar_one_or_none()
     if report is None:
         return {"report_id": None}

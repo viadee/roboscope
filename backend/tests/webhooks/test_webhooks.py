@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlalchemy.orm import Session
 
-from src.auth.constants import Role
 from src.webhooks.service import (
     _sign_payload,
     create_webhook,
@@ -24,37 +23,53 @@ class TestWebhookService:
     """Unit tests for webhook service functions."""
 
     def test_create_webhook(self, db_session: Session, admin_user):
-        wh = create_webhook(db_session, {
-            "name": "Slack",
-            "url": "https://hooks.slack.com/test",
-            "events": ["run.passed", "run.failed"],
-        }, admin_user.id)
+        wh = create_webhook(
+            db_session,
+            {
+                "name": "Slack",
+                "url": "https://hooks.slack.com/test",
+                "events": ["run.passed", "run.failed"],
+            },
+            admin_user.id,
+        )
         assert wh.name == "Slack"
         assert wh.url == "https://hooks.slack.com/test"
         assert json.loads(wh.events) == ["run.passed", "run.failed"]
 
     def test_create_webhook_invalid_event(self, db_session: Session, admin_user):
         with pytest.raises(ValueError, match="Invalid events"):
-            create_webhook(db_session, {
-                "name": "Bad",
-                "url": "https://example.com",
-                "events": ["run.passed", "invalid.event"],
-            }, admin_user.id)
+            create_webhook(
+                db_session,
+                {
+                    "name": "Bad",
+                    "url": "https://example.com",
+                    "events": ["run.passed", "invalid.event"],
+                },
+                admin_user.id,
+            )
 
     def test_update_webhook(self, db_session: Session, admin_user):
-        wh = create_webhook(db_session, {
-            "name": "Original",
-            "url": "https://example.com",
-        }, admin_user.id)
+        wh = create_webhook(
+            db_session,
+            {
+                "name": "Original",
+                "url": "https://example.com",
+            },
+            admin_user.id,
+        )
         updated = update_webhook(db_session, wh, {"name": "Updated", "is_active": False})
         assert updated.name == "Updated"
         assert updated.is_active is False
 
     def test_delete_webhook(self, db_session: Session, admin_user):
-        wh = create_webhook(db_session, {
-            "name": "Delete Me",
-            "url": "https://example.com",
-        }, admin_user.id)
+        wh = create_webhook(
+            db_session,
+            {
+                "name": "Delete Me",
+                "url": "https://example.com",
+            },
+            admin_user.id,
+        )
         wh_id = wh.id
         delete_webhook(db_session, wh)
         assert get_webhook(db_session, wh_id) is None
@@ -70,7 +85,9 @@ class TestWebhookService:
         secret = "test-secret"
         sig = _sign_payload(payload, secret)
         expected = hmac.new(
-            secret.encode(), payload.encode(), hashlib.sha256,
+            secret.encode(),
+            payload.encode(),
+            hashlib.sha256,
         ).hexdigest()
         assert sig == expected
 
@@ -263,14 +280,17 @@ class TestGitWebhookInbound:
     # -----------------------------------------------------------------
 
     def test_webhook_dispatches_sync_before_run(
-        self, client, db_session, admin_user,
+        self,
+        client,
+        db_session,
+        admin_user,
     ):
         """The webhook must dispatch sync_repo BEFORE execute_test_run.
         The task executor uses max_workers=1 so dispatch order = run order.
         """
+        from src.execution.tasks import execute_test_run
         from src.repos.models import Repository
         from src.repos.tasks import sync_repo
-        from src.execution.tasks import execute_test_run
 
         repo = Repository(
             name="Sync First",
@@ -306,11 +326,14 @@ class TestGitWebhookInbound:
         assert called == [sync_repo, execute_test_run]
 
     def test_webhook_skips_sync_for_local_repo(
-        self, client, db_session, admin_user,
+        self,
+        client,
+        db_session,
+        admin_user,
     ):
         """Local repos have no upstream — no pre-sync, just dispatch the run."""
-        from src.repos.models import Repository
         from src.execution.tasks import execute_test_run
+        from src.repos.models import Repository
 
         # `repo_type='local'` shouldn't normally match a webhook payload
         # (no git_url to compare against), but if a user mis-configured
@@ -347,12 +370,15 @@ class TestGitWebhookInbound:
         assert called == [execute_test_run]
 
     def test_webhook_run_proceeds_when_sync_dispatch_fails(
-        self, client, db_session, admin_user,
+        self,
+        client,
+        db_session,
+        admin_user,
     ):
         """A TaskDispatchError on the sync must NOT abort the run."""
+        from src.execution.tasks import execute_test_run
         from src.repos.models import Repository
         from src.repos.tasks import sync_repo
-        from src.execution.tasks import execute_test_run
         from src.task_executor import TaskDispatchError
 
         repo = Repository(
@@ -403,41 +429,51 @@ class TestPayloadExtractors:
 
     def test_extract_git_url_string_value(self):
         from src.webhooks.router import _extract_git_url
-        assert _extract_git_url(
-            {"repository": {"clone_url": "https://github.com/x/y.git"}}
-        ) == "https://github.com/x/y.git"
+
+        assert (
+            _extract_git_url({"repository": {"clone_url": "https://github.com/x/y.git"}})
+            == "https://github.com/x/y.git"
+        )
 
     def test_extract_git_url_gitlab_format(self):
         from src.webhooks.router import _extract_git_url
-        assert _extract_git_url(
-            {"repository": {"git_http_url": "https://gitlab.com/x/y.git"}}
-        ) == "https://gitlab.com/x/y.git"
+
+        assert (
+            _extract_git_url({"repository": {"git_http_url": "https://gitlab.com/x/y.git"}})
+            == "https://gitlab.com/x/y.git"
+        )
 
     def test_extract_git_url_non_string_value_returns_none(self):
         from src.webhooks.router import _extract_git_url
+
         # Hostile / malformed payload — clone_url is an int.
         assert _extract_git_url({"repository": {"clone_url": 42}}) is None
 
     def test_extract_git_url_missing_repository_returns_none(self):
         from src.webhooks.router import _extract_git_url
+
         assert _extract_git_url({}) is None
         assert _extract_git_url({"repository": "not a dict"}) is None
 
     def test_extract_branch_string_ref(self):
         from src.webhooks.router import _extract_branch
+
         assert _extract_branch({"ref": "refs/heads/main"}) == "main"
         assert _extract_branch({"ref": "refs/heads/feat/foo"}) == "feat/foo"
 
     def test_extract_branch_non_branch_ref(self):
         from src.webhooks.router import _extract_branch
+
         assert _extract_branch({"ref": "refs/tags/v1.0"}) is None
 
     def test_extract_branch_missing_ref(self):
         from src.webhooks.router import _extract_branch
+
         assert _extract_branch({}) is None
 
     def test_extract_branch_non_string_ref_returns_none(self):
         from src.webhooks.router import _extract_branch
+
         # Pre-fix: this crashed with AttributeError on `.startswith`.
         assert _extract_branch({"ref": 42}) is None
         assert _extract_branch({"ref": None}) is None

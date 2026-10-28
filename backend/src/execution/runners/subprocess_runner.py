@@ -10,7 +10,6 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from src.config import settings
 from src.environments.venv_utils import (
     create_venv_cmd,
     get_python_path,

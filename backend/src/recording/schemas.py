@@ -47,6 +47,7 @@ class RecordingListResponse(BaseModel):
 
 class RecordingEventIn(BaseModel):
     """An event received from the Chrome extension or Playwright recorder."""
+
     event_type: str  # click, input, select, navigate, scroll, wait
     selector: str | None = None
     value: str | None = None
@@ -57,5 +58,6 @@ class RecordingEventIn(BaseModel):
 
 class RecordingStopRequest(BaseModel):
     """Request to stop a recording and optionally generate .robot output."""
+
     generate_robot: bool = True
     save_to_file: bool = False

@@ -7,12 +7,10 @@ from sqlalchemy import func, select
 
 import src.auth.models  # noqa: F401
 import src.repos.models  # noqa: F401
-
 from src.database import get_sync_session
 from src.execution.models import ExecutionRun, RunStatus
-from src.reports.models import Report
-from src.stats.models import KpiRecord
 from src.stats.analysis import run_analysis  # noqa: F401 — re-export for task registration
+from src.stats.models import KpiRecord
 
 logger = logging.getLogger("roboscope.stats.tasks")
 
@@ -27,13 +25,17 @@ def aggregate_daily_kpis(days: int = 365) -> dict:
 
     with get_sync_session() as session:
         # Get all distinct (date, repo, branch) combos with runs in the range
-        combo_query = select(
-            func.date(ExecutionRun.created_at).label("run_date"),
-            ExecutionRun.repository_id,
-            ExecutionRun.branch,
-        ).where(
-            func.date(ExecutionRun.created_at) >= since,
-        ).distinct()
+        combo_query = (
+            select(
+                func.date(ExecutionRun.created_at).label("run_date"),
+                ExecutionRun.repository_id,
+                ExecutionRun.branch,
+            )
+            .where(
+                func.date(ExecutionRun.created_at) >= since,
+            )
+            .distinct()
+        )
 
         combos = session.execute(combo_query).all()
 
@@ -63,36 +65,49 @@ def aggregate_daily_kpis(days: int = 365) -> dict:
                 ExecutionRun.branch == branch,
             )
 
-            total = session.execute(
-                select(func.count()).select_from(runs_query.subquery())
-            ).scalar() or 0
+            total = (
+                session.execute(select(func.count()).select_from(runs_query.subquery())).scalar()
+                or 0
+            )
 
-            passed = session.execute(
-                select(func.count()).select_from(
-                    runs_query.where(ExecutionRun.status == RunStatus.PASSED).subquery()
-                )
-            ).scalar() or 0
+            passed = (
+                session.execute(
+                    select(func.count()).select_from(
+                        runs_query.where(ExecutionRun.status == RunStatus.PASSED).subquery()
+                    )
+                ).scalar()
+                or 0
+            )
 
-            failed = session.execute(
-                select(func.count()).select_from(
-                    runs_query.where(ExecutionRun.status == RunStatus.FAILED).subquery()
-                )
-            ).scalar() or 0
+            failed = (
+                session.execute(
+                    select(func.count()).select_from(
+                        runs_query.where(ExecutionRun.status == RunStatus.FAILED).subquery()
+                    )
+                ).scalar()
+                or 0
+            )
 
-            error = session.execute(
-                select(func.count()).select_from(
-                    runs_query.where(ExecutionRun.status == RunStatus.ERROR).subquery()
-                )
-            ).scalar() or 0
+            error = (
+                session.execute(
+                    select(func.count()).select_from(
+                        runs_query.where(ExecutionRun.status == RunStatus.ERROR).subquery()
+                    )
+                ).scalar()
+                or 0
+            )
 
-            avg_duration = session.execute(
-                select(func.avg(ExecutionRun.duration_seconds)).where(
-                    func.date(ExecutionRun.created_at) == run_date,
-                    ExecutionRun.repository_id == repo_id,
-                    ExecutionRun.branch == branch,
-                    ExecutionRun.duration_seconds.is_not(None),
-                )
-            ).scalar() or 0.0
+            avg_duration = (
+                session.execute(
+                    select(func.avg(ExecutionRun.duration_seconds)).where(
+                        func.date(ExecutionRun.created_at) == run_date,
+                        ExecutionRun.repository_id == repo_id,
+                        ExecutionRun.branch == branch,
+                        ExecutionRun.duration_seconds.is_not(None),
+                    )
+                ).scalar()
+                or 0.0
+            )
 
             success_rate = (passed / total * 100) if total > 0 else 0.0
 
@@ -132,17 +147,19 @@ def get_data_status() -> dict:
     """
     with get_sync_session() as session:
         # Last KPI aggregation date
-        last_kpi_result = session.execute(
-            select(func.max(KpiRecord.date))
-        )
+        last_kpi_result = session.execute(select(func.max(KpiRecord.date)))
         last_kpi_date = last_kpi_result.scalar()
 
         # Last finished run (terminal status)
         last_run_result = session.execute(
             select(func.max(ExecutionRun.updated_at)).where(
-                ExecutionRun.status.in_([
-                    RunStatus.PASSED, RunStatus.FAILED, RunStatus.ERROR,
-                ])
+                ExecutionRun.status.in_(
+                    [
+                        RunStatus.PASSED,
+                        RunStatus.FAILED,
+                        RunStatus.ERROR,
+                    ]
+                )
             )
         )
         last_run_at = last_run_result.scalar()

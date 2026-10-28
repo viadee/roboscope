@@ -18,7 +18,7 @@ we don't leak the misconfigured-proxy pitfall into multiple locations.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
@@ -50,7 +50,7 @@ def _window_start(now: datetime) -> datetime:
     """
     epoch = int(now.timestamp())
     floored = (epoch // _WINDOW_SECONDS) * _WINDOW_SECONDS
-    return datetime.fromtimestamp(floored, tz=timezone.utc).replace(tzinfo=None)
+    return datetime.fromtimestamp(floored, tz=UTC).replace(tzinfo=None)
 
 
 def record_failure(db: Session, ip: str, *, now: datetime | None = None) -> int:
@@ -58,7 +58,7 @@ def record_failure(db: Session, ip: str, *, now: datetime | None = None) -> int:
 
     Returns the new count. Commits to DB.
     """
-    when = now or datetime.now(timezone.utc)
+    when = now or datetime.now(UTC)
     bucket = _bucket_key(ip)
     window = _window_start(when)
 
@@ -96,15 +96,13 @@ def record_failure(db: Session, ip: str, *, now: datetime | None = None) -> int:
     return row.count
 
 
-def is_rate_limited(
-    db: Session, ip: str, *, now: datetime | None = None
-) -> tuple[bool, int]:
+def is_rate_limited(db: Session, ip: str, *, now: datetime | None = None) -> tuple[bool, int]:
     """Return (limited, retry_after_seconds) for `ip` in the current window.
 
     `retry_after_seconds` is the time until the current window ends; clients
     should wait at least that long before retrying.
     """
-    when = now or datetime.now(timezone.utc)
+    when = now or datetime.now(UTC)
     bucket = _bucket_key(ip)
     window = _window_start(when)
 
@@ -121,7 +119,7 @@ def is_rate_limited(
     # Seconds until the next window boundary.
     next_window = window + timedelta(seconds=_WINDOW_SECONDS)
     # naive -> aware for correct subtraction
-    next_window_utc = next_window.replace(tzinfo=timezone.utc)
+    next_window_utc = next_window.replace(tzinfo=UTC)
     retry_after = max(1, int((next_window_utc - when).total_seconds()))
     return limited, retry_after
 
@@ -129,23 +127,19 @@ def is_rate_limited(
 def reset_failures(db: Session, ip: str) -> int:
     """Delete all counter rows for the bucket. Returns deleted row count."""
     bucket = _bucket_key(ip)
-    result = db.execute(
-        delete(RateLimitCounter).where(RateLimitCounter.bucket_key == bucket)
-    )
+    result = db.execute(delete(RateLimitCounter).where(RateLimitCounter.bucket_key == bucket))
     db.commit()
     return result.rowcount or 0
 
 
-def cleanup_stale_counters(
-    now: datetime | None = None, db: Session | None = None
-) -> int:
+def cleanup_stale_counters(now: datetime | None = None, db: Session | None = None) -> int:
     """APScheduler job: delete counter rows older than 1 hour.
 
     In production (`db=None`) opens its own session via `get_sync_session`.
     Tests can inject a `db` session to observe side-effects from the same
     connection.
     """
-    when = now or datetime.now(timezone.utc)
+    when = now or datetime.now(UTC)
     cutoff = (when - _STALE_AFTER).replace(tzinfo=None)
     stmt = delete(RateLimitCounter).where(RateLimitCounter.window_start < cutoff)
 

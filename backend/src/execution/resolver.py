@@ -63,10 +63,9 @@ DENIED_FLAGS: frozenset[str] = frozenset(
 # CASE-SENSITIVE: -v (--variable) is the safe variable setter we emit ourselves,
 # while -V (--variablefile) loads code. An exact-long-flag check alone would let
 # every short form straight through, so they are enumerated here.
-OWNED_SHORT: frozenset[str] = frozenset(
-    {"-d", "-o", "-l", "-r", "-x", "-b", "-L", "-C"}
-)
+OWNED_SHORT: frozenset[str] = frozenset({"-d", "-o", "-l", "-r", "-x", "-b", "-L", "-C"})
 DENIED_SHORT: frozenset[str] = frozenset({"-P", "-V", "-A"})
+
 
 def _canonical_long(flag: str) -> str:
     """Canonicalise a ``--long`` option the way Robot Framework's own parser

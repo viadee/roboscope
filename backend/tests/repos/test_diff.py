@@ -79,7 +79,8 @@ class TestService:
         assert out["status"] == "binary" and out["diff"] is None
 
     @pytest.mark.parametrize(
-        "bad", ["../etc/passwd", "/etc/passwd", "sub/../../x", "", ".", "sub"],
+        "bad",
+        ["../etc/passwd", "/etc/passwd", "sub/../../x", "", ".", "sub"],
     )
     def test_traversal_rejected(self, working_clone: Path, bad: str):
         (working_clone / "sub").mkdir()
@@ -134,7 +135,9 @@ class TestRouter:
 
     def test_unknown_repo_404(self, client, admin_user):
         r = client.get(
-            "/api/v1/repos/99999/diff", params={"path": "a"}, headers=auth_header(admin_user),
+            "/api/v1/repos/99999/diff",
+            params={"path": "a"},
+            headers=auth_header(admin_user),
         )
         assert r.status_code == 404
 

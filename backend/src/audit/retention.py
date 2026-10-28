@@ -2,14 +2,14 @@
 
 import logging
 import shutil
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import delete, select
 
 from src.database import get_sync_session
-from src.reports.models import Report, TestResult
 from src.execution.models import ExecutionRun
+from src.reports.models import Report, TestResult
 
 logger = logging.getLogger("roboscope.retention")
 
@@ -24,7 +24,6 @@ def enforce_retention(dry_run: bool = False) -> dict:
         # Import models for FK resolution
         import src.auth.models  # noqa: F401
         import src.repos.models  # noqa: F401
-
         from src.settings.service import get_setting_value
 
         retention_days_str = get_setting_value(session, "report_retention_days", "90")
@@ -34,29 +33,35 @@ def enforce_retention(dry_run: bool = False) -> dict:
             logger.info("Retention enforcement disabled (retention_days=%d)", retention_days)
             return {"status": "disabled", "deleted_reports": 0, "deleted_runs": 0}
 
-        cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+        cutoff = datetime.now(UTC) - timedelta(days=retention_days)
         # SQLite stores naive datetimes, so strip tz for comparison
         cutoff_naive = cutoff.replace(tzinfo=None)
 
         logger.info(
             "Retention enforcement: deleting items older than %d days (cutoff: %s, dry_run=%s)",
-            retention_days, cutoff.isoformat(), dry_run,
+            retention_days,
+            cutoff.isoformat(),
+            dry_run,
         )
 
         # Find old reports
-        old_reports = session.execute(
-            select(Report).where(Report.created_at < cutoff_naive)
-        ).scalars().all()
+        old_reports = (
+            session.execute(select(Report).where(Report.created_at < cutoff_naive)).scalars().all()
+        )
 
         # Find old runs (without linked reports — those cascade from report delete)
-        old_runs = session.execute(
-            select(ExecutionRun).where(
-                ExecutionRun.created_at < cutoff_naive,
-                ExecutionRun.id.notin_(
-                    select(Report.execution_run_id).where(Report.execution_run_id.isnot(None))
-                ),
+        old_runs = (
+            session.execute(
+                select(ExecutionRun).where(
+                    ExecutionRun.created_at < cutoff_naive,
+                    ExecutionRun.id.notin_(
+                        select(Report.execution_run_id).where(Report.execution_run_id.isnot(None))
+                    ),
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         deleted_reports = len(old_reports)
         deleted_runs = len(old_runs)
@@ -65,7 +70,8 @@ def enforce_retention(dry_run: bool = False) -> dict:
         if dry_run:
             logger.info(
                 "DRY RUN — would delete %d reports, %d orphan runs",
-                deleted_reports, deleted_runs,
+                deleted_reports,
+                deleted_runs,
             )
         else:
             # Delete report output directories
@@ -82,9 +88,7 @@ def enforce_retention(dry_run: bool = False) -> dict:
                             cleaned_dirs += 1
 
                 # Delete test results (cascade should handle this, but be explicit)
-                session.execute(
-                    delete(TestResult).where(TestResult.report_id == report.id)
-                )
+                session.execute(delete(TestResult).where(TestResult.report_id == report.id))
                 session.delete(report)
 
             # Delete orphan runs
@@ -99,12 +103,15 @@ def enforce_retention(dry_run: bool = False) -> dict:
             session.commit()
             logger.info(
                 "Retention enforcement complete: deleted %d reports, %d orphan runs, cleaned %d directories",
-                deleted_reports, deleted_runs, cleaned_dirs,
+                deleted_reports,
+                deleted_runs,
+                cleaned_dirs,
             )
 
         # Log to audit
         try:
             from src.audit.service import log_audit
+
             log_audit(
                 session,
                 action="retention_cleanup",

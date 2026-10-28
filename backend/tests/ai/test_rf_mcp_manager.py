@@ -3,8 +3,6 @@
 import socket
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from src.ai import rf_mcp_manager
 
 
@@ -216,7 +214,9 @@ class TestStartServerProcess:
             patch.object(rf_mcp_manager, "_find_available_port", return_value=9090),
         ):
             rf_mcp_manager._process = None
-            result = rf_mcp_manager._start_server_process(9090, "/fake/env/lib/python3.12/site-packages")
+            result = rf_mcp_manager._start_server_process(
+                9090, "/fake/env/lib/python3.12/site-packages"
+            )
 
         assert result["status"] == "started"
         assert "/fake/env/lib/python3.12/site-packages" in captured_env.get("PYTHONPATH", "")
@@ -227,7 +227,11 @@ class TestStartServerProcess:
 
 class TestStartBundled:
     def test_start_without_env(self):
-        with patch.object(rf_mcp_manager, "_start_server_process", return_value={"status": "started", "port": 9090, "pid": 1}):
+        with patch.object(
+            rf_mcp_manager,
+            "_start_server_process",
+            return_value={"status": "started", "port": 9090, "pid": 1},
+        ):
             rf_mcp_manager._process = None
             rf_mcp_manager._status = "stopped"
             result = rf_mcp_manager.start_bundled()
@@ -248,8 +252,16 @@ class TestStartBundled:
 
         with (
             patch("src.database.get_sync_session", return_value=mock_session),
-            patch.object(rf_mcp_manager, "_get_env_site_packages", return_value="/fake/venv/lib/python3.12/site-packages"),
-            patch.object(rf_mcp_manager, "_start_server_process", return_value={"status": "started", "port": 9090, "pid": 1}) as mock_start,
+            patch.object(
+                rf_mcp_manager,
+                "_get_env_site_packages",
+                return_value="/fake/venv/lib/python3.12/site-packages",
+            ),
+            patch.object(
+                rf_mcp_manager,
+                "_start_server_process",
+                return_value={"status": "started", "port": 9090, "pid": 1},
+            ) as mock_start,
         ):
             rf_mcp_manager._process = None
             rf_mcp_manager._status = "stopped"
@@ -280,7 +292,9 @@ class TestStartBundled:
 
 class TestSetup:
     def test_setup_delegates_to_start_bundled(self):
-        with patch.object(rf_mcp_manager, "start_bundled", return_value={"status": "running"}) as mock:
+        with patch.object(
+            rf_mcp_manager, "start_bundled", return_value={"status": "running"}
+        ) as mock:
             result = rf_mcp_manager.setup(42, 9090)
 
         mock.assert_called_once_with(42, 9090)

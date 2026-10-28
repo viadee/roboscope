@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode
 
 from fastapi import HTTPException, status
@@ -65,7 +65,7 @@ def initiate_sso_login(
         pkce_verifier=encrypt_value(pkce_verifier),
         idp_id=idp.id,
         return_to=safe_return_to,
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=_ATTEMPT_TTL_MINUTES),
+        expires_at=datetime.now(UTC) + timedelta(minutes=_ATTEMPT_TTL_MINUTES),
     )
     db.add(attempt)
     db.flush()

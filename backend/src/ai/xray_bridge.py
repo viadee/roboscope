@@ -4,7 +4,7 @@ Converts between .roboscope v2 YAML specs and Xray JSON import/export format,
 enabling direct integration with Xray/Jira test management.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def roboscope_to_xray(spec: dict) -> dict:
@@ -94,9 +94,7 @@ def roboscope_to_xray(spec: dict) -> dict:
                 xray_steps: list[dict] = []
                 for step in steps:
                     if isinstance(step, str):
-                        xray_steps.append({
-                            "fields": {"Action": step}
-                        })
+                        xray_steps.append({"fields": {"Action": step}})
                     elif isinstance(step, dict):
                         fields: dict = {"Action": step.get("action", "")}
                         if step.get("data"):
@@ -127,7 +125,7 @@ def xray_to_roboscope(xray_data: dict) -> dict:
     metadata: dict = {
         "title": info.get("summary", "Imported from Xray"),
         "author": "",
-        "created": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "created": datetime.now(UTC).strftime("%Y-%m-%d"),
         "last_generated": None,
         "generation_hash": None,
         "target_file": "tests/imported.robot",
@@ -191,9 +189,7 @@ def xray_to_roboscope(xray_data: dict) -> dict:
             precondition = test_info.get("precondition", "")
             if precondition:
                 tc["preconditions"] = [
-                    line.strip()
-                    for line in precondition.split("\n")
-                    if line.strip()
+                    line.strip() for line in precondition.split("\n") if line.strip()
                 ]
 
             # Steps

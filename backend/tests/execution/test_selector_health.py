@@ -13,12 +13,10 @@ import pytest
 from sqlalchemy.orm import Session
 
 from src.auth.models import User
-from src.auth.service import hash_password
 from src.execution.models import RunStatus
 from src.execution.router import _extract_failed_locators
 from src.repos.models import Repository
 from tests.conftest import auth_header
-
 
 ENDPOINT = "/api/v1/runs/{}/selector-health"
 
@@ -39,9 +37,14 @@ def repo_with_path(db_session: Session, admin_user: User, tmp_path: Path) -> Rep
 
 
 def _mk_run(
-    db_session: Session, repo: Repository, owner: User, *,
-    target_path: str = "tests/login.robot", status: str = RunStatus.FAILED,
-    output_dir: str | None = None, error_message: str | None = None,
+    db_session: Session,
+    repo: Repository,
+    owner: User,
+    *,
+    target_path: str = "tests/login.robot",
+    status: str = RunStatus.FAILED,
+    output_dir: str | None = None,
+    error_message: str | None = None,
 ):
     from src.execution.models import ExecutionRun
 
@@ -64,27 +67,31 @@ def _write_sidecar(robot_path: Path, *, active_locator: str, alts: list[dict]) -
     robot_path.write_text("*** Settings ***\nLibrary    Browser\n", encoding="utf-8")
     sidecar = robot_path.with_suffix(".rbs.json")
     sidecar.write_text(
-        json.dumps({
-            "schema_version": 1,
-            "transport": "web_playwright",
-            "session_id": "sh-1",
-            "name": None,
-            "commands": [{
-                "index": 0,
-                "keyword": "Click",
-                "args": {},
-                "active_candidate_index": 0,
-                "selector_candidates": [
+        json.dumps(
+            {
+                "schema_version": 1,
+                "transport": "web_playwright",
+                "session_id": "sh-1",
+                "name": None,
+                "commands": [
                     {
-                        "strategy": "testid",
-                        "value": active_locator,
-                        "quality_score": 0.95,
-                        "verified_unique": True,
-                    },
-                    *alts,
+                        "index": 0,
+                        "keyword": "Click",
+                        "args": {},
+                        "active_candidate_index": 0,
+                        "selector_candidates": [
+                            {
+                                "strategy": "testid",
+                                "value": active_locator,
+                                "quality_score": 0.95,
+                                "verified_unique": True,
+                            },
+                            *alts,
+                        ],
+                    }
                 ],
-            }],
-        }),
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -108,10 +115,7 @@ class TestLocatorExtractor:
         assert _extract_failed_locators(txt) == ["text=Submit"]
 
     def test_deduplicates_repeated_locators(self) -> None:
-        txt = (
-            "Element 'id=x' not found\n"
-            'waiting for selector "id=x" failed\n'
-        )
+        txt = "Element 'id=x' not found\nwaiting for selector \"id=x\" failed\n"
         assert _extract_failed_locators(txt) == ["id=x"]
 
     def test_returns_empty_on_no_match(self) -> None:
@@ -150,10 +154,18 @@ class TestEndpoint:
             robot_path,
             active_locator="id=submit",
             alts=[
-                {"strategy": "aria", "value": "role=button[name='Submit']",
-                 "quality_score": 0.8, "verified_unique": True},
-                {"strategy": "text", "value": "text=Submit",
-                 "quality_score": 0.6, "verified_unique": True},
+                {
+                    "strategy": "aria",
+                    "value": "role=button[name='Submit']",
+                    "quality_score": 0.8,
+                    "verified_unique": True,
+                },
+                {
+                    "strategy": "text",
+                    "value": "text=Submit",
+                    "quality_score": 0.6,
+                    "verified_unique": True,
+                },
             ],
         )
 
@@ -166,7 +178,9 @@ class TestEndpoint:
         )
 
         run = _mk_run(
-            db_session, repo_with_path, runner_user,
+            db_session,
+            repo_with_path,
+            runner_user,
             output_dir=str(output_dir),
         )
         resp = client.get(ENDPOINT.format(run.id), headers=auth_header(runner_user))
@@ -187,11 +201,15 @@ class TestEndpoint:
         (tmp_path / "tests").mkdir(parents=True, exist_ok=True)
         robot_path = tmp_path / "tests/login.robot"
         _write_sidecar(
-            robot_path, active_locator="id=somethingelse", alts=[],
+            robot_path,
+            active_locator="id=somethingelse",
+            alts=[],
         )
 
         run = _mk_run(
-            db_session, repo_with_path, runner_user,
+            db_session,
+            repo_with_path,
+            runner_user,
             error_message="Element 'id=submit' not found after 5 seconds",
         )
         resp = client.get(ENDPOINT.format(run.id), headers=auth_header(runner_user))

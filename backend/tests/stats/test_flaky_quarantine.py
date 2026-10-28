@@ -11,7 +11,6 @@ from src.repos.models import Repository
 from src.stats.models import FlakyQuarantine
 from tests.conftest import auth_header
 
-
 ENDPOINT = "/api/v1/stats/quarantine"
 
 
@@ -31,8 +30,10 @@ def _mk_repo(db: Session, owner: User) -> Repository:
 
 def _viewer(db: Session) -> User:
     u = User(
-        email="fq-viewer@test.com", username="fq-viewer",
-        hashed_password=hash_password("pw"), role="viewer",
+        email="fq-viewer@test.com",
+        username="fq-viewer",
+        hashed_password=hash_password("pw"),
+        role="viewer",
     )
     db.add(u)
     db.flush()
@@ -100,15 +101,11 @@ class TestQuarantineCRUD:
 
         assert db_session.query(FlakyQuarantine).count() == 0
 
-    def test_delete_missing_is_404(
-        self, client: TestClient, admin_user: User
-    ) -> None:
+    def test_delete_missing_is_404(self, client: TestClient, admin_user: User) -> None:
         resp = client.delete(f"{ENDPOINT}/99999", headers=auth_header(admin_user))
         assert resp.status_code == 404
 
-    def test_create_rejects_unknown_repo(
-        self, client: TestClient, admin_user: User
-    ) -> None:
+    def test_create_rejects_unknown_repo(self, client: TestClient, admin_user: User) -> None:
         resp = client.post(
             ENDPOINT,
             json={"repository_id": 99999, "suite_name": "S", "test_name": "T"},
@@ -140,7 +137,10 @@ class TestQuarantineAuth:
 
     def test_unauthenticated_blocked(self, client: TestClient) -> None:
         assert client.get(ENDPOINT).status_code == 401
-        assert client.post(
-            ENDPOINT,
-            json={"repository_id": 1, "suite_name": "S", "test_name": "T"},
-        ).status_code == 401
+        assert (
+            client.post(
+                ENDPOINT,
+                json={"repository_id": 1, "suite_name": "S", "test_name": "T"},
+            ).status_code
+            == 401
+        )

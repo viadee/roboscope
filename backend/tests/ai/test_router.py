@@ -1,6 +1,6 @@
 """API tests for AI module endpoints."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from tests.conftest import auth_header
 
@@ -106,16 +106,19 @@ class TestRfKnowledgeStatus:
 class TestRfMcpStatusEndpoint:
     def test_returns_status(self, client, admin_user):
         """GET /rf-mcp/status should return detailed status."""
-        with patch("src.ai.rf_mcp_manager.get_status", return_value={
-            "status": "stopped",
-            "running": False,
-            "port": None,
-            "pid": None,
-            "url": "",
-            "environment_id": None,
-            "error_message": "",
-            "installed_version": None,
-        }):
+        with patch(
+            "src.ai.rf_mcp_manager.get_status",
+            return_value={
+                "status": "stopped",
+                "running": False,
+                "port": None,
+                "pid": None,
+                "url": "",
+                "environment_id": None,
+                "error_message": "",
+                "installed_version": None,
+            },
+        ):
             resp = client.get("/api/v1/ai/rf-mcp/status", headers=auth_header(admin_user))
         assert resp.status_code == 200
         data = resp.json()
@@ -131,16 +134,19 @@ class TestRfMcpStatusEndpoint:
         db_session.flush()
         db_session.refresh(env)
 
-        with patch("src.ai.rf_mcp_manager.get_status", return_value={
-            "status": "running",
-            "running": True,
-            "port": 9090,
-            "pid": 123,
-            "url": "http://localhost:9090/mcp",
-            "environment_id": env.id,
-            "error_message": "",
-            "installed_version": "1.0.0",
-        }):
+        with patch(
+            "src.ai.rf_mcp_manager.get_status",
+            return_value={
+                "status": "running",
+                "running": True,
+                "port": 9090,
+                "pid": 123,
+                "url": "http://localhost:9090/mcp",
+                "environment_id": env.id,
+                "error_message": "",
+                "installed_version": "1.0.0",
+            },
+        ):
             resp = client.get("/api/v1/ai/rf-mcp/status", headers=auth_header(admin_user))
         assert resp.status_code == 200
         data = resp.json()
@@ -248,19 +254,30 @@ class TestRfMcpSetupEndpoint:
 class TestRfMcpStopEndpoint:
     def test_stop_server(self, client, admin_user):
         """POST /rf-mcp/stop should stop the server."""
-        with patch("src.ai.rf_mcp_manager.stop_server", return_value={"status": "stopped"}), \
-             patch("src.ai.rf_mcp_manager.get_status", return_value={
-                 "status": "stopped", "running": False, "port": None, "pid": None,
-                 "url": "", "environment_id": None, "error_message": "", "installed_version": None,
-             }):
+        with (
+            patch("src.ai.rf_mcp_manager.stop_server", return_value={"status": "stopped"}),
+            patch(
+                "src.ai.rf_mcp_manager.get_status",
+                return_value={
+                    "status": "stopped",
+                    "running": False,
+                    "port": None,
+                    "pid": None,
+                    "url": "",
+                    "environment_id": None,
+                    "error_message": "",
+                    "installed_version": None,
+                },
+            ),
+        ):
             resp = client.post("/api/v1/ai/rf-mcp/stop", headers=auth_header(admin_user))
         assert resp.status_code == 200
         assert resp.json()["status"] == "stopped"
 
     def test_stop_disables_auto_start(self, client, admin_user, db_session):
         """POST /rf-mcp/stop should set rf_mcp_auto_start to false."""
-        from src.settings.service import get_setting_value, seed_default_settings, update_settings
         from src.settings.schemas import SettingUpdate
+        from src.settings.service import get_setting_value, seed_default_settings, update_settings
 
         seed_default_settings(db_session)
         db_session.flush()
@@ -270,11 +287,22 @@ class TestRfMcpStopEndpoint:
         db_session.flush()
         assert get_setting_value(db_session, "rf_mcp_auto_start") == "true"
 
-        with patch("src.ai.rf_mcp_manager.stop_server", return_value={"status": "stopped"}), \
-             patch("src.ai.rf_mcp_manager.get_status", return_value={
-                 "status": "stopped", "running": False, "port": None, "pid": None,
-                 "url": "", "environment_id": None, "error_message": "", "installed_version": None,
-             }):
+        with (
+            patch("src.ai.rf_mcp_manager.stop_server", return_value={"status": "stopped"}),
+            patch(
+                "src.ai.rf_mcp_manager.get_status",
+                return_value={
+                    "status": "stopped",
+                    "running": False,
+                    "port": None,
+                    "pid": None,
+                    "url": "",
+                    "environment_id": None,
+                    "error_message": "",
+                    "installed_version": None,
+                },
+            ),
+        ):
             resp = client.post("/api/v1/ai/rf-mcp/stop", headers=auth_header(admin_user))
         assert resp.status_code == 200
 

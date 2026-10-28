@@ -1,7 +1,7 @@
 """Schedule heartbeat: fire due schedules (registered per-minute in main.py)."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -25,10 +25,12 @@ def _skip_reason(session, schedule: Schedule) -> str | None:
     if session.get(Repository, schedule.repository_id) is None:
         return "repository no longer exists"
     busy = session.execute(
-        select(ExecutionRun.id).where(
+        select(ExecutionRun.id)
+        .where(
             ExecutionRun.schedule_id == schedule.id,
             ExecutionRun.status.in_([RunStatus.PENDING, RunStatus.RUNNING]),
-        ).limit(1)
+        )
+        .limit(1)
     ).first()
     if busy:
         return f"previous run {busy[0]} is still pending/running"
@@ -43,8 +45,8 @@ def run_due_schedules(now: datetime | None = None) -> dict:
     coalesces all missed slots into a single run. Runs in the APScheduler
     thread, so it never raises.
     """
-    now = now or datetime.now(timezone.utc)
-    now_naive = now.astimezone(timezone.utc).replace(tzinfo=None) if now.tzinfo else now
+    now = now or datetime.now(UTC)
+    now_naive = now.astimezone(UTC).replace(tzinfo=None) if now.tzinfo else now
     fired: list[int] = []
     skipped: list[int] = []
     try:

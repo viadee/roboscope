@@ -72,9 +72,7 @@ class TestCreateSession:
         session_id = body["session_id"]
 
         audits = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "recording.session.started")
-            .all()
+            db_session.query(AuditLog).filter(AuditLog.action == "recording.session.started").all()
         )
         assert len(audits) == 1
         detail = json.loads(audits[0].detail)
@@ -142,18 +140,14 @@ class TestPerUserCap:
         assert second_row is not None and second_row.status == RecordingStatus.RECORDING
 
         superseded = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "recording.session.aborted")
-            .all()
+            db_session.query(AuditLog).filter(AuditLog.action == "recording.session.aborted").all()
         )
         reasons = {json.loads(a.detail)["reason"] for a in superseded}
         assert "superseded" in reasons
 
 
 class TestAbortSession:
-    def test_owner_aborts(
-        self, client: TestClient, db_session: Session, admin_user: User
-    ) -> None:
+    def test_owner_aborts(self, client: TestClient, db_session: Session, admin_user: User) -> None:
         repo = _mk_repo(db_session, admin_user)
         created = client.post(
             "/api/v1/recordings/sessions",
@@ -206,9 +200,7 @@ class TestAbortSession:
         )
         assert resp.status_code == 204
 
-    def test_404_on_unknown(
-        self, client: TestClient, admin_user: User
-    ) -> None:
+    def test_404_on_unknown(self, client: TestClient, admin_user: User) -> None:
         resp = client.delete(
             "/api/v1/recordings/sessions/99999",
             headers=auth_header(admin_user),

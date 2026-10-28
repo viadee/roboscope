@@ -55,9 +55,7 @@ def test_subprocess_cancel_before_execute_does_not_launch(tmp_path) -> None:
     runner = SubprocessRunner(venv_path=None)
     runner.cancel()  # cancel lands during prepare(); _process is still None
 
-    with patch(
-        "src.execution.runners.subprocess_runner.subprocess.Popen"
-    ) as popen:
+    with patch("src.execution.runners.subprocess_runner.subprocess.Popen") as popen:
         result = runner.execute(
             repo_path=str(tmp_path),
             target_path="suite.robot",
@@ -98,9 +96,7 @@ def test_subprocess_drains_stderr_without_deadlock(tmp_path, monkeypatch) -> Non
         "import sys; sys.stderr.write('E' * 200000); sys.stderr.flush(); "
         "sys.stdout.write('done\\n'); sys.stdout.flush(); sys.exit(0)"
     )
-    monkeypatch.setattr(
-        runner, "_build_command", lambda **kwargs: [sys.executable, "-c", script]
-    )
+    monkeypatch.setattr(runner, "_build_command", lambda **kwargs: [sys.executable, "-c", script])
 
     result = runner.execute(
         repo_path=str(tmp_path),
@@ -180,9 +176,7 @@ def test_docker_timeout_flags_result_and_stops_container(tmp_path) -> None:
 # ----- H4: orphan-run reaper on startup -----
 
 
-def test_reconcile_interrupted_runs_marks_only_orphans(
-    db_session, admin_user, tmp_path
-) -> None:
+def test_reconcile_interrupted_runs_marks_only_orphans(db_session, admin_user, tmp_path) -> None:
     """PENDING/RUNNING rows (orphaned by a restart) become ERROR; already
     terminal rows are left untouched."""
     from src.execution.tasks import reconcile_interrupted_runs

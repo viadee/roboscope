@@ -40,7 +40,9 @@ class FlakyQuarantine(Base):
     __tablename__ = "flaky_quarantine"
     __table_args__ = (
         UniqueConstraint(
-            "repository_id", "suite_name", "test_name",
+            "repository_id",
+            "suite_name",
+            "test_name",
             name="uq_flaky_quarantine_repo_suite_test",
         ),
     )
@@ -54,7 +56,9 @@ class FlakyQuarantine(Base):
     reason: Mapped[str | None] = mapped_column(Text, default=None)
     quarantined_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     quarantined_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False,
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
     )
 
 
@@ -64,9 +68,7 @@ class AnalysisReport(Base, TimestampMixin):
     __tablename__ = "analysis_reports"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    repository_id: Mapped[int | None] = mapped_column(
-        ForeignKey("repositories.id"), default=None
-    )
+    repository_id: Mapped[int | None] = mapped_column(ForeignKey("repositories.id"), default=None)
     status: Mapped[str] = mapped_column(String(20), default="pending")
     selected_kpis: Mapped[str] = mapped_column(Text, default="[]")
     date_from: Mapped[date | None] = mapped_column(Date, default=None)

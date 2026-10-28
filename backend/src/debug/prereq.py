@@ -94,7 +94,8 @@ async def install_robotcode(venv_path: str) -> str:
 
     try:
         stdout_bytes, _ = await asyncio.wait_for(
-            proc.communicate(), timeout=INSTALL_TIMEOUT_SECONDS,
+            proc.communicate(),
+            timeout=INSTALL_TIMEOUT_SECONDS,
         )
     except TimeoutError as e:
         with suppress(ProcessLookupError):
@@ -108,7 +109,5 @@ async def install_robotcode(venv_path: str) -> str:
     output = stdout_bytes.decode("utf-8", errors="replace") if stdout_bytes else ""
     tail = "\n".join(output.splitlines()[-LOG_TAIL_LINES:])
     if proc.returncode != 0:
-        raise PrereqInstallFailed(
-            f"uv pip install exited with code {proc.returncode}:\n{tail}"
-        )
+        raise PrereqInstallFailed(f"uv pip install exited with code {proc.returncode}:\n{tail}")
     return tail

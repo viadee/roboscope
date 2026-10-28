@@ -2,8 +2,6 @@
 
 from datetime import date, timedelta
 
-import pytest
-
 from src.execution.models import ExecutionRun, RunStatus
 from src.reports.models import Report, TestResult
 from src.repos.models import Repository

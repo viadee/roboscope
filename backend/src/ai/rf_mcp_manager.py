@@ -101,6 +101,7 @@ def _start_server_process(port: int, env_site_packages: str | None = None) -> di
         return {"status": "already_running", "port": _port, "pid": proc.pid if proc else 0}
 
     from src.ai.rf_knowledge import reset_session
+
     reset_session()
 
     _port = port
@@ -115,8 +116,7 @@ def _start_server_process(port: int, env_site_packages: str | None = None) -> di
 
         # Use RoboScope's own Python to run robotmcp (it's a default dependency)
         proc = subprocess.Popen(
-            [sys.executable, "-m", "robotmcp.server",
-             "--transport", "http", "--port", str(port)],
+            [sys.executable, "-m", "robotmcp.server", "--transport", "http", "--port", str(port)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=env,
@@ -192,6 +192,7 @@ def start_bundled(env_id: int | None = None, port: int = 0) -> dict:
         global _installed_version
         try:
             import importlib.metadata
+
             _installed_version = importlib.metadata.version("rf-mcp")
         except Exception:
             _installed_version = None
@@ -208,6 +209,7 @@ def stop_server() -> dict:
     global _process, _status, _error_message
 
     from src.ai.rf_knowledge import reset_session
+
     reset_session()
 
     proc = _process

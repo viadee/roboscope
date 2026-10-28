@@ -1,10 +1,10 @@
 """Regression tests for the report-parser QA-audit fixes (demo-readiness).
 
-  - H1: nested suite names must be hierarchical (A.B.C), not flattened — the
-        flat parser used a descendant iterator that lost the hierarchy, so
-        same-named tests in different suites collided.
-  - H2: a test's tags must NOT include keyword-level tags (the old `.//tag`
-        descendant axis pulled in <tag> nested under <kw>).
+- H1: nested suite names must be hierarchical (A.B.C), not flattened — the
+      flat parser used a descendant iterator that lost the hierarchy, so
+      same-named tests in different suites collided.
+- H2: a test's tags must NOT include keyword-level tags (the old `.//tag`
+      descendant axis pulled in <tag> nested under <kw>).
 """
 
 from __future__ import annotations

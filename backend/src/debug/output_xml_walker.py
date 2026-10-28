@@ -122,9 +122,7 @@ def _scan_test_for_failing_keyword(
 # failing keyword nested inside FOR/IF/TRY/WHILE is reachable only by
 # descending through these containers (H3) — otherwise the walk returns
 # None and the debugger breakpoint falls back to the test header line.
-_FAILURE_CONTAINER_TAGS = frozenset(
-    {"kw", "for", "iter", "if", "branch", "try", "while", "group"}
-)
+_FAILURE_CONTAINER_TAGS = frozenset({"kw", "for", "iter", "if", "branch", "try", "while", "group"})
 
 
 def _walk_keyword_tree_for_failure(

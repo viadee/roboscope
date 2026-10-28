@@ -69,9 +69,7 @@ def _create_repo_structure(tmp_path):
     suites = tmp_path / "suites"
     suites.mkdir()
     (suites / "login.robot").write_text(SAMPLE_ROBOT)
-    (suites / "api_tests.robot").write_text(
-        "*** Test Cases ***\nAPI Health Check\n    Log    OK\n"
-    )
+    (suites / "api_tests.robot").write_text("*** Test Cases ***\nAPI Health Check\n    Log    OK\n")
 
     resources = tmp_path / "resources"
     resources.mkdir()
@@ -295,7 +293,9 @@ class TestSearchInRepo:
         results = search_in_repo(str(tmp_path), "Valid Credentials")
 
         assert len(results) >= 1
-        assert any("Valid Credentials" in r.name or "Valid Credentials" in r.context for r in results)
+        assert any(
+            "Valid Credentials" in r.name or "Valid Credentials" in r.context for r in results
+        )
 
     def test_search_finds_testcase_type(self, tmp_path):
         _create_repo_structure(tmp_path)
@@ -475,8 +475,7 @@ class TestExtractLibraries:
 
     def test_extract_with_tab_separator(self, tmp_path):
         (tmp_path / "test.robot").write_text(
-            "*** Settings ***\nLibrary\tBrowser\n\n"
-            "*** Test Cases ***\nT\n    Log    ok\n"
+            "*** Settings ***\nLibrary\tBrowser\n\n*** Test Cases ***\nT\n    Log    ok\n"
         )
         libs = extract_libraries(str(tmp_path))
         lib_names = [l["library_name"] for l in libs]
@@ -495,8 +494,7 @@ class TestCheckLibrariesAgainstEnv:
 
     def test_installed_detected(self, tmp_path):
         (tmp_path / "test.robot").write_text(
-            "*** Settings ***\nLibrary    Browser\n\n"
-            "*** Test Cases ***\nT\n    Log    ok\n"
+            "*** Settings ***\nLibrary    Browser\n\n*** Test Cases ***\nT\n    Log    ok\n"
         )
         installed = [{"name": "robotframework-browser", "version": "18.0.0"}]
         results = check_libraries_against_env(str(tmp_path), installed)
@@ -508,8 +506,7 @@ class TestCheckLibrariesAgainstEnv:
 
     def test_missing_detected(self, tmp_path):
         (tmp_path / "test.robot").write_text(
-            "*** Settings ***\nLibrary    SeleniumLibrary\n\n"
-            "*** Test Cases ***\nT\n    Log    ok\n"
+            "*** Settings ***\nLibrary    SeleniumLibrary\n\n*** Test Cases ***\nT\n    Log    ok\n"
         )
         results = check_libraries_against_env(str(tmp_path), [])
 
@@ -520,8 +517,7 @@ class TestCheckLibrariesAgainstEnv:
     def test_normalized_package_matching(self, tmp_path):
         """Package names with dashes should match those with underscores."""
         (tmp_path / "test.robot").write_text(
-            "*** Settings ***\nLibrary    RequestsLibrary\n\n"
-            "*** Test Cases ***\nT\n    Log    ok\n"
+            "*** Settings ***\nLibrary    RequestsLibrary\n\n*** Test Cases ***\nT\n    Log    ok\n"
         )
         # pip list often returns names with dashes
         installed = [{"name": "robotframework-requests", "version": "0.9.7"}]
@@ -539,6 +535,7 @@ class TestCheckLibrariesAgainstEnv:
 
         custom = next(r for r in results if r["library_name"] == "./libs/custom.py")
         assert custom["status"] == "builtin"
+
 
 class TestBinaryFileDetection:
     def test_binary_file_detected(self, tmp_path):
@@ -753,18 +750,14 @@ class TestSectionHeaderVariantsEndToEnd:
         (tmp_path / "kw.resource").write_text(
             "﻿*** Keywords ***\nMy Keyword\n    Log    hi\n", encoding="utf-8"
         )
-        assert [k["name"] for k in parse_robot_keywords_in_repo(str(tmp_path))] == [
-            "My Keyword"
-        ]
+        assert [k["name"] for k in parse_robot_keywords_in_repo(str(tmp_path))] == ["My Keyword"]
 
     def test_localised_headers_with_language_declaration(self, tmp_path):
         (tmp_path / "kw.resource").write_text(
             "Language: zh-CN\n\n*** 关键字 ***\nMy Keyword\n    Log    hi\n",
             encoding="utf-8",
         )
-        assert [k["name"] for k in parse_robot_keywords_in_repo(str(tmp_path))] == [
-            "My Keyword"
-        ]
+        assert [k["name"] for k in parse_robot_keywords_in_repo(str(tmp_path))] == ["My Keyword"]
 
     def test_localised_headers_without_declaration_stay_hidden(self, tmp_path):
         # RF rejects these too; listing them would advertise keywords RF cannot
@@ -780,9 +773,7 @@ class TestSectionHeaderVariantsEndToEnd:
         )
         tree = build_tree(str(tmp_path))
         assert tree.children[0].test_count == 1
-        assert [t.name for t in parse_robot_testcases(str(tmp_path), "suite.robot")] == [
-            "My Task"
-        ]
+        assert [t.name for t in parse_robot_testcases(str(tmp_path), "suite.robot")] == ["My Task"]
 
     def test_unknown_section_still_closes_the_previous_one(self, tmp_path):
         # `*** Bogus ***` is not a section we know, but it must not let the
@@ -792,6 +783,4 @@ class TestSectionHeaderVariantsEndToEnd:
             "*** Bogus ***\nNot A Keyword\n    Log    hi\n",
             encoding="utf-8",
         )
-        assert [k["name"] for k in parse_robot_keywords_in_repo(str(tmp_path))] == [
-            "Real Keyword"
-        ]
+        assert [k["name"] for k in parse_robot_keywords_in_repo(str(tmp_path))] == ["Real Keyword"]

@@ -23,20 +23,24 @@ the symmetry test fires.
 from __future__ import annotations
 
 import pytest
-
 from RoboScopeHeal.candidate_finder import _split_iframe_wrap
 from RoboScopeHeal.library import RoboScopeHeal
-from src.recording.robot_emit import _iframe_locator_from_url
 
+from src.recording.robot_emit import _iframe_locator_from_url
 
 CASES = [
     # (label, frame_url, expected iframe_loc shape)
-    ("sourcepoint", "https://message-eu.sp-prod.net/?id=42",
-        'iframe[src*="message-eu.sp-prod.net"]'),
-    ("onetrust", "https://cdn-ukwest.onetrust.com/consent/abc-def",
-        'iframe[src*="cdn-ukwest.onetrust.com"]'),
-    ("port-and-path", "https://localhost:8443/auth/realms/x",
-        'iframe[src*="localhost:8443"]'),
+    (
+        "sourcepoint",
+        "https://message-eu.sp-prod.net/?id=42",
+        'iframe[src*="message-eu.sp-prod.net"]',
+    ),
+    (
+        "onetrust",
+        "https://cdn-ukwest.onetrust.com/consent/abc-def",
+        'iframe[src*="cdn-ukwest.onetrust.com"]',
+    ),
+    ("port-and-path", "https://localhost:8443/auth/realms/x", 'iframe[src*="localhost:8443"]'),
 ]
 
 
@@ -56,9 +60,7 @@ class TestEmitToUnwrapSymmetry:
         )
 
     @pytest.mark.parametrize("label,url,_loc", CASES, ids=[c[0] for c in CASES])
-    def test_round_trip_single_iframe(
-        self, label: str, url: str, _loc: str
-    ) -> None:
+    def test_round_trip_single_iframe(self, label: str, url: str, _loc: str) -> None:
         """Build the on-disk composite the same way `_emit_command`
         does and verify the unwrap restores the inner selector
         exactly. Inner has no special chars to keep this focused on
@@ -108,7 +110,7 @@ class TestEmitToUnwrapSymmetry:
             "[data-testid=login]",
             "text=Click me",
             "xpath=//button",
-            "role=button[name=\"Save\"]",
+            'role=button[name="Save"]',
             # Pathological: contains the word `iframe` but isn't the wrap dialect.
             "css=div.iframe-wrapper button",
         ):

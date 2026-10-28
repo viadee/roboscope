@@ -12,7 +12,6 @@ from src.auth.dependencies import (
     require_role,
 )
 from src.auth.models import User
-from src.task_executor import TaskDispatchError, dispatch_task
 from src.database import get_db
 from src.repos.schemas import (
     BranchResponse,
@@ -33,11 +32,11 @@ from src.repos.schemas import (
 )
 from src.repos.service import (
     GitOperationError,
+    RepositoryBusyError,
     add_project_member,
     checkout_branch,
     commit_changes,
     create_repository,
-    RepositoryBusyError,
     delete_repository,
     get_file_diff,
     get_repo_status,
@@ -53,6 +52,7 @@ from src.repos.service import (
     update_project_member_role,
     update_repository,
 )
+from src.task_executor import TaskDispatchError, dispatch_task
 
 logger = logging.getLogger("roboscope.repos")
 
@@ -192,16 +192,12 @@ def assign_team(
 
     repo = get_repository(db, repo_id)
     if repo is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
 
     if data.team_id is not None:
         team = db.get(Team, data.team_id)
         if team is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Team not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
 
     previous_team_id = repo.team_id
     repo.team_id = data.team_id
@@ -246,6 +242,7 @@ def sync_repo(
     # the keyword-introspection 120s in-flight guard.
     if repo.sync_status == "syncing" and repo.updated_at is not None:
         from datetime import UTC, datetime, timedelta
+
         age = datetime.now(UTC) - repo.updated_at.replace(tzinfo=UTC)
         if age < timedelta(seconds=120):
             return SyncResponse(status="syncing", message="Sync already in progress")

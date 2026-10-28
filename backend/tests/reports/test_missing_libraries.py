@@ -1,15 +1,11 @@
 """Tests for the missing library detection feature."""
 
-import pytest
-
 from src.environments.models import Environment
 from src.execution.models import ExecutionRun
-from src.explorer.library_mapping import BUILTIN_LIBRARIES
-from src.repos.models import Repository
 from src.reports.models import Report, TestResult
 from src.reports.service import MISSING_LIB_PATTERNS, detect_missing_libraries
+from src.repos.models import Repository
 from tests.conftest import auth_header
-
 
 # ---------------------------------------------------------------------------
 # Unit tests: regex patterns
@@ -105,41 +101,61 @@ def _setup_full(db_session, admin_user, error_messages, env_id=None):
 
 class TestDetectMissingLibraries:
     def test_detects_missing_library(self, db_session, admin_user):
-        report = _setup_full(db_session, admin_user, [
-            "Importing test library 'Browser' failed: ModuleNotFoundError",
-        ])
+        report = _setup_full(
+            db_session,
+            admin_user,
+            [
+                "Importing test library 'Browser' failed: ModuleNotFoundError",
+            ],
+        )
         result = detect_missing_libraries(db_session, report.id)
         assert len(result.libraries) == 1
         assert result.libraries[0].library_name == "Browser"
         assert result.libraries[0].pypi_package == "robotframework-browser"
 
     def test_detects_no_module_named(self, db_session, admin_user):
-        report = _setup_full(db_session, admin_user, [
-            "No module named 'selenium'",
-        ])
+        report = _setup_full(
+            db_session,
+            admin_user,
+            [
+                "No module named 'selenium'",
+            ],
+        )
         result = detect_missing_libraries(db_session, report.id)
         assert len(result.libraries) == 1
         assert result.libraries[0].library_name == "selenium"
 
     def test_deduplicates_libraries(self, db_session, admin_user):
-        report = _setup_full(db_session, admin_user, [
-            "Importing library 'Browser' failed: ModuleNotFoundError",
-            "Importing library 'Browser' failed: ModuleNotFoundError",
-        ])
+        report = _setup_full(
+            db_session,
+            admin_user,
+            [
+                "Importing library 'Browser' failed: ModuleNotFoundError",
+                "Importing library 'Browser' failed: ModuleNotFoundError",
+            ],
+        )
         result = detect_missing_libraries(db_session, report.id)
         assert len(result.libraries) == 1
 
     def test_skips_builtin_libraries(self, db_session, admin_user):
-        report = _setup_full(db_session, admin_user, [
-            "Importing library 'Collections' failed: unexpected error",
-        ])
+        report = _setup_full(
+            db_session,
+            admin_user,
+            [
+                "Importing library 'Collections' failed: unexpected error",
+            ],
+        )
         result = detect_missing_libraries(db_session, report.id)
         assert len(result.libraries) == 0
 
     def test_handles_dotted_module(self, db_session, admin_user):
-        report = _setup_full(db_session, admin_user, [
-            "No module named 'robotframework_browser.utils'",
-        ])
+        report = _setup_full(
+            db_session,
+            admin_user,
+            [
+                "No module named 'robotframework_browser.utils'",
+            ],
+        )
         result = detect_missing_libraries(db_session, report.id)
         assert len(result.libraries) == 1
         assert result.libraries[0].library_name == "robotframework_browser"
@@ -155,18 +171,28 @@ class TestDetectMissingLibraries:
         db_session.flush()
         db_session.refresh(env)
 
-        report = _setup_full(db_session, admin_user, [
-            "Importing library 'Browser' failed: ModuleNotFoundError",
-        ], env_id=env.id)
+        report = _setup_full(
+            db_session,
+            admin_user,
+            [
+                "Importing library 'Browser' failed: ModuleNotFoundError",
+            ],
+            env_id=env.id,
+        )
 
         result = detect_missing_libraries(db_session, report.id)
         assert result.environment_id == env.id
         assert result.environment_name == "test-env"
 
     def test_no_environment(self, db_session, admin_user):
-        report = _setup_full(db_session, admin_user, [
-            "Importing library 'Browser' failed: ModuleNotFoundError",
-        ], env_id=None)
+        report = _setup_full(
+            db_session,
+            admin_user,
+            [
+                "Importing library 'Browser' failed: ModuleNotFoundError",
+            ],
+            env_id=None,
+        )
         result = detect_missing_libraries(db_session, report.id)
         assert result.environment_id is None
         assert result.environment_name is None
@@ -188,9 +214,13 @@ class TestDetectMissingLibraries:
 
 class TestMissingLibrariesEndpoint:
     def test_returns_missing_libraries(self, client, db_session, admin_user):
-        report = _setup_full(db_session, admin_user, [
-            "Importing library 'Browser' failed: ModuleNotFoundError",
-        ])
+        report = _setup_full(
+            db_session,
+            admin_user,
+            [
+                "Importing library 'Browser' failed: ModuleNotFoundError",
+            ],
+        )
 
         response = client.get(
             f"/api/v1/reports/{report.id}/missing-libraries",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from fastapi import APIRouter, Depends, FastAPI
+from fastapi import APIRouter, Depends
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -29,9 +29,7 @@ def _mk_user(db: Session, *, role: str, email: str) -> User:
     return u
 
 
-def _mk_repo(
-    db: Session, owner: User, team: Team | None = None
-) -> Repository:
+def _mk_repo(db: Session, owner: User, team: Team | None = None) -> Repository:
     r = Repository(
         name=f"rer-{owner.id}-{team.id if team else 'null'}",
         git_url="https://github.com/x/y.git",
@@ -52,6 +50,7 @@ def _mk_repo(
 # already-registered endpoints (e.g., `/repos/{id}`) and assert 403 when the
 # new dependency gates them. But we don't migrate existing endpoints in this
 # story, so let's mount a test app in-fixture.
+
 
 @pytest.fixture
 def app_with_guarded_route(client: TestClient):
@@ -75,7 +74,8 @@ def app_with_guarded_route(client: TestClient):
     yield
     # Cleanup: drop the test routes from the app (by path).
     real_app.router.routes = [
-        r for r in real_app.router.routes
+        r
+        for r in real_app.router.routes
         if getattr(r, "path", "") != "/api/v1/test/repos/{repo_id}/editor-gated"
     ]
 

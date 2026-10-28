@@ -13,7 +13,6 @@ from src.encryption import encrypt_value
 from src.teams.models import Team
 from tests.conftest import auth_header
 
-
 BASE = "/api/v1/teams"
 DEL_BASE = "/api/v1/group-mappings"
 
@@ -57,9 +56,7 @@ def editor_user(db_session: Session) -> User:
     return u
 
 
-def _make_mapping(
-    client: TestClient, admin: User, team: Team, idp: IdentityProvider
-) -> int:
+def _make_mapping(client: TestClient, admin: User, team: Team, idp: IdentityProvider) -> int:
     resp = client.post(
         f"{BASE}/{team.id}/group-mappings",
         json={"idp_id": idp.id, "group_name": "eng", "role": "viewer"},
@@ -88,16 +85,10 @@ class TestUpdateGroupMapping:
         assert resp.status_code == 200
         assert resp.json()["role"] == "editor"
 
-        events = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "group_mapping.updated")
-            .all()
-        )
+        events = db_session.query(AuditLog).filter(AuditLog.action == "group_mapping.updated").all()
         assert len(events) == 1
 
-    def test_nonexistent_returns_404(
-        self, client: TestClient, admin_user: User
-    ) -> None:
+    def test_nonexistent_returns_404(self, client: TestClient, admin_user: User) -> None:
         resp = client.patch(
             f"{DEL_BASE}/99999",
             json={"role": "editor"},

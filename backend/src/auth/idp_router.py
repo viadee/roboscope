@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from src.auth.constants import Role
 from src.auth.dependencies import require_role
 from src.auth.handoff_generator import generate_markdown, generate_pdf
-from src.auth.oidc_discovery import probe_idp_discovery
 from src.auth.idp_service import (
     create_identity_provider,
     delete_identity_provider,
@@ -22,6 +21,7 @@ from src.auth.idp_service import (
     update_identity_provider,
 )
 from src.auth.models import User
+from src.auth.oidc_discovery import probe_idp_discovery
 from src.auth.schemas import (
     DiscoveryCacheRefreshResponse,
     DryRunProbeResponse,
@@ -42,9 +42,7 @@ def list_idps(
     return list_identity_providers(db)
 
 
-@router.post(
-    "", response_model=IdentityProviderResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("", response_model=IdentityProviderResponse, status_code=status.HTTP_201_CREATED)
 def create_idp(
     data: IdentityProviderCreate,
     db: Session = Depends(get_db),

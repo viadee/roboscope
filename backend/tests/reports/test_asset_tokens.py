@@ -20,7 +20,6 @@ from src.reports.asset_tokens import mint_asset_token, verify_asset_token
 from tests.conftest import auth_header
 from tests.reports.test_router import _setup_report  # reuse fixture helper
 
-
 # ---------------------------------------------------------------------------
 # Unit tests — pure HMAC plumbing
 # ---------------------------------------------------------------------------
@@ -81,8 +80,10 @@ class TestAssetTokenUnit:
         bytes and ~12 % per-token rate we expect a hit within ~10
         attempts; the loop guards against a 1-in-a-million miss with
         a generous upper bound."""
-        from src.reports.asset_tokens import _b64url_decode, _key, _SIG_LEN
-        import hmac as _hmac, hashlib as _hashlib
+        import hashlib as _hashlib
+        import hmac as _hmac
+
+        from src.reports.asset_tokens import _SIG_LEN, _b64url_decode, _key
 
         seed_payload = None
         for offset in range(2_000):
@@ -103,6 +104,7 @@ class TestAssetTokenUnit:
         offset, _expected_sig = seed_payload
         # Patch time.time so mint produces the same payload + sig.
         from unittest.mock import patch
+
         target_ts = int(time.time())
         with patch("src.reports.asset_tokens.time.time", return_value=float(target_ts)):
             t = mint_asset_token(report_id=7, ttl_seconds=offset)
@@ -115,8 +117,7 @@ class TestAssetTokenUnit:
         # starts with the literal payload bytes (`7:<ts+offset>`),
         # which the regression-prone code split mid-signature.
         decoded = _b64url_decode(t)
-        assert decoded.startswith(b"7:"), \
-            f"payload prefix corrupted: {decoded[:16]!r}"
+        assert decoded.startswith(b"7:"), f"payload prefix corrupted: {decoded[:16]!r}"
         # And the suffix is exactly _SIG_LEN bytes — the new format.
         assert len(decoded) > _SIG_LEN
 
@@ -138,7 +139,8 @@ def report_with_screenshot(db_session, admin_user, tmp_path):
     (output_dir / "output.xml").write_text("<robot/>", encoding="utf-8")
     (output_dir / "screenshot.png").write_bytes(b"\x89PNG\r\n\x1a\nfake")
     return _setup_report(
-        db_session, admin_user,
+        db_session,
+        admin_user,
         output_xml_path=str(output_dir / "output.xml"),
     )
 
@@ -154,7 +156,9 @@ class TestAssetEndpointAcceptsAssetToken:
         assert resp.content.startswith(b"\x89PNG")
 
     def test_rejects_asset_token_for_other_report(
-        self, client, report_with_screenshot,
+        self,
+        client,
+        report_with_screenshot,
     ):
         # Mint for a *different* report id; verifier must fail.
         wrong_token = mint_asset_token(report_with_screenshot.id + 999)
@@ -172,10 +176,14 @@ class TestAssetEndpointAcceptsAssetToken:
         assert resp.status_code == 401
 
     def test_jwt_path_still_works(
-        self, client, admin_user, report_with_screenshot,
+        self,
+        client,
+        admin_user,
+        report_with_screenshot,
     ):
         # SECURITY-3 keeps backward-compat with REPORT-1's JWT-in-URL.
         from src.auth.service import create_access_token
+
         jwt = create_access_token(admin_user.id, admin_user.role)
         resp = client.get(
             f"/api/v1/reports/{report_with_screenshot.id}/assets/screenshot.png",
@@ -204,7 +212,8 @@ class TestHtmlEndpointUsesAssetToken:
         )
         (out / "output.xml").write_text("<robot/>", encoding="utf-8")
         report = _setup_report(
-            db_session, admin_user,
+            db_session,
+            admin_user,
             output_xml_path=str(out / "output.xml"),
             report_html_path=str(html_path),
         )

@@ -14,14 +14,15 @@ from src.execution.models import ExecutionRun, RunStatus
 from src.repos.models import Repository
 from tests.conftest import auth_header
 
-
 APPLY = "/api/v1/runs/{}/heal-report/{}/apply"
 
 
 def _viewer(db_session: Session) -> User:
     u = User(
-        email="sh4-viewer@test.com", username="sh4-viewer",
-        hashed_password=hash_password("pw"), role="viewer",
+        email="sh4-viewer@test.com",
+        username="sh4-viewer",
+        hashed_password=hash_password("pw"),
+        role="viewer",
     )
     db_session.add(u)
     db_session.flush()
@@ -37,7 +38,8 @@ def _write_audit_and_output(
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "heal_audit.jsonl").write_text(
-        "\n".join(json.dumps(r) for r in records), encoding="utf-8",
+        "\n".join(json.dumps(r) for r in records),
+        encoding="utf-8",
     )
     parts = ['<?xml version="1.0" encoding="UTF-8"?>', "<robot>", "<suite>"]
     for name, status in test_outcomes.items():
@@ -77,8 +79,12 @@ def repo_with_robot(
 
 
 def _mk_run(
-    db_session: Session, repo: Repository, owner: User, output_dir: Path,
-    *, target_path: str = "tests/login.robot",
+    db_session: Session,
+    repo: Repository,
+    owner: User,
+    output_dir: Path,
+    *,
+    target_path: str = "tests/login.robot",
 ):
     run = ExecutionRun(
         repository_id=repo.id,
@@ -102,15 +108,17 @@ class TestApplyHappyPath:
         out = tmp_path / "out"
         _write_audit_and_output(
             out,
-            records=[{
-                "timestamp": "2026-04-24T10:00:00Z",
-                "test_name": "Happy Test",
-                "keyword": "Click",
-                "original_selector": "id=submit",
-                "healed_selector": "[data-testid=submit]",
-                "confidence": 0.95,
-                "source": "sidecar",
-            }],
+            records=[
+                {
+                    "timestamp": "2026-04-24T10:00:00Z",
+                    "test_name": "Happy Test",
+                    "keyword": "Click",
+                    "original_selector": "id=submit",
+                    "healed_selector": "[data-testid=submit]",
+                    "confidence": 0.95,
+                    "source": "sidecar",
+                }
+            ],
             test_outcomes={"Happy Test": "PASS"},
         )
         run = _mk_run(db_session, repo, admin_user, out)
@@ -133,15 +141,17 @@ class TestApplyHappyPath:
         out = tmp_path / "out"
         _write_audit_and_output(
             out,
-            records=[{
-                "timestamp": "2026-04-24T10:00:00Z",
-                "test_name": "Happy Test",
-                "keyword": "Click",
-                "original_selector": "id=submit",
-                "healed_selector": "[data-testid=submit]",
-                "confidence": 0.95,
-                "source": "sidecar",
-            }],
+            records=[
+                {
+                    "timestamp": "2026-04-24T10:00:00Z",
+                    "test_name": "Happy Test",
+                    "keyword": "Click",
+                    "original_selector": "id=submit",
+                    "healed_selector": "[data-testid=submit]",
+                    "confidence": 0.95,
+                    "source": "sidecar",
+                }
+            ],
             test_outcomes={"Happy Test": "PASS"},
         )
         run = _mk_run(db_session, repo, admin_user, out)
@@ -165,15 +175,17 @@ class TestSafetyGates:
         out = tmp_path / "out"
         _write_audit_and_output(
             out,
-            records=[{
-                "timestamp": "x",
-                "test_name": "Happy Test",
-                "keyword": "Click",
-                "original_selector": "id=submit",
-                "healed_selector": "text=Submit",
-                "confidence": 0.7,
-                "source": "transposition",
-            }],
+            records=[
+                {
+                    "timestamp": "x",
+                    "test_name": "Happy Test",
+                    "keyword": "Click",
+                    "original_selector": "id=submit",
+                    "healed_selector": "text=Submit",
+                    "confidence": 0.7,
+                    "source": "transposition",
+                }
+            ],
             test_outcomes={"Happy Test": "FAIL"},  # FAIL → suspect
         )
         run = _mk_run(db_session, repo, admin_user, out)
@@ -187,7 +199,9 @@ class TestSafetyGates:
         repo, _ = repo_with_robot
         out = tmp_path / "out"
         _write_audit_and_output(
-            out, records=[], test_outcomes={},
+            out,
+            records=[],
+            test_outcomes={},
         )
         run = _mk_run(db_session, repo, admin_user, out)
         resp = client.post(APPLY.format(run.id, 99), headers=auth_header(admin_user))
@@ -201,41 +215,38 @@ class TestSafetyGates:
         out = tmp_path / "out"
         _write_audit_and_output(
             out,
-            records=[{
-                "timestamp": "x",
-                "test_name": "Happy Test",
-                "keyword": "Click",
-                "original_selector": "id=submit",
-                "healed_selector": "[data-testid=submit]",
-                "confidence": 0.95,
-                "source": "sidecar",
-            }],
+            records=[
+                {
+                    "timestamp": "x",
+                    "test_name": "Happy Test",
+                    "keyword": "Click",
+                    "original_selector": "id=submit",
+                    "healed_selector": "[data-testid=submit]",
+                    "confidence": 0.95,
+                    "source": "sidecar",
+                }
+            ],
             test_outcomes={"Happy Test": "PASS"},
         )
         run = _mk_run(db_session, repo, admin_user, out)
         resp = client.post(APPLY.format(run.id, 0), headers=auth_header(viewer))
         assert resp.status_code == 403
 
-    def test_ambiguous_line_not_written(
-        self, client, db_session, admin_user, tmp_path
-    ) -> None:
+    def test_ambiguous_line_not_written(self, client, db_session, admin_user, tmp_path) -> None:
         # A .robot with two matching lines → the patcher must refuse.
         (tmp_path / "tests").mkdir(parents=True, exist_ok=True)
         robot_path = tmp_path / "tests" / "dup.robot"
         robot_path.write_text(
-            "*** Test Cases ***\nT1\n"
-            "    Click    id=submit\n"
-            "T2\n"
-            "    Click    id=submit\n",
+            "*** Test Cases ***\nT1\n    Click    id=submit\nT2\n    Click    id=submit\n",
             encoding="utf-8",
         )
         repo = Repository(
-            name="sh4-dup", git_url="https://github.com/x/y.git",
-            default_branch="main", local_path=str(tmp_path),
+            name="sh4-dup",
+            git_url="https://github.com/x/y.git",
+            default_branch="main",
+            local_path=str(tmp_path),
             created_by=admin_user.id,
         )
-        import sqlalchemy as sa
-        from sqlalchemy.orm import Session as _Session
         db_session.add(repo)
         db_session.flush()
         db_session.refresh(repo)
@@ -243,19 +254,24 @@ class TestSafetyGates:
         out = tmp_path / "out"
         _write_audit_and_output(
             out,
-            records=[{
-                "timestamp": "x",
-                "test_name": "T1",
-                "keyword": "Click",
-                "original_selector": "id=submit",
-                "healed_selector": "[data-testid=submit]",
-                "confidence": 0.95,
-                "source": "sidecar",
-            }],
+            records=[
+                {
+                    "timestamp": "x",
+                    "test_name": "T1",
+                    "keyword": "Click",
+                    "original_selector": "id=submit",
+                    "healed_selector": "[data-testid=submit]",
+                    "confidence": 0.95,
+                    "source": "sidecar",
+                }
+            ],
             test_outcomes={"T1": "PASS"},
         )
         run = _mk_run(
-            db_session, repo, admin_user, out,
+            db_session,
+            repo,
+            admin_user,
+            out,
             target_path="tests/dup.robot",
         )
         resp = client.post(APPLY.format(run.id, 0), headers=auth_header(admin_user))
@@ -276,21 +292,19 @@ class TestHealPatchPreservesRbsComment:
     drop it when rewriting (so the FlowEditor's id-based matcher
     silently regressed to positional). Both bugs fixed together."""
 
-    def test_finds_line_with_trailing_rbs_comment(
-        self, client, db_session, admin_user, tmp_path
-    ):
+    def test_finds_line_with_trailing_rbs_comment(self, client, db_session, admin_user, tmp_path):
         # Realistic shape of a recorder-emitted line.
         robot_path = tmp_path / "tests" / "rec.robot"
         robot_path.parent.mkdir(parents=True)
         robot_path.write_text(
-            "*** Test Cases ***\n"
-            "T1\n"
-            "    Click    id=submit    # rbs:abc123def456\n",
+            "*** Test Cases ***\nT1\n    Click    id=submit    # rbs:abc123def456\n",
             encoding="utf-8",
         )
         repo = Repository(
-            name="rbs-find", git_url="https://github.com/x/y.git",
-            default_branch="main", local_path=str(tmp_path),
+            name="rbs-find",
+            git_url="https://github.com/x/y.git",
+            default_branch="main",
+            local_path=str(tmp_path),
             created_by=admin_user.id,
         )
         db_session.add(repo)
@@ -300,20 +314,26 @@ class TestHealPatchPreservesRbsComment:
         out = tmp_path / "out"
         _write_audit_and_output(
             out,
-            records=[{
-                "timestamp": "x",
-                "test_name": "T1",
-                "keyword": "Click",
-                "original_selector": "id=submit",
-                "healed_selector": "[data-testid=submit]",
-                "confidence": 0.95,
-                "source": "sidecar",
-                "command_id": "abc123def456",
-            }],
+            records=[
+                {
+                    "timestamp": "x",
+                    "test_name": "T1",
+                    "keyword": "Click",
+                    "original_selector": "id=submit",
+                    "healed_selector": "[data-testid=submit]",
+                    "confidence": 0.95,
+                    "source": "sidecar",
+                    "command_id": "abc123def456",
+                }
+            ],
             test_outcomes={"T1": "PASS"},
         )
         run = _mk_run(
-            db_session, repo, admin_user, out, target_path="tests/rec.robot",
+            db_session,
+            repo,
+            admin_user,
+            out,
+            target_path="tests/rec.robot",
         )
         resp = client.post(APPLY.format(run.id, 0), headers=auth_header(admin_user))
         assert resp.status_code == 200
@@ -335,14 +355,14 @@ class TestHealPatchPreservesRbsComment:
         robot_path = tmp_path / "tests" / "rec.robot"
         robot_path.parent.mkdir(parents=True)
         robot_path.write_text(
-            "*** Test Cases ***\n"
-            "T1\n"
-            "    Click    text=Submit    # rbs:idz1\n",
+            "*** Test Cases ***\nT1\n    Click    text=Submit    # rbs:idz1\n",
             encoding="utf-8",
         )
         repo = Repository(
-            name="rbs-esc", git_url="https://github.com/x/y.git",
-            default_branch="main", local_path=str(tmp_path),
+            name="rbs-esc",
+            git_url="https://github.com/x/y.git",
+            default_branch="main",
+            local_path=str(tmp_path),
             created_by=admin_user.id,
         )
         db_session.add(repo)
@@ -352,19 +372,25 @@ class TestHealPatchPreservesRbsComment:
         out = tmp_path / "out"
         _write_audit_and_output(
             out,
-            records=[{
-                "timestamp": "x",
-                "test_name": "T1",
-                "keyword": "Click",
-                "original_selector": "text=Submit",
-                "healed_selector": "#login-form",  # raw CSS-ID — must get escaped
-                "confidence": 0.95,
-                "source": "sidecar",
-            }],
+            records=[
+                {
+                    "timestamp": "x",
+                    "test_name": "T1",
+                    "keyword": "Click",
+                    "original_selector": "text=Submit",
+                    "healed_selector": "#login-form",  # raw CSS-ID — must get escaped
+                    "confidence": 0.95,
+                    "source": "sidecar",
+                }
+            ],
             test_outcomes={"T1": "PASS"},
         )
         run = _mk_run(
-            db_session, repo, admin_user, out, target_path="tests/rec.robot",
+            db_session,
+            repo,
+            admin_user,
+            out,
+            target_path="tests/rec.robot",
         )
         resp = client.post(APPLY.format(run.id, 0), headers=auth_header(admin_user))
         assert resp.status_code == 200
@@ -389,14 +415,14 @@ class TestHealPatchPreservesRbsComment:
         robot_path.parent.mkdir(parents=True)
         # Realistic on-disk shape: backslash-escape + rbs comment.
         robot_path.write_text(
-            "*** Test Cases ***\n"
-            "T1\n"
-            "    Click    \\#login-form    # rbs:hashid01\n",
+            "*** Test Cases ***\nT1\n    Click    \\#login-form    # rbs:hashid01\n",
             encoding="utf-8",
         )
         repo = Repository(
-            name="rbs-find-hash", git_url="https://github.com/x/y.git",
-            default_branch="main", local_path=str(tmp_path),
+            name="rbs-find-hash",
+            git_url="https://github.com/x/y.git",
+            default_branch="main",
+            local_path=str(tmp_path),
             created_by=admin_user.id,
         )
         db_session.add(repo)
@@ -406,21 +432,27 @@ class TestHealPatchPreservesRbsComment:
         out = tmp_path / "out"
         _write_audit_and_output(
             out,
-            records=[{
-                "timestamp": "x",
-                "test_name": "T1",
-                "keyword": "Click",
-                # Audit value as runtime sees it — no leading backslash.
-                "original_selector": "#login-form",
-                "healed_selector": "[data-testid=login]",
-                "confidence": 0.95,
-                "source": "sidecar",
-                "command_id": "hashid01",
-            }],
+            records=[
+                {
+                    "timestamp": "x",
+                    "test_name": "T1",
+                    "keyword": "Click",
+                    # Audit value as runtime sees it — no leading backslash.
+                    "original_selector": "#login-form",
+                    "healed_selector": "[data-testid=login]",
+                    "confidence": 0.95,
+                    "source": "sidecar",
+                    "command_id": "hashid01",
+                }
+            ],
             test_outcomes={"T1": "PASS"},
         )
         run = _mk_run(
-            db_session, repo, admin_user, out, target_path="tests/rec.robot",
+            db_session,
+            repo,
+            admin_user,
+            out,
+            target_path="tests/rec.robot",
         )
         resp = client.post(APPLY.format(run.id, 0), headers=auth_header(admin_user))
         assert resp.status_code == 200, resp.json()
@@ -457,8 +489,10 @@ class TestHealPatchUsesCommandIdToDisambiguate:
             encoding="utf-8",
         )
         repo = Repository(
-            name="rbs-dup", git_url="https://github.com/x/y.git",
-            default_branch="main", local_path=str(tmp_path),
+            name="rbs-dup",
+            git_url="https://github.com/x/y.git",
+            default_branch="main",
+            local_path=str(tmp_path),
             created_by=admin_user.id,
         )
         db_session.add(repo)
@@ -468,20 +502,26 @@ class TestHealPatchUsesCommandIdToDisambiguate:
         out = tmp_path / "out"
         _write_audit_and_output(
             out,
-            records=[{
-                "timestamp": "x",
-                "test_name": "T1",
-                "keyword": "Click",
-                "original_selector": "id=submit",
-                "healed_selector": "[data-testid=submit-2]",
-                "confidence": 0.95,
-                "source": "sidecar",
-                "command_id": "secondcmd002",
-            }],
+            records=[
+                {
+                    "timestamp": "x",
+                    "test_name": "T1",
+                    "keyword": "Click",
+                    "original_selector": "id=submit",
+                    "healed_selector": "[data-testid=submit-2]",
+                    "confidence": 0.95,
+                    "source": "sidecar",
+                    "command_id": "secondcmd002",
+                }
+            ],
             test_outcomes={"T1": "PASS"},
         )
         run = _mk_run(
-            db_session, repo, admin_user, out, target_path="tests/rec.robot",
+            db_session,
+            repo,
+            admin_user,
+            out,
+            target_path="tests/rec.robot",
         )
         resp = client.post(APPLY.format(run.id, 0), headers=auth_header(admin_user))
         assert resp.status_code == 200, resp.json()
@@ -505,14 +545,14 @@ class TestHealPatchUsesCommandIdToDisambiguate:
         robot_path = tmp_path / "tests" / "rec.robot"
         robot_path.parent.mkdir(parents=True)
         robot_path.write_text(
-            "*** Test Cases ***\n"
-            "T1\n"
-            "    Click    id=now-different    # rbs:driftedid01\n",
+            "*** Test Cases ***\nT1\n    Click    id=now-different    # rbs:driftedid01\n",
             encoding="utf-8",
         )
         repo = Repository(
-            name="rbs-drift", git_url="https://github.com/x/y.git",
-            default_branch="main", local_path=str(tmp_path),
+            name="rbs-drift",
+            git_url="https://github.com/x/y.git",
+            default_branch="main",
+            local_path=str(tmp_path),
             created_by=admin_user.id,
         )
         db_session.add(repo)
@@ -522,22 +562,28 @@ class TestHealPatchUsesCommandIdToDisambiguate:
         out = tmp_path / "out"
         _write_audit_and_output(
             out,
-            records=[{
-                "timestamp": "x",
-                "test_name": "T1",
-                "keyword": "Click",
-                # Audit recorded the OLD selector before the user
-                # edited the line.
-                "original_selector": "id=submit",
-                "healed_selector": "[data-testid=submit]",
-                "confidence": 0.95,
-                "source": "sidecar",
-                "command_id": "driftedid01",
-            }],
+            records=[
+                {
+                    "timestamp": "x",
+                    "test_name": "T1",
+                    "keyword": "Click",
+                    # Audit recorded the OLD selector before the user
+                    # edited the line.
+                    "original_selector": "id=submit",
+                    "healed_selector": "[data-testid=submit]",
+                    "confidence": 0.95,
+                    "source": "sidecar",
+                    "command_id": "driftedid01",
+                }
+            ],
             test_outcomes={"T1": "PASS"},
         )
         run = _mk_run(
-            db_session, repo, admin_user, out, target_path="tests/rec.robot",
+            db_session,
+            repo,
+            admin_user,
+            out,
+            target_path="tests/rec.robot",
         )
         resp = client.post(APPLY.format(run.id, 0), headers=auth_header(admin_user))
         assert resp.status_code == 409

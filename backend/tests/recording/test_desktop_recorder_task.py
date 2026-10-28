@@ -30,17 +30,13 @@ def _el(**kwargs):
 
 class TestClick:
     def test_click_emits_click_keyword_with_candidates(self) -> None:
-        cmd = translate_uia_event(
-            {"kind": "click", "element": _el(automation_id="submit")}, 0
-        )
+        cmd = translate_uia_event({"kind": "click", "element": _el(automation_id="submit")}, 0)
         assert cmd is not None
         assert cmd.keyword == "Click"
         assert any(c.strategy == "automation_id" for c in cmd.selector_candidates)
 
     def test_dblclick_maps_to_double_click(self) -> None:
-        cmd = translate_uia_event(
-            {"kind": "dblclick", "element": _el(automation_id="row")}, 0
-        )
+        cmd = translate_uia_event({"kind": "dblclick", "element": _el(automation_id="row")}, 0)
         assert cmd is not None
         assert cmd.keyword == "Double Click"
 
@@ -111,9 +107,7 @@ class TestUnknownKind:
 class TestIndexPropagation:
     def test_index_passes_through(self) -> None:
         for i in (0, 5, 42):
-            cmd = translate_uia_event(
-                {"kind": "click", "element": _el(automation_id="x")}, i
-            )
+            cmd = translate_uia_event({"kind": "click", "element": _el(automation_id="x")}, i)
             assert cmd is not None
             assert cmd.index == i
 
@@ -144,9 +138,7 @@ class TestDesktopLoopStopLatency:
         fake = types.ModuleType("pywinauto")
         monkeypatch.setitem(sys.modules, "pywinauto", fake)
 
-    def test_stop_event_unblocks_loop_immediately(
-        self, _fake_pywinauto, monkeypatch
-    ) -> None:
+    def test_stop_event_unblocks_loop_immediately(self, _fake_pywinauto, monkeypatch) -> None:
         from src.recording import desktop_recorder_task as drt
 
         # Spy on _mark_status so the loop's COMPLETED side effect
@@ -160,7 +152,9 @@ class TestDesktopLoopStopLatency:
         # near-zero (just thread scheduling overhead).
         FIRE_DELAY_S = 0.05
         loop_thread = threading.Thread(
-            target=drt._desktop_loop, args=(99999, ev), daemon=True,
+            target=drt._desktop_loop,
+            args=(99999, ev),
+            daemon=True,
         )
         loop_thread.start()
 
@@ -178,9 +172,7 @@ class TestDesktopLoopStopLatency:
             "— should be near-instant under the event-driven wait"
         )
 
-    def test_stop_event_already_set_exits_immediately(
-        self, _fake_pywinauto, monkeypatch
-    ) -> None:
+    def test_stop_event_already_set_exits_immediately(self, _fake_pywinauto, monkeypatch) -> None:
         """If `stop_event` is set BEFORE the loop runs, `Event.wait()`
         returns immediately — the loop must exit without a poll
         round-trip."""

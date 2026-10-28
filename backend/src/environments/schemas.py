@@ -121,9 +121,11 @@ class EnvResponse(BaseModel):
 
         self.venv_kind = venv_kind(self.venv_path)
         if self.docker_image and not self.docker_image_custom:
-            if self.docker_image_built_at is None:
-                self.docker_image_stale = True
-            elif self.packages_changed_at and self.packages_changed_at > self.docker_image_built_at:
+            if (
+                self.docker_image_built_at is None
+                or self.packages_changed_at
+                and self.packages_changed_at > self.docker_image_built_at
+            ):
                 self.docker_image_stale = True
             else:
                 self.docker_image_stale = False
@@ -162,11 +164,24 @@ _ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # Names that would break venv activation or hijack the interpreter / code
 # loading of the ``robot`` child (PYTHONPATH would bypass the EXEC
 # ``--pythonpath`` deny-list). Compared case-insensitively.
-RESERVED_ENV_KEYS = frozenset({
-    "PATH", "VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP",
-    "PYTHONUSERBASE", "PYTHONINSPECT", "PYTHONEXECUTABLE", "PYTHONPLATLIBDIR",
-    "LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "NODE_OPTIONS", "BASH_ENV",
-})
+RESERVED_ENV_KEYS = frozenset(
+    {
+        "PATH",
+        "VIRTUAL_ENV",
+        "PYTHONPATH",
+        "PYTHONHOME",
+        "PYTHONSTARTUP",
+        "PYTHONUSERBASE",
+        "PYTHONINSPECT",
+        "PYTHONEXECUTABLE",
+        "PYTHONPLATLIBDIR",
+        "LD_PRELOAD",
+        "LD_LIBRARY_PATH",
+        "LD_AUDIT",
+        "NODE_OPTIONS",
+        "BASH_ENV",
+    }
+)
 
 
 def is_reserved_env_key(key: str) -> bool:

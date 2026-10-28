@@ -124,16 +124,16 @@ class TestDesktopKeywords:
         out = emit_robot(_desktop_flow([cmd]))
         assert "# RBSCOPE: dropped Click" in out
 
-    def test_click_without_selector_emits_server_warning(
-        self, caplog
-    ) -> None:
+    def test_click_without_selector_emits_server_warning(self, caplog) -> None:
         """Companion to the placeholder check above: a missing
         desktop selector also emits a WARNING server-side so the
         recorder log stream surfaces the partial-failure during
         save POST instead of waiting for the user to discover the
         placeholder when they open the .robot."""
         cmd = RecordedCommand(
-            id="deskmiss0001", index=2, keyword="Click",
+            id="deskmiss0001",
+            index=2,
+            keyword="Click",
         )
         caplog.set_level("WARNING", logger="roboscope.recording.emit")
         emit_robot(_desktop_flow([cmd]))
@@ -148,14 +148,18 @@ class TestDesktopKeywords:
 class TestWebTransportStillWorks:
     def test_web_flow_keeps_browser_library(self) -> None:
         flow = RecordedFlow(
-            transport="web_playwright", session_id="s", commands=[],
+            transport="web_playwright",
+            session_id="s",
+            commands=[],
         )
         out = emit_robot(flow)
         assert "Library           Browser" in out
 
     def test_chrome_extension_also_uses_browser(self) -> None:
         flow = RecordedFlow(
-            transport="chrome_extension", session_id="s", commands=[],
+            transport="chrome_extension",
+            session_id="s",
+            commands=[],
         )
         out = emit_robot(flow)
         assert "Library           Browser" in out
@@ -174,7 +178,9 @@ class TestDesktopRbsComment:
             keyword="Click",
             selector_candidates=[
                 SelectorCandidate(
-                    strategy="automation_id", value="submitBtn", quality_score=92,
+                    strategy="automation_id",
+                    value="submitBtn",
+                    quality_score=92,
                 )
             ],
         )
@@ -189,14 +195,14 @@ class TestDesktopRbsComment:
             args={"text": "alice@corp"},
             selector_candidates=[
                 SelectorCandidate(
-                    strategy="automation_id", value="userEdit", quality_score=92,
+                    strategy="automation_id",
+                    value="userEdit",
+                    quality_score=92,
                 )
             ],
         )
         out = emit_robot(_desktop_flow([cmd]))
-        assert (
-            "Type Text    id:userEdit    alice@corp    # rbs:deskcmd00002" in out
-        )
+        assert "Type Text    id:userEdit    alice@corp    # rbs:deskcmd00002" in out
 
     def test_warning_line_bakes_id_into_comment(self) -> None:
         # The selector-missing path now early-returns a pure RF
@@ -227,14 +233,18 @@ class TestFullDesktopFlow:
                     keyword="Type Text",
                     args={"text": "alice@corp"},
                     selector_candidates=[
-                        SelectorCandidate(strategy="automation_id", value="userEdit", quality_score=92)
+                        SelectorCandidate(
+                            strategy="automation_id", value="userEdit", quality_score=92
+                        )
                     ],
                 ),
                 RecordedCommand(
                     index=2,
                     keyword="Click",
                     selector_candidates=[
-                        SelectorCandidate(strategy="automation_id", value="loginBtn", quality_score=92)
+                        SelectorCandidate(
+                            strategy="automation_id", value="loginBtn", quality_score=92
+                        )
                     ],
                 ),
             ],

@@ -14,11 +14,10 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlparse
 
 import jwt
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -29,7 +28,6 @@ from src.auth.sso_link_consent import encode_consent_token
 from src.config import settings
 from src.encryption import encrypt_value
 from tests.fixtures.mock_oidc import ISSUER, mock_oidc  # noqa: F401
-
 
 ENDPOINT = "/api/v1/auth/sso/link-consent"
 
@@ -51,7 +49,7 @@ def _mk_idp(db: Session, *, name: str = "link-idp") -> IdentityProvider:
         group_claim_name="groups",
         is_enabled=True,
         discovery_cache_json=json.dumps(discovery_doc),
-        discovery_cached_at=datetime.now(timezone.utc),
+        discovery_cached_at=datetime.now(UTC),
     )
     db.add(idp)
     db.commit()
@@ -79,7 +77,7 @@ def _mk_attempt(db: Session, idp: IdentityProvider) -> OidcLoginAttempt:
         pkce_verifier=encrypt_value("v"),
         idp_id=idp.id,
         return_to="/reports/7",
-        expires_at=datetime.now(timezone.utc) + timedelta(seconds=600),
+        expires_at=datetime.now(UTC) + timedelta(seconds=600),
     )
     db.add(attempt)
     db.commit()
@@ -89,14 +87,15 @@ def _mk_attempt(db: Session, idp: IdentityProvider) -> OidcLoginAttempt:
 
 class TestCallbackInterception:
     def test_local_account_sso_callback_redirects_to_consent(
-        self, client: TestClient, db_session: Session, mock_oidc  # noqa: F811
+        self,
+        client: TestClient,
+        db_session: Session,
+        mock_oidc,  # noqa: F811
     ) -> None:
         idp = _mk_idp(db_session)
         _mk_local_user(db_session, "link@example.com")
         attempt = _mk_attempt(db_session, idp)
-        mock_oidc.with_claims(
-            sub="link-sub", email="link@example.com", nonce=attempt.nonce
-        )
+        mock_oidc.with_claims(sub="link-sub", email="link@example.com", nonce=attempt.nonce)
 
         resp = client.get(
             "/api/v1/auth/sso/callback",
@@ -110,15 +109,14 @@ class TestCallbackInterception:
         qs = parse_qs(parsed.query)
         assert "token" in qs and qs["token"][0]
 
-        audits = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "sso.login.failure")
-            .all()
-        )
+        audits = db_session.query(AuditLog).filter(AuditLog.action == "sso.login.failure").all()
         assert len(audits) == 0  # not a failure — no audit
 
     def test_sso_only_user_bypasses_consent(
-        self, client: TestClient, db_session: Session, mock_oidc  # noqa: F811
+        self,
+        client: TestClient,
+        db_session: Session,
+        mock_oidc,  # noqa: F811
     ) -> None:
         """Users with hashed_password='' are SSO-linked already; no consent."""
         idp = _mk_idp(db_session, name="link-idp-2")
@@ -131,9 +129,7 @@ class TestCallbackInterception:
         db_session.add(existing)
         db_session.commit()
         attempt = _mk_attempt(db_session, idp)
-        mock_oidc.with_claims(
-            sub="sso-sub", email="ssoonly@example.com", nonce=attempt.nonce
-        )
+        mock_oidc.with_claims(sub="sso-sub", email="ssoonly@example.com", nonce=attempt.nonce)
 
         resp = client.get(
             "/api/v1/auth/sso/callback",
@@ -151,8 +147,12 @@ class TestApprove:
         idp = _mk_idp(db_session)
         user = _mk_local_user(db_session, "approve@example.com")
         token = encode_consent_token(
-            user_id=user.id, idp_id=idp.id, sub="s",
-            email=user.email, groups=[], return_to="/reports/42",
+            user_id=user.id,
+            idp_id=idp.id,
+            sub="s",
+            email=user.email,
+            groups=[],
+            return_to="/reports/42",
         )
 
         resp = client.post(ENDPOINT, json={"consent_token": token, "approve": True})
@@ -168,23 +168,21 @@ class TestApprove:
         assert refreshed is not None
         assert refreshed.hashed_password == ""
 
-        audits = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "user.account_linked")
-            .all()
-        )
+        audits = db_session.query(AuditLog).filter(AuditLog.action == "user.account_linked").all()
         assert len(audits) == 1
 
 
 class TestCancel:
-    def test_decline_emits_cancelled_audit(
-        self, client: TestClient, db_session: Session
-    ) -> None:
+    def test_decline_emits_cancelled_audit(self, client: TestClient, db_session: Session) -> None:
         idp = _mk_idp(db_session, name="cancel-idp")
         user = _mk_local_user(db_session, "cancel@example.com")
         token = encode_consent_token(
-            user_id=user.id, idp_id=idp.id, sub="s",
-            email=user.email, groups=[], return_to="/",
+            user_id=user.id,
+            idp_id=idp.id,
+            sub="s",
+            email=user.email,
+            groups=[],
+            return_to="/",
         )
 
         resp = client.post(ENDPOINT, json={"consent_token": token, "approve": False})
@@ -202,17 +200,11 @@ class TestCancel:
 
 
 class TestTokenValidation:
-    def test_invalid_token_is_rejected(
-        self, client: TestClient, db_session: Session
-    ) -> None:
-        resp = client.post(
-            ENDPOINT, json={"consent_token": "not-a-jwt", "approve": True}
-        )
+    def test_invalid_token_is_rejected(self, client: TestClient, db_session: Session) -> None:
+        resp = client.post(ENDPOINT, json={"consent_token": "not-a-jwt", "approve": True})
         assert resp.status_code == 400
 
-    def test_expired_token_is_rejected(
-        self, client: TestClient, db_session: Session
-    ) -> None:
+    def test_expired_token_is_rejected(self, client: TestClient, db_session: Session) -> None:
         idp = _mk_idp(db_session, name="expired-idp")
         user = _mk_local_user(db_session, "expired@example.com")
 
@@ -221,27 +213,32 @@ class TestTokenValidation:
         expired = jwt.encode(
             {
                 "type": "sso_link_consent",
-                "user_id": user.id, "idp_id": idp.id, "sub": "s",
-                "email": user.email, "groups": [], "return_to": "/",
-                "iat": now - 3600, "exp": now - 10,
+                "user_id": user.id,
+                "idp_id": idp.id,
+                "sub": "s",
+                "email": user.email,
+                "groups": [],
+                "return_to": "/",
+                "iat": now - 3600,
+                "exp": now - 10,
             },
             settings.SECRET_KEY,
             algorithm="HS256",
         )
-        resp = client.post(
-            ENDPOINT, json={"consent_token": expired, "approve": True}
-        )
+        resp = client.post(ENDPOINT, json={"consent_token": expired, "approve": True})
         assert resp.status_code == 400
 
-    def test_email_mismatch_is_rejected(
-        self, client: TestClient, db_session: Session
-    ) -> None:
+    def test_email_mismatch_is_rejected(self, client: TestClient, db_session: Session) -> None:
         idp = _mk_idp(db_session, name="mismatch-idp")
         user = _mk_local_user(db_session, "original@example.com")
         # Mint a token with the right user_id but a different email.
         token = encode_consent_token(
-            user_id=user.id, idp_id=idp.id, sub="s",
-            email="tampered@example.com", groups=[], return_to="/",
+            user_id=user.id,
+            idp_id=idp.id,
+            sub="s",
+            email="tampered@example.com",
+            groups=[],
+            return_to="/",
         )
         resp = client.post(ENDPOINT, json={"consent_token": token, "approve": True})
         assert resp.status_code == 400

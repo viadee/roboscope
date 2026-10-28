@@ -22,16 +22,20 @@ def _factory(counts: dict[str, int]):
     fully actionable (total == visible == actionable). Existing tests
     written before MatchInfo landed continue to pass via the
     backwards-compat coercion in `selector_verification`."""
+
     async def fn(cand: SelectorCandidate) -> int:
         return counts.get(cand.value, 0)
+
     return fn
 
 
 def _info_factory(infos: dict[str, MatchInfo]):
     """MatchInfo-returning factory for tests that want to exercise
     the visible / actionable distinctions."""
+
     async def fn(cand: SelectorCandidate) -> MatchInfo:
         return infos.get(cand.value, MatchInfo(0, 0, 0))
+
     return fn
 
 
@@ -69,10 +73,10 @@ async def test_multi_match_css_gets_nth_match_and_penalty():
 @pytest.mark.asyncio
 async def test_multi_match_xpath_gets_positional_wrapper():
     out = await verify_candidates(
-        [_c("xpath", '//button', 25)],
-        _factory({'//button': 3}),
+        [_c("xpath", "//button", 25)],
+        _factory({"//button": 3}),
     )
-    assert out[0].value == '(//button)[1]'
+    assert out[0].value == "(//button)[1]"
     assert out[0].quality_score == 25 - 15
 
 
@@ -136,8 +140,10 @@ async def test_factory_exception_preserves_candidate_as_unverified():
     tail of the output with `verified_unique=False` rather than
     dropping it; synthesis produced it for a reason and a click on
     a link shouldn't silently empty the candidate list."""
+
     async def boom(_cand):
         raise ValueError("frame was detached after navigation")
+
     out = await verify_candidates(
         [_c("xpath", "///invalid[")],
         boom,
@@ -151,8 +157,10 @@ async def test_factory_exception_preserves_candidate_as_unverified():
 async def test_factory_none_return_preserves_candidate_as_unverified():
     """Explicit `None` return from the factory carries the same
     semantics as raising — couldn't verify, preserve as-is."""
+
     async def cant_decide(_cand):
         return None
+
     out = await verify_candidates(
         [_c("css", "button.maybe-real")],
         cant_decide,
@@ -168,6 +176,7 @@ async def test_factory_unverifiable_tail_sorted_after_verified():
     order) and the unverifiable tail follows, ranked by their own
     quality_score so the best static heuristic candidate is the
     first unverified option."""
+
     async def factory(c):
         if c.value in ("good_a", "good_b"):
             return MatchInfo(total=1, visible=1, actionable=1)
@@ -193,20 +202,22 @@ async def test_sort_order_actionable_rank_then_quality():
     when the disambiguated candidate has the higher quality_score.
     Within the same actionable rank, quality_score still wins."""
     cands = [
-        _c("xpath", "/abs/path", 25),           # gold, low score
+        _c("xpath", "/abs/path", 25),  # gold, low score
         _c("testid", '[data-testid="a"]', 95),  # gold, top score
-        _c("text", "Go", 70),                   # disambiguated multi-match
+        _c("text", "Go", 70),  # disambiguated multi-match
     ]
     out = await verify_candidates(
         cands,
-        _factory({
-            "/abs/path": 1,
-            '[data-testid="a"]': 1,
-            # Multi-match — gets disambiguated to `Go >> nth=0` with
-            # verified_unique=True and quality 70-15=55, but lands at
-            # actionable_rank=1 (visible-only, post-nth=0 chain).
-            "Go": 2,
-        }),
+        _factory(
+            {
+                "/abs/path": 1,
+                '[data-testid="a"]': 1,
+                # Multi-match — gets disambiguated to `Go >> nth=0` with
+                # verified_unique=True and quality 70-15=55, but lands at
+                # actionable_rank=1 (visible-only, post-nth=0 chain).
+                "Go": 2,
+            }
+        ),
     )
     # All three are verified after the disambiguation fix.
     assert all(c.verified_unique for c in out)
@@ -247,10 +258,12 @@ async def test_gold_actionable_outranks_hidden_unique():
             _c("xpath", "//hidden", 95),  # higher quality, hidden
             _c("css", "#visible-btn", 60),  # lower quality, gold
         ],
-        _info_factory({
-            "//hidden": MatchInfo(total=1, visible=0, actionable=0),
-            "#visible-btn": MatchInfo(total=1, visible=1, actionable=1),
-        }),
+        _info_factory(
+            {
+                "//hidden": MatchInfo(total=1, visible=0, actionable=0),
+                "#visible-btn": MatchInfo(total=1, visible=1, actionable=1),
+            }
+        ),
     )
     # Gold first, hidden second (both kept as fallbacks).
     assert out[0].value == "#visible-btn"
@@ -265,9 +278,11 @@ async def test_visible_but_disabled_keeps_verified_flag():
     outranks it."""
     out = await verify_candidates(
         [_c("css", "#disabled", 80)],
-        _info_factory({
-            "#disabled": MatchInfo(total=1, visible=1, actionable=0),
-        }),
+        _info_factory(
+            {
+                "#disabled": MatchInfo(total=1, visible=1, actionable=0),
+            }
+        ),
     )
     assert len(out) == 1
     assert out[0].verified_unique is True
@@ -281,9 +296,11 @@ async def test_hidden_unique_gets_heavy_penalty():
     quality hit so any visible alternative ranks above it."""
     out = await verify_candidates(
         [_c("xpath", "//offscreen", 90)],
-        _info_factory({
-            "//offscreen": MatchInfo(total=1, visible=0, actionable=0),
-        }),
+        _info_factory(
+            {
+                "//offscreen": MatchInfo(total=1, visible=0, actionable=0),
+            }
+        ),
     )
     assert len(out) == 1
     assert out[0].quality_score == 90 - 25
@@ -296,9 +313,11 @@ async def test_zero_total_drops_even_when_visible_count_implausible():
     'total is the source of truth for existence'."""
     out = await verify_candidates(
         [_c("css", "#nope", 50)],
-        _info_factory({
-            "#nope": MatchInfo(total=0, visible=2, actionable=2),
-        }),
+        _info_factory(
+            {
+                "#nope": MatchInfo(total=0, visible=2, actionable=2),
+            }
+        ),
     )
     assert out == []
 

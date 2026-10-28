@@ -24,9 +24,8 @@ import inspect
 
 import pytest
 
-from src.execution.runners import base, subprocess_runner
+from src.execution.runners import subprocess_runner
 from src.execution.runners.base import AbstractRunner
-
 
 # Concrete runner classes to vet. Keep explicit — an automatic walk of
 # subclasses() is flaky because it depends on import order. A module
@@ -41,6 +40,7 @@ _CONCRETE_RUNNERS: list[type[AbstractRunner]] = [
 ]
 try:
     from src.execution.runners.docker_runner import DockerRunner
+
     _CONCRETE_RUNNERS.append(DockerRunner)
 except Exception:  # pragma: no cover - docker dep missing
     pass
@@ -53,8 +53,9 @@ def _param_names(cls: type, method_name: str) -> set[str]:
     return {name for name in sig.parameters if name != "self"}
 
 
-@pytest.mark.parametrize("runner_cls", _CONCRETE_RUNNERS,
-                         ids=[c.__name__ for c in _CONCRETE_RUNNERS])
+@pytest.mark.parametrize(
+    "runner_cls", _CONCRETE_RUNNERS, ids=[c.__name__ for c in _CONCRETE_RUNNERS]
+)
 def test_execute_signature_matches_abstract(runner_cls: type[AbstractRunner]) -> None:
     abstract_params = _param_names(AbstractRunner, "execute")
     concrete_params = _param_names(runner_cls, "execute")
@@ -68,8 +69,9 @@ def test_execute_signature_matches_abstract(runner_cls: type[AbstractRunner]) ->
     )
 
 
-@pytest.mark.parametrize("runner_cls", _CONCRETE_RUNNERS,
-                         ids=[c.__name__ for c in _CONCRETE_RUNNERS])
+@pytest.mark.parametrize(
+    "runner_cls", _CONCRETE_RUNNERS, ids=[c.__name__ for c in _CONCRETE_RUNNERS]
+)
 def test_prepare_signature_matches_abstract(runner_cls: type[AbstractRunner]) -> None:
     abstract_params = _param_names(AbstractRunner, "prepare")
     concrete_params = _param_names(runner_cls, "prepare")
@@ -100,6 +102,7 @@ def test_all_concrete_subclasses_are_checked() -> None:
     # Import the runners package so all concrete runners are loaded.
     import importlib
     import pkgutil
+
     import src.execution.runners as runners_pkg
 
     for _, name, _ in pkgutil.iter_modules(runners_pkg.__path__):

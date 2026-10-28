@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -13,7 +13,6 @@ from src.auth.models import User
 from src.execution.models import ExecutionRun, RunStatus
 from src.repos.models import Repository
 from tests.conftest import auth_header
-
 
 ENDPOINT = "/api/v1/stats/heal-rate"
 
@@ -41,7 +40,8 @@ def _write_audit_and_output(
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "heal_audit.jsonl").write_text(
-        "\n".join(json.dumps(r) for r in records), encoding="utf-8",
+        "\n".join(json.dumps(r) for r in records),
+        encoding="utf-8",
     )
     parts = ['<?xml version="1.0" encoding="UTF-8"?>', "<robot>", "<suite>"]
     for name, status in test_outcomes.items():
@@ -51,7 +51,10 @@ def _write_audit_and_output(
 
 
 def _mk_run(
-    db_session: Session, repo: Repository, owner: User, *,
+    db_session: Session,
+    repo: Repository,
+    owner: User,
+    *,
     output_dir: Path | None,
     status: str = RunStatus.PASSED,
     created_at: datetime | None = None,
@@ -107,14 +110,24 @@ class TestHealRateEndpoint:
         _write_audit_and_output(
             out,
             records=[
-                {"timestamp": "2026-04-24T09:00:00Z", "test_name": "GoodTest",
-                 "keyword": "Click", "original_selector": "id=a",
-                 "healed_selector": "[data-testid=a]", "confidence": 0.95,
-                 "source": "sidecar"},
-                {"timestamp": "2026-04-24T09:00:01Z", "test_name": "BadTest",
-                 "keyword": "Click", "original_selector": "id=b",
-                 "healed_selector": "text=b", "confidence": 0.7,
-                 "source": "transposition"},
+                {
+                    "timestamp": "2026-04-24T09:00:00Z",
+                    "test_name": "GoodTest",
+                    "keyword": "Click",
+                    "original_selector": "id=a",
+                    "healed_selector": "[data-testid=a]",
+                    "confidence": 0.95,
+                    "source": "sidecar",
+                },
+                {
+                    "timestamp": "2026-04-24T09:00:01Z",
+                    "test_name": "BadTest",
+                    "keyword": "Click",
+                    "original_selector": "id=b",
+                    "healed_selector": "text=b",
+                    "confidence": 0.7,
+                    "source": "transposition",
+                },
             ],
             test_outcomes={"GoodTest": "PASS", "BadTest": "FAIL"},
         )
@@ -136,8 +149,10 @@ class TestHealRateEndpoint:
         # Create a second repo + a run there with heals — our filtered
         # call must not see it.
         other = Repository(
-            name="sh6-other", git_url="https://github.com/x/z.git",
-            default_branch="main", local_path="/tmp/sh6-other",
+            name="sh6-other",
+            git_url="https://github.com/x/z.git",
+            default_branch="main",
+            local_path="/tmp/sh6-other",
             created_by=admin_user.id,
         )
         db_session.add(other)
@@ -147,12 +162,17 @@ class TestHealRateEndpoint:
         other_out = tmp_path / "other-heals"
         _write_audit_and_output(
             other_out,
-            records=[{
-                "timestamp": "2026-04-24T09:00:00Z", "test_name": "X",
-                "keyword": "Click", "original_selector": "id=a",
-                "healed_selector": "id=b", "confidence": 0.9,
-                "source": "sidecar",
-            }],
+            records=[
+                {
+                    "timestamp": "2026-04-24T09:00:00Z",
+                    "test_name": "X",
+                    "keyword": "Click",
+                    "original_selector": "id=a",
+                    "healed_selector": "id=b",
+                    "confidence": 0.9,
+                    "source": "sidecar",
+                }
+            ],
             test_outcomes={"X": "PASS"},
         )
         _mk_run(db_session, other, admin_user, output_dir=other_out)

@@ -1,12 +1,12 @@
 """Tests for environment management API endpoints."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from sqlalchemy import select, text
-from unittest.mock import patch, MagicMock
 
 from src.environments.models import Environment, EnvironmentPackage, EnvironmentVariable
 from tests.conftest import auth_header
-
 
 # Base URL prefix for environment endpoints
 URL = "/api/v1/environments"
@@ -255,7 +255,9 @@ class TestUpdateEnvironment:
         )
         assert response.status_code == 404
 
-    def test_update_environment_as_viewer_forbidden(self, client, db_session, admin_user, viewer_user):
+    def test_update_environment_as_viewer_forbidden(
+        self, client, db_session, admin_user, viewer_user
+    ):
         env = Environment(
             name="no-update-env",
             python_version="3.12",
@@ -304,7 +306,9 @@ class TestDeleteEnvironment:
         )
         assert response.status_code == 404
 
-    def test_delete_environment_as_runner_forbidden(self, client, db_session, admin_user, runner_user):
+    def test_delete_environment_as_runner_forbidden(
+        self, client, db_session, admin_user, runner_user
+    ):
         env = Environment(
             name="no-delete-env",
             python_version="3.12",
@@ -320,7 +324,9 @@ class TestDeleteEnvironment:
         )
         assert response.status_code == 403
 
-    def test_delete_environment_as_viewer_forbidden(self, client, db_session, admin_user, viewer_user):
+    def test_delete_environment_as_viewer_forbidden(
+        self, client, db_session, admin_user, viewer_user
+    ):
         env = Environment(
             name="no-delete-viewer-env",
             python_version="3.12",
@@ -667,7 +673,9 @@ class TestPackageInstallStatus:
     """Tests for package install_status and install_error tracking."""
 
     @patch("src.environments.router.dispatch_task")
-    def test_install_package_sets_pending_status(self, mock_dispatch, client, db_session, admin_user):
+    def test_install_package_sets_pending_status(
+        self, mock_dispatch, client, db_session, admin_user
+    ):
         """Newly installed package should have install_status='pending' by default."""
         mock_dispatch.return_value = MagicMock(id="fake-task-id")
 
@@ -777,7 +785,9 @@ class TestPackageInstallStatus:
         assert response.status_code == 404
 
     @patch("src.environments.router.dispatch_task")
-    def test_install_package_twice_reuses_existing_record(self, mock_dispatch, client, db_session, admin_user):
+    def test_install_package_twice_reuses_existing_record(
+        self, mock_dispatch, client, db_session, admin_user
+    ):
         """Installing the same package a second time must not create a duplicate row.
 
         Previously a second POST would create a new EnvironmentPackage row; then
@@ -828,16 +838,22 @@ class TestPackageInstallStatus:
         assert resp2.json()["version"] == "2.32.0"
 
         # Exactly one row in DB for this package
-        rows = db_session.execute(
-            select(EnvironmentPackage).where(
-                EnvironmentPackage.environment_id == env.id,
-                EnvironmentPackage.package_name == "requests",
+        rows = (
+            db_session.execute(
+                select(EnvironmentPackage).where(
+                    EnvironmentPackage.environment_id == env.id,
+                    EnvironmentPackage.package_name == "requests",
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert len(rows) == 1
 
     @patch("src.environments.router.dispatch_task")
-    def test_retry_after_failed_install_does_not_500(self, mock_dispatch, client, db_session, admin_user):
+    def test_retry_after_failed_install_does_not_500(
+        self, mock_dispatch, client, db_session, admin_user
+    ):
         """Retry on a failed package (the scenario from GitHub #42) must succeed.
 
         The root cause was scalar_one_or_none() raising MultipleResultsFound when
@@ -877,7 +893,9 @@ class TestRfLibraries:
     """Tests for the RF keyword library scan endpoint."""
 
     @patch("src.environments.router.pip_list_installed")
-    def test_rf_libraries_returns_known_libraries(self, mock_pip_list, client, db_session, admin_user):
+    def test_rf_libraries_returns_known_libraries(
+        self, mock_pip_list, client, db_session, admin_user
+    ):
         mock_pip_list.return_value = [
             {"name": "robotframework", "version": "7.0"},
             {"name": "robotframework-seleniumlibrary", "version": "6.2.0"},

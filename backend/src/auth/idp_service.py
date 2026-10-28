@@ -31,9 +31,7 @@ def get_identity_provider_by_name(db: Session, name: str) -> IdentityProvider | 
     ).scalar_one_or_none()
 
 
-def create_identity_provider(
-    db: Session, data: IdentityProviderCreate
-) -> IdentityProvider:
+def create_identity_provider(db: Session, data: IdentityProviderCreate) -> IdentityProvider:
     from src.encryption import encrypt_value
 
     idp = IdentityProvider(
@@ -86,15 +84,11 @@ def get_decrypted_client_secret(idp: IdentityProvider) -> str:
     """
     stored_bytes = idp.client_secret_encrypted
     if not stored_bytes:
-        raise ValueError(
-            f"IdP {idp.id} has no client_secret_encrypted value"
-        )
+        raise ValueError(f"IdP {idp.id} has no client_secret_encrypted value")
     try:
         stored = stored_bytes.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise ValueError(
-            f"IdP {idp.id} client_secret_encrypted is not valid UTF-8"
-        ) from exc
+        raise ValueError(f"IdP {idp.id} client_secret_encrypted is not valid UTF-8") from exc
     if is_encrypted(stored):
         return decrypt_value(stored)
     # Legacy plaintext (pre-encryption rows or post SECRET_KEY rotation).

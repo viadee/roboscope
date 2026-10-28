@@ -1,8 +1,8 @@
 """Tests for repos API endpoints."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+import pytest
 from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
@@ -143,9 +143,7 @@ class TestGetRepo:
         assert data["id"] == seed_repo.id
         assert data["name"] == "seed-repo"
 
-    def test_get_existing_datetimes_carry_z_suffix(
-        self, client, admin_user, seed_repo
-    ):
+    def test_get_existing_datetimes_carry_z_suffix(self, client, admin_user, seed_repo):
         """End-to-end check that `UtcJSONResponse` is wired and renders
         UTC datetimes with `Z` on the wire.
 

@@ -47,9 +47,7 @@ def _client_ip(request: Request) -> str | None:
 # ---------- Teams -----------------------------------------------------------
 
 
-@router.post(
-    "/import-from-idp-groups", response_model=TeamImportSummary
-)
+@router.post("/import-from-idp-groups", response_model=TeamImportSummary)
 def import_from_idp_groups(
     data: TeamImportFromGroupsRequest,
     request: Request,
@@ -63,10 +61,8 @@ def import_from_idp_groups(
     per newly-created row; skipped rows do not emit duplicates.
     """
     try:
-        summary, new_team_ids, new_mapping_ids = (
-            team_service.import_teams_from_idp_groups(
-                db, data.idp_id, data.groups
-            )
+        summary, new_team_ids, new_mapping_ids = team_service.import_teams_from_idp_groups(
+            db, data.idp_id, data.groups
         )
     except ValueError as err:
         raise HTTPException(status_code=404, detail=str(err)) from err
@@ -103,9 +99,7 @@ def create_team(
     try:
         team = team_service.create_team(db, data)
     except ValueError as err:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)
-        ) from err
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
     log_event(
         db,
         AuditEventType.TEAM_CREATED,
@@ -167,9 +161,7 @@ def update_team(
     try:
         team = team_service.update_team(db, team_id, data)
     except ValueError as err:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)
-        ) from err
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
     if team is None:
         raise HTTPException(status_code=404, detail="Team not found")
     log_event(
@@ -220,9 +212,7 @@ def add_member(
     try:
         member = team_service.add_member(db, team_id, data)
     except ValueError as err:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)
-        ) from err
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
     if member is None:
         raise HTTPException(status_code=404, detail="Team not found")
     log_event(
@@ -268,9 +258,7 @@ def update_member(
     return member
 
 
-@router.delete(
-    "/{team_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT
-)
+@router.delete("/{team_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_member(
     team_id: int,
     member_id: int,
@@ -311,12 +299,8 @@ def create_group_mapping(
     except ValueError as err:
         # Duplicate pair (idp_id, group_name) → 409. Missing IdP → 404.
         if str(err) == "group_mapping.duplicate":
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=str(err)
-            ) from err
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(err)
-        ) from err
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(err)) from err
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err)) from err
     if mapping is None:
         raise HTTPException(status_code=404, detail="Team not found")
     log_event(
@@ -349,9 +333,7 @@ def list_group_mappings(
     return team_service.list_group_mappings_for_team(db, team_id)
 
 
-@group_mappings_router.patch(
-    "/{mapping_id}", response_model=GroupMappingResponse
-)
+@group_mappings_router.patch("/{mapping_id}", response_model=GroupMappingResponse)
 def update_group_mapping(
     mapping_id: int,
     data: GroupMappingUpdate,
@@ -378,9 +360,7 @@ def update_group_mapping(
     return mapping
 
 
-@group_mappings_router.delete(
-    "/{mapping_id}", status_code=status.HTTP_204_NO_CONTENT
-)
+@group_mappings_router.delete("/{mapping_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_group_mapping(
     mapping_id: int,
     request: Request,

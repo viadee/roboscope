@@ -1,7 +1,6 @@
 """Cross-platform venv path utilities + uv command builders."""
 
 import logging
-import os
 import re
 import shutil
 import sys
@@ -149,7 +148,9 @@ def probe_python_version(venv_path: str) -> str:
     try:
         out = subprocess.run(
             [python, "-c", "import sys;print('%d.%d' % sys.version_info[:2])"],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
     except (OSError, subprocess.TimeoutExpired) as e:
         raise ValueError(f"Python in '{venv_path}' is not runnable: {e}") from e

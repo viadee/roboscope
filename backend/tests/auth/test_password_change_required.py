@@ -28,7 +28,6 @@ from src.auth.service import (
 )
 from tests.conftest import auth_header
 
-
 # ---------------------------------------------------------------------------
 # ensure_admin_exists — fresh DB + legacy upgrade
 # ---------------------------------------------------------------------------
@@ -49,7 +48,8 @@ class TestEnsureAdminExists:
         assert admin.role == Role.ADMIN
 
     def test_legacy_admin_with_default_password_gets_upgraded(
-        self, db_session: Session,
+        self,
+        db_session: Session,
     ):
         """A pre-existing admin row still on the well-known default
         password gets the flag flipped on by `ensure_admin_exists`.
@@ -71,7 +71,8 @@ class TestEnsureAdminExists:
         assert legacy.password_change_required is True
 
     def test_user_with_custom_password_is_not_flipped(
-        self, db_session: Session,
+        self,
+        db_session: Session,
     ):
         db_session.execute(User.__table__.delete())
         normal = User(
@@ -127,18 +128,21 @@ class TestEnsureAdminExists:
         into the Settings UI, which renders category cards dynamically.
         """
         db_session.execute(User.__table__.delete())
-        db_session.add(User(
-            email="someone@example.com",
-            username="someone",
-            hashed_password=hash_password("custom-pw"),
-            role=Role.EDITOR,
-            password_change_required=False,
-        ))
+        db_session.add(
+            User(
+                email="someone@example.com",
+                username="someone",
+                hashed_password=hash_password("custom-pw"),
+                role=Role.EDITOR,
+                password_change_required=False,
+            )
+        )
         db_session.flush()
 
         ensure_admin_exists(db_session)  # stamps the marker
 
         from src.settings.service import list_settings
+
         assert all(s.category != "internal" for s in list_settings(db_session))
 
 
@@ -149,7 +153,9 @@ class TestEnsureAdminExists:
 
 class TestAuthLogsWarning:
     def test_login_emits_warning_when_flag_set(
-        self, db_session: Session, caplog,
+        self,
+        db_session: Session,
+        caplog,
     ):
         user = User(
             email="flagged@example.com",
@@ -172,7 +178,9 @@ class TestAuthLogsWarning:
         )
 
     def test_login_no_warning_when_flag_clear(
-        self, db_session: Session, caplog,
+        self,
+        db_session: Session,
+        caplog,
     ):
         user = User(
             email="clean@example.com",
@@ -188,9 +196,7 @@ class TestAuthLogsWarning:
         with caplog.at_level(logging.WARNING, logger="roboscope.auth"):
             authenticate_user(db_session, user.email, "correct-horse")
 
-        assert not any(
-            "password_change_required" in r.message for r in caplog.records
-        )
+        assert not any("password_change_required" in r.message for r in caplog.records)
 
     def test_login_with_default_password_sets_flag(self, db_session: Session):
         """With the boot sweep reduced to once-per-DB, login is the seam
@@ -208,7 +214,9 @@ class TestAuthLogsWarning:
         db_session.flush()
 
         result = authenticate_user(
-            db_session, user.email, DEFAULT_ADMIN_PASSWORD,
+            db_session,
+            user.email,
+            DEFAULT_ADMIN_PASSWORD,
         )
 
         assert result is not None
@@ -251,6 +259,7 @@ class TestChangePasswordEndpoint:
         assert flagged_user.password_change_required is False
         # Password was actually rotated:
         from src.auth.service import verify_password
+
         assert verify_password("brandNewSecret9", flagged_user.hashed_password)
         assert not verify_password("originalPW1", flagged_user.hashed_password)
 

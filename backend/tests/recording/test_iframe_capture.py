@@ -30,7 +30,6 @@ from src.recording.v2_payload_translator import (
     translate_payload,
 )
 
-
 # ─── _frame_url_from_payload ─────────────────────────────────────────────
 
 
@@ -44,18 +43,14 @@ def test_frame_url_iframe_returns_url() -> None:
         "is_top_frame": False,
         "frame_url": "https://message-eu.sp-prod.net/index.html?id=xxx",
     }
-    assert _frame_url_from_payload(payload) == (
-        "https://message-eu.sp-prod.net/index.html?id=xxx"
-    )
+    assert _frame_url_from_payload(payload) == ("https://message-eu.sp-prod.net/index.html?id=xxx")
 
 
 def test_frame_url_about_blank_in_iframe_returns_none() -> None:
     """Iframes can briefly hold `about:blank` between document swaps —
     don't tag commands with it; the emitter wouldn't be able to
     extract a host anyway."""
-    assert _frame_url_from_payload(
-        {"is_top_frame": False, "frame_url": "about:blank"}
-    ) is None
+    assert _frame_url_from_payload({"is_top_frame": False, "frame_url": "about:blank"}) is None
 
 
 def test_frame_url_legacy_payload_without_flags_returns_none() -> None:
@@ -69,32 +64,26 @@ def test_frame_url_iframe_with_empty_string_url_returns_none() -> None:
     """``is_top_frame=False`` but no actual URL — degrade silently
     rather than emit a broken ``iframe[src*=""]`` wrapper that
     would match every iframe on the page."""
-    assert _frame_url_from_payload(
-        {"is_top_frame": False, "frame_url": ""}
-    ) is None
+    assert _frame_url_from_payload({"is_top_frame": False, "frame_url": ""}) is None
 
 
 def test_frame_url_iframe_with_null_url_returns_none() -> None:
     """JSON null in ``frame_url`` — same safe-degrade path."""
-    assert _frame_url_from_payload(
-        {"is_top_frame": False, "frame_url": None}
-    ) is None
+    assert _frame_url_from_payload({"is_top_frame": False, "frame_url": None}) is None
 
 
 def test_frame_url_iframe_with_non_string_url_returns_none() -> None:
     """Type confusion (`frame_url: 42`) — must not crash, must not
     surface a stringified value through ``isinstance(url, str)``."""
-    assert _frame_url_from_payload(
-        {"is_top_frame": False, "frame_url": 42}
-    ) is None
+    assert _frame_url_from_payload({"is_top_frame": False, "frame_url": 42}) is None
 
 
 def test_frame_url_iframe_with_about_srcdoc_returns_none() -> None:
     """Other ``about:`` schemes (srcdoc, blank) — same filter."""
     for u in ("about:blank", "about:srcdoc", "about:newtab"):
-        assert _frame_url_from_payload(
-            {"is_top_frame": False, "frame_url": u}
-        ) is None, f"{u!r} should be filtered"
+        assert _frame_url_from_payload({"is_top_frame": False, "frame_url": u}) is None, (
+            f"{u!r} should be filtered"
+        )
 
 
 def test_frame_url_iframe_missing_frame_url_key_returns_none() -> None:
@@ -148,16 +137,15 @@ def test_translate_top_frame_click_leaves_frame_url_none() -> None:
 
 
 def test_iframe_locator_from_consent_url() -> None:
-    out = _iframe_locator_from_url(
-        "https://message-eu.sp-prod.net/index.html?id=xxx"
-    )
+    out = _iframe_locator_from_url("https://message-eu.sp-prod.net/index.html?id=xxx")
     assert out == 'iframe[src*="message-eu.sp-prod.net"]'
 
 
 def test_iframe_locator_handles_port_and_subdomain() -> None:
-    assert _iframe_locator_from_url(
-        "https://consent.cookieinformation.com:8443/path"
-    ) == 'iframe[src*="consent.cookieinformation.com:8443"]'
+    assert (
+        _iframe_locator_from_url("https://consent.cookieinformation.com:8443/path")
+        == 'iframe[src*="consent.cookieinformation.com:8443"]'
+    )
 
 
 def test_iframe_locator_unparseable_url_returns_none() -> None:
@@ -207,10 +195,7 @@ def test_emit_iframe_click_uses_composite_locator() -> None:
     )
     # Browser-library composite locator: iframe match + `>>>` piercer
     # + inner selector.
-    assert (
-        "iframe[src*=\"message-eu.sp-prod.net\"] >>> button#alle_akzeptieren"
-        in line
-    )
+    assert 'iframe[src*="message-eu.sp-prod.net"] >>> button#alle_akzeptieren' in line
 
 
 def test_emit_iframe_click_falls_back_to_inner_when_url_unparseable() -> None:
@@ -218,9 +203,7 @@ def test_emit_iframe_click_falls_back_to_inner_when_url_unparseable() -> None:
     don't emit a broken `iframe[src*=""]` wrapper — fall back to the
     inner selector alone. The replay won't find the iframe but at
     least the command is syntactically valid Robot."""
-    line = _emit_command(
-        _click_cmd("button.x", frame_url="data:text/html,<p>")
-    )
+    line = _emit_command(_click_cmd("button.x", frame_url="data:text/html,<p>"))
     assert "iframe[" not in line
     assert "button.x" in line
 
@@ -251,9 +234,7 @@ def test_legitimate_third_party_widgets_NOT_filtered() -> None:
     user interactions — must not be in the deny-list."""
     assert not _is_ad_iframe("https://js.stripe.com/v3/elements")
     assert not _is_ad_iframe("https://www.google.com/recaptcha/api2/anchor")
-    assert not _is_ad_iframe(
-        "https://accounts.google.com/o/oauth2/iframe"
-    )
+    assert not _is_ad_iframe("https://accounts.google.com/o/oauth2/iframe")
 
 
 def test_top_frame_url_passthrough_when_in_deny_list_substring() -> None:

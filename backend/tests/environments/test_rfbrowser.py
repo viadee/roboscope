@@ -8,7 +8,7 @@ import pytest
 
 from src.environments import venv_utils
 from src.environments.models import Environment, EnvironmentPackage
-from src.environments.service import generate_dockerfile, _has_browser_package
+from src.environments.service import _has_browser_package, generate_dockerfile
 from src.environments.tasks import (
     _is_browser_package,
     _run_rfbrowser_init,
@@ -109,17 +109,14 @@ class TestRunRfbrowserInit:
         session.commit.assert_called_once()
         # Should broadcast "failed"
         failed_calls = [
-            c for c in mock_broadcast.call_args_list
-            if len(c[0]) >= 3 and c[0][2] == "failed"
+            c for c in mock_broadcast.call_args_list if len(c[0]) >= 3 and c[0][2] == "failed"
         ]
         assert len(failed_calls) == 1
 
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")
     def test_failure_marks_package_failed(self, mock_run, mock_broadcast):
-        mock_run.return_value = MagicMock(
-            returncode=1, stdout="", stderr="node not found"
-        )
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="node not found")
         pkg = MagicMock()
         session = MagicMock()
 
@@ -141,7 +138,8 @@ class TestRunRfbrowserInit:
     @patch("subprocess.run")
     def test_node_not_found_gives_clear_message(self, mock_run, mock_broadcast):
         mock_run.return_value = MagicMock(
-            returncode=1, stdout="",
+            returncode=1,
+            stdout="",
             stderr="Error: Cannot find module 'npx'\nENOENT: no such file or directory",
         )
         pkg = MagicMock()
@@ -159,9 +157,7 @@ class TestRunRfbrowserInit:
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")
     def test_non_node_error_gives_generic_message(self, mock_run, mock_broadcast):
-        mock_run.return_value = MagicMock(
-            returncode=1, stdout="", stderr="Permission denied"
-        )
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="Permission denied")
         pkg = MagicMock()
         session = MagicMock()
 
@@ -206,14 +202,17 @@ class TestRfbrowserInitDockerWarning:
         self, mock_run, mock_broadcast, mock_init, db_session
     ):
         env = Environment(
-            name="test-env", venv_path="/tmp/test-venv",
-            python_version="3.12", created_by=1,
+            name="test-env",
+            venv_path="/tmp/test-venv",
+            python_version="3.12",
+            created_by=1,
             docker_image="roboscope/test-env:latest",
         )
         db_session.add(env)
         db_session.flush()
         pkg = EnvironmentPackage(
-            environment_id=env.id, package_name="robotframework-browser",
+            environment_id=env.id,
+            package_name="robotframework-browser",
         )
         db_session.add(pkg)
         db_session.flush()
@@ -221,7 +220,9 @@ class TestRfbrowserInitDockerWarning:
 
         mock_run.side_effect = [
             MagicMock(returncode=0, stdout="", stderr=""),  # install
-            MagicMock(returncode=0, stdout="Name: robotframework-browser\nVersion: 18.0.0\n", stderr=""),  # show
+            MagicMock(
+                returncode=0, stdout="Name: robotframework-browser\nVersion: 18.0.0\n", stderr=""
+            ),  # show
         ]
 
         with patch("src.environments.tasks.get_sync_session") as mock_gs:
@@ -234,8 +235,7 @@ class TestRfbrowserInitDockerWarning:
 
         # Find the "warning" broadcast
         warning_calls = [
-            c for c in mock_broadcast.call_args_list
-            if len(c[0]) >= 3 and c[0][2] == "warning"
+            c for c in mock_broadcast.call_args_list if len(c[0]) >= 3 and c[0][2] == "warning"
         ]
         assert len(warning_calls) == 1
         assert "Docker image needs rebuilding" in warning_calls[0][1]["warning"]
@@ -243,18 +243,19 @@ class TestRfbrowserInitDockerWarning:
     @patch("src.environments.tasks._run_rfbrowser_init")
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")
-    def test_no_docker_image_no_warning(
-        self, mock_run, mock_broadcast, mock_init, db_session
-    ):
+    def test_no_docker_image_no_warning(self, mock_run, mock_broadcast, mock_init, db_session):
         env = Environment(
-            name="test-env", venv_path="/tmp/test-venv",
-            python_version="3.12", created_by=1,
+            name="test-env",
+            venv_path="/tmp/test-venv",
+            python_version="3.12",
+            created_by=1,
             docker_image=None,
         )
         db_session.add(env)
         db_session.flush()
         pkg = EnvironmentPackage(
-            environment_id=env.id, package_name="robotframework-browser",
+            environment_id=env.id,
+            package_name="robotframework-browser",
         )
         db_session.add(pkg)
         db_session.flush()
@@ -262,7 +263,9 @@ class TestRfbrowserInitDockerWarning:
 
         mock_run.side_effect = [
             MagicMock(returncode=0, stdout="", stderr=""),
-            MagicMock(returncode=0, stdout="Name: robotframework-browser\nVersion: 18.0.0\n", stderr=""),
+            MagicMock(
+                returncode=0, stdout="Name: robotframework-browser\nVersion: 18.0.0\n", stderr=""
+            ),
         ]
 
         with patch("src.environments.tasks.get_sync_session") as mock_gs:
@@ -273,8 +276,7 @@ class TestRfbrowserInitDockerWarning:
         assert result["status"] == "success"
         # No "warning" broadcast when docker_image is None
         warning_calls = [
-            c for c in mock_broadcast.call_args_list
-            if len(c[0]) >= 3 and c[0][2] == "warning"
+            c for c in mock_broadcast.call_args_list if len(c[0]) >= 3 and c[0][2] == "warning"
         ]
         assert len(warning_calls) == 0
 
@@ -283,17 +285,18 @@ class TestInstallPackageBrowserHook:
     @patch("src.environments.tasks._run_rfbrowser_init")
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")
-    def test_install_browser_triggers_init(
-        self, mock_run, mock_broadcast, mock_init, db_session
-    ):
+    def test_install_browser_triggers_init(self, mock_run, mock_broadcast, mock_init, db_session):
         env = Environment(
-            name="test-env", venv_path="/tmp/test-venv",
-            python_version="3.12", created_by=1,
+            name="test-env",
+            venv_path="/tmp/test-venv",
+            python_version="3.12",
+            created_by=1,
         )
         db_session.add(env)
         db_session.flush()
         pkg = EnvironmentPackage(
-            environment_id=env.id, package_name="robotframework-browser",
+            environment_id=env.id,
+            package_name="robotframework-browser",
         )
         db_session.add(pkg)
         db_session.flush()
@@ -301,7 +304,9 @@ class TestInstallPackageBrowserHook:
 
         mock_run.side_effect = [
             MagicMock(returncode=0, stdout="", stderr=""),  # install
-            MagicMock(returncode=0, stdout="Name: robotframework-browser\nVersion: 18.0.0\n", stderr=""),  # show
+            MagicMock(
+                returncode=0, stdout="Name: robotframework-browser\nVersion: 18.0.0\n", stderr=""
+            ),  # show
         ]
 
         with patch("src.environments.tasks.get_sync_session") as mock_gs:
@@ -318,17 +323,18 @@ class TestInstallPackageBrowserHook:
     @patch("src.environments.tasks._run_rfbrowser_init")
     @patch("src.environments.tasks._broadcast_package_status")
     @patch("subprocess.run")
-    def test_install_regular_package_no_init(
-        self, mock_run, mock_broadcast, mock_init, db_session
-    ):
+    def test_install_regular_package_no_init(self, mock_run, mock_broadcast, mock_init, db_session):
         env = Environment(
-            name="test-env", venv_path="/tmp/test-venv",
-            python_version="3.12", created_by=1,
+            name="test-env",
+            venv_path="/tmp/test-venv",
+            python_version="3.12",
+            created_by=1,
         )
         db_session.add(env)
         db_session.flush()
         pkg = EnvironmentPackage(
-            environment_id=env.id, package_name="requests",
+            environment_id=env.id,
+            package_name="requests",
         )
         db_session.add(pkg)
         db_session.flush()

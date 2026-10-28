@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from src.auth.idp_service import list_identity_providers
 from src.auth.oidc_discovery import DISCOVERY_CACHE_TTL_HOURS, probe_idp_discovery
@@ -24,7 +24,7 @@ def refresh_discovery_cache(force_all: bool = False) -> dict:
     refreshed = 0
     failed = 0
     skipped = 0
-    stale_cutoff = datetime.now(timezone.utc) - timedelta(hours=DISCOVERY_CACHE_TTL_HOURS)
+    stale_cutoff = datetime.now(UTC) - timedelta(hours=DISCOVERY_CACHE_TTL_HOURS)
 
     with get_sync_session() as session:
         idps = list_identity_providers(session)

@@ -8,7 +8,7 @@ regress just because someone refactors the regex.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.encoders import jsonable_encoder
 
@@ -53,7 +53,7 @@ def test_pydantic_naive_datetime_object_is_normalized() -> None:
 
 
 def test_aware_datetime_object_passes_through() -> None:
-    aware = datetime(2026, 4, 29, 7, 58, 4, tzinfo=timezone.utc)
+    aware = datetime(2026, 4, 29, 7, 58, 4, tzinfo=UTC)
     body = _render({"created_at": aware})
     # jsonable_encoder emits `+00:00` for aware datetimes; we leave it alone.
     assert b'"2026-04-29T07:58:04+00:00"' in body
@@ -75,20 +75,24 @@ def test_embedded_datetime_in_sentence_is_left_alone() -> None:
 
 
 def test_array_of_datetimes_each_gets_z() -> None:
-    body = _render({
-        "events": [
-            "2026-04-29T07:58:04",
-            "2026-04-29T08:00:00.123",
-        ],
-    })
+    body = _render(
+        {
+            "events": [
+                "2026-04-29T07:58:04",
+                "2026-04-29T08:00:00.123",
+            ],
+        }
+    )
     assert b'"2026-04-29T07:58:04Z"' in body
     assert b'"2026-04-29T08:00:00.123Z"' in body
 
 
 def test_nested_object_is_walked() -> None:
-    body = _render({
-        "outer": {"inner": {"deep_ts": "2026-04-29T07:58:04"}},
-    })
+    body = _render(
+        {
+            "outer": {"inner": {"deep_ts": "2026-04-29T07:58:04"}},
+        }
+    )
     assert b'"2026-04-29T07:58:04Z"' in body
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -14,7 +14,6 @@ from src.auth.retention_cleanup import expire_sso_emergency_bypass
 from src.auth.service import hash_password
 from src.settings.service import get_setting_value, seed_default_settings
 from tests.conftest import auth_header
-
 
 ENDPOINT = "/api/v1/settings/sso-emergency-bypass"
 
@@ -42,9 +41,7 @@ class TestActivate:
         seed_default_settings(db_session)
         db_session.commit()
 
-        resp = client.post(
-            ENDPOINT, json={"hours": 4}, headers=auth_header(admin_user)
-        )
+        resp = client.post(ENDPOINT, json={"hours": 4}, headers=auth_header(admin_user))
         assert resp.status_code == 200
         body = resp.json()
         assert body["active"] is True
@@ -74,9 +71,7 @@ class TestActivate:
         seed_default_settings(db_session)
         db_session.commit()
 
-        resp = client.post(
-            ENDPOINT, json={"hours": 48}, headers=auth_header(admin_user)
-        )
+        resp = client.post(ENDPOINT, json={"hours": 48}, headers=auth_header(admin_user))
         assert resp.status_code == 400
         assert "24" in resp.json()["detail"]
 
@@ -86,9 +81,7 @@ class TestActivate:
         db_session: Session,
     ) -> None:
         editor = _mk_editor(db_session)
-        resp = client.post(
-            ENDPOINT, json={"hours": 2}, headers=auth_header(editor)
-        )
+        resp = client.post(ENDPOINT, json={"hours": 2}, headers=auth_header(editor))
         assert resp.status_code == 403
 
 
@@ -102,9 +95,7 @@ class TestDeactivate:
         seed_default_settings(db_session)
         db_session.commit()
 
-        client.post(
-            ENDPOINT, json={"hours": 4}, headers=auth_header(admin_user)
-        )
+        client.post(ENDPOINT, json={"hours": 4}, headers=auth_header(admin_user))
         resp = client.delete(ENDPOINT, headers=auth_header(admin_user))
         assert resp.status_code == 200
         assert resp.json()["active"] is False
@@ -153,14 +144,13 @@ class TestAutoExpire:
         seed_default_settings(db_session)
         db_session.commit()
 
-        client.post(
-            ENDPOINT, json={"hours": 1}, headers=auth_header(admin_user)
-        )
+        client.post(ENDPOINT, json={"hours": 1}, headers=auth_header(admin_user))
         # Force an already-past expiry.
         from src.settings.service import get_setting
+
         exp = get_setting(db_session, "sso_emergency_bypass_expires_at")
         assert exp is not None
-        exp.value = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        exp.value = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
         db_session.commit()
 
         expired = expire_sso_emergency_bypass(db_session)
@@ -184,9 +174,7 @@ class TestAutoExpire:
     ) -> None:
         seed_default_settings(db_session)
         db_session.commit()
-        client.post(
-            ENDPOINT, json={"hours": 4}, headers=auth_header(admin_user)
-        )
+        client.post(ENDPOINT, json={"hours": 4}, headers=auth_header(admin_user))
         expired = expire_sso_emergency_bypass(db_session)
         assert expired is False
         assert get_setting_value(db_session, "sso_emergency_bypass") == "true"
@@ -206,8 +194,6 @@ class TestStatus:
         assert pre.status_code == 200
         assert pre.json()["active"] is False
 
-        client.post(
-            ENDPOINT, json={"hours": 2}, headers=auth_header(admin_user)
-        )
+        client.post(ENDPOINT, json={"hours": 2}, headers=auth_header(admin_user))
         post = client.get(ENDPOINT, headers=auth_header(admin_user))
         assert post.json()["active"] is True

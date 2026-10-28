@@ -10,8 +10,6 @@ Locks in:
 
 from __future__ import annotations
 
-import json
-
 import pytest
 from pydantic import ValidationError
 
@@ -26,7 +24,9 @@ from src.recording.selector_schema import (
 
 class TestSelectorCandidate:
     def test_ok(self) -> None:
-        c = SelectorCandidate(strategy="testid", value="user-submit", quality_score=95, verified_unique=True)
+        c = SelectorCandidate(
+            strategy="testid", value="user-submit", quality_score=95, verified_unique=True
+        )
         assert c.quality_score == 95
 
     def test_score_rejects_above_100(self) -> None:
@@ -66,8 +66,10 @@ class TestRecordedCommand:
         cands = [SelectorCandidate(strategy="testid", value="a", quality_score=95)]
         with pytest.raises(ValidationError):
             RecordedCommand(
-                index=0, keyword="Click",
-                selector_candidates=cands, active_candidate_index=5,
+                index=0,
+                keyword="Click",
+                selector_candidates=cands,
+                active_candidate_index=5,
             )
 
 
@@ -87,7 +89,12 @@ class TestRecordedFlow:
                     index=1,
                     keyword="Click",
                     selector_candidates=[
-                        SelectorCandidate(strategy="testid", value="submit", quality_score=95, verified_unique=True),
+                        SelectorCandidate(
+                            strategy="testid",
+                            value="submit",
+                            quality_score=95,
+                            verified_unique=True,
+                        ),
                         SelectorCandidate(strategy="css", value=".btn-submit", quality_score=45),
                     ],
                 ),

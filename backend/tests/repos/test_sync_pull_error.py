@@ -17,12 +17,17 @@ from tests.repos.test_save_loop import (  # noqa: F401  (fixtures)
 
 pytestmark = pytest.mark.slow  # real subprocess / git in tmp_path — out of the fast dev loop
 
-_IDENT = dict(GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
-              GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
+_IDENT = dict(
+    GIT_AUTHOR_NAME="t",
+    GIT_AUTHOR_EMAIL="t@example.com",
+    GIT_COMMITTER_NAME="t",
+    GIT_COMMITTER_EMAIL="t@example.com",
+)
 
 
-def test_dirty_tree_conflict_reports_error(db_session, seed_repo_for_clone, working_clone: Path,
-                                           bare_remote: Path, tmp_path: Path):
+def test_dirty_tree_conflict_reports_error(
+    db_session, seed_repo_for_clone, working_clone: Path, bare_remote: Path, tmp_path: Path
+):
     # Someone else pushes a change to README.md …
     other = Repo.clone_from(str(bare_remote), str(tmp_path / "other"))
     other.git.update_environment(**_IDENT)

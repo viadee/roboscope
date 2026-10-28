@@ -13,8 +13,7 @@ runner's surface against docker-py is tiny (`images.get`,
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -22,7 +21,6 @@ from src.execution.runners.docker_runner import (
     DockerImageNotFoundError,
     DockerRunner,
 )
-
 
 # ---------------------------------------------------------------------------
 # _build_robot_command — pure string-building, no docker involved
@@ -47,13 +45,15 @@ class TestBuildRobotCommand:
 
     def test_tags_include_single(self):
         cmd = self.runner._build_robot_command(
-            target_path="x", tags_include="smoke",
+            target_path="x",
+            tags_include="smoke",
         )
         assert "--include smoke" in cmd
 
     def test_tags_include_multiple_csv(self):
         cmd = self.runner._build_robot_command(
-            target_path="x", tags_include="smoke, regression , api",
+            target_path="x",
+            tags_include="smoke, regression , api",
         )
         # Whitespace is stripped, each tag becomes its own --include.
         for tag in ("smoke", "regression", "api"):
@@ -61,14 +61,16 @@ class TestBuildRobotCommand:
 
     def test_tags_exclude(self):
         cmd = self.runner._build_robot_command(
-            target_path="x", tags_exclude="slow,flaky",
+            target_path="x",
+            tags_exclude="slow,flaky",
         )
         assert "--exclude slow" in cmd
         assert "--exclude flaky" in cmd
 
     def test_variables(self):
         cmd = self.runner._build_robot_command(
-            target_path="x", variables={"BROWSER": "chromium", "URL": "http://app"},
+            target_path="x",
+            variables={"BROWSER": "chromium", "URL": "http://app"},
         )
         assert "--variable BROWSER:chromium" in cmd
         assert "--variable URL:http://app" in cmd
@@ -125,7 +127,8 @@ class TestPrepare:
         client = MagicMock()
         runner = self._make_runner_with_client(client)
         runner.prepare(
-            "/repo", "suite.robot",
+            "/repo",
+            "suite.robot",
             env_config={"docker_image": "other/img:1.0"},
         )
         # The override is sticky: subsequent runs use the overridden image.
@@ -164,7 +167,9 @@ class TestExecute:
         runner._client = client
 
         result = runner.execute(
-            repo_path="/repo", target_path="suite.robot", output_dir=str(out),
+            repo_path="/repo",
+            target_path="suite.robot",
+            output_dir=str(out),
         )
         assert result.success is True
         assert result.exit_code == 0
@@ -181,7 +186,9 @@ class TestExecute:
         runner._client = client
 
         result = runner.execute(
-            repo_path="/repo", target_path="suite.robot", output_dir=str(out),
+            repo_path="/repo",
+            target_path="suite.robot",
+            output_dir=str(out),
         )
         assert result.success is False
         assert result.exit_code == 42
@@ -193,7 +200,9 @@ class TestExecute:
         runner._client = client
 
         result = runner.execute(
-            repo_path="/repo", target_path="x", output_dir=str(tmp_path / "out"),
+            repo_path="/repo",
+            target_path="x",
+            output_dir=str(tmp_path / "out"),
         )
         assert result.success is False
         assert result.exit_code == -1
@@ -210,7 +219,9 @@ class TestExecute:
 
         captured: list[str] = []
         runner.execute(
-            repo_path="/repo", target_path="x", output_dir=str(tmp_path / "out"),
+            repo_path="/repo",
+            target_path="x",
+            output_dir=str(tmp_path / "out"),
             on_output=captured.append,
         )
         assert captured == ["first line", "second line", "third line"]
@@ -225,15 +236,13 @@ class TestExecute:
 
         with caplog.at_level(logging.WARNING, logger="roboscope.execution.docker"):
             runner.execute(
-                repo_path="/repo", target_path="x",
+                repo_path="/repo",
+                target_path="x",
                 output_dir=str(tmp_path / "out"),
                 listeners=["my.listener.A", "my.listener.B"],
             )
         # The runner ignores listeners but logs a warning naming the count.
-        assert any(
-            "ignoring 2 listener" in rec.getMessage()
-            for rec in caplog.records
-        )
+        assert any("ignoring 2 listener" in rec.getMessage() for rec in caplog.records)
 
     def test_cancel_breaks_log_loop(self, tmp_path):
         # Container yields many log chunks; we set _cancelled mid-loop
@@ -243,8 +252,9 @@ class TestExecute:
         # Generator that flips _cancelled after the first yield.
         def gen():
             yield b"first\n"
-            runner._cancelled = True   # noqa: F821 — closure binds below
+            runner._cancelled = True  # noqa: F821 — closure binds below
             yield b"never-seen\n"
+
         container.logs.return_value = gen()
         container.wait.return_value = {"StatusCode": 0}
         client = MagicMock()
@@ -254,7 +264,9 @@ class TestExecute:
         runner._client = client
 
         result = runner.execute(
-            repo_path="/repo", target_path="x", output_dir=str(tmp_path / "out"),
+            repo_path="/repo",
+            target_path="x",
+            output_dir=str(tmp_path / "out"),
         )
         # `wait` still ran; runner exited the streaming loop early.
         assert "first" in result.stdout
@@ -327,10 +339,16 @@ class TestExtraEnvInjection:
         container.wait.return_value = {"StatusCode": 0}
         client = MagicMock()
         client.containers.run.return_value = container
-        runner = DockerRunner(image="img:1", extra_env={"BASE_URL": "https://staging", "ROBOT_X": "env"})
+        runner = DockerRunner(
+            image="img:1", extra_env={"BASE_URL": "https://staging", "ROBOT_X": "env"}
+        )
         runner._client = client
-        runner.execute(repo_path="/repo", target_path="s.robot", output_dir=str(tmp_path),
-                       variables={"X": "run"})
+        runner.execute(
+            repo_path="/repo",
+            target_path="s.robot",
+            output_dir=str(tmp_path),
+            variables={"X": "run"},
+        )
         environment = client.containers.run.call_args.kwargs["environment"]
         assert environment["BASE_URL"] == "https://staging"
         assert environment["ROBOT_X"] == "run"

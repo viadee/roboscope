@@ -1,7 +1,7 @@
 """Authentication service: user creation, verification, JWT handling."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import bcrypt
 import jwt as pyjwt
@@ -9,9 +9,9 @@ from jwt.exceptions import InvalidTokenError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.auth.constants import ERR_TOKEN_EXPIRED, ERR_TOKEN_INVALID, Role
+from src.auth.constants import ERR_TOKEN_INVALID, Role
 from src.auth.models import User
-from src.auth.schemas import RegisterRequest, TokenResponse, UserResponse
+from src.auth.schemas import RegisterRequest, TokenResponse
 from src.config import settings
 
 logger = logging.getLogger("roboscope.auth")
@@ -29,25 +29,25 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(user_id: int, role: str) -> str:
     """Create a JWT access token."""
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
         "sub": str(user_id),
         "role": role,
         "type": "access",
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": datetime.now(UTC),
     }
     return pyjwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def create_refresh_token(user_id: int) -> str:
     """Create a JWT refresh token."""
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     payload = {
         "sub": str(user_id),
         "type": "refresh",
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": datetime.now(UTC),
     }
     return pyjwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -113,7 +113,7 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
             user.email,
         )
     # Update last login
-    user.last_login_at = datetime.now(timezone.utc)
+    user.last_login_at = datetime.now(UTC)
     db.flush()
     # Story SECURITY-1 — surface in the server log every time a
     # password-change-required user authenticates so the operator can
@@ -128,7 +128,10 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
 
 
 def change_password(
-    db: Session, user: User, current_password: str, new_password: str,
+    db: Session,
+    user: User,
+    current_password: str,
+    new_password: str,
 ) -> None:
     """Verify current password, set new one, clear the
     `password_change_required` flag. Story SECURITY-1.
@@ -221,20 +224,23 @@ def ensure_admin_exists(db: Session) -> None:
     if marker is not None:
         return
 
-    candidates = db.execute(
-        select(User).where(User.password_change_required.is_(False))
-    ).scalars().all()
+    candidates = (
+        db.execute(select(User).where(User.password_change_required.is_(False))).scalars().all()
+    )
     flipped = 0
     for user in candidates:
         if user.hashed_password and verify_password(
-            DEFAULT_ADMIN_PASSWORD, user.hashed_password,
+            DEFAULT_ADMIN_PASSWORD,
+            user.hashed_password,
         ):
             user.password_change_required = True
             flipped += 1
-    db.add(AppSetting(
-        key=SWEEP_MARKER_KEY,
-        value="1",
-        category="internal",
-        description="Stamped once the SECURITY-1 default-password sweep has run.",
-    ))
+    db.add(
+        AppSetting(
+            key=SWEEP_MARKER_KEY,
+            value="1",
+            category="internal",
+            description="Stamped once the SECURITY-1 default-password sweep has run.",
+        )
+    )
     db.flush()

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
 from src.auth.constants import Role
 
@@ -22,7 +22,10 @@ class ApiTokenCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     role: Role = Role.RUNNER
     expires_in_days: int | None = Field(
-        default=None, ge=1, le=365, description="Days until expiry (null = never)",
+        default=None,
+        ge=1,
+        le=365,
+        description="Days until expiry (null = never)",
     )
 
 

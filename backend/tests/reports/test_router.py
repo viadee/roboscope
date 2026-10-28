@@ -3,8 +3,8 @@
 import pytest
 
 from src.execution.models import ExecutionRun
-from src.repos.models import Repository
 from src.reports.models import Report, TestResult
+from src.repos.models import Repository
 from tests.conftest import auth_header
 
 
@@ -180,9 +180,7 @@ class TestGetReportTestsEndpoint:
         """GET /api/v1/reports/{id}/tests returns all test results."""
         report = _setup_report(db_session, admin_user)
 
-        tr_pass = _make_test_result(
-            report.id, test_name="Pass Test", status="PASS"
-        )
+        tr_pass = _make_test_result(report.id, test_name="Pass Test", status="PASS")
         tr_fail = _make_test_result(
             report.id, test_name="Fail Test", status="FAIL", error_message="Broken"
         )
@@ -203,12 +201,8 @@ class TestGetReportTestsEndpoint:
         """GET /api/v1/reports/{id}/tests?status=FAIL returns only failing tests."""
         report = _setup_report(db_session, admin_user)
 
-        tr_pass = _make_test_result(
-            report.id, test_name="Pass Test", status="PASS"
-        )
-        tr_fail = _make_test_result(
-            report.id, test_name="Fail Test", status="FAIL"
-        )
+        tr_pass = _make_test_result(report.id, test_name="Pass Test", status="PASS")
+        tr_fail = _make_test_result(report.id, test_name="Fail Test", status="FAIL")
         db_session.add_all([tr_pass, tr_fail])
         db_session.flush()
 
@@ -259,11 +253,17 @@ class TestCompareReportsEndpoint:
         db_session.refresh(run_b)
 
         report_a = _make_report(
-            run_a.id, total_tests=3, passed_tests=2, failed_tests=1,
+            run_a.id,
+            total_tests=3,
+            passed_tests=2,
+            failed_tests=1,
             total_duration_seconds=10.0,
         )
         report_b = _make_report(
-            run_b.id, total_tests=3, passed_tests=2, failed_tests=1,
+            run_b.id,
+            total_tests=3,
+            passed_tests=2,
+            failed_tests=1,
             total_duration_seconds=15.0,
         )
         db_session.add_all([report_a, report_b])
@@ -323,12 +323,8 @@ class TestUniqueTestsEndpoint:
     def test_list_unique_tests(self, client, db_session, admin_user):
         """GET /api/v1/reports/tests/unique returns unique test names."""
         report = _setup_report(db_session, admin_user)
-        db_session.add(
-            _make_test_result(report.id, test_name="Login Test", suite_name="Auth")
-        )
-        db_session.add(
-            _make_test_result(report.id, test_name="Search Test", suite_name="UI")
-        )
+        db_session.add(_make_test_result(report.id, test_name="Login Test", suite_name="Auth"))
+        db_session.add(_make_test_result(report.id, test_name="Search Test", suite_name="UI"))
         db_session.flush()
 
         response = client.get(
@@ -346,12 +342,8 @@ class TestUniqueTestsEndpoint:
     def test_list_unique_tests_with_search(self, client, db_session, admin_user):
         """GET /api/v1/reports/tests/unique?search=Login filters by name."""
         report = _setup_report(db_session, admin_user)
-        db_session.add(
-            _make_test_result(report.id, test_name="Login Test", suite_name="Auth")
-        )
-        db_session.add(
-            _make_test_result(report.id, test_name="Search Test", suite_name="UI")
-        )
+        db_session.add(_make_test_result(report.id, test_name="Login Test", suite_name="Auth"))
+        db_session.add(_make_test_result(report.id, test_name="Search Test", suite_name="UI"))
         db_session.flush()
 
         response = client.get(
@@ -377,7 +369,10 @@ class TestTestHistoryEndpoint:
         report = _setup_report(db_session, admin_user)
         db_session.add(
             _make_test_result(
-                report.id, test_name="Login Test", suite_name="Auth", status="PASS",
+                report.id,
+                test_name="Login Test",
+                suite_name="Auth",
+                status="PASS",
                 duration_seconds=2.5,
             )
         )
@@ -445,7 +440,8 @@ class TestReportAssetEndpoint:
         (output_dir / "output.xml").write_text("<robot/>", encoding="utf-8")
         (output_dir / "screenshot.png").write_bytes(b"\x89PNG\r\n\x1a\nfake-image")
         report = _setup_report(
-            db_session, admin_user,
+            db_session,
+            admin_user,
             output_xml_path=str(output_dir / "output.xml"),
         )
         return report
@@ -498,7 +494,10 @@ class TestReportAssetEndpoint:
         assert resp.status_code == 401
 
     def test_path_traversal_still_blocked(
-        self, client, admin_user, report_with_asset,
+        self,
+        client,
+        admin_user,
+        report_with_asset,
     ):
         """Even authenticated, `../` paths are rejected (regression guard)."""
         resp = client.get(
@@ -511,7 +510,11 @@ class TestReportAssetEndpoint:
         assert resp.status_code in (403, 404)
 
     def test_html_endpoint_redirects_to_asset_url_with_token(
-        self, client, admin_user, db_session, tmp_path,
+        self,
+        client,
+        admin_user,
+        db_session,
+        tmp_path,
     ):
         """The /html endpoint authenticates the caller and 302-redirects
         to /assets/report.html?at=<asset_token>.
@@ -533,7 +536,8 @@ class TestReportAssetEndpoint:
         )
         (out / "output.xml").write_text("<robot/>", encoding="utf-8")
         report = _setup_report(
-            db_session, admin_user,
+            db_session,
+            admin_user,
             output_xml_path=str(out / "output.xml"),
             report_html_path=str(html_path),
         )
@@ -545,17 +549,14 @@ class TestReportAssetEndpoint:
         )
         assert resp.status_code == 302
         location = resp.headers["location"]
-        assert location.startswith(
-            f"/api/v1/reports/{report.id}/assets/report.html?at="
-        )
+        assert location.startswith(f"/api/v1/reports/{report.id}/assets/report.html?at=")
         # The asset token in the redirect must actually grant access to
         # the asset endpoint — round-trip the redirect.
-        from urllib.parse import urlparse, parse_qs
+        from urllib.parse import parse_qs, urlparse
+
         token = parse_qs(urlparse(location).query).get("at", [""])[0]
         assert token, "asset token missing from redirect URL"
-        followup = client.get(
-            f"/api/v1/reports/{report.id}/assets/report.html?at={token}"
-        )
+        followup = client.get(f"/api/v1/reports/{report.id}/assets/report.html?at={token}")
         assert followup.status_code == 200
         # Body is the raw report HTML, no <base href> injection now.
         assert "<title>R</title>" in followup.text

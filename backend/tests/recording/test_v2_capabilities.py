@@ -7,11 +7,9 @@ Linux with DISPLAY → yes, explicit override beats heuristic either way.
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 
 from src.auth.models import User
 from tests.conftest import auth_header
-
 
 ENDPOINT = "/api/v1/recordings/sessions/capabilities"
 

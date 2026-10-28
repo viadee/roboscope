@@ -28,12 +28,15 @@ def scan(tmp_path: Path):
 
 
 def test_bom_before_keywords_header(tmp_path: Path, scan):
-    (tmp_path / "公共.resource").write_text("﻿*** Keywords ***\n当前的日期增减天数\n    No Operation\n", encoding="utf-8")
+    (tmp_path / "公共.resource").write_text(
+        "﻿*** Keywords ***\n当前的日期增减天数\n    No Operation\n", encoding="utf-8"
+    )
     assert "当前的日期增减天数" in scan()
 
 
 def test_translated_headers(tmp_path: Path, scan):
     (tmp_path / "common.resource").write_text(
-        "Language: Chinese Simplified\n\n*** 关键字 ***\n关闭浏览器\n    No Operation\n", encoding="utf-8"
+        "Language: Chinese Simplified\n\n*** 关键字 ***\n关闭浏览器\n    No Operation\n",
+        encoding="utf-8",
     )
     assert "关闭浏览器" in scan()

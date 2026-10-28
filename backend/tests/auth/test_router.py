@@ -1,15 +1,17 @@
 """Tests for auth API endpoints."""
 
-import pytest
 from tests.conftest import auth_header
 
 
 class TestLogin:
     def test_login_success(self, client, admin_user):
-        response = client.post("/api/v1/auth/login", json={
-            "email": "admin@test.com",
-            "password": "admin123",
-        })
+        response = client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "admin@test.com",
+                "password": "admin123",
+            },
+        )
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
@@ -17,17 +19,23 @@ class TestLogin:
         assert data["token_type"] == "bearer"
 
     def test_login_wrong_password(self, client, admin_user):
-        response = client.post("/api/v1/auth/login", json={
-            "email": "admin@test.com",
-            "password": "wrongpass",
-        })
+        response = client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "admin@test.com",
+                "password": "wrongpass",
+            },
+        )
         assert response.status_code == 401
 
     def test_login_nonexistent_user(self, client):
-        response = client.post("/api/v1/auth/login", json={
-            "email": "ghost@test.com",
-            "password": "pass123",
-        })
+        response = client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "ghost@test.com",
+                "password": "pass123",
+            },
+        )
         assert response.status_code == 401
 
 
@@ -44,32 +52,41 @@ class TestMe:
         assert response.status_code == 401
 
     def test_get_me_invalid_token(self, client):
-        response = client.get("/api/v1/auth/me", headers={
-            "Authorization": "Bearer invalid.token.here"
-        })
+        response = client.get(
+            "/api/v1/auth/me", headers={"Authorization": "Bearer invalid.token.here"}
+        )
         assert response.status_code == 401
 
 
 class TestRefresh:
     def test_refresh_token(self, client, admin_user):
         # First login
-        login_resp = client.post("/api/v1/auth/login", json={
-            "email": "admin@test.com",
-            "password": "admin123",
-        })
+        login_resp = client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "admin@test.com",
+                "password": "admin123",
+            },
+        )
         refresh_token = login_resp.json()["refresh_token"]
 
         # Refresh
-        response = client.post("/api/v1/auth/refresh", json={
-            "refresh_token": refresh_token,
-        })
+        response = client.post(
+            "/api/v1/auth/refresh",
+            json={
+                "refresh_token": refresh_token,
+            },
+        )
         assert response.status_code == 200
         assert "access_token" in response.json()
 
     def test_refresh_invalid_token(self, client):
-        response = client.post("/api/v1/auth/refresh", json={
-            "refresh_token": "invalid",
-        })
+        response = client.post(
+            "/api/v1/auth/refresh",
+            json={
+                "refresh_token": "invalid",
+            },
+        )
         assert response.status_code == 401
 
 
@@ -84,23 +101,31 @@ class TestUserManagement:
         assert response.status_code == 403
 
     def test_create_user_admin(self, client, admin_user):
-        response = client.post("/api/v1/auth/users", json={
-            "email": "new@test.com",
-            "username": "newuser",
-            "password": "pass123",
-            "role": "runner",
-        }, headers=auth_header(admin_user))
+        response = client.post(
+            "/api/v1/auth/users",
+            json={
+                "email": "new@test.com",
+                "username": "newuser",
+                "password": "pass123",
+                "role": "runner",
+            },
+            headers=auth_header(admin_user),
+        )
         assert response.status_code == 201
         data = response.json()
         assert data["email"] == "new@test.com"
         assert data["role"] == "runner"
 
     def test_create_user_duplicate_email(self, client, admin_user):
-        response = client.post("/api/v1/auth/users", json={
-            "email": "admin@test.com",
-            "username": "dup",
-            "password": "pass123",
-        }, headers=auth_header(admin_user))
+        response = client.post(
+            "/api/v1/auth/users",
+            json={
+                "email": "admin@test.com",
+                "username": "dup",
+                "password": "pass123",
+            },
+            headers=auth_header(admin_user),
+        )
         assert response.status_code == 409
 
     def test_patch_user(self, client, admin_user, runner_user):
@@ -138,10 +163,13 @@ class TestPasswordReset:
         assert response.status_code == 200
 
         # Verify the new password works by logging in
-        login_resp = client.post("/api/v1/auth/login", json={
-            "email": "runner@test.com",
-            "password": "newpass123",
-        })
+        login_resp = client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "runner@test.com",
+                "password": "newpass123",
+            },
+        )
         assert login_resp.status_code == 200
         assert "access_token" in login_resp.json()
 
@@ -155,10 +183,13 @@ class TestPasswordReset:
         )
 
         # Old password should fail
-        login_resp = client.post("/api/v1/auth/login", json={
-            "email": "runner@test.com",
-            "password": "runner123",
-        })
+        login_resp = client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "runner@test.com",
+                "password": "runner123",
+            },
+        )
         assert login_resp.status_code == 401
 
     def test_password_too_short_rejected(self, client, admin_user, runner_user):
@@ -191,8 +222,11 @@ class TestPasswordReset:
         assert data["username"] == "runner_updated"
 
         # Verify new password works
-        login_resp = client.post("/api/v1/auth/login", json={
-            "email": "runner@test.com",
-            "password": "combo123",
-        })
+        login_resp = client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "runner@test.com",
+                "password": "combo123",
+            },
+        )
         assert login_resp.status_code == 200

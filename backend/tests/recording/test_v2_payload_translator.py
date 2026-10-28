@@ -43,9 +43,7 @@ class TestSwitchPage:
     """RECORDER-1A: page-switch emission when a popup / new tab opens."""
 
     def test_switch_page_with_url(self) -> None:
-        cmd = translate_payload(
-            {"kind": "switch_page", "url": "https://popup.example.com"}, 5
-        )
+        cmd = translate_payload({"kind": "switch_page", "url": "https://popup.example.com"}, 5)
         assert cmd is not None
         assert cmd.keyword == "Switch Page"
         assert cmd.args["page"] == "NEW"
@@ -221,22 +219,15 @@ class TestDropPathObservability:
     operators with verbose logging on get the full audit trail."""
 
     def _records_for(self, caplog: pytest.LogCaptureFixture) -> list[str]:
-        return [
-            r.getMessage() for r in caplog.records
-            if r.name == "roboscope.recording.translate"
-        ]
+        return [r.getMessage() for r in caplog.records if r.name == "roboscope.recording.translate"]
 
-    def test_missing_kind_emits_drop_log(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_missing_kind_emits_drop_log(self, caplog: pytest.LogCaptureFixture) -> None:
         caplog.set_level("DEBUG", logger="roboscope.recording.translate")
         assert translate_payload({}, 7) is None
         msgs = self._records_for(caplog)
         assert any("reason=missing_kind" in m and "index=7" in m for m in msgs)
 
-    def test_non_string_kind_emits_drop_log(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_non_string_kind_emits_drop_log(self, caplog: pytest.LogCaptureFixture) -> None:
         caplog.set_level("DEBUG", logger="roboscope.recording.translate")
         assert translate_payload({"kind": 42}, 0) is None
         msgs = self._records_for(caplog)
@@ -246,48 +237,38 @@ class TestDropPathObservability:
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         caplog.set_level("DEBUG", logger="roboscope.recording.translate")
-        assert translate_payload(
-            {"kind": "custom_action", "element": _el()}, 3,
-        ) is None
-        msgs = self._records_for(caplog)
-        assert any(
-            "reason=custom_action_missing_keyword" in m and "index=3" in m
-            for m in msgs
+        assert (
+            translate_payload(
+                {"kind": "custom_action", "element": _el()},
+                3,
+            )
+            is None
         )
+        msgs = self._records_for(caplog)
+        assert any("reason=custom_action_missing_keyword" in m and "index=3" in m for m in msgs)
 
-    def test_navigate_without_url_emits_drop_log(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_navigate_without_url_emits_drop_log(self, caplog: pytest.LogCaptureFixture) -> None:
         caplog.set_level("DEBUG", logger="roboscope.recording.translate")
         assert translate_payload({"kind": "navigate"}, 9) is None
         msgs = self._records_for(caplog)
-        assert any(
-            "reason=navigate_missing_url" in m and "index=9" in m
-            for m in msgs
-        )
+        assert any("reason=navigate_missing_url" in m and "index=9" in m for m in msgs)
 
-    def test_unknown_kind_emits_drop_log(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_unknown_kind_emits_drop_log(self, caplog: pytest.LogCaptureFixture) -> None:
         caplog.set_level("DEBUG", logger="roboscope.recording.translate")
         assert translate_payload({"kind": "teleport"}, 5) is None
         msgs = self._records_for(caplog)
         assert any(
-            "reason=unknown_kind" in m
-            and "kind=teleport" in m
-            and "index=5" in m
-            for m in msgs
+            "reason=unknown_kind" in m and "kind=teleport" in m and "index=5" in m for m in msgs
         )
 
-    def test_happy_path_emits_no_drop_log(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_happy_path_emits_no_drop_log(self, caplog: pytest.LogCaptureFixture) -> None:
         # A successful translate must never emit a "translate.dropped"
         # line — operators reading the logs would otherwise see false
         # positives for every recorded action.
         caplog.set_level("DEBUG", logger="roboscope.recording.translate")
         cmd = translate_payload(
-            {"kind": "navigate", "url": "https://x"}, 0,
+            {"kind": "navigate", "url": "https://x"},
+            0,
         )
         assert cmd is not None
         msgs = self._records_for(caplog)

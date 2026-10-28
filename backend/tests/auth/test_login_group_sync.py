@@ -7,10 +7,6 @@ with a clear signal even if the callback-happy-path tests still pass.
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timedelta, timezone
-
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -20,11 +16,9 @@ from src.auth.models import (
     OidcLoginAttempt,
     User,
 )
-from src.encryption import encrypt_value
 from src.teams.models import Team, TeamMember
+from tests.auth.test_sso_callback import _make_attempt, _make_idp
 from tests.fixtures.mock_oidc import ISSUER, mock_oidc  # noqa: F401
-from tests.auth.test_sso_callback import _CLIENT_ID, _make_idp, _make_attempt
-
 
 BASE_URL = "/api/v1/auth/sso"
 
@@ -71,11 +65,7 @@ def _do_login(
 
 def _user_memberships(db: Session, user_email: str) -> list[TeamMember]:
     user = db.query(User).filter(User.email == user_email).one()
-    return (
-        db.query(TeamMember)
-        .filter(TeamMember.user_id == user.id)
-        .all()
-    )
+    return db.query(TeamMember).filter(TeamMember.user_id == user.id).all()
 
 
 class TestLoginGroupSync:
@@ -107,7 +97,9 @@ class TestLoginGroupSync:
     ) -> None:
         idp = _make_idp(db_session)
         manual_team, _ = _seed_team_and_mapping(
-            db_session, idp, "security"  # unused mapping — just to create team
+            db_session,
+            idp,
+            "security",  # unused mapping — just to create team
         )
         # Recreate a Team without a matching IdPGroupMapping so it's a pure
         # manual grant that the sync should NEVER see as "expected".
@@ -146,9 +138,7 @@ class TestLoginGroupSync:
         self, client: TestClient, db_session: Session, mock_oidc
     ) -> None:
         idp = _make_idp(db_session)
-        team, mapping = _seed_team_and_mapping(
-            db_session, idp, "engineering", role="viewer"
-        )
+        team, mapping = _seed_team_and_mapping(db_session, idp, "engineering", role="viewer")
 
         attempt1 = _make_attempt(db_session, idp, state="drift-1", nonce="n-d1")
         _do_login(client, attempt1, mock_oidc, groups=["engineering"])
@@ -193,9 +183,7 @@ class TestLoginGroupSync:
 
         idp = _make_idp(db_session)
         attempt = _make_attempt(db_session, idp, state="seen-1", nonce="n-seen-1")
-        _do_login(
-            client, attempt, mock_oidc, groups=["engineering", "security"]
-        )
+        _do_login(client, attempt, mock_oidc, groups=["engineering", "security"])
 
         cached = list_seen_groups(db_session, idp.id)
         assert sorted(cached) == ["engineering", "security"]

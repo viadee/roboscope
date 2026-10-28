@@ -34,7 +34,6 @@ import pytest
 from src.environments.service import (
     generate_dockerfile,
     playwright_docker_base_image,
-    playwright_pinned_version,
 )
 
 
@@ -143,7 +142,9 @@ def _docker_available() -> bool:
     try:
         r = subprocess.run(
             ["docker", "version"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         return r.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -177,7 +178,9 @@ def test_derived_docker_tag_is_pullable() -> None:
     # the image, runs in <1 s even on a cold cache.
     result = subprocess.run(
         ["docker", "manifest", "inspect", image],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     assert result.returncode == 0, (
         f"Derived Playwright Docker tag {image!r} is not pullable.\n"
@@ -210,12 +213,17 @@ def test_freshly_built_image_chromium_launch(tmp_path) -> None:
     image_tag = f"roboscope-playwright-smoke:{tmp_path.name[-24:]}".lower()
     build = subprocess.run(
         [
-            "docker", "build",
-            "-f", str(dockerfile),
-            "-t", image_tag,
+            "docker",
+            "build",
+            "-f",
+            str(dockerfile),
+            "-t",
+            image_tag,
             str(tmp_path),
         ],
-        capture_output=True, text=True, timeout=900,
+        capture_output=True,
+        text=True,
+        timeout=900,
     )
     if build.returncode != 0:
         pytest.fail(
@@ -230,8 +238,12 @@ def test_freshly_built_image_chromium_launch(tmp_path) -> None:
         # version match end-to-end.
         run = subprocess.run(
             [
-                "docker", "run", "--rm", image_tag,
-                "python", "-c",
+                "docker",
+                "run",
+                "--rm",
+                image_tag,
+                "python",
+                "-c",
                 "from Browser import Browser\n"
                 "b = Browser()\n"
                 "b.new_browser(browser='chromium', headless=True)\n"
@@ -240,7 +252,9 @@ def test_freshly_built_image_chromium_launch(tmp_path) -> None:
                 "b.close_browser('ALL')\n"
                 "print('LAUNCH_OK')\n",
             ],
-            capture_output=True, text=True, timeout=180,
+            capture_output=True,
+            text=True,
+            timeout=180,
         )
         assert run.returncode == 0, (
             "Fresh image cannot launch Chromium — likely Playwright-vs-"
@@ -251,5 +265,6 @@ def test_freshly_built_image_chromium_launch(tmp_path) -> None:
     finally:
         subprocess.run(
             ["docker", "rmi", "-f", image_tag],
-            capture_output=True, timeout=30,
+            capture_output=True,
+            timeout=30,
         )

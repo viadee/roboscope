@@ -24,17 +24,11 @@ class TeamMember(Base, TimestampMixin):
     """Membership of a user in a team with a specific role."""
 
     __tablename__ = "team_members"
-    __table_args__ = (
-        UniqueConstraint("team_id", "user_id", name="uq_team_members_team_user"),
-    )
+    __table_args__ = (UniqueConstraint("team_id", "user_id", name="uq_team_members_team_user"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    team_id: Mapped[int] = mapped_column(
-        ForeignKey("teams.id", ondelete="CASCADE"), index=True
-    )
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
-    )
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     role: Mapped[str] = mapped_column(String(20), default="viewer")
     source: Mapped[str] = mapped_column(String(20), default="manual")
     external_id: Mapped[str | None] = mapped_column(String(255), default=None, nullable=True)

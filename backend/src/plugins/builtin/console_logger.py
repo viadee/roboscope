@@ -22,7 +22,9 @@ class ConsoleLoggerPlugin(IntegrationPlugin):
         logger.info("ConsoleLoggerPlugin shutdown")
 
     def on_run_started(self, run_data: dict) -> None:
-        logger.info(f"[ConsoleLogger] Run started: #{run_data.get('id')} - {run_data.get('target_path')}")
+        logger.info(
+            f"[ConsoleLogger] Run started: #{run_data.get('id')} - {run_data.get('target_path')}"
+        )
 
     def on_run_completed(self, run_data: dict, report_data: dict | None = None) -> None:
         status = run_data.get("status", "unknown")
@@ -34,6 +36,4 @@ class ConsoleLoggerPlugin(IntegrationPlugin):
         )
 
     def on_run_failed(self, run_data: dict, error: str) -> None:
-        logger.warning(
-            f"[ConsoleLogger] Run failed: #{run_data.get('id')} - {error}"
-        )
+        logger.warning(f"[ConsoleLogger] Run failed: #{run_data.get('id')} - {error}")

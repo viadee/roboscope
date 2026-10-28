@@ -17,7 +17,7 @@ only). Tracked in deferred-work.md.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
@@ -39,10 +39,8 @@ def cleanup_oidc_login_attempts(db: Session | None = None) -> int:
     if db is None:
         db = SessionLocal()
     try:
-        now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
-        result = db.execute(
-            delete(OidcLoginAttempt).where(OidcLoginAttempt.expires_at < now_naive)
-        )
+        now_naive = datetime.now(UTC).replace(tzinfo=None)
+        result = db.execute(delete(OidcLoginAttempt).where(OidcLoginAttempt.expires_at < now_naive))
         deleted = result.rowcount or 0
         db.commit()
         logger.info("retention.oidc_login_attempts cleaned=%d", deleted)
@@ -58,12 +56,8 @@ def cleanup_rate_limit_counters(db: Session | None = None) -> int:
     if db is None:
         db = SessionLocal()
     try:
-        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
-            hours=_RATE_LIMIT_WINDOW_HOURS
-        )
-        result = db.execute(
-            delete(RateLimitCounter).where(RateLimitCounter.window_start < cutoff)
-        )
+        cutoff = datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=_RATE_LIMIT_WINDOW_HOURS)
+        result = db.execute(delete(RateLimitCounter).where(RateLimitCounter.window_start < cutoff))
         deleted = result.rowcount or 0
         db.commit()
         logger.info("retention.rate_limit_counters cleaned=%d", deleted)
@@ -105,8 +99,8 @@ def expire_sso_emergency_bypass(db: Session | None = None) -> bool:
             return False
 
         if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
-        if datetime.now(timezone.utc) < expires_at:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if datetime.now(UTC) < expires_at:
             return False
 
         flag.value = "false"
@@ -138,7 +132,7 @@ def abort_idle_recording_sessions(db: Session | None = None) -> int:
         from src.audit.event_types import AuditEventType
         from src.audit.service import log_event
 
-        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+        cutoff = datetime.now(UTC).replace(tzinfo=None) - timedelta(
             minutes=_RECORDING_IDLE_TIMEOUT_MINUTES
         )
         idle_rows = (
@@ -152,7 +146,7 @@ def abort_idle_recording_sessions(db: Session | None = None) -> int:
         if not idle_rows:
             return 0
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for row in idle_rows:
             row.status = RecordingStatus.CANCELLED
             row.finished_at = now

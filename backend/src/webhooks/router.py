@@ -107,9 +107,7 @@ def reassign_token(
 
     token = db.get(ApiToken, token_id)
     if token is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Token not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token not found")
 
     new_owner = get_user_by_id(db, data.user_id)
     if new_owner is None:
@@ -128,9 +126,7 @@ def reassign_token(
 
     # Story 5-4: re-cap the token at the new owner's global role.
     # Never elevates — only tightens when the new owner is more restricted.
-    effective_role = (
-        token.role if token_role_level <= new_user_role_level else new_owner.role
-    )
+    effective_role = token.role if token_role_level <= new_user_role_level else new_owner.role
 
     previous_role = token.role
     token.user_id = new_owner.id
@@ -175,7 +171,8 @@ def create_hook(
         webhook = create_webhook(db, data.model_dump(), current_user.id)
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e),
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
         ) from e
     return _webhook_to_response(webhook)
 
@@ -219,7 +216,8 @@ def update_hook(
         updated = update_webhook(db, webhook, data.model_dump(exclude_unset=True))
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e),
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
         ) from e
     return _webhook_to_response(updated)
 
@@ -300,9 +298,7 @@ def git_webhook_inbound(
 
     repo = None
     for url in urls_to_try:
-        repo = db.execute(
-            select(Repository).where(Repository.git_url == url)
-        ).scalar_one_or_none()
+        repo = db.execute(select(Repository).where(Repository.git_url == url)).scalar_one_or_none()
         if repo:
             break
 
@@ -311,8 +307,8 @@ def git_webhook_inbound(
         return {"status": "ignored", "reason": "No matching repository"}
 
     # Create a test run for this repo
-    from src.execution.models import ExecutionRun, RunStatus, RunType
     import src.auth.models  # noqa: F401 — FK resolution
+    from src.execution.models import ExecutionRun, RunStatus, RunType
 
     run = ExecutionRun(
         repository_id=repo.id,
@@ -333,9 +329,9 @@ def git_webhook_inbound(
     # guarantees it finishes before the run starts. A failure to
     # dispatch the sync is logged but does NOT abort the run.
     try:
-        from src.task_executor import TaskDispatchError, dispatch_task
         from src.execution.tasks import execute_test_run
         from src.repos.tasks import sync_repo
+        from src.task_executor import TaskDispatchError, dispatch_task
 
         if repo.repo_type == "git" and repo.git_url:
             try:
@@ -344,7 +340,9 @@ def git_webhook_inbound(
                 logger.warning(
                     "Webhook: pre-run sync dispatch failed for repo %d (%s): %s — "
                     "run will use on-disk state",
-                    repo.id, repo.name, e,
+                    repo.id,
+                    repo.name,
+                    e,
                 )
 
         result = dispatch_task(execute_test_run, run.id)
@@ -358,7 +356,9 @@ def git_webhook_inbound(
 
     logger.info(
         "Git webhook: triggered run %d for repo '%s' (branch: %s)",
-        run.id, repo.name, branch or repo.default_branch,
+        run.id,
+        repo.name,
+        branch or repo.default_branch,
     )
     return {
         "status": "triggered",
@@ -394,7 +394,7 @@ def _extract_branch(payload: dict) -> str | None:
     # no attribute 'startswith'`.
     ref = payload.get("ref")
     if isinstance(ref, str) and ref.startswith("refs/heads/"):
-        return ref[len("refs/heads/"):]
+        return ref[len("refs/heads/") :]
     return None
 
 

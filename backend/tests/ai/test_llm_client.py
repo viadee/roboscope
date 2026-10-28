@@ -270,7 +270,9 @@ class TestCallAnthropic:
     def test_custom_base_url(self, mock_client_cls):
         """Custom api_base_url is used for Anthropic."""
         client = _mock_httpx_client(mock_client_cls, _anthropic_response())
-        provider = _make_provider(provider_type="anthropic", api_base_url="https://proxy.example.com")
+        provider = _make_provider(
+            provider_type="anthropic", api_base_url="https://proxy.example.com"
+        )
 
         _call_anthropic(provider, "key", "sys", "usr")
 
@@ -353,7 +355,9 @@ class TestCallAnthropic:
     @patch("httpx.Client")
     def test_response_parsing(self, mock_client_cls):
         """Content and token count are extracted from Anthropic response."""
-        _mock_httpx_client(mock_client_cls, _anthropic_response(text="hello", input_tokens=10, output_tokens=20))
+        _mock_httpx_client(
+            mock_client_cls, _anthropic_response(text="hello", input_tokens=10, output_tokens=20)
+        )
         provider = _make_provider(provider_type="anthropic")
 
         result = _call_anthropic(provider, None, "sys", "usr")

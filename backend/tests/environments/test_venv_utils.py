@@ -56,8 +56,11 @@ class TestPipInstallCmd:
         ):
             cmd = venv_utils.pip_install_cmd("/my/venv", "requests")
         assert cmd == [
-            "/usr/bin/uv", "pip", "install",
-            "--python", "/my/venv/bin/python",
+            "/usr/bin/uv",
+            "pip",
+            "install",
+            "--python",
+            "/my/venv/bin/python",
             "requests",
         ]
 
@@ -68,11 +71,14 @@ class TestPipInstallCmd:
         ):
             cmd = venv_utils.pip_install_cmd("/my/venv", "requests", "flask")
         assert cmd == [
-            "/usr/bin/uv", "pip", "install",
-            "--python", "/my/venv/bin/python",
-            "requests", "flask",
+            "/usr/bin/uv",
+            "pip",
+            "install",
+            "--python",
+            "/my/venv/bin/python",
+            "requests",
+            "flask",
         ]
-
 
     def test_with_index_url(self):
         with (
@@ -83,9 +89,13 @@ class TestPipInstallCmd:
                 "/my/venv", "requests", index_url="https://my-registry.example.com/simple/"
             )
         assert cmd == [
-            "/usr/bin/uv", "pip", "install",
-            "--python", "/my/venv/bin/python",
-            "--index-url", "https://my-registry.example.com/simple/",
+            "/usr/bin/uv",
+            "pip",
+            "install",
+            "--python",
+            "/my/venv/bin/python",
+            "--index-url",
+            "https://my-registry.example.com/simple/",
             "requests",
         ]
 
@@ -98,9 +108,13 @@ class TestPipInstallCmd:
                 "/my/venv", "requests", extra_index_url="https://extra.example.com/simple/"
             )
         assert cmd == [
-            "/usr/bin/uv", "pip", "install",
-            "--python", "/my/venv/bin/python",
-            "--extra-index-url", "https://extra.example.com/simple/",
+            "/usr/bin/uv",
+            "pip",
+            "install",
+            "--python",
+            "/my/venv/bin/python",
+            "--extra-index-url",
+            "https://extra.example.com/simple/",
             "requests",
         ]
 
@@ -110,15 +124,21 @@ class TestPipInstallCmd:
             patch.object(venv_utils.sys, "platform", "linux"),
         ):
             cmd = venv_utils.pip_install_cmd(
-                "/my/venv", "requests",
+                "/my/venv",
+                "requests",
                 index_url="https://main.example.com/simple/",
                 extra_index_url="https://extra.example.com/simple/",
             )
         assert cmd == [
-            "/usr/bin/uv", "pip", "install",
-            "--python", "/my/venv/bin/python",
-            "--index-url", "https://main.example.com/simple/",
-            "--extra-index-url", "https://extra.example.com/simple/",
+            "/usr/bin/uv",
+            "pip",
+            "install",
+            "--python",
+            "/my/venv/bin/python",
+            "--index-url",
+            "https://main.example.com/simple/",
+            "--extra-index-url",
+            "https://extra.example.com/simple/",
             "requests",
         ]
 
@@ -131,8 +151,11 @@ class TestPipInstallCmd:
                 "/my/venv", "requests", index_url=None, extra_index_url=None
             )
         assert cmd == [
-            "/usr/bin/uv", "pip", "install",
-            "--python", "/my/venv/bin/python",
+            "/usr/bin/uv",
+            "pip",
+            "install",
+            "--python",
+            "/my/venv/bin/python",
             "requests",
         ]
 
@@ -145,8 +168,11 @@ class TestPipUninstallCmd:
         ):
             cmd = venv_utils.pip_uninstall_cmd("/my/venv", "requests")
         assert cmd == [
-            "/usr/bin/uv", "pip", "uninstall",
-            "--python", "/my/venv/bin/python",
+            "/usr/bin/uv",
+            "pip",
+            "uninstall",
+            "--python",
+            "/my/venv/bin/python",
             "requests",
         ]
 
@@ -159,8 +185,11 @@ class TestPipShowCmd:
         ):
             cmd = venv_utils.pip_show_cmd("/my/venv", "requests")
         assert cmd == [
-            "/usr/bin/uv", "pip", "show",
-            "--python", "/my/venv/bin/python",
+            "/usr/bin/uv",
+            "pip",
+            "show",
+            "--python",
+            "/my/venv/bin/python",
             "requests",
         ]
 
@@ -173,8 +202,11 @@ class TestPipListCmd:
         ):
             cmd = venv_utils.pip_list_cmd("/my/venv")
         assert cmd == [
-            "/usr/bin/uv", "pip", "list",
-            "--python", "/my/venv/bin/python",
+            "/usr/bin/uv",
+            "pip",
+            "list",
+            "--python",
+            "/my/venv/bin/python",
             "--format=json",
         ]
 
@@ -245,7 +277,9 @@ class TestCheckRfbrowserInitialized:
     def test_unix_initialized(self, tmp_path):
         """Returns True when node_modules exists under Browser/wrapper."""
         venv = tmp_path / "venv"
-        node_modules = venv / "lib" / "python3.12" / "site-packages" / "Browser" / "wrapper" / "node_modules"
+        node_modules = (
+            venv / "lib" / "python3.12" / "site-packages" / "Browser" / "wrapper" / "node_modules"
+        )
         node_modules.mkdir(parents=True)
         with patch.object(venv_utils.sys, "platform", "linux"):
             assert venv_utils.check_rfbrowser_initialized(str(venv)) is True
@@ -275,7 +309,9 @@ class TestCheckRfbrowserInitialized:
     def test_unix_different_python_version(self, tmp_path):
         """Glob matches any python3.X version."""
         venv = tmp_path / "venv"
-        node_modules = venv / "lib" / "python3.13" / "site-packages" / "Browser" / "wrapper" / "node_modules"
+        node_modules = (
+            venv / "lib" / "python3.13" / "site-packages" / "Browser" / "wrapper" / "node_modules"
+        )
         node_modules.mkdir(parents=True)
         with patch.object(venv_utils.sys, "platform", "linux"):
             assert venv_utils.check_rfbrowser_initialized(str(venv)) is True

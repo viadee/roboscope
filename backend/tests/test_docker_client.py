@@ -38,8 +38,10 @@ class TestGetDockerClient:
         # object after import.
         import docker as docker_module
 
-        with patch.object(docker_module, "from_env", return_value=stub_client) as mock_from_env, \
-             patch("src.docker_client.subprocess.check_output") as mock_subprocess:
+        with (
+            patch.object(docker_module, "from_env", return_value=stub_client) as mock_from_env,
+            patch("src.docker_client.subprocess.check_output") as mock_subprocess,
+        ):
             client = get_docker_client()
 
         assert client is stub_client
@@ -51,22 +53,27 @@ class TestGetDockerClient:
         """`from_env()` fails → `docker context inspect` produces a
         Host → `DockerClient(base_url=Host)` is used.
         """
-        import docker as docker_module
         import json
 
-        ctx_payload = json.dumps([
-            {"Endpoints": {"docker": {"Host": "unix:///custom/docker.sock"}}},
-        ])
+        import docker as docker_module
+
+        ctx_payload = json.dumps(
+            [
+                {"Endpoints": {"docker": {"Host": "unix:///custom/docker.sock"}}},
+            ]
+        )
 
         ctx_client = MagicMock(name="ctx_client")
         ctx_client.ping.return_value = True
 
-        with patch.object(docker_module, "from_env", side_effect=RuntimeError("no env")), \
-             patch.object(docker_module, "DockerClient", return_value=ctx_client) as mock_dc, \
-             patch(
-                 "src.docker_client.subprocess.check_output",
-                 return_value=ctx_payload,
-             ):
+        with (
+            patch.object(docker_module, "from_env", side_effect=RuntimeError("no env")),
+            patch.object(docker_module, "DockerClient", return_value=ctx_client) as mock_dc,
+            patch(
+                "src.docker_client.subprocess.check_output",
+                return_value=ctx_payload,
+            ),
+        ):
             client = get_docker_client()
 
         assert client is ctx_client
@@ -76,36 +83,43 @@ class TestGetDockerClient:
         """`from_env()` fails AND no context Host → typed error."""
         import docker as docker_module
 
-        with patch.object(docker_module, "from_env", side_effect=RuntimeError("no env")), \
-             patch(
-                 "src.docker_client.subprocess.check_output",
-                 side_effect=FileNotFoundError("docker CLI not on PATH"),
-             ):
-            with pytest.raises(DockerNotAvailableError):
-                get_docker_client()
+        with (
+            patch.object(docker_module, "from_env", side_effect=RuntimeError("no env")),
+            patch(
+                "src.docker_client.subprocess.check_output",
+                side_effect=FileNotFoundError("docker CLI not on PATH"),
+            ),
+            pytest.raises(DockerNotAvailableError),
+        ):
+            get_docker_client()
 
     def test_raises_when_context_host_pings_fail(self):
         """The context fallback Host exists but pinging *that* client
         also fails → still raises `DockerNotAvailableError`.
         """
-        import docker as docker_module
         import json
 
-        ctx_payload = json.dumps([
-            {"Endpoints": {"docker": {"Host": "tcp://1.2.3.4:2376"}}},
-        ])
+        import docker as docker_module
+
+        ctx_payload = json.dumps(
+            [
+                {"Endpoints": {"docker": {"Host": "tcp://1.2.3.4:2376"}}},
+            ]
+        )
 
         broken_ctx_client = MagicMock(name="ctx_client")
         broken_ctx_client.ping.side_effect = RuntimeError("connection refused")
 
-        with patch.object(docker_module, "from_env", side_effect=RuntimeError("no env")), \
-             patch.object(docker_module, "DockerClient", return_value=broken_ctx_client), \
-             patch(
-                 "src.docker_client.subprocess.check_output",
-                 return_value=ctx_payload,
-             ):
-            with pytest.raises(DockerNotAvailableError):
-                get_docker_client()
+        with (
+            patch.object(docker_module, "from_env", side_effect=RuntimeError("no env")),
+            patch.object(docker_module, "DockerClient", return_value=broken_ctx_client),
+            patch(
+                "src.docker_client.subprocess.check_output",
+                return_value=ctx_payload,
+            ),
+            pytest.raises(DockerNotAvailableError),
+        ):
+            get_docker_client()
 
 
 class TestResolveContextHost:
@@ -125,6 +139,7 @@ class TestResolveContextHost:
 
     def test_returns_none_on_empty_endpoints(self):
         import json
+
         payload = json.dumps([{"Name": "default", "Endpoints": {}}])
         with patch(
             "src.docker_client.subprocess.check_output",
@@ -134,9 +149,12 @@ class TestResolveContextHost:
 
     def test_extracts_host(self):
         import json
-        payload = json.dumps([
-            {"Endpoints": {"docker": {"Host": "tcp://host:2375"}}},
-        ])
+
+        payload = json.dumps(
+            [
+                {"Endpoints": {"docker": {"Host": "tcp://host:2375"}}},
+            ]
+        )
         with patch(
             "src.docker_client.subprocess.check_output",
             return_value=payload,
@@ -151,9 +169,12 @@ class TestResolveContextHost:
         an `Any` upstream.
         """
         import json
-        payload = json.dumps([
-            {"Endpoints": {"docker": {"Host": 12345}}},
-        ])
+
+        payload = json.dumps(
+            [
+                {"Endpoints": {"docker": {"Host": 12345}}},
+            ]
+        )
         with patch(
             "src.docker_client.subprocess.check_output",
             return_value=payload,
@@ -166,6 +187,7 @@ class TestResolveContextHost:
         cleanly.
         """
         import json
+
         payload = json.dumps(["bogus-context-string"])
         with patch(
             "src.docker_client.subprocess.check_output",
@@ -180,10 +202,11 @@ class TestBackwardsCompat:
         must keep working — it lives in `src.docker_client` now but
         gets re-exported.
         """
-        from src.execution.runners.docker_runner import (
-            DockerNotAvailableError as RunnerExport,
-        )
         from src.docker_client import (
             DockerNotAvailableError as Canonical,
         )
+        from src.execution.runners.docker_runner import (
+            DockerNotAvailableError as RunnerExport,
+        )
+
         assert RunnerExport is Canonical

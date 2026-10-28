@@ -62,9 +62,7 @@ def test_create_idp_success(client: TestClient, admin_headers: dict):
     assert "client_secret_encrypted" not in body
 
 
-def test_create_idp_secret_encrypted(
-    client: TestClient, admin_headers: dict, db_session: Session
-):
+def test_create_idp_secret_encrypted(client: TestClient, admin_headers: dict, db_session: Session):
     client.post(BASE_URL, json=VALID_IDP_DATA, headers=admin_headers)
     idp = db_session.query(IdentityProvider).filter_by(name="azure-prod").first()
     assert idp is not None
@@ -145,9 +143,7 @@ def test_update_idp(client: TestClient, admin_headers: dict):
     assert resp.json()["scopes"] == "openid email"
 
 
-def test_update_idp_secret(
-    client: TestClient, admin_headers: dict, db_session: Session
-):
+def test_update_idp_secret(client: TestClient, admin_headers: dict, db_session: Session):
     create_resp = client.post(BASE_URL, json=VALID_IDP_DATA, headers=admin_headers)
     idp_id = create_resp.json()["id"]
     client.patch(

@@ -26,16 +26,24 @@ NESTED_XML = """\
 
 def test_long_name_combines_suite_and_test():
     r = TestResultResponse(
-        id=1, report_id=1, suite_name="Root.Child", test_name="Login Works",
-        status="PASS", duration_seconds=1.0,
+        id=1,
+        report_id=1,
+        suite_name="Root.Child",
+        test_name="Login Works",
+        status="PASS",
+        duration_seconds=1.0,
     )
     assert r.long_name == "Root.Child.Login Works"
 
 
 def test_long_name_degrades_without_suite():
     r = TestResultResponse(
-        id=1, report_id=1, suite_name="", test_name="Solo",
-        status="PASS", duration_seconds=0.0,
+        id=1,
+        report_id=1,
+        suite_name="",
+        test_name="Solo",
+        status="PASS",
+        duration_seconds=0.0,
     )
     assert r.long_name == "Solo"
 

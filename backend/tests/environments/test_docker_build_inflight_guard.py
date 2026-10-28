@@ -27,7 +27,9 @@ def env_with_package(db_session: Session, admin_user):
 
 class TestDockerBuildInFlightGuard:
     @patch("src.environments.router.dispatch_task")
-    def test_dispatches_when_no_build_in_flight(self, mock_dispatch, client, env_with_package, admin_user):
+    def test_dispatches_when_no_build_in_flight(
+        self, mock_dispatch, client, env_with_package, admin_user
+    ):
         mock_dispatch.return_value = MagicMock(id="task-1")
         resp = client.post(
             f"/api/v1/environments/{env_with_package.id}/docker-build",

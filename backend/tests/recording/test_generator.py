@@ -18,9 +18,11 @@ class TestGenerateRobotFile:
         assert "No events were recorded" in result
 
     def test_navigate_browser(self):
-        events = json.dumps([
-            {"event_type": "navigate", "url": "https://example.com"},
-        ])
+        events = json.dumps(
+            [
+                {"event_type": "navigate", "url": "https://example.com"},
+            ]
+        )
         result = generate_robot_file(events, "Browser")
         assert "New Browser" in result
         # Story RECORDER-NAV-1 — Run 32 hit a 10s `page.goto` timeout
@@ -34,44 +36,56 @@ class TestGenerateRobotFile:
         assert "New Page    https://example.com    wait_until=domcontentloaded" in result
 
     def test_navigate_selenium(self):
-        events = json.dumps([
-            {"event_type": "navigate", "url": "https://example.com"},
-        ])
+        events = json.dumps(
+            [
+                {"event_type": "navigate", "url": "https://example.com"},
+            ]
+        )
         result = generate_robot_file(events, "SeleniumLibrary")
         assert "Open Browser    https://example.com" in result
 
     def test_click_browser(self):
-        events = json.dumps([
-            {"event_type": "click", "selector": "//button[@id='submit']"},
-        ])
+        events = json.dumps(
+            [
+                {"event_type": "click", "selector": "//button[@id='submit']"},
+            ]
+        )
         result = generate_robot_file(events, "Browser")
         assert "Click    //button[@id='submit']" in result
 
     def test_click_selenium(self):
-        events = json.dumps([
-            {"event_type": "click", "selector": "//button[@id='submit']"},
-        ])
+        events = json.dumps(
+            [
+                {"event_type": "click", "selector": "//button[@id='submit']"},
+            ]
+        )
         result = generate_robot_file(events, "SeleniumLibrary")
         assert "Click Element    //button[@id='submit']" in result
 
     def test_input_browser(self):
-        events = json.dumps([
-            {"event_type": "input", "selector": "//input[@id='user']", "value": "admin"},
-        ])
+        events = json.dumps(
+            [
+                {"event_type": "input", "selector": "//input[@id='user']", "value": "admin"},
+            ]
+        )
         result = generate_robot_file(events, "Browser")
         assert "Fill Text    //input[@id='user']    admin" in result
 
     def test_input_selenium(self):
-        events = json.dumps([
-            {"event_type": "input", "selector": "//input[@id='user']", "value": "admin"},
-        ])
+        events = json.dumps(
+            [
+                {"event_type": "input", "selector": "//input[@id='user']", "value": "admin"},
+            ]
+        )
         result = generate_robot_file(events, "SeleniumLibrary")
         assert "Input Text    //input[@id='user']    admin" in result
 
     def test_password_masked(self):
-        events = json.dumps([
-            {"event_type": "password", "selector": "//input[@id='pass']", "value": "secret"},
-        ])
+        events = json.dumps(
+            [
+                {"event_type": "password", "selector": "//input[@id='pass']", "value": "secret"},
+            ]
+        )
         result = generate_robot_file(events, "Browser")
         # L1: reference a ${PASSWORD} variable (defined as a placeholder),
         # not a literal "***" that types asterisks and breaks login.
@@ -80,29 +94,33 @@ class TestGenerateRobotFile:
         assert "secret" not in result
 
     def test_select_browser(self):
-        events = json.dumps([
-            {"event_type": "select", "selector": "//select[@id='role']", "value": "admin"},
-        ])
+        events = json.dumps(
+            [
+                {"event_type": "select", "selector": "//select[@id='role']", "value": "admin"},
+            ]
+        )
         result = generate_robot_file(events, "Browser")
         assert "Select Options By    //select[@id='role']    value    admin" in result
 
     def test_select_selenium(self):
-        events = json.dumps([
-            {"event_type": "select", "selector": "//select[@id='role']", "value": "admin"},
-        ])
+        events = json.dumps(
+            [
+                {"event_type": "select", "selector": "//select[@id='role']", "value": "admin"},
+            ]
+        )
         result = generate_robot_file(events, "SeleniumLibrary")
         assert "Select From List By Value    //select[@id='role']    admin" in result
 
     def test_full_recording_sequence(self):
-        events = json.dumps([
-            {"event_type": "navigate", "url": "https://example.com/login"},
-            {"event_type": "input", "selector": "//input[@id='user']", "value": "admin"},
-            {"event_type": "password", "selector": "//input[@id='pass']", "value": "pw"},
-            {"event_type": "click", "selector": "//button[@type='submit']"},
-        ])
-        result = generate_robot_file(
-            events, "Browser", target_url="https://example.com/login"
+        events = json.dumps(
+            [
+                {"event_type": "navigate", "url": "https://example.com/login"},
+                {"event_type": "input", "selector": "//input[@id='user']", "value": "admin"},
+                {"event_type": "password", "selector": "//input[@id='pass']", "value": "pw"},
+                {"event_type": "click", "selector": "//button[@type='submit']"},
+            ]
         )
+        result = generate_robot_file(events, "Browser", target_url="https://example.com/login")
         assert "*** Settings ***" in result
         assert "Library           Browser" in result
         assert "*** Variables ***" in result
@@ -114,16 +132,20 @@ class TestGenerateRobotFile:
         assert len(steps) >= 4
 
     def test_custom_test_name(self):
-        events = json.dumps([
-            {"event_type": "click", "selector": "//button"},
-        ])
+        events = json.dumps(
+            [
+                {"event_type": "click", "selector": "//button"},
+            ]
+        )
         result = generate_robot_file(events, "Browser", test_name="Login Flow")
         assert "Login Flow" in result
 
     def test_settings_section_has_library(self):
-        events = json.dumps([
-            {"event_type": "click", "selector": "//button"},
-        ])
+        events = json.dumps(
+            [
+                {"event_type": "click", "selector": "//button"},
+            ]
+        )
         result = generate_robot_file(events, "SeleniumLibrary")
         assert "Library           SeleniumLibrary" in result
         assert "Close Browser" in result
@@ -135,17 +157,21 @@ class TestPasswordVariable:
     break the login — and must never emit the real captured secret."""
 
     def test_password_uses_variable_not_literal(self):
-        events = json.dumps([
-            {"event_type": "password", "selector": "#pw", "value": "hunter2"},
-        ])
+        events = json.dumps(
+            [
+                {"event_type": "password", "selector": "#pw", "value": "hunter2"},
+            ]
+        )
         out = generate_robot_file(events, "Browser")
         assert "${PASSWORD}" in out
         assert "${PASSWORD}    CHANGE_ME" in out  # placeholder defined
-        assert "hunter2" not in out               # real secret never emitted
+        assert "hunter2" not in out  # real secret never emitted
 
     def test_no_password_no_password_var(self):
-        events = json.dumps([
-            {"event_type": "input", "selector": "#u", "value": "alice"},
-        ])
+        events = json.dumps(
+            [
+                {"event_type": "input", "selector": "#u", "value": "alice"},
+            ]
+        )
         out = generate_robot_file(events, "Browser")
         assert "${PASSWORD}" not in out

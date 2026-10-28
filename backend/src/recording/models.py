@@ -11,6 +11,7 @@ else:
     class StrEnum(str, Enum):
         pass
 
+
 from sqlalchemy import Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,12 +39,8 @@ class RecordingSession(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     repository_id: Mapped[int] = mapped_column(ForeignKey("repositories.id"), index=True)
-    environment_id: Mapped[int | None] = mapped_column(
-        ForeignKey("environments.id"), default=None
-    )
-    status: Mapped[str] = mapped_column(
-        String(20), default=RecordingStatus.PENDING, index=True
-    )
+    environment_id: Mapped[int | None] = mapped_column(ForeignKey("environments.id"), default=None)
+    status: Mapped[str] = mapped_column(String(20), default=RecordingStatus.PENDING, index=True)
     source: Mapped[str] = mapped_column(String(20), default=RecordingSource.PLAYWRIGHT)
     target_url: Mapped[str | None] = mapped_column(String(2000), default=None)
     target_file_path: Mapped[str | None] = mapped_column(String(500), default=None)

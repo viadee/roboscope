@@ -11,7 +11,6 @@ from src.auth.constants import ROLE_HIERARCHY, Role
 from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
 from src.database import get_db
-from src.governance.dependencies import require_package_op
 from src.environments.models import Environment, EnvironmentKeywordCache, EnvironmentPackage
 from src.environments.schemas import (
     DockerfileUpdate,
@@ -48,6 +47,7 @@ from src.environments.service import (
     update_variable,
     variable_key_taken,
 )
+from src.governance.dependencies import require_package_op
 from src.task_executor import TaskDispatchError, dispatch_task
 
 logger = logging.getLogger("roboscope.environments")
@@ -86,7 +86,10 @@ def add_environment(
     # Pointing an environment at an arbitrary interpreter on the server
     # (RoboScope's own, or an imported venv path) is a host-level decision:
     # ADMIN only, and the path must hold a runnable Python.
-    if data.venv_mode != "managed" and ROLE_HIERARCHY.get(Role(current_user.role), -1) < ROLE_HIERARCHY[Role.ADMIN]:
+    if (
+        data.venv_mode != "managed"
+        and ROLE_HIERARCHY.get(Role(current_user.role), -1) < ROLE_HIERARCHY[Role.ADMIN]
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can use the RoboScope interpreter or import an existing venv",
@@ -140,9 +143,7 @@ def setup_default_environment(
 ):
     """Create a default environment with essential Robot Framework libraries."""
     # Check if roboscope-default already exists
-    result = db.execute(
-        select(Environment).where(Environment.name == "roboscope-default")
-    )
+    result = db.execute(select(Environment).where(Environment.name == "roboscope-default"))
     if result.scalar_one_or_none() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -353,6 +354,7 @@ def docker_build(
     # longer, so the window is wider.
     if env.docker_build_status == "building" and env.updated_at is not None:
         from datetime import UTC, datetime, timedelta
+
         age = datetime.now(UTC) - env.updated_at.replace(tzinfo=UTC)
         if age < timedelta(seconds=600):
             raise HTTPException(
@@ -486,8 +488,7 @@ def get_packages(
     from src.environments.venv_utils import check_rfbrowser_initialized
 
     has_standard_browser = any(
-        _is_browser_package(p.package_name) and p.install_status == "installed"
-        for p in packages
+        _is_browser_package(p.package_name) and p.install_status == "installed" for p in packages
     )
     rfbrowser_ok = (
         check_rfbrowser_initialized(env.venv_path)
@@ -582,11 +583,14 @@ def get_environment_keywords(
     # already in flight (status "building", touched < 120s ago) so repeated
     # polls don't spawn a redundant introspection task on every request.
     from datetime import UTC, datetime, timedelta
+
     now = datetime.now(UTC)
     in_flight = False
     if (
-        cache is not None and cache.status == "building"
-        and cache.updated_at is not None and not refresh
+        cache is not None
+        and cache.status == "building"
+        and cache.updated_at is not None
+        and not refresh
     ):
         age = now - cache.updated_at.replace(tzinfo=UTC)
         in_flight = age < timedelta(seconds=120)
@@ -600,6 +604,7 @@ def get_environment_keywords(
         cache.updated_at = now  # stamp the dispatch so the in-flight guard works
         db.commit()
         from src.environments.tasks import introspect_keywords_task
+
         try:
             dispatch_task(introspect_keywords_task, env_id)
         except TaskDispatchError:
@@ -613,7 +618,9 @@ def get_environment_keywords(
     )
 
 
-@router.post("/{env_id}/packages", response_model=PackageResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{env_id}/packages", response_model=PackageResponse, status_code=status.HTTP_201_CREATED
+)
 def install_package(
     env_id: int,
     data: PackageCreate,
@@ -627,12 +634,13 @@ def install_package(
 
     # Check for conflicting Browser library variants
     from src.environments.tasks import _get_conflicting_browser_package
+
     conflict = _get_conflicting_browser_package(env_id, data.package_name, db)
     if conflict:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Cannot install {data.package_name}: conflicting package '{conflict}' is already installed. "
-                   f"Uninstall '{conflict}' first.",
+            f"Uninstall '{conflict}' first.",
         )
 
     pkg = add_package(db, env_id, data)
@@ -669,12 +677,16 @@ def upgrade_package(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
 
     # Find existing package record
-    pkg = db.execute(
-        select(EnvironmentPackage).where(
-            EnvironmentPackage.environment_id == env_id,
-            EnvironmentPackage.package_name == package_name,
+    pkg = (
+        db.execute(
+            select(EnvironmentPackage).where(
+                EnvironmentPackage.environment_id == env_id,
+                EnvironmentPackage.package_name == package_name,
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     if pkg is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Package not found")
 
@@ -708,12 +720,16 @@ def retry_package_install(
     if env is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Environment not found")
 
-    pkg = db.execute(
-        select(EnvironmentPackage).where(
-            EnvironmentPackage.environment_id == env_id,
-            EnvironmentPackage.package_name == package_name,
+    pkg = (
+        db.execute(
+            select(EnvironmentPackage).where(
+                EnvironmentPackage.environment_id == env_id,
+                EnvironmentPackage.package_name == package_name,
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     if pkg is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Package not found")
 
@@ -749,13 +765,18 @@ def run_rfbrowser_init(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No venv configured")
 
     from src.environments.tasks import _is_browser_package
+
     # Find the browser package record
-    installed_packages = db.execute(
-        select(EnvironmentPackage).where(
-            EnvironmentPackage.environment_id == env_id,
-            EnvironmentPackage.install_status == "installed",
+    installed_packages = (
+        db.execute(
+            select(EnvironmentPackage).where(
+                EnvironmentPackage.environment_id == env_id,
+                EnvironmentPackage.install_status == "installed",
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     browser_pkg = next(
         (p for p in installed_packages if _is_browser_package(p.package_name)),
         None,
@@ -768,6 +789,7 @@ def run_rfbrowser_init(
 
     try:
         from src.environments.tasks import rfbrowser_init_task
+
         dispatch_task(rfbrowser_init_task, env_id)
     except TaskDispatchError as e:
         raise HTTPException(
@@ -843,7 +865,9 @@ def get_variables(
     return [_var_response(v) for v in list_variables(db, env_id)]
 
 
-@router.post("/{env_id}/variables", response_model=EnvVarResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{env_id}/variables", response_model=EnvVarResponse, status_code=status.HTTP_201_CREATED
+)
 def create_variable(
     env_id: int,
     data: EnvVarCreate,
