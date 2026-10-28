@@ -77,7 +77,7 @@ open frontend/reports/mutation/index.html                        # HTML report
 
 ### Measured baseline (2026-10-28, local, 6 cores)
 
-Backend (mutmut, `--rerun-all`, all 25 configured modules, 2517 mutants in one overnight run — budget ~1 h per 250 mutants):
+Backend (mutmut, `--rerun-all`, all 25 configured modules, 2517 mutants in one overnight run; `reports/parser.py` re-measured after `test_parser_deep.py` (30 % → 83 %) — budget ~1 h per 250 mutants):
 
 | Module | Killed | Survived | Score |
 |--------|-------:|---------:|------:|
@@ -85,13 +85,14 @@ Backend (mutmut, `--rerun-all`, all 25 configured modules, 2517 mutants in one o
 | `src/utc_response.py` | 4 | 0 | 100 % |
 | `src/auth/return_to.py` | 27 | 4 | 87 % |
 | `src/recording/selector_verification.py` | 58 | 10 | 85 % |
+| `src/reports/parser.py` | 261 | 52 | 83 % |
 | `src/insecure_tls.py` | 23 | 6 | 79 % |
 | `src/environments/venv_utils.py` | 113 | 36 | 76 % |
 | `src/encryption.py` | 6 | 2 | 75 % |
 | `src/debug/dap_protocol.py` | 25 | 9 | 74 % |
 | `src/recording/selector_schema.py` | 45 | 20 | 69 % |
-| `src/recording/robot_emit.py` | 154 | 72 | 68 % |
 | `src/explorer/rf_sections.py` | 40 | 19 | 68 % |
+| `src/recording/robot_emit.py` | 154 | 72 | 68 % |
 | `src/recording/desktop_selector_synthesis.py` | 61 | 30 | 67 % |
 | `src/ai/patch_apply.py` | 59 | 30 | 66 % |
 | `src/ai/xray_bridge.py` | 139 | 77 | 64 % |
@@ -105,8 +106,7 @@ Backend (mutmut, `--rerun-all`, all 25 configured modules, 2517 mutants in one o
 | `src/recording/generator.py` | 52 | 61 | 46 % |
 | `src/auth/client_ip.py` | 13 | 16 | 45 % |
 | `src/explorer/library_mapping.py` | 49 | 66 | 43 % |
-| `src/reports/parser.py` | 94 | 219 | 30 % |
-| **all 25 modules** | **1475** | **1042** | **58.6 %** |
+| **all 25 modules** | **1642** | **875** | **65.2 %** |
 
 Frontend (Stryker, 21 min for the configured list, 60.7 % overall):
 
