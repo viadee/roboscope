@@ -1,5 +1,5 @@
 import { test, expect, type Route } from '@playwright/test';
-import { loginAndGoToDashboard } from '../helpers';
+import { API, loginAndGoToDashboard } from '../helpers';
 
 test.describe('AI rf-mcp Knowledge Integration', () => {
   test.beforeEach(async ({ page }) => {
@@ -16,7 +16,7 @@ test.describe('AI rf-mcp Knowledge Integration', () => {
       });
     });
 
-    const response = await page.request.get('http://localhost:8000/api/v1/ai/rf-knowledge/status', {
+    const response = await page.request.get(`${API}/ai/rf-knowledge/status`, {
       headers: {
         Authorization: `Bearer ${await page.evaluate(() => localStorage.getItem('access_token'))}`,
       },

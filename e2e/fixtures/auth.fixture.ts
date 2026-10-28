@@ -1,36 +1,4 @@
 import { test as base, Page, BrowserContext } from '@playwright/test';
-import path from 'path';
-import fs from 'fs';
-
-const AUTH_STATE_PATH = path.join(__dirname, '..', '.auth-state.json');
-
-/** Shape of the persisted auth state written by global-setup. */
-interface AuthState {
-  authenticated: boolean;
-  access_token?: string;
-  refresh_token?: string;
-  user?: {
-    id: number;
-    email: string;
-    username: string;
-    role: string;
-    is_active: boolean;
-  };
-}
-
-/**
- * Read the auth state saved by global-setup.
- * Returns null when the file does not exist or the state is not authenticated.
- */
-function readAuthState(): AuthState | null {
-  try {
-    const raw = fs.readFileSync(AUTH_STATE_PATH, 'utf-8');
-    const state: AuthState = JSON.parse(raw);
-    return state.authenticated ? state : null;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Inject tokens into localStorage for the given page so the Vue app
@@ -92,13 +60,7 @@ export const test = base.extend<AuthFixtures>({
     // Navigate to the app origin first so localStorage writes go to the right domain.
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
 
-    const savedState = readAuthState();
-    if (savedState && savedState.access_token && savedState.refresh_token) {
-      await injectTokensIntoPage(page, savedState.access_token, savedState.refresh_token);
-    } else {
-      // Fall back to a fresh API login
-      await loginViaApi(page);
-    }
+    await loginViaApi(page);
 
     // Reload so the Vue app picks up the tokens from localStorage
     await page.goto('/dashboard', { waitUntil: 'networkidle' });

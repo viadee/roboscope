@@ -40,6 +40,7 @@ services:
       dockerfile: docker/playwright.Dockerfile
     environment:
       BASE_URL: http://frontend:80
+      API_URL: http://backend:8000/api/v1
       CI: "1"
     depends_on:
       - backend
