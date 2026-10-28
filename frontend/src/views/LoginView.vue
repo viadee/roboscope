@@ -46,7 +46,8 @@ async function handleLogin() {
   loading.value = true
   try {
     await auth.login(email.value, password.value)
-    const redirect = (route.query.redirect as string) || '/dashboard'
+    // `return_to` is the guard's key (Story 2-4); `redirect` is kept for old bookmarks.
+    const redirect = ((route.query.return_to || route.query.redirect) as string) || '/dashboard'
     router.push(redirect)
   } catch (e: unknown) {
     error.value = extractErrorDetail(e, t('auth.loginFailed'))
@@ -139,7 +140,7 @@ async function handleLogin() {
   justify-content: center;
   color: white;
   margin-bottom: 14px;
-  box-shadow: 0 4px 12px rgba(59, 125, 216, 0.3);
+  box-shadow: 0 4px 12px rgba(45, 99, 176, 0.3);
 }
 
 .login-header h2 {
@@ -164,7 +165,7 @@ async function handleLogin() {
 .login-card .form-input:focus {
   background: #ffffff;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(59, 125, 216, 0.12);
+  box-shadow: 0 0 0 3px rgba(45, 99, 176, 0.12);
   transform: translateY(-1px);
 }
 

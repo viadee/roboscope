@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 
 const router = createRouter({
@@ -164,14 +164,19 @@ const ROLE_HIERARCHY: Record<string, number> = {
   admin: 3,
 }
 
-router.beforeEach(async (to, from) => {
+/**
+ * Story 2-4 — auth guard. Exported so `tests/router/guards.spec.ts` runs the
+ * real thing. Every redirect to /login carries `return_to` (the SSO flow and
+ * the backend's `auth/return_to.py` use the same key).
+ */
+export async function authGuard(to: RouteLocationNormalized, from: RouteLocationNormalized) {
   const auth = useAuthStore()
 
   // Prevent redirect loops: if we just came from dashboard→login or login→dashboard, stop
   if (to.path === from.path) return
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
-    return { path: '/login', query: { redirect: to.fullPath } }
+    return { path: '/login', query: { return_to: to.fullPath } }
   }
 
   // Validate token by fetching current user (only once per session)
@@ -182,13 +187,13 @@ router.beforeEach(async (to, from) => {
       // Token is stale/invalid — already logged out by fetchCurrentUser
       // Redirect to login without creating a loop
       if (to.path !== '/login') {
-        return { path: '/login' }
+        return { path: '/login', query: { return_to: to.fullPath } }
       }
       return
     }
     // After fetchCurrentUser, token may have been invalidated
     if (!auth.isAuthenticated) {
-      return { path: '/login' }
+      return { path: '/login', query: { return_to: to.fullPath } }
     }
   }
 
@@ -213,6 +218,8 @@ router.beforeEach(async (to, from) => {
   if (to.path === '/login' && auth.isAuthenticated) {
     return { path: '/dashboard' }
   }
-})
+}
+
+router.beforeEach(authGuard)
 
 export default router
