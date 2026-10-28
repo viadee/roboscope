@@ -24,11 +24,9 @@ from src.auth.dependencies import (
 )
 from src.auth.models import User
 from src.auth.service import decode_token, get_user_by_id
+from src.config import settings
 from src.database import get_db
 from src.rate_limit import limiter
-
-optional_bearer = HTTPBearer(auto_error=False)
-from src.config import settings
 from src.reports.models import Report, TestResult
 from src.reports.parser import parse_output_xml, parse_output_xml_deep
 from src.reports.schemas import (
@@ -52,6 +50,8 @@ from src.reports.service import (
     list_unique_tests,
     render_xunit,
 )
+
+optional_bearer = HTTPBearer(auto_error=False)
 
 logger = logging.getLogger("roboscope.reports")
 
@@ -100,7 +100,7 @@ def _authenticate_flexible(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
-        )
+        ) from None
 
 
 @router.get("", response_model=list[ReportResponse])
@@ -202,7 +202,7 @@ def upload_archive(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Error reading uploaded file: {e}",
-        )
+        ) from e
 
     # Extract to a unique directory under REPORTS_DIR/archives/
     import uuid
@@ -232,7 +232,7 @@ def upload_archive(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Error extracting ZIP: {e}",
-        )
+        ) from e
 
     # Find output.xml (may be at root or one level deep)
     output_xml = None
@@ -265,7 +265,7 @@ def upload_archive(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Error parsing output.xml: {e}",
-        )
+        ) from e
 
     # Create Report record (no execution_run_id for archives)
     report = Report(
@@ -326,7 +326,7 @@ def compare(
     try:
         return compare_reports(db, report_a, report_b)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.get("/tests/unique", response_model=list[UniqueTestResponse])
@@ -505,7 +505,7 @@ def get_report_asset(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: path traversal detected",
-        )
+        ) from None
 
     if not requested_path.exists() or not requested_path.is_file():
         raise HTTPException(
@@ -643,7 +643,7 @@ def get_report_xml_data(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to parse output.xml: {e}",
-        )
+        ) from e
 
     return data
 

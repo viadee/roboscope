@@ -81,7 +81,7 @@ def add_environment(
     try:
         data.python_version = validate_python_version(data.python_version)
     except PythonVersionError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
     # Pointing an environment at an arbitrary interpreter on the server
     # (RoboScope's own, or an imported venv path) is a host-level decision:
@@ -97,7 +97,7 @@ def add_environment(
     try:
         env = create_environment(db, data, current_user.id)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
     if data.venv_mode != "managed":
         # Imported / own interpreter: used as-is, nothing to create or seed.
@@ -382,7 +382,7 @@ def docker_build(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Task dispatch failed: {e}",
-        )
+        ) from e
 
     return {"status": "building", "image_tag": image_tag}
 
@@ -659,7 +659,7 @@ def install_package(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Task dispatch failed: {e}",
-        )
+        ) from e
 
     return pkg
 
@@ -703,7 +703,7 @@ def upgrade_package(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Task dispatch failed: {e}",
-        )
+        ) from e
 
     return pkg
 
@@ -746,7 +746,7 @@ def retry_package_install(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Task dispatch failed: {e}",
-        )
+        ) from e
 
     return pkg
 
@@ -795,7 +795,7 @@ def run_rfbrowser_init(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Task dispatch failed: {e}",
-        )
+        ) from e
 
     return {"status": "pending", "message": "rfbrowser init started"}
 
@@ -831,7 +831,7 @@ def uninstall_package(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Task dispatch failed: {e}",
-        )
+        ) from e
 
 
 # --- Variables ---

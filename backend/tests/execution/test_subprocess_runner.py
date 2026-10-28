@@ -49,7 +49,7 @@ class TestInactivityTimeout:
 
         mock_proc.poll.side_effect = mock_poll
 
-        output_dir = str(tmp_path / "output")
+        str(tmp_path / "output")
 
         with (
             patch("subprocess.Popen", return_value=mock_proc),
@@ -104,8 +104,6 @@ class TestInactivityTimeout:
             # We need to override the INACTIVITY_TIMEOUT constant inside execute()
             # Since it's a local variable, we patch it via the source
             import src.execution.runners.subprocess_runner as mod
-
-            original_execute = runner2.execute
 
             # Call execute with a very short timeout context
             # The inactivity timeout is hardcoded at 120s, so let's patch time instead

@@ -243,7 +243,7 @@ class TestGetFlakyTests:
 
         # Create multiple runs with reports and test results
         runs = []
-        for i in range(4):
+        for _i in range(4):
             run = _make_run(repo.id, admin_user.id, status=RunStatus.PASSED)
             db_session.add(run)
             db_session.flush()
@@ -260,7 +260,7 @@ class TestGetFlakyTests:
 
         # Flaky test: alternates between PASS and FAIL
         statuses = ["PASS", "FAIL", "PASS", "FAIL"]
-        for report, status in zip(reports, statuses):
+        for report, status in zip(reports, statuses, strict=False):
             tr = _make_test_result(
                 report.id,
                 test_name="test_flaky_one",
@@ -289,7 +289,7 @@ class TestGetFlakyTests:
         db_session.refresh(repo)
 
         runs = []
-        for i in range(4):
+        for _i in range(4):
             run = _make_run(repo.id, admin_user.id, status=RunStatus.PASSED)
             db_session.add(run)
             db_session.flush()
@@ -327,7 +327,7 @@ class TestGetFlakyTests:
 
         # Only 2 runs, but with alternating status
         runs = []
-        for i in range(2):
+        for _i in range(2):
             run = _make_run(repo.id, admin_user.id, status=RunStatus.PASSED)
             db_session.add(run)
             db_session.flush()
@@ -343,7 +343,7 @@ class TestGetFlakyTests:
             reports.append(report)
 
         statuses = ["PASS", "FAIL"]
-        for report, status in zip(reports, statuses):
+        for report, status in zip(reports, statuses, strict=False):
             tr = _make_test_result(
                 report.id,
                 test_name="test_short_lived",

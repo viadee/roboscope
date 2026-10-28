@@ -170,7 +170,7 @@ def remove_repo(
     try:
         delete_repository(db, repo)
     except RepositoryBusyError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
 
 
 @router.put("/{repo_id}/team", response_model=RepoResponse)

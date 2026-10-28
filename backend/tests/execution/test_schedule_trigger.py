@@ -33,19 +33,19 @@ def repo(db_session: Session, admin_user):
 
 
 def _schedule(db: Session, repo, user, **kw) -> Schedule:
-    defaults = dict(
-        name="Nightly",
-        cron_expression="0 2 * * *",
-        repository_id=repo.id,
-        target_path="tests/smoke",
-        branch="dev",
-        runner_type="subprocess",
-        tags_include="smoke",
-        tags_exclude="slow",
-        created_by=user.id,
-        is_active=True,
-        next_run_at=NOW_NAIVE - timedelta(minutes=1),
-    )
+    defaults = {
+        "name": "Nightly",
+        "cron_expression": "0 2 * * *",
+        "repository_id": repo.id,
+        "target_path": "tests/smoke",
+        "branch": "dev",
+        "runner_type": "subprocess",
+        "tags_include": "smoke",
+        "tags_exclude": "slow",
+        "created_by": user.id,
+        "is_active": True,
+        "next_run_at": NOW_NAIVE - timedelta(minutes=1),
+    }
     defaults.update(kw)
     s = Schedule(**defaults)
     db.add(s)

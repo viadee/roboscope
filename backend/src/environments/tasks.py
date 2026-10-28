@@ -203,9 +203,10 @@ def _get_conflicting_browser_package(env_id: int, package_name: str, session) ->
         .all()
     )
     for p in pkgs:
-        if p.package_name.lower().replace("_", "-") != package_name.lower().replace("_", "-"):
-            if _is_any_browser_variant(p.package_name):
-                return p.package_name
+        if p.package_name.lower().replace("_", "-") != package_name.lower().replace(
+            "_", "-"
+        ) and _is_any_browser_variant(p.package_name):
+            return p.package_name
     return None
 
 
@@ -683,7 +684,7 @@ def _upgrade_package_inner(env_id: int, package_name: str) -> dict:
 
 
 def _check_docker_disk_space(
-    client: "docker.DockerClient",  # type: ignore[name-defined]
+    client: "docker.DockerClient",  # type: ignore[name-defined]  # noqa: F821
     env_id: int,
     log_lines: list[str],
     has_browser: bool = False,

@@ -17,6 +17,7 @@ never trip a missing-dep error.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import threading
 from datetime import UTC
@@ -154,7 +155,7 @@ def _candidates_from_inventory(
         # Loose match: many iframes do `src="about:blank"` and then
         # navigate, so the frame_url won't match either iframe_src
         # or contentUrl literally. Try a substring match on src.
-        for key, candidate_entry in inventory.items():
+        for _key, candidate_entry in inventory.items():
             iframe_src = candidate_entry.get("iframe_src", "") or ""
             if iframe_src and (iframe_src in frame_url or frame_url in iframe_src):
                 entry = candidate_entry
@@ -727,10 +728,8 @@ async def _recorder_loop(
                 # Wait briefly for the popup to start loading so the URL
                 # we capture is meaningful (it usually starts as
                 # about:blank and then navigates).
-                try:
+                with contextlib.suppress(Exception):
                     await new_page.wait_for_load_state("domcontentloaded", timeout=2000)
-                except Exception:
-                    pass
                 url = new_page.url if hasattr(new_page, "url") else None
                 await on_capture(None, {"kind": "switch_page", "url": url or ""})
             except Exception:
@@ -795,14 +794,10 @@ async def _recorder_loop(
         # is set).
         await _wait_for_stop_event(stop_event)
 
-        try:
+        with contextlib.suppress(Exception):
             await context.close()
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             await browser.close()
-        except Exception:
-            pass
 
     # NOTE: terminal status update (COMPLETED) moved to the wrapper
     # `run_v2_recorder_session` so it can distinguish stop-for-restart

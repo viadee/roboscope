@@ -106,6 +106,4 @@ def verify_asset_token(token: str, report_id: int) -> bool:
 
     if rid != report_id:
         return False
-    if exp < int(time.time()):
-        return False
-    return True
+    return not exp < int(time.time())

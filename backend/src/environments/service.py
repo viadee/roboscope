@@ -194,17 +194,18 @@ def list_packages(db: Session, env_id: int) -> list[EnvironmentPackage]:
 
     dirty = False
     for pkg in packages:
-        if pkg.install_status in ("pending", "installing"):
-            if not is_package_task_active(env_id, pkg.package_name):
-                pkg.install_status = "failed"
-                pkg.install_error = "Installation interrupted or never started."
-                dirty = True
-                logger.warning(
-                    "Reset stuck package '%s' in env %d (was '%s')",
-                    pkg.package_name,
-                    env_id,
-                    pkg.install_status,
-                )
+        if pkg.install_status in ("pending", "installing") and not is_package_task_active(
+            env_id, pkg.package_name
+        ):
+            pkg.install_status = "failed"
+            pkg.install_error = "Installation interrupted or never started."
+            dirty = True
+            logger.warning(
+                "Reset stuck package '%s' in env %d (was '%s')",
+                pkg.package_name,
+                env_id,
+                pkg.install_status,
+            )
     if dirty:
         db.commit()
 
@@ -380,7 +381,7 @@ def decrypt_variable_value(var: EnvironmentVariable) -> str:
 
 def _unset_defaults(db: Session) -> None:
     """Unset all default environments."""
-    result = db.execute(select(Environment).where(Environment.is_default == True))
+    result = db.execute(select(Environment).where(Environment.is_default))
     for env in result.scalars().all():
         env.is_default = False
 
@@ -733,18 +734,15 @@ def generate_dockerfile(
     needs_batteries = _has_batteries_package(packages)
     needs_browser_any = needs_browser_standard or needs_batteries
 
-    if base_image:
-        base = base_image
-    else:
-        # Story Playwright-fix-E (2026-04-27): always start from
-        # `python:<ver>-slim` and install Playwright browsers
-        # explicitly. rfbrowser ships ahead of Microsoft's published
-        # image tags (e.g. rfbrowser 19.14.2 ships Node-Playwright
-        # 1.59.1, but Microsoft only has up to v1.58.0-noble). The MS
-        # base image is therefore unreliable as a long-term anchor.
-        # python-slim has nothing pre-installed → no version drift to
-        # accommodate.
-        base = f"python:{python_version}-slim"
+    # Story Playwright-fix-E (2026-04-27): always start from
+    # `python:<ver>-slim` and install Playwright browsers
+    # explicitly. rfbrowser ships ahead of Microsoft's published
+    # image tags (e.g. rfbrowser 19.14.2 ships Node-Playwright
+    # 1.59.1, but Microsoft only has up to v1.58.0-noble). The MS
+    # base image is therefore unreliable as a long-term anchor.
+    # python-slim has nothing pre-installed → no version drift to
+    # accommodate.
+    base = base_image or f"python:{python_version}-slim"
 
     lines = [
         f"FROM {base}",

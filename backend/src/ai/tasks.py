@@ -63,7 +63,6 @@ async def _gather_rf_knowledge(spec_content: str) -> tuple[list[dict], list[str]
 
         # Extract libraries and step text for keyword search
         metadata = spec.get("metadata", {})
-        libraries = metadata.get("libraries", [])
         description = metadata.get("title", "")
 
         # Gather steps from all test cases
@@ -118,13 +117,17 @@ async def _gather_reverse_knowledge(robot_content: str) -> list[dict]:
         keywords: list[str] = []
         for line in robot_content.splitlines():
             stripped = line.strip()
-            if stripped and not stripped.startswith("#") and not stripped.startswith("***"):
-                # Lines that start with spaces are keyword calls
-                if line.startswith("    ") and stripped:
-                    # First word/phrase before spaces is often the keyword
-                    parts = stripped.split("    ")
-                    if parts:
-                        keywords.append(parts[0].strip())
+            # Lines that start with spaces are keyword calls
+            if (
+                stripped
+                and not stripped.startswith("#")
+                and not stripped.startswith("***")
+                and line.startswith("    ")
+            ):
+                # First word/phrase before spaces is often the keyword
+                parts = stripped.split("    ")
+                if parts:
+                    keywords.append(parts[0].strip())
 
         # Search for up to 5 unique keywords
         seen = set()

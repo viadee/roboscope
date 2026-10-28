@@ -87,7 +87,6 @@ def _seed_test_results(db_session, admin_user):
     db_session.flush()
     db_session.refresh(repo)
 
-    results = []
     for i in range(4):
         run = _make_run(repo.id, admin_user.id, status=RunStatus.PASSED)
         db_session.add(run)
@@ -144,10 +143,12 @@ class TestBroadcastAnalysisStatus:
         """_broadcast_analysis_status should not raise when no event loop exists."""
         mock_ws = MagicMock()
         mock_ws.broadcast.return_value = MagicMock()
-        with patch("src.websocket.manager.ws_manager", mock_ws):
-            with patch("src.main._event_loop", None, create=True):
-                # Should not raise
-                _broadcast_analysis_status(1, "completed", 100)
+        with (
+            patch("src.websocket.manager.ws_manager", mock_ws),
+            patch("src.main._event_loop", None, create=True),
+        ):
+            # Should not raise
+            _broadcast_analysis_status(1, "completed", 100)
 
     def test_broadcast_schedules_coroutine(self):
         """When event loop is running, should schedule coroutine via run_coroutine_threadsafe."""
@@ -162,10 +163,12 @@ class TestBroadcastAnalysisStatus:
 
         mock_ws.broadcast.return_value = fake_broadcast()
 
-        with patch("src.websocket.manager.ws_manager", mock_ws):
-            with patch("src.main._event_loop", mock_loop, create=True):
-                with patch("asyncio.run_coroutine_threadsafe") as mock_rct:
-                    _broadcast_analysis_status(42, "running", 50)
+        with (
+            patch("src.websocket.manager.ws_manager", mock_ws),
+            patch("src.main._event_loop", mock_loop, create=True),
+            patch("asyncio.run_coroutine_threadsafe") as mock_rct,
+        ):
+            _broadcast_analysis_status(42, "running", 50)
 
         mock_ws.broadcast.assert_called_once_with(
             {

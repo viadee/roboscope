@@ -27,7 +27,7 @@ logger = logging.getLogger("roboscope.execution.tasks")
 
 # Registry of currently running runners, keyed by run_id.
 # Allows cancel_run() to actually kill the spawned process.
-_active_runners: dict[int, "AbstractRunner"] = {}  # type: ignore[name-defined]
+_active_runners: dict[int, "AbstractRunner"] = {}  # type: ignore[name-defined]  # noqa: F821
 _active_runners_lock = threading.Lock()
 
 

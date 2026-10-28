@@ -155,6 +155,10 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N", "UP", "B", "C4", "SIM"]
+# E501: `ruff format` owns line length; what it leaves long is a string/URL.
+# N806: UPPER_CASE locals are deliberate function-scoped constants.
+# N817: `ElementTree as ET` is the canonical stdlib/defusedxml alias.
+ignore = ["E501", "N806", "N817"]
 
 [tool.ruff.lint.flake8-bugbear]
 # Mark FastAPI dependency-injection helpers as immutable so the
@@ -174,6 +178,9 @@ extend-immutable-calls = [
     "src.auth.dependencies.require_role",
     "src.auth.dependencies.require_effective_role",
     "src.auth.dependencies.require_effective_role_for_run",
+    "src.auth.dependencies.require_effective_role_for_recording",
+    "src.auth.dependencies.require_effective_role_for_report",
+    "src.governance.dependencies.require_package_op",
 ]
 
 [tool.ruff.lint.isort]
@@ -185,7 +192,9 @@ known-first-party = ["src"]
 # "redefinition" (F811) of the imported name even though the import
 # uses `# noqa: F401`. F811 is a real bug-class in production code,
 # so we silence it ONLY in tests/.
-"tests/**" = ["F811"]
+# Tests also keep `l` loop names, NOT_/HEAD in test names, `assert False`
+# and blind `pytest.raises(Exception)` — readability over rule purity there.
+"tests/**" = ["F811", "E741", "N802", "B011", "B017"]
 
 [tool.mypy]
 python_version = "3.12"

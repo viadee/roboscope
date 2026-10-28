@@ -93,7 +93,7 @@ class TestInstallPackage:
     @patch("subprocess.run")
     def test_install_success(self, mock_run, mock_broadcast, db_session):
         env = _make_env(db_session, create_dir=True)
-        pkg = _make_package(db_session, env.id, "robotframework")
+        _make_package(db_session, env.id, "robotframework")
         db_session.commit()
 
         # pip install succeeds, pip show returns version
@@ -140,7 +140,7 @@ class TestInstallPackage:
     @patch("subprocess.run")
     def test_install_failure(self, mock_run, mock_broadcast, db_session):
         env = _make_env(db_session, create_dir=True)
-        pkg = _make_package(db_session, env.id, "nonexistent-pkg")
+        _make_package(db_session, env.id, "nonexistent-pkg")
         db_session.commit()
 
         mock_run.side_effect = subprocess.CalledProcessError(

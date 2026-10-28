@@ -298,7 +298,7 @@ class _OidcFlowDiagram(Flowable):
         ("R", "U", "8. Session"),
     ]
 
-    def wrap(self, availWidth: float, availHeight: float) -> tuple[float, float]:
+    def wrap(self, availWidth: float, availHeight: float) -> tuple[float, float]:  # noqa: N803 reportlab API
         return self.WIDTH, self.HEIGHT
 
     def draw(self) -> None:

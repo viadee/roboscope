@@ -24,6 +24,7 @@ semantics during ``stop()``.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -81,10 +82,8 @@ class DapClient:
         self._closed = True
         if self._read_task is not None:
             self._read_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError, Exception):  # noqa: BLE001
                 await self._read_task
-            except (asyncio.CancelledError, Exception):  # noqa: BLE001
-                pass
             self._read_task = None
         try:
             self._writer.close()

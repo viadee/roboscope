@@ -9,6 +9,8 @@ Conventions:
 
 from __future__ import annotations
 
+import contextlib
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -295,10 +297,8 @@ def import_teams_from_idp_groups(
             failed += 1
             errors.append(f"{row.team_name}: {err}")
             # Best-effort recovery so the next row still runs.
-            try:
+            with contextlib.suppress(Exception):
                 db.rollback()
-            except Exception:
-                pass
 
     summary = TeamImportSummary(
         created=created,

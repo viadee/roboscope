@@ -1,5 +1,6 @@
 """Statistics and KPI API endpoints."""
 
+import contextlib
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -184,7 +185,8 @@ def add_flaky_quarantine(
     db.flush()
     db.refresh(row)
 
-    try:
+    # Audit event type may not be present on older DBs — safe to skip.
+    with contextlib.suppress(AttributeError):
         log_event(
             db,
             AuditEventType.FLAKY_TEST_QUARANTINED,
@@ -197,9 +199,6 @@ def add_flaky_quarantine(
             },
             ip_address=request.client.host if request.client else None,
         )
-    except AttributeError:
-        # Audit event type may not be present on older DBs — safe to skip.
-        pass
     db.commit()
 
     return FlakyQuarantineResponse(
@@ -236,7 +235,7 @@ def remove_flaky_quarantine(
     repo_id = row.repository_id
     db.delete(row)
 
-    try:
+    with contextlib.suppress(AttributeError):
         log_event(
             db,
             AuditEventType.FLAKY_TEST_UNQUARANTINED,
@@ -245,8 +244,6 @@ def remove_flaky_quarantine(
             detail=details,
             ip_address=request.client.host if request.client else None,
         )
-    except AttributeError:
-        pass
     db.commit()
 
 

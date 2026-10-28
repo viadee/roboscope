@@ -4,38 +4,10 @@ import time
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.auth.constants import ERR_INVALID_CREDENTIALS, ERR_TOKEN_INVALID, Role
-
-# Simple in-memory rate limiter for login endpoint.
-# Tracks timestamps of failed attempts per IP. Allows MAX_ATTEMPTS in WINDOW_SECONDS.
-_MAX_ATTEMPTS = 10
-_WINDOW_SECONDS = 300  # 5 minutes
-_login_attempts: dict[str, list[float]] = defaultdict(list)
-
-
-def _check_rate_limit(request: Request) -> None:
-    """Raise 429 if too many login attempts from this IP."""
-    ip = request.client.host if request.client else "unknown"
-    now = time.monotonic()
-    # Prune old entries
-    _login_attempts[ip] = [t for t in _login_attempts[ip] if now - t < _WINDOW_SECONDS]
-    if len(_login_attempts[ip]) >= _MAX_ATTEMPTS:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many login attempts. Please try again later.",
-        )
-
-
-def _record_failed_attempt(request: Request) -> None:
-    """Record a failed login attempt for rate limiting."""
-    ip = request.client.host if request.client else "unknown"
-    _login_attempts[ip].append(time.monotonic())
-
-
-from sqlalchemy import select
-
 from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
 from src.auth.schemas import (
@@ -62,6 +34,32 @@ from src.auth.service import (
     update_user,
 )
 from src.database import get_db
+
+# Simple in-memory rate limiter for login endpoint.
+# Tracks timestamps of failed attempts per IP. Allows MAX_ATTEMPTS in WINDOW_SECONDS.
+_MAX_ATTEMPTS = 10
+_WINDOW_SECONDS = 300  # 5 minutes
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+
+
+def _check_rate_limit(request: Request) -> None:
+    """Raise 429 if too many login attempts from this IP."""
+    ip = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    # Prune old entries
+    _login_attempts[ip] = [t for t in _login_attempts[ip] if now - t < _WINDOW_SECONDS]
+    if len(_login_attempts[ip]) >= _MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again later.",
+        )
+
+
+def _record_failed_attempt(request: Request) -> None:
+    """Record a failed login attempt for rate limiting."""
+    ip = request.client.host if request.client else "unknown"
+    _login_attempts[ip].append(time.monotonic())
+
 
 router = APIRouter()
 

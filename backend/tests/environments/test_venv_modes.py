@@ -31,7 +31,7 @@ def test_system_mode_uses_roboscope_interpreter(client, admin_user, _no_dispatch
     body = r.json()
     assert body["venv_path"] == sys.prefix
     assert body["venv_kind"] == "system"
-    assert body["python_version"] == "%d.%d" % sys.version_info[:2]
+    assert body["python_version"] == f"{sys.version_info[0]}.{sys.version_info[1]}"
     _no_dispatch.assert_not_called()  # nothing to create or seed
 
 

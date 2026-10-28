@@ -227,9 +227,9 @@ class TestGetUvPath:
         with (
             patch.object(venv_utils.settings, "UV_PATH", ""),
             patch.object(venv_utils.shutil, "which", return_value=None),
+            pytest.raises(FileNotFoundError, match="uv not found"),
         ):
-            with pytest.raises(FileNotFoundError, match="uv not found"):
-                venv_utils.get_uv_path()
+            venv_utils.get_uv_path()
 
 
 class TestValidatePythonVersion:
@@ -334,9 +334,11 @@ class TestCheckPythonVersionCompatibility:
         assert "not a recognized version" in warning.message
 
     def test_create_venv_cmd_validates_version(self):
-        with patch.object(venv_utils, "get_uv_path", return_value="/usr/bin/uv"):
-            with pytest.raises(PythonVersionError):
-                venv_utils.create_venv_cmd("/my/venv", python_version="3.8")
+        with (
+            patch.object(venv_utils, "get_uv_path", return_value="/usr/bin/uv"),
+            pytest.raises(PythonVersionError),
+        ):
+            venv_utils.create_venv_cmd("/my/venv", python_version="3.8")
 
     def test_create_venv_cmd_normalizes_version(self):
         with patch.object(venv_utils, "get_uv_path", return_value="/usr/bin/uv"):

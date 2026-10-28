@@ -1,16 +1,7 @@
 """Execution models: runs, schedules."""
 
-import sys
 from datetime import datetime
-
-if sys.version_info >= (3, 11):
-    from enum import StrEnum
-else:
-    from enum import Enum
-
-    class StrEnum(str, Enum):
-        pass
-
+from enum import StrEnum
 
 from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column

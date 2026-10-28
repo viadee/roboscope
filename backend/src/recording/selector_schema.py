@@ -163,12 +163,13 @@ class RecordedCommand(BaseModel):
     frame_chain: list[FrameDescriptor] = Field(default_factory=list)
 
     def model_post_init(self, _context) -> None:  # type: ignore[override]
-        if self.selector_candidates:
-            if not (0 <= self.active_candidate_index < len(self.selector_candidates)):
-                raise ValueError(
-                    f"active_candidate_index {self.active_candidate_index} out of "
-                    f"range for {len(self.selector_candidates)} candidates"
-                )
+        if self.selector_candidates and not (
+            0 <= self.active_candidate_index < len(self.selector_candidates)
+        ):
+            raise ValueError(
+                f"active_candidate_index {self.active_candidate_index} out of "
+                f"range for {len(self.selector_candidates)} candidates"
+            )
 
     @property
     def active_selector(self) -> SelectorCandidate | None:

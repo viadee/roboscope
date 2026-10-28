@@ -1,5 +1,6 @@
 """Execution API endpoints: runs and schedules."""
 
+import contextlib
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
@@ -377,10 +378,8 @@ def get_run_selector_health(
         for name in ("stdout.log", "stderr.log", "output.xml"):
             p = Path(run.output_dir) / name
             if p.is_file():
-                try:
+                with contextlib.suppress(OSError):
                     output_text_parts.append(p.read_text(encoding="utf-8", errors="replace"))
-                except OSError:
-                    pass
     if run.error_message:
         output_text_parts.append(run.error_message)
     combined = "\n".join(output_text_parts)
@@ -563,7 +562,7 @@ def apply_heal_patch(
         try:
             tp.relative_to(repo_root)
         except ValueError:
-            raise HTTPException(status_code=400, detail="Target path escapes repo")
+            raise HTTPException(status_code=400, detail="Target path escapes repo") from None
         if tp.is_file() and tp.suffix == ".robot":
             target_candidates = [tp]
         elif tp.is_dir():
@@ -714,10 +713,8 @@ def apply_heal_patch(
         os.replace(tmp_path, str(target))
     except Exception:
         # Best-effort cleanup; re-raise the original exception.
-        try:
+        with contextlib.suppress(OSError):
             os.remove(tmp_path)
-        except OSError:
-            pass
         raise
 
     log_event(
@@ -758,7 +755,7 @@ def cancel_run_endpoint(
     try:
         return cancel_run(db, run)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.post("/runs/cancel-all")

@@ -1,6 +1,7 @@
 """Background tasks for browser recording."""
 
 import asyncio
+import contextlib
 import json
 import logging
 import threading
@@ -243,15 +244,11 @@ def run_playwright_recorder(recording_id: int, target_url: str | None = None) ->
     finally:
         _stop_signals.pop(recording_id, None)
         if browser:
-            try:
+            with contextlib.suppress(Exception):
                 browser.close()
-            except Exception:
-                pass
         if pw:
-            try:
+            with contextlib.suppress(Exception):
                 pw.stop()
-            except Exception:
-                pass
 
     # Recording finished — generate .robot file
     generate_robot_for_recording(recording_id)

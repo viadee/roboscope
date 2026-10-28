@@ -63,15 +63,15 @@ def _make_run(
     admin_user,
     **overrides,
 ) -> ExecutionRun:
-    defaults = dict(
-        repository_id=repo.id,
-        environment_id=None,
-        target_path="suite.robot",
-        branch="main",
-        status=RunStatus.PENDING,
-        runner_type=RunnerType.SUBPROCESS,
-        triggered_by=admin_user.id,
-    )
+    defaults = {
+        "repository_id": repo.id,
+        "environment_id": None,
+        "target_path": "suite.robot",
+        "branch": "main",
+        "status": RunStatus.PENDING,
+        "runner_type": RunnerType.SUBPROCESS,
+        "triggered_by": admin_user.id,
+    }
     defaults.update(overrides)
     run = ExecutionRun(**defaults)
     db.add(run)

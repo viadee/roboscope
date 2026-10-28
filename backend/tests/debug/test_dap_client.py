@@ -9,6 +9,7 @@ real Robot Framework, no network access beyond loopback.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from typing import Any
 
@@ -43,10 +44,8 @@ class _FakeServer:
     async def stop(self) -> None:
         if self._client_writer is not None:
             self._client_writer.close()
-            try:
+            with contextlib.suppress(Exception):
                 await self._client_writer.wait_closed()
-            except Exception:  # noqa: BLE001
-                pass
         if self._server is not None:
             self._server.close()
             await self._server.wait_closed()

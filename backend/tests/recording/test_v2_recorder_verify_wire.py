@@ -24,7 +24,7 @@ from __future__ import annotations
 import pytest
 
 from src.recording.selector_schema import RecordedCommand, SelectorCandidate
-from src.recording.v2_recorder_task import _verify_command_candidates
+from src.recording.v2_recorder_task import _resolve_frame_target, _verify_command_candidates
 
 
 class _FakeLocator:
@@ -337,9 +337,6 @@ async def test_helper_uses_only_object_passed_in_never_a_global_page() -> None:
 # These tests pin the new `_resolve_frame_target` helper across every
 # shape `on_capture` might see in the wild.
 # ──────────────────────────────────────────────────────────────────────
-
-
-from src.recording.v2_recorder_task import _resolve_frame_target
 
 
 class TestResolveFrameTarget:

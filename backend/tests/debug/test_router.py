@@ -273,7 +273,7 @@ class TestControl:
         )
         sid = start.json()["session_id"]
 
-        for ep, attr in (
+        for ep, _attr in (
             ("continue", "continue_called"),
             ("next", "next_called"),
             ("stepIn", "step_in_called"),

@@ -486,16 +486,16 @@ class TestAccept:
         provider,
         **overrides,
     ):
-        defaults = dict(
-            job_type="generate",
-            status="completed",
-            repository_id=repo.id,
-            provider_id=provider.id,
-            spec_path="tests/demo.roboscope",
-            target_path="tests/generated.robot",
-            triggered_by=admin_user.id,
-            result_preview="*** Test Cases ***\nGenerated\n    Log    ok\n",
-        )
+        defaults = {
+            "job_type": "generate",
+            "status": "completed",
+            "repository_id": repo.id,
+            "provider_id": provider.id,
+            "spec_path": "tests/demo.roboscope",
+            "target_path": "tests/generated.robot",
+            "triggered_by": admin_user.id,
+            "result_preview": "*** Test Cases ***\nGenerated\n    Log    ok\n",
+        }
         defaults.update(overrides)
         job = AiJob(**defaults)
         db.add(job)

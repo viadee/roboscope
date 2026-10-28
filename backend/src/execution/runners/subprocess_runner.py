@@ -1,5 +1,6 @@
 """Subprocess-based test runner using virtualenv."""
 
+import contextlib
 import os
 import platform
 import signal
@@ -134,10 +135,9 @@ class SubprocessRunner(AbstractRunner):
 
             def _set_limits() -> None:
                 four_gb = 4 * 1024 * 1024 * 1024
-                try:
+                # best-effort; some systems don't support RLIMIT_DATA
+                with contextlib.suppress(ValueError, OSError):
                     resource.setrlimit(resource.RLIMIT_DATA, (four_gb, four_gb))
-                except (ValueError, OSError):
-                    pass  # best-effort; some systems don't support RLIMIT_DATA
 
             preexec = _set_limits
 

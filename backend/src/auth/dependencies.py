@@ -46,7 +46,7 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=ERR_TOKEN_INVALID,
-        )
+        ) from None
 
     if payload.get("type") != "access":
         raise HTTPException(
@@ -164,7 +164,7 @@ def require_effective_role(min_role: Role):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Repository not found",
-            )
+            ) from None
 
         repo = db.get(Repository, repo_id)
         if repo is None:
@@ -221,7 +221,7 @@ def require_effective_role_for_run(min_role: Role):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Run not found",
-            )
+            ) from None
 
         run = db.get(ExecutionRun, run_id)
         if run is None:
@@ -286,7 +286,7 @@ def require_effective_role_for_recording(min_role: Role):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Recording not found",
-            )
+            ) from None
 
         recording = db.get(RecordingSession, recording_id)
         if recording is None:
@@ -348,7 +348,7 @@ def require_effective_role_for_report(min_role: Role):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Report not found",
-            )
+            ) from None
 
         report = db.get(Report, report_id)
         if report is None:

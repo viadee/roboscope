@@ -30,16 +30,16 @@ from tests.conftest import auth_header
 
 
 def _seed(db: Session, admin_user, **overrides) -> AiProvider:
-    defaults = dict(
-        name="a-provider",
-        provider_type="openai",
-        api_base_url=None,
-        api_key="sk-test-secret",
-        model_name="gpt-4o-mini",
-        temperature=0.3,
-        max_tokens=4096,
-        is_default=False,
-    )
+    defaults = {
+        "name": "a-provider",
+        "provider_type": "openai",
+        "api_base_url": None,
+        "api_key": "sk-test-secret",
+        "model_name": "gpt-4o-mini",
+        "temperature": 0.3,
+        "max_tokens": 4096,
+        "is_default": False,
+    }
     defaults.update(overrides)
     data = AiProviderCreate(**defaults)
     return create_provider(db, data, admin_user.id)

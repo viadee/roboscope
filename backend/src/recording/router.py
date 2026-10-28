@@ -1,18 +1,24 @@
 """Recording API endpoints: browser recording sessions."""
 
 import json
+import json as _json
 import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.auth.constants import Role
+from src.audit.event_types import AuditEventType
+from src.audit.service import log_event
+from src.auth.constants import ERR_INSUFFICIENT_PERMISSIONS, ROLE_HIERARCHY, Role
 from src.auth.dependencies import get_current_user, require_effective_role_for_recording
 from src.auth.models import User
+from src.auth.permissions import effective_role
 from src.database import get_db
 from src.rate_limit import limiter
-from src.recording.models import RecordingStatus
+from src.recording.models import RecordingSession, RecordingSource, RecordingStatus
 from src.recording.schemas import (
     RecordingCreate,
     RecordingEventIn,
@@ -20,6 +26,7 @@ from src.recording.schemas import (
     RecordingResponse,
     RecordingStopRequest,
 )
+from src.recording.selector_schema import RecordingTransport
 from src.recording.service import (
     append_event,
     cancel_recording,
@@ -32,6 +39,7 @@ from src.recording.service import (
     start_recording,
     stop_recording,
 )
+from src.repos.models import Repository
 from src.task_executor import TaskDispatchError, dispatch_task
 
 logger = logging.getLogger("roboscope.recording")
@@ -186,7 +194,7 @@ def start_browser_recording_endpoint(
         logger.error("Failed to dispatch Playwright recorder: %s", e)
         fail_recording(db, recording, f"Browser launch failed: {e}")
         db.commit()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
     db.refresh(recording)
     return recording
@@ -293,9 +301,6 @@ def cancel_recording_endpoint(
     return recording
 
 
-from fastapi.responses import PlainTextResponse
-
-
 @router.get("/recordings/{recording_id}/robot", response_class=PlainTextResponse)
 def get_generated_robot(
     recording_id: int,
@@ -334,16 +339,6 @@ def get_recording_events(
 # ---------------------------------------------------------------------------
 # Recorder v2 — Session endpoint family (Story W.1 stub + W.8 audit)
 # ---------------------------------------------------------------------------
-
-from pydantic import BaseModel
-
-from src.audit.event_types import AuditEventType
-from src.audit.service import log_event
-from src.auth.constants import ERR_INSUFFICIENT_PERMISSIONS, ROLE_HIERARCHY
-from src.auth.permissions import effective_role
-from src.recording.models import RecordingSession, RecordingSource
-from src.recording.selector_schema import RecordingTransport
-from src.repos.models import Repository
 
 
 class V2CapabilitiesResponse(BaseModel):
@@ -584,7 +579,9 @@ def v2_save_flow(
     try:
         target.relative_to(repo_root)
     except ValueError:
-        raise HTTPException(status_code=400, detail="path resolves outside the repository")
+        raise HTTPException(
+            status_code=400, detail="path resolves outside the repository"
+        ) from None
 
     # Auto-suffix .robot if missing for a smoother UX.
     if target.suffix != ".robot":
@@ -987,8 +984,6 @@ def v2_reset_stuck_sessions(
 # ---------------------------------------------------------------------------
 # Recorder v2 — Story W.2: SSE command stream
 # ---------------------------------------------------------------------------
-
-import json as _json
 
 
 @router.get("/recordings/sessions/{session_id}/commands")

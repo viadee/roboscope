@@ -1073,10 +1073,7 @@ def compute_failure_heatmap(
 
     for row in rows:
         run_date = row.created_at
-        if hasattr(run_date, "date"):
-            day_str = run_date.date().isoformat()
-        else:
-            day_str = str(run_date)[:10]
+        day_str = run_date.date().isoformat() if hasattr(run_date, "date") else str(run_date)[:10]
 
         key = (row.test_name, day_str)
         if key not in cell_data:

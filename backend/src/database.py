@@ -12,9 +12,10 @@ from datetime import datetime
 from sqlalchemy import MetaData, create_engine, func, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
+from src.config import settings
+
 logger = logging.getLogger("roboscope.database")
 
-from src.config import settings
 
 # Naming convention for consistent constraint names across SQLite & PostgreSQL
 convention = {

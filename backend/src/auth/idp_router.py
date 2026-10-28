@@ -61,7 +61,7 @@ def create_idp(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Identity provider with name '{data.name}' already exists",
-        )
+        ) from None
     return idp
 
 

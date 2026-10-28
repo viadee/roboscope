@@ -2,8 +2,19 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Backend is ruff-clean**: `ruff check` and `ruff format --check` pass over `src/` and
+  `tests/` (was ~430 findings and 103 unformatted files). Mechanical pass only — import
+  order, `datetime.UTC`, `raise … from`, `contextlib.suppress`, collapsed conditions; no
+  behaviour change. E501 / N806 / N817 are now ignored by config (the formatter owns line
+  length). `make lint` is green again.
+
 ### Added
 
+- **Deep output.xml parser pinned by unit tests**: `tests/reports/test_parser_deep.py`
+  covers `parse_output_xml_deep`, the statistics block, defused-parser rejection and both
+  `_calc_duration` timestamp formats (written against the mutmut survivors).
 - **`INSECURE_TLS=true` for corporate MITM proxies**: one `.env` switch disables
   certificate verification on every outbound path — uv/pip installs, `rfbrowser init`
   (npm + Playwright download), git, in-process HTTP clients (LLM, RF knowledge,
@@ -17,6 +28,10 @@
   baseline.
 
 ### Fixed
+
+- **Undefined CSS token `--color-text-secondary`**: 29 uses relied on six different
+  ad-hoc grey fallbacks, several below WCAG AA. All now use the defined
+  `--color-text-muted` (#5A6380).
 
 - **In-place upgrade from ≤0.14 broke runs and schedules** (#66): the columns
   `execution_runs.advanced_config`, `schedules.variables` and

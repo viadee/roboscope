@@ -161,7 +161,7 @@ class TestWriteMessage:
 
         # Local TCP loopback for the test.
         srv = await asyncio.start_server(lambda r, w: None, host="127.0.0.1", port=0)
-        port = srv.sockets[0].getsockname()[1]
+        srv.sockets[0].getsockname()[1]
         srv.close()
         await srv.wait_closed()
 
