@@ -164,9 +164,9 @@ async function injectOverlayStyles(page: import('@playwright/test').Page) {
       .demo-overlay.visible{opacity:1}
       .demo-overlay.scene-title{top:80px;left:50%;transform:translateX(-50%) translateY(-10px);background:rgba(26,45,80,.92);color:#fff;font-size:28px;font-weight:700;padding:16px 36px;border-radius:12px;text-align:center;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.3)}
       .demo-overlay.scene-title.visible{transform:translateX(-50%) translateY(0)}
-      .demo-overlay.feature-tag{bottom:40px;left:40px;background:#3B7DD8;color:#fff;font-size:18px;font-weight:600;padding:10px 24px;border-radius:8px;transform:translateX(-30px);box-shadow:0 4px 16px rgba(59,125,216,.4)}
+      .demo-overlay.feature-tag{bottom:40px;left:40px;background:#2D63B0;color:#fff;font-size:18px;font-weight:600;padding:10px 24px;border-radius:8px;transform:translateX(-30px);box-shadow:0 4px 16px rgba(45, 99, 176,.4)}
       .demo-overlay.feature-tag.visible{transform:translateX(0)}
-      .demo-overlay.feature-tag-center{bottom:120px;left:50%;background:#3B7DD8;color:#fff;font-size:22px;font-weight:600;padding:14px 32px;border-radius:10px;transform:translateX(-50%) scale(.9);box-shadow:0 4px 16px rgba(59,125,216,.4);text-align:center}
+      .demo-overlay.feature-tag-center{bottom:120px;left:50%;background:#2D63B0;color:#fff;font-size:22px;font-weight:600;padding:14px 32px;border-radius:10px;transform:translateX(-50%) scale(.9);box-shadow:0 4px 16px rgba(45, 99, 176,.4);text-align:center}
       .demo-overlay.feature-tag-center.visible{transform:translateX(-50%) scale(1)}
       .demo-overlay.big-title{top:50%;left:50%;transform:translate(-50%,-50%) scale(.8);background:rgba(26,45,80,.95);color:#fff;font-size:42px;font-weight:800;padding:24px 56px;border-radius:16px;text-align:center;white-space:nowrap;box-shadow:0 12px 48px rgba(0,0,0,.4);letter-spacing:1px}
       .demo-overlay.big-title.visible{transform:translate(-50%,-50%) scale(1)}

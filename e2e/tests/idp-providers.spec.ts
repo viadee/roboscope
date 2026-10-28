@@ -153,15 +153,8 @@ test.describe('IdP Providers List View', () => {
   test('empty-state passes axe WCAG 2.1 AA scan', async ({ page }) => {
     await page.goto('/admin/identity-providers');
     await page.waitForLoadState('networkidle');
-    // NOTE: `color-contrast` is disabled because the project-wide brand color
-    // (--color-primary: #3B7DD8 per CLAUDE.md) fails WCAG AA 4.5:1 on white text
-    // and on light backgrounds. That is a pre-existing design-system issue that
-    // predates Phase 4 and affects every view; fixing it is out of scope for
-    // Story 1.6. We still verify structural a11y (labels, headings, ARIA, table
-    // markup, landmarks) via all other rules.
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .disableRules(['color-contrast'])
       .analyze();
     expect(results.violations).toEqual([]);
   });
@@ -172,15 +165,8 @@ test.describe('IdP Providers List View', () => {
 
     await page.goto('/admin/identity-providers');
     await page.waitForLoadState('networkidle');
-    // NOTE: `color-contrast` is disabled because the project-wide brand color
-    // (--color-primary: #3B7DD8 per CLAUDE.md) fails WCAG AA 4.5:1 on white text
-    // and on light backgrounds. That is a pre-existing design-system issue that
-    // predates Phase 4 and affects every view; fixing it is out of scope for
-    // Story 1.6. We still verify structural a11y (labels, headings, ARIA, table
-    // markup, landmarks) via all other rules.
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .disableRules(['color-contrast'])
       .analyze();
     expect(results.violations).toEqual([]);
   });
