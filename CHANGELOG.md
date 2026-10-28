@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Security
+
+- **Dependency bumps** (Dependabot alerts opened after the 0.16.0 merge, all in
+  `backend/uv.lock`): authlib 1.8.0 → 1.9.1 (incl. one critical), dnspython 2.8.0 → 2.9.0,
+  msgpack 1.2.2 → 1.2.4. `authlib>=1.9.1` is now the declared floor.
+
 ## [0.16.0] - 2026-10-28
 
 ### Changed
