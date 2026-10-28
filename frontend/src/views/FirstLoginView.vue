@@ -132,7 +132,7 @@ async function dismissAndGo(path: string) {
 
 .welcome-subheading {
   margin: 0 0 1rem;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted); /* 5.5:1 on the page background (axe gate) */
 }
 
 .welcome-why {
@@ -140,7 +140,7 @@ async function dismissAndGo(path: string) {
 }
 
 .welcome-why--empty {
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted); /* 5.5:1 on the page background (axe gate) */
   font-style: italic;
 }
 
@@ -167,7 +167,7 @@ async function dismissAndGo(path: string) {
 .welcome-skip {
   background: transparent;
   border: none;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted); /* 5.5:1 on the page background (axe gate) */
   cursor: pointer;
   text-decoration: underline;
   font: inherit;
