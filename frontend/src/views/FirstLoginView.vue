@@ -121,7 +121,8 @@ async function dismissAndGo(path: string) {
 }
 
 .welcome-section--tour {
-  opacity: 0.7;
+  /* De-emphasise via colour, not opacity: alpha dims the skip button below AA. */
+  color: var(--color-text-muted);
   font-size: 0.9rem;
 }
 
