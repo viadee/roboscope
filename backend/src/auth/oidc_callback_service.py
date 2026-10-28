@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 from authlib.integrations.httpx_client import OAuth2Client
@@ -35,6 +35,7 @@ from src.auth.oidc_discovery import (
     get_or_fetch_discovery,
 )
 from src.encryption import decrypt_value
+from src.insecure_tls import tls_verify
 from src.teams.models import TeamMember
 
 logger = logging.getLogger("roboscope.auth.oidc_callback")
@@ -43,9 +44,7 @@ _CALLBACK_PATH = "/api/v1/auth/sso/callback"
 _HTTP_TIMEOUT = httpx.Timeout(4.0, connect=4.0)
 
 # Pin accepted id_token signature algorithms (P8). Reject HS*/none implicitly.
-_ID_TOKEN_DECODER = JsonWebToken(
-    ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"]
-)
+_ID_TOKEN_DECODER = JsonWebToken(["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"])
 # Essential claims enforced at decode time (P9). Clock leeway handled via validate().
 _ID_TOKEN_CLAIMS_OPTIONS = {
     "iss": {"essential": True},
@@ -80,18 +79,16 @@ class CallbackResult:
     sync: SyncReport
 
 
-def handle_sso_callback(
-    db: Session, *, code: str, state: str, base_url: str
-) -> CallbackResult:
+def handle_sso_callback(db: Session, *, code: str, state: str, base_url: str) -> CallbackResult:
     """Run the full post-IdP redirect flow. See module docstring for semantics."""
     attempt = db.query(OidcLoginAttempt).filter_by(state=state).first()
     if attempt is None:
         raise SsoCallbackError("state.unknown")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expires_at = attempt.expires_at
     if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+        expires_at = expires_at.replace(tzinfo=UTC)
     if expires_at <= now:
         raise SsoCallbackError("state.expired", {"idp_id": attempt.idp_id})
 
@@ -115,16 +112,12 @@ def handle_sso_callback(
         raise SsoCallbackError("idp.unreachable", {"idp_id": idp.id})
 
     redirect_uri = f"{base_url.rstrip('/')}{_CALLBACK_PATH}"
-    token_response = _exchange_code(
-        pkce_verifier_enc, idp, discovery, code, redirect_uri
-    )
+    token_response = _exchange_code(pkce_verifier_enc, idp, discovery, code, redirect_uri)
     id_token_str = token_response.get("id_token")
     if not isinstance(id_token_str, str) or not id_token_str:
         raise SsoCallbackError("token.invalid", {"idp_id": idp.id, "reason": "no_id_token"})
 
-    id_token_claims = _verify_id_token(
-        id_token_str, idp, discovery, expected_nonce=nonce
-    )
+    id_token_claims = _verify_id_token(id_token_str, idp, discovery, expected_nonce=nonce)
     del id_token_str  # NFR9 — id_token discarded after extraction
 
     claims = _extract_claims(id_token_claims, idp)
@@ -173,7 +166,8 @@ def handle_sso_callback(
     except SQLAlchemyError:
         # Non-fatal — losing a cache update must not fail the login.
         logger.warning(
-            "Recording seen groups failed for idp_id=%s; continuing", idp.id,
+            "Recording seen groups failed for idp_id=%s; continuing",
+            idp.id,
             exc_info=True,
         )
 
@@ -189,9 +183,7 @@ def _exchange_code(
 ) -> dict:
     token_endpoint = discovery.get("token_endpoint")
     if not isinstance(token_endpoint, str) or not token_endpoint:
-        raise SsoCallbackError(
-            "idp.unreachable", {"idp_id": idp.id, "reason": "no_token_endpoint"}
-        )
+        raise SsoCallbackError("idp.unreachable", {"idp_id": idp.id, "reason": "no_token_endpoint"})
 
     try:
         client_secret = decrypt_value(idp.client_secret_encrypted.decode())
@@ -207,7 +199,7 @@ def _exchange_code(
             "token.invalid", {"idp_id": idp.id, "reason": "pkce_verifier_decrypt_failed"}
         ) from exc
 
-    verify: object = True if _ALLOW_INSECURE_IDP else _TLS_CONTEXT
+    verify = tls_verify(True if _ALLOW_INSECURE_IDP else _TLS_CONTEXT)
     try:
         with OAuth2Client(
             client_id=idp.client_id,
@@ -224,9 +216,7 @@ def _exchange_code(
                 code_verifier=code_verifier,
             )
     except httpx.TimeoutException as exc:
-        raise SsoCallbackError(
-            "idp.unreachable", {"idp_id": idp.id, "reason": "timeout"}
-        ) from exc
+        raise SsoCallbackError("idp.unreachable", {"idp_id": idp.id, "reason": "timeout"}) from exc
     except httpx.HTTPStatusError as exc:
         # P2 — surface IdP HTTP status for SIEM correlation.
         raise SsoCallbackError(
@@ -263,16 +253,14 @@ def _verify_id_token(
     if not isinstance(jwks_uri, str) or not jwks_uri:
         raise SsoCallbackError("token.invalid", {"reason": "no_jwks_uri"})
 
-    verify: object = True if _ALLOW_INSECURE_IDP else _TLS_CONTEXT
+    verify = tls_verify(True if _ALLOW_INSECURE_IDP else _TLS_CONTEXT)
     try:
         with httpx.Client(timeout=_HTTP_TIMEOUT, verify=verify) as http:
             jwks_resp = http.get(jwks_uri)
             jwks_resp.raise_for_status()
             jwk_set = JsonWebKey.import_key_set(jwks_resp.json())
     except httpx.HTTPError as exc:
-        raise SsoCallbackError(
-            "token.invalid", {"reason": "jwks_fetch_failed"}
-        ) from exc
+        raise SsoCallbackError("token.invalid", {"reason": "jwks_fetch_failed"}) from exc
     except ValueError as exc:  # import_key_set on malformed JSON
         raise SsoCallbackError("token.invalid", {"reason": "jwks_malformed"}) from exc
 
@@ -332,9 +320,7 @@ def _extract_claims(id_token_claims: dict, idp: IdentityProvider) -> dict:
     group_claim = idp.group_claim_name or "groups"
     raw_groups = id_token_claims.get(group_claim)
     groups: list[str] = (
-        [g for g in raw_groups if isinstance(g, str)]
-        if isinstance(raw_groups, list)
-        else []
+        [g for g in raw_groups if isinstance(g, str)] if isinstance(raw_groups, list) else []
     )
     return {"sub": sub, "email": email.strip().lower(), "groups": groups}
 
@@ -354,7 +340,7 @@ def _upsert_user(db: Session, *, email: str, sub: str) -> User:
                 "user.link_consent_required",
                 {"user_id": user.id, "email": email, "sub": sub},
             )
-        user.last_login_at = datetime.now(timezone.utc)
+        user.last_login_at = datetime.now(UTC)
         db.flush()
         return user
 
@@ -364,7 +350,7 @@ def _upsert_user(db: Session, *, email: str, sub: str) -> User:
         hashed_password="",  # SSO-only — local login blocked by empty hash
         role=Role.VIEWER,
         is_active=True,
-        last_login_at=datetime.now(timezone.utc),
+        last_login_at=datetime.now(UTC),
     )
     db.add(new_user)
     try:
@@ -375,24 +361,18 @@ def _upsert_user(db: Session, *, email: str, sub: str) -> User:
         db.rollback()
         existing = db.query(User).filter(User.email == email).first()
         if existing is None:
-            raise SsoCallbackError(
-                "user.username_conflict", {"email": email}
-            ) from exc
+            raise SsoCallbackError("user.username_conflict", {"email": email}) from exc
         if not existing.is_active:
             raise SsoCallbackError("user.disabled", {"user_id": existing.id}) from exc
-        existing.last_login_at = datetime.now(timezone.utc)
+        existing.last_login_at = datetime.now(UTC)
         db.flush()
         return existing
     db.refresh(new_user)
     return new_user
 
 
-def _sync_team_memberships(
-    db: Session, user: User, idp_id: int, groups: list[str]
-) -> SyncReport:
-    mappings = (
-        db.query(IdPGroupMapping).filter(IdPGroupMapping.idp_id == idp_id).all()
-    )
+def _sync_team_memberships(db: Session, user: User, idp_id: int, groups: list[str]) -> SyncReport:
+    mappings = db.query(IdPGroupMapping).filter(IdPGroupMapping.idp_id == idp_id).all()
     expected: dict[int, str] = {}
     for m in mappings:
         if m.group_claim_value in groups:

@@ -23,7 +23,10 @@ KEYWORD_CATALOG: dict[str, list[dict[str, str]]] = {
         {"keyword": "Should Contain", "arg_prompt": "expected substring"},
     ],
     "Wait": [
-        {"keyword": "Wait For Elements State", "arg_prompt": "state (visible / hidden / attached / ...)"},
+        {
+            "keyword": "Wait For Elements State",
+            "arg_prompt": "state (visible / hidden / attached / ...)",
+        },
         {"keyword": "Wait Until Network Is Idle", "arg_prompt": None},
         {"keyword": "Wait For Condition", "arg_prompt": "condition expression"},
     ],

@@ -78,7 +78,7 @@ const de: DocsContent = [
 </ol>
 <p>
   Das Design orientiert sich am <em>viadee.de</em>-Branding mit den
-  Hauptfarben Steel Blue (<code>#3B7DD8</code>) und Amber (<code>#D4883E</code>)
+  Hauptfarben Steel Blue (<code>#2D63B0</code>) und Amber (<code>#D4883E</code>)
   auf dunklem Navy-Hintergrund in der Sidebar.
 </p>`
       },
@@ -2243,6 +2243,30 @@ Login Works
   <li>Legacy-Klartext-Secrets (erstellt vor Aktivierung der Verschl\u00FCsselung) funktionieren weiterhin durch Graceful Fallback.</li>
 </ul>`,
         tip: 'Verwenden Sie in Produktion immer einen starken, einzigartigen SECRET_KEY. Wenn der SECRET_KEY ge\u00E4ndert wird, werden zuvor verschl\u00FCsselte Secrets unlesbar.'
+      },
+      {
+        id: 'insecure-tls',
+        title: 'Firmennetzwerke &amp; selbstsignierte Zertifikate',
+        content: `
+<p>
+  Hinter einem Firmen-Proxy, der HTTPS mit einer eigenen Zertifizierungsstelle aufbricht, schlagen
+  Paketinstallationen, <code>rfbrowser init</code>, Git-Synchronisationen und PyPI-Abfragen mit
+  <em>certificate verify failed</em> / <em>self-signed certificate in certificate chain</em> fehl.
+</p>
+<h4>Bevorzugt: der Firmen-CA vertrauen</h4>
+<p>
+  Verweisen Sie vor dem Start von RoboScope auf Ihr CA-Bundle: <code>SSL_CERT_FILE</code> (uv, Python),
+  <code>NODE_EXTRA_CA_CERTS</code> (Node.js / Playwright-Download) und <code>GIT_SSL_CAINFO</code> (Git).
+</p>
+<h4>Notausgang: Vertrauenskette ignorieren</h4>
+<p>
+  Setzen Sie <code>INSECURE_TLS=true</code> in der <code>.env</code> und starten Sie neu. RoboScope
+  schaltet dann die Zertifikatsprüfung für alle Verbindungen ab: uv (venv-Erstellung, Paketinstallation),
+  npm und den Playwright-Browser-Download bei <code>rfbrowser init</code>, Git clone/pull/push,
+  PyPI-Paketsuche, KI-Anbieter, Webhooks, SSO-Identity-Provider, Docker-Image-Builds und den
+  Recorder-Browser. Beim Start wird eine Warnung protokolliert.
+</p>`,
+        tip: 'INSECURE_TLS deaktiviert jede Zertifikatsprüfung — ein Man-in-the-Middle kann den gesamten Verkehr mitlesen und verändern. Nur in vertrauenswürdigen Netzwerken und auf eigene Gefahr verwenden.'
       },
       {
         id: 'identity-providers',

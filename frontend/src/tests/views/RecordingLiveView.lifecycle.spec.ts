@@ -1,10 +1,8 @@
 /**
  * Story RECORDER-VIS-1 — phase state machine of RecordingLiveView.vue.
  *
- * The setup script's `_transitionTo`, `handleLifecycle` and
- * `handleCommand` aren't directly importable (Vue SFC `<script
- * setup>`), so we mirror their pure-data behaviour here and exercise
- * the transitions across every entry point in the contract.
+ * The transitions live in `@/utils/recorderPhase` (the view only owns the
+ * refs and the real timer), so this spec drives the real reducer.
  *
  * Catches regressions in:
  *   - the bare `connecting` → `browser_starting` fallback when SSE
@@ -17,14 +15,12 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-type RecorderPhase =
-  | 'connecting'
-  | 'browser_starting'
-  | 'browser_ready'
-  | 'browser_restarting'
-  | 'browser_crashed'
-  | 'done'
-  | 'error'
+import {
+  applyPhase,
+  initialPhaseState,
+  phaseAfterCommand,
+  type RecorderPhaseState,
+} from '@/utils/recorderPhase'
 
 interface LifecyclePayload {
   phase: 'browser_starting' | 'browser_ready' | 'browser_crashed' | 'browser_restarting'
@@ -32,57 +28,21 @@ interface LifecyclePayload {
   message?: string | null
 }
 
-interface StateMachine {
-  phase: RecorderPhase
-  readyAtMs: number | null
-  crashMessage: string | null
-  uptimeIntervalActive: boolean
-  /** Drives `handleCommand` — bumped on every command. */
-  commandCount: number
-}
+type StateMachine = RecorderPhaseState & { commandCount: number }
 
 function createMachine(): StateMachine {
-  return {
-    phase: 'connecting',
-    readyAtMs: null,
-    crashMessage: null,
-    uptimeIntervalActive: false,
-    commandCount: 0,
-  }
+  return { ...initialPhaseState(), commandCount: 0 }
 }
 
-// Mirror of RecordingLiveView.vue::_transitionTo. Tracks the same
-// invariants — only with `uptimeIntervalActive` as a boolean instead
-// of a real `setInterval` handle, because we don't need real timer
-// behaviour in unit tests.
-function transitionTo(
-  m: StateMachine,
-  next: RecorderPhase,
-  message: string | null = null,
-): void {
-  m.phase = next
-  if (next === 'browser_ready') {
-    m.readyAtMs = Date.now()
-    m.crashMessage = null
-    if (!m.uptimeIntervalActive) m.uptimeIntervalActive = true
-  } else if (next === 'browser_restarting' || next === 'browser_starting') {
-    m.readyAtMs = null
-  } else if (next === 'browser_crashed') {
-    m.crashMessage = message
-    m.readyAtMs = null
-    if (m.uptimeIntervalActive) m.uptimeIntervalActive = false
-  }
-}
-
+// Thin wrappers over the real reducer, shaped like the view's handlers.
 function handleLifecycle(m: StateMachine, payload: LifecyclePayload): void {
-  transitionTo(m, payload.phase, payload.message ?? null)
+  Object.assign(m, applyPhase(m, payload.phase, payload.message ?? null))
 }
 
 function handleCommand(m: StateMachine): void {
   m.commandCount += 1
-  if (m.phase === 'connecting' || m.phase === 'browser_starting') {
-    transitionTo(m, 'browser_ready')
-  }
+  const next = phaseAfterCommand(m.phase)
+  if (next) Object.assign(m, applyPhase(m, next))
 }
 
 describe('RecordingLiveView phase state machine — RECORDER-VIS-1', () => {
@@ -98,7 +58,7 @@ describe('RecordingLiveView phase state machine — RECORDER-VIS-1', () => {
     it('starts in connecting with no ready timestamp', () => {
       expect(m.phase).toBe('connecting')
       expect(m.readyAtMs).toBeNull()
-      expect(m.uptimeIntervalActive).toBe(false)
+      expect(m.tickerActive).toBe(false)
     })
 
     it('connecting → browser_starting on the backend signal', () => {
@@ -112,12 +72,12 @@ describe('RecordingLiveView phase state machine — RECORDER-VIS-1', () => {
       handleLifecycle(m, { phase: 'browser_ready', ts: 0 })
       expect(m.phase).toBe('browser_ready')
       expect(m.readyAtMs).not.toBeNull()
-      expect(m.uptimeIntervalActive).toBe(true)
+      expect(m.tickerActive).toBe(true)
     })
 
     it('browser_crashed surfaces the error message and stops the ticker', () => {
       handleLifecycle(m, { phase: 'browser_ready', ts: 0 })
-      expect(m.uptimeIntervalActive).toBe(true)
+      expect(m.tickerActive).toBe(true)
       handleLifecycle(m, {
         phase: 'browser_crashed',
         ts: 0,
@@ -126,7 +86,7 @@ describe('RecordingLiveView phase state machine — RECORDER-VIS-1', () => {
       expect(m.phase).toBe('browser_crashed')
       expect(m.crashMessage).toBe('X server not found')
       expect(m.readyAtMs).toBeNull()
-      expect(m.uptimeIntervalActive).toBe(false)
+      expect(m.tickerActive).toBe(false)
     })
 
     it('browser_crashed without a message stores null', () => {

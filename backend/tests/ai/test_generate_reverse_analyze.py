@@ -29,7 +29,6 @@ from src.ai.schemas import AiProviderCreate
 from src.ai.service import create_provider
 from tests.conftest import auth_header
 
-
 # ---------------------------------------------------------------------------
 # fixtures
 # ---------------------------------------------------------------------------
@@ -84,9 +83,9 @@ def repo_with_files(db_session, admin_user, tmp_path):
 @pytest.fixture
 def report_with_failures(db_session, admin_user, tmp_path):
     """A Report row that already has failed_tests > 0."""
-    from src.repos.models import Repository
     from src.execution.models import ExecutionRun
     from src.reports.models import Report
+    from src.repos.models import Repository
 
     local = tmp_path / "report-repo"
     local.mkdir()
@@ -140,7 +139,11 @@ def _mock_dispatch():
 
 class TestGenerate:
     def test_happy_path_dispatches_job(
-        self, client, admin_user, repo_with_files, provider,
+        self,
+        client,
+        admin_user,
+        repo_with_files,
+        provider,
     ):
         patcher, mock = _mock_dispatch()
         with patcher:
@@ -163,7 +166,11 @@ class TestGenerate:
         assert called_fn.__name__ == "run_generate"
 
     def test_missing_spec_404(
-        self, client, admin_user, repo_with_files, provider,
+        self,
+        client,
+        admin_user,
+        repo_with_files,
+        provider,
     ):
         resp = client.post(
             "/api/v1/ai/generate",
@@ -189,7 +196,11 @@ class TestGenerate:
         assert resp.status_code == 404
 
     def test_runner_user_forbidden(
-        self, client, runner_user, repo_with_files, provider,
+        self,
+        client,
+        runner_user,
+        repo_with_files,
+        provider,
     ):
         resp = client.post(
             "/api/v1/ai/generate",
@@ -203,7 +214,11 @@ class TestGenerate:
         assert resp.status_code == 403
 
     def test_drift_409_when_target_modified(
-        self, client, admin_user, repo_with_files, provider,
+        self,
+        client,
+        admin_user,
+        repo_with_files,
+        provider,
     ):
         """If `metadata.generation_hash` exists in the spec but the
         on-disk .robot file's hash differs, the endpoint refuses with
@@ -231,7 +246,11 @@ class TestGenerate:
         assert resp.status_code == 409
 
     def test_drift_force_true_bypasses(
-        self, client, admin_user, repo_with_files, provider,
+        self,
+        client,
+        admin_user,
+        repo_with_files,
+        provider,
     ):
         spec = Path(repo_with_files.local_path) / "tests" / "demo.roboscope"
         spec.write_text(
@@ -263,7 +282,11 @@ class TestGenerate:
 
 class TestReverse:
     def test_happy_path_auto_derives_output(
-        self, client, admin_user, repo_with_files, provider,
+        self,
+        client,
+        admin_user,
+        repo_with_files,
+        provider,
     ):
         patcher, mock = _mock_dispatch()
         with patcher:
@@ -284,7 +307,11 @@ class TestReverse:
         assert called_fn.__name__ == "run_reverse"
 
     def test_explicit_output_path(
-        self, client, admin_user, repo_with_files, provider,
+        self,
+        client,
+        admin_user,
+        repo_with_files,
+        provider,
     ):
         patcher, _mock = _mock_dispatch()
         with patcher:
@@ -302,7 +329,11 @@ class TestReverse:
         assert resp.json()["target_path"] == "specs/custom.roboscope"
 
     def test_missing_robot_404(
-        self, client, admin_user, repo_with_files, provider,
+        self,
+        client,
+        admin_user,
+        repo_with_files,
+        provider,
     ):
         resp = client.post(
             "/api/v1/ai/reverse",
@@ -348,32 +379,44 @@ class TestAnalyze:
         assert resp.status_code == 404
 
     def test_report_with_no_failures_400(
-        self, client, admin_user, db_session, provider,
+        self,
+        client,
+        admin_user,
+        db_session,
+        provider,
     ):
         # Build a clean report (failed_tests=0).
-        from src.repos.models import Repository
         from src.execution.models import ExecutionRun
         from src.reports.models import Report
+        from src.repos.models import Repository
 
         repo = Repository(
-            name="clean-repo", repo_type="git",
+            name="clean-repo",
+            repo_type="git",
             git_url="https://example.com/c.git",
-            local_path="/tmp/clean", default_branch="main",
+            local_path="/tmp/clean",
+            default_branch="main",
             created_by=admin_user.id,
         )
         db_session.add(repo)
         db_session.flush()
         run = ExecutionRun(
-            repository_id=repo.id, target_path="t",
-            branch="main", status="passed", triggered_by=admin_user.id,
+            repository_id=repo.id,
+            target_path="t",
+            branch="main",
+            status="passed",
+            triggered_by=admin_user.id,
         )
         db_session.add(run)
         db_session.flush()
         clean_report = Report(
             execution_run_id=run.id,
             output_xml_path="/tmp/clean/out.xml",
-            total_tests=2, passed_tests=2, failed_tests=0,
-            skipped_tests=0, total_duration_seconds=0.5,
+            total_tests=2,
+            passed_tests=2,
+            failed_tests=0,
+            skipped_tests=0,
+            total_duration_seconds=0.5,
         )
         db_session.add(clean_report)
         db_session.flush()
@@ -396,13 +439,23 @@ class TestAnalyze:
 
 class TestJobStatus:
     def test_returns_pending_job(
-        self, client, admin_user, repo_with_files, provider, db_session,
+        self,
+        client,
+        admin_user,
+        repo_with_files,
+        provider,
+        db_session,
     ):
         from src.ai.service import create_job
 
         job = create_job(
-            db_session, "generate", repo_with_files.id, provider.id,
-            "tests/demo.roboscope", "tests/demo.robot", admin_user.id,
+            db_session,
+            "generate",
+            repo_with_files.id,
+            provider.id,
+            "tests/demo.roboscope",
+            "tests/demo.robot",
+            admin_user.id,
         )
         resp = client.get(
             f"/api/v1/ai/status/{job.id}",
@@ -426,15 +479,23 @@ class TestJobStatus:
 
 class TestAccept:
     def _seed_completed_job(
-        self, db, admin_user, repo, provider, **overrides,
+        self,
+        db,
+        admin_user,
+        repo,
+        provider,
+        **overrides,
     ):
-        defaults = dict(
-            job_type="generate", status="completed", repository_id=repo.id,
-            provider_id=provider.id, spec_path="tests/demo.roboscope",
-            target_path="tests/generated.robot",
-            triggered_by=admin_user.id,
-            result_preview="*** Test Cases ***\nGenerated\n    Log    ok\n",
-        )
+        defaults = {
+            "job_type": "generate",
+            "status": "completed",
+            "repository_id": repo.id,
+            "provider_id": provider.id,
+            "spec_path": "tests/demo.roboscope",
+            "target_path": "tests/generated.robot",
+            "triggered_by": admin_user.id,
+            "result_preview": "*** Test Cases ***\nGenerated\n    Log    ok\n",
+        }
         defaults.update(overrides)
         job = AiJob(**defaults)
         db.add(job)
@@ -443,10 +504,18 @@ class TestAccept:
         return job
 
     def test_accept_writes_file(
-        self, client, admin_user, db_session, repo_with_files, provider,
+        self,
+        client,
+        admin_user,
+        db_session,
+        repo_with_files,
+        provider,
     ):
         job = self._seed_completed_job(
-            db_session, admin_user, repo_with_files, provider,
+            db_session,
+            admin_user,
+            repo_with_files,
+            provider,
         )
         resp = client.post(
             "/api/v1/ai/accept",
@@ -471,10 +540,19 @@ class TestAccept:
         assert resp.status_code == 404
 
     def test_accept_pending_job_400(
-        self, client, admin_user, db_session, repo_with_files, provider,
+        self,
+        client,
+        admin_user,
+        db_session,
+        repo_with_files,
+        provider,
     ):
         job = self._seed_completed_job(
-            db_session, admin_user, repo_with_files, provider, status="pending",
+            db_session,
+            admin_user,
+            repo_with_files,
+            provider,
+            status="pending",
         )
         resp = client.post(
             "/api/v1/ai/accept",
@@ -485,10 +563,19 @@ class TestAccept:
         assert "not completed" in resp.json()["detail"].lower()
 
     def test_accept_no_preview_400(
-        self, client, admin_user, db_session, repo_with_files, provider,
+        self,
+        client,
+        admin_user,
+        db_session,
+        repo_with_files,
+        provider,
     ):
         job = self._seed_completed_job(
-            db_session, admin_user, repo_with_files, provider, result_preview=None,
+            db_session,
+            admin_user,
+            repo_with_files,
+            provider,
+            result_preview=None,
         )
         resp = client.post(
             "/api/v1/ai/accept",
@@ -499,10 +586,19 @@ class TestAccept:
         assert "no result" in resp.json()["detail"].lower()
 
     def test_accept_no_target_400(
-        self, client, admin_user, db_session, repo_with_files, provider,
+        self,
+        client,
+        admin_user,
+        db_session,
+        repo_with_files,
+        provider,
     ):
         job = self._seed_completed_job(
-            db_session, admin_user, repo_with_files, provider, target_path=None,
+            db_session,
+            admin_user,
+            repo_with_files,
+            provider,
+            target_path=None,
         )
         resp = client.post(
             "/api/v1/ai/accept",
@@ -513,10 +609,19 @@ class TestAccept:
         assert "no target path" in resp.json()["detail"].lower()
 
     def test_accept_runner_user_forbidden(
-        self, client, runner_user, admin_user, db_session, repo_with_files, provider,
+        self,
+        client,
+        runner_user,
+        admin_user,
+        db_session,
+        repo_with_files,
+        provider,
     ):
         job = self._seed_completed_job(
-            db_session, admin_user, repo_with_files, provider,
+            db_session,
+            admin_user,
+            repo_with_files,
+            provider,
         )
         resp = client.post(
             "/api/v1/ai/accept",

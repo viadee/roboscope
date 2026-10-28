@@ -3,7 +3,6 @@
 import importlib
 import logging
 from pathlib import Path
-from typing import Any
 
 from src.plugins.base import BasePlugin
 

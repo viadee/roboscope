@@ -1,7 +1,8 @@
 """Tests for explorer API endpoints."""
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 from sqlalchemy.orm import Session
 
 from src.environments.models import Environment
@@ -37,15 +38,11 @@ def repo_with_files(db_session: Session, admin_user, tmp_path):
     suites = tmp_path / "suites"
     suites.mkdir()
     (suites / "login.robot").write_text(SAMPLE_ROBOT)
-    (suites / "api_tests.robot").write_text(
-        "*** Test Cases ***\nAPI Health Check\n    Log    OK\n"
-    )
+    (suites / "api_tests.robot").write_text("*** Test Cases ***\nAPI Health Check\n    Log    OK\n")
 
     resources = tmp_path / "resources"
     resources.mkdir()
-    (resources / "common.resource").write_text(
-        "*** Keywords ***\nMy Keyword\n    Log    hello\n"
-    )
+    (resources / "common.resource").write_text("*** Keywords ***\nMy Keyword\n    Log    hello\n")
 
     repo = Repository(
         name="test-explorer-repo",
@@ -168,7 +165,9 @@ class TestGetFile:
         assert data["name"] == "common.resource"
         assert data["extension"] == ".resource"
 
-    def test_read_binary_file_returns_empty_content(self, client, admin_user, repo_with_files, tmp_path):
+    def test_read_binary_file_returns_empty_content(
+        self, client, admin_user, repo_with_files, tmp_path
+    ):
         """Binary files should return is_binary=True with empty content."""
         (tmp_path / "image.png").write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
         response = client.get(
@@ -394,15 +393,11 @@ class TestLibraryCheck:
         assert response.status_code == 200
         data = response.json()
 
-        browser = next(
-            (l for l in data["libraries"] if l["library_name"] == "Browser"), None
-        )
+        browser = next((l for l in data["libraries"] if l["library_name"] == "Browser"), None)
         if browser:
             assert browser["status"] == "missing"
 
-    def test_library_check_unauthenticated(
-        self, client, repo_with_files, environment
-    ):
+    def test_library_check_unauthenticated(self, client, repo_with_files, environment):
         response = client.get(
             f"/api/v1/explorer/{repo_with_files.id}/library-check",
             params={"environment_id": environment.id},
@@ -410,9 +405,7 @@ class TestLibraryCheck:
         assert response.status_code == 401
 
     @patch("src.explorer.router.pip_list_installed")
-    def test_library_check_nonexistent_repo(
-        self, mock_pip, client, admin_user, environment
-    ):
+    def test_library_check_nonexistent_repo(self, mock_pip, client, admin_user, environment):
         response = client.get(
             "/api/v1/explorer/99999/library-check",
             params={"environment_id": environment.id},
@@ -421,15 +414,14 @@ class TestLibraryCheck:
         assert response.status_code == 404
 
     @patch("src.explorer.router.pip_list_installed")
-    def test_library_check_nonexistent_env(
-        self, mock_pip, client, admin_user, repo_with_files
-    ):
+    def test_library_check_nonexistent_env(self, mock_pip, client, admin_user, repo_with_files):
         response = client.get(
             f"/api/v1/explorer/{repo_with_files.id}/library-check",
             params={"environment_id": 99999},
             headers=auth_header(admin_user),
         )
         assert response.status_code == 404
+
 
 class TestOpenInFileBrowser:
     @patch("src.explorer.router.open_in_file_browser")
@@ -480,7 +472,6 @@ class TestOpenInFileBrowser:
             headers=auth_header(admin_user),
         )
         assert response.status_code == 403
-
 
     @patch("src.explorer.router.pip_list_installed")
     def test_library_check_response_counts(

@@ -17,23 +17,23 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 SelectorStrategy = Literal[
-    "testid",       # data-test-id / data-testid / data-qa / data-test
-    "aria",         # role + name / aria-label
-    "text",         # stable visible text content
-    "css",          # shortest-unique CSS selector
-    "xpath",        # absolute / relative-anchored / text-anchored
-    "pw_locator",   # Playwright getByRole / getByText / getByLabel
+    "testid",  # data-test-id / data-testid / data-qa / data-test
+    "aria",  # role + name / aria-label
+    "text",  # stable visible text content
+    "css",  # shortest-unique CSS selector
+    "xpath",  # absolute / relative-anchored / text-anchored
+    "pw_locator",  # Playwright getByRole / getByText / getByLabel
     # Desktop-specific — shipped here so the Desktop epic reuses the shape.
-    "automation_id",   # Windows UIA AutomationId
-    "uia_name",        # Windows UIA Name property
+    "automation_id",  # Windows UIA AutomationId
+    "uia_name",  # Windows UIA Name property
     "uia_class_name",  # Windows UIA ClassName
 ]
 
 RecordingTransport = Literal[
     "chrome_extension",  # v1, unchanged
-    "web_playwright",    # v2 MVP
-    "desktop_windows",   # v2 Epic D
-    "desktop_macos",     # v2 Epic DM (tentative)
+    "web_playwright",  # v2 MVP
+    "desktop_windows",  # v2 Epic D
+    "desktop_macos",  # v2 Epic DM (tentative)
 ]
 
 SCHEMA_VERSION = 1
@@ -163,12 +163,13 @@ class RecordedCommand(BaseModel):
     frame_chain: list[FrameDescriptor] = Field(default_factory=list)
 
     def model_post_init(self, _context) -> None:  # type: ignore[override]
-        if self.selector_candidates:
-            if not (0 <= self.active_candidate_index < len(self.selector_candidates)):
-                raise ValueError(
-                    f"active_candidate_index {self.active_candidate_index} out of "
-                    f"range for {len(self.selector_candidates)} candidates"
-                )
+        if self.selector_candidates and not (
+            0 <= self.active_candidate_index < len(self.selector_candidates)
+        ):
+            raise ValueError(
+                f"active_candidate_index {self.active_candidate_index} out of "
+                f"range for {len(self.selector_candidates)} candidates"
+            )
 
     @property
     def active_selector(self) -> SelectorCandidate | None:

@@ -50,15 +50,15 @@ def schedule(db_session: Session, repo, admin_user) -> Schedule:
 
 
 def _make_run(db: Session, repo, user, **kw) -> ExecutionRun:
-    defaults = dict(
-        repository_id=repo.id,
-        target_path="suite.robot",
-        branch="main",
-        status=RunStatus.PENDING,
-        runner_type=RunnerType.SUBPROCESS,
-        triggered_by=user.id,
-        tags_include="smoke",
-    )
+    defaults = {
+        "repository_id": repo.id,
+        "target_path": "suite.robot",
+        "branch": "main",
+        "status": RunStatus.PENDING,
+        "runner_type": RunnerType.SUBPROCESS,
+        "triggered_by": user.id,
+        "tags_include": "smoke",
+    }
     defaults.update(kw)
     run = ExecutionRun(**defaults)
     db.add(run)

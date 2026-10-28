@@ -326,7 +326,7 @@ th.col-actions {
   font-size: 11px;
   font-weight: 600;
   background-color: var(--color-accent, #D4883E);
-  color: #fff;
+  color: var(--color-navy, #1A2D50); /* 4.8:1 on the accent; white was 2.8:1 */
   vertical-align: middle;
   cursor: default;
 }

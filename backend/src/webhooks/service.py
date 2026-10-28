@@ -6,12 +6,13 @@ import json
 import logging
 import secrets
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src.insecure_tls import tls_verify
 from src.webhooks.models import ApiToken, Webhook, WebhookDelivery
 from src.webhooks.schemas import VALID_EVENTS
 
@@ -52,7 +53,7 @@ def create_api_token(
 
     expires_at = None
     if expires_in_days:
-        expires_at = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
+        expires_at = datetime.now(UTC) + timedelta(days=expires_in_days)
 
     token = ApiToken(
         name=name,
@@ -70,9 +71,7 @@ def create_api_token(
 
 def get_token_by_hash(db: Session, token_hash: str) -> ApiToken | None:
     """Look up an API token by its hash."""
-    result = db.execute(
-        select(ApiToken).where(ApiToken.token_hash == token_hash)
-    )
+    result = db.execute(select(ApiToken).where(ApiToken.token_hash == token_hash))
     return result.scalar_one_or_none()
 
 
@@ -99,7 +98,7 @@ def revoke_token(db: Session, token_id: int) -> ApiToken | None:
 
 def update_token_last_used(db: Session, token: ApiToken) -> None:
     """Update the last_used_at timestamp."""
-    token.last_used_at = datetime.now(timezone.utc)
+    token.last_used_at = datetime.now(UTC)
     db.flush()
 
 
@@ -170,7 +169,9 @@ def delete_webhook(db: Session, webhook: Webhook) -> None:
 
 
 def list_deliveries(
-    db: Session, webhook_id: int, limit: int = 20,
+    db: Session,
+    webhook_id: int,
+    limit: int = 20,
 ) -> list[WebhookDelivery]:
     result = db.execute(
         select(WebhookDelivery)
@@ -194,7 +195,9 @@ def _sign_payload(payload: str, secret: str) -> str:
 
 
 def _get_matching_webhooks(
-    session: Session, event: str, repository_id: int | None = None,
+    session: Session,
+    event: str,
+    repository_id: int | None = None,
 ) -> list[Webhook]:
     """Find all active webhooks matching an event."""
     stmt = select(Webhook).where(
@@ -235,7 +238,7 @@ def dispatch_webhook_event(
                 webhook_id=webhook.id,
                 event=event,
                 payload=payload_json,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
             session.add(delivery)
             session.flush()
@@ -254,7 +257,7 @@ def dispatch_webhook_event(
             for attempt in range(max_retries):
                 start = time.monotonic()
                 try:
-                    with httpx.Client(timeout=10.0) as client:
+                    with httpx.Client(timeout=10.0, verify=tls_verify()) as client:
                         resp = client.post(
                             webhook.url,
                             content=payload_json,
@@ -271,7 +274,7 @@ def dispatch_webhook_event(
                         delivery.response_body = resp.text[:2000]
                         delivery.error_message = f"HTTP {resp.status_code}"
                         if attempt < max_retries - 1:
-                            time.sleep(2 ** attempt)  # 1s, 2s backoff
+                            time.sleep(2**attempt)  # 1s, 2s backoff
 
                 except Exception as e:
                     duration_ms = int((time.monotonic() - start) * 1000)
@@ -279,25 +282,30 @@ def dispatch_webhook_event(
                     delivery.error_message = str(e)[:1000]
                     logger.warning(
                         "Webhook delivery failed (attempt %d/%d) to %s: %s",
-                        attempt + 1, max_retries, webhook.url, e,
+                        attempt + 1,
+                        max_retries,
+                        webhook.url,
+                        e,
                     )
                     if attempt < max_retries - 1:
-                        time.sleep(2 ** attempt)
+                        time.sleep(2**attempt)
 
             # Update webhook metadata
-            webhook.last_triggered_at = datetime.now(timezone.utc)
+            webhook.last_triggered_at = datetime.now(UTC)
             webhook.last_status_code = delivery.status_code
             session.commit()
 
 
 def test_webhook(webhook: Webhook) -> dict:
     """Send a test ping to a webhook URL."""
-    payload = json.dumps({
-        "event": "ping",
-        "webhook_id": webhook.id,
-        "webhook_name": webhook.name,
-        "message": "This is a test delivery from RoboScope.",
-    })
+    payload = json.dumps(
+        {
+            "event": "ping",
+            "webhook_id": webhook.id,
+            "webhook_name": webhook.name,
+            "message": "This is a test delivery from RoboScope.",
+        }
+    )
 
     headers = {
         "Content-Type": "application/json",
@@ -309,7 +317,7 @@ def test_webhook(webhook: Webhook) -> dict:
         headers["X-RoboScope-Signature"] = f"sha256={signature}"
 
     try:
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=10.0, verify=tls_verify()) as client:
             resp = client.post(webhook.url, content=payload, headers=headers)
         return {
             "success": resp.status_code < 400,

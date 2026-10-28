@@ -167,7 +167,7 @@ const headline = computed(() => {
 }
 
 .pending-activity__link {
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   text-decoration: none;
   font-size: 0.85rem;
 }

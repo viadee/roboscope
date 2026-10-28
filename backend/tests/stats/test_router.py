@@ -1,8 +1,6 @@
 """Tests for stats API endpoints."""
 
-from datetime import date, timedelta
-
-import pytest
+from datetime import date
 
 from src.execution.models import ExecutionRun, RunStatus
 from src.reports.models import Report, TestResult
@@ -456,7 +454,9 @@ class TestHeatmapEndpoint:
         db_session.flush()
         db_session.refresh(report)
 
-        tr = _make_test_result(report.id, test_name="test_broken", status="FAIL", duration_seconds=2.0)
+        tr = _make_test_result(
+            report.id, test_name="test_broken", status="FAIL", duration_seconds=2.0
+        )
         db_session.add(tr)
         db_session.flush()
 

@@ -1,7 +1,5 @@
 """Tests for settings service."""
 
-import pytest
-
 from src.settings.models import AppSetting
 from src.settings.schemas import SettingUpdate
 from src.settings.service import (

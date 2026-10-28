@@ -6,8 +6,8 @@ require_package_op / gate_advanced_execution — see
 test_advanced_run_audit.py). Pins the fix for audit finding 1.1.
 """
 
-from fastapi import HTTPException
 import pytest
+from fastapi import HTTPException
 
 from src.audit.models import AuditLog
 from src.auth.constants import Role

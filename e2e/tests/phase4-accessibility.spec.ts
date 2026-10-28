@@ -55,18 +55,8 @@ test.describe('Phase 4 accessibility (axe-core)', () => {
     );
     await page.goto('/login');
 
-    // The brand `--color-primary: #3B7DD8` on light backgrounds
-    // (and white-on-primary in CTAs) sits at ~3.8 / 4.1 contrast
-    // ratios — close to but below the WCAG-AA 4.5 threshold for
-    // text. Tightening the brand palette is a design pass scoped
-    // for after 0.9.0; tracked in #38. Disable just the
-    // `color-contrast` rule so the gate still catches the
-    // structurally-critical violations (missing labels, broken
-    // ARIA, broken keyboard nav, …) which is what this gate is
-    // really for.
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa'])
-      .disableRules(['color-contrast'])
       .analyze();
     const blocking = results.violations.filter(
       (v) => v.impact === 'critical' || v.impact === 'serious',
@@ -87,18 +77,8 @@ test.describe('Phase 4 accessibility (axe-core)', () => {
     );
     await page.goto('/sso-error?code=idp.unreachable');
 
-    // The brand `--color-primary: #3B7DD8` on light backgrounds
-    // (and white-on-primary in CTAs) sits at ~3.8 / 4.1 contrast
-    // ratios — close to but below the WCAG-AA 4.5 threshold for
-    // text. Tightening the brand palette is a design pass scoped
-    // for after 0.9.0; tracked in #38. Disable just the
-    // `color-contrast` rule so the gate still catches the
-    // structurally-critical violations (missing labels, broken
-    // ARIA, broken keyboard nav, …) which is what this gate is
-    // really for.
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa'])
-      .disableRules(['color-contrast'])
       .analyze();
     const blocking = results.violations.filter(
       (v) => v.impact === 'critical' || v.impact === 'serious',
@@ -140,18 +120,8 @@ test.describe('Phase 4 accessibility (axe-core)', () => {
     await page.goto('/welcome');
     await page.waitForLoadState('networkidle');
 
-    // The brand `--color-primary: #3B7DD8` on light backgrounds
-    // (and white-on-primary in CTAs) sits at ~3.8 / 4.1 contrast
-    // ratios — close to but below the WCAG-AA 4.5 threshold for
-    // text. Tightening the brand palette is a design pass scoped
-    // for after 0.9.0; tracked in #38. Disable just the
-    // `color-contrast` rule so the gate still catches the
-    // structurally-critical violations (missing labels, broken
-    // ARIA, broken keyboard nav, …) which is what this gate is
-    // really for.
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa'])
-      .disableRules(['color-contrast'])
       .analyze();
     const blocking = results.violations.filter(
       (v) => v.impact === 'critical' || v.impact === 'serious',

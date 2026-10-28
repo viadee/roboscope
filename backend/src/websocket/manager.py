@@ -92,13 +92,15 @@ class ConnectionManager:
         self, env_id: int, package_name: str, status: str, **extra
     ) -> None:
         """Broadcast a package install status change to all listeners."""
-        await self.broadcast({
-            "type": "package_status_changed",
-            "environment_id": env_id,
-            "package_name": package_name,
-            "status": status,
-            **extra,
-        })
+        await self.broadcast(
+            {
+                "type": "package_status_changed",
+                "environment_id": env_id,
+                "package_name": package_name,
+                "status": status,
+                **extra,
+            }
+        )
 
     async def broadcast_run_status(self, run_id: int, status: str, **extra) -> None:
         """Broadcast a run status change to both run-watchers and general listeners."""
@@ -113,52 +115,62 @@ class ConnectionManager:
 
     async def send_run_output(self, run_id: int, line: str) -> None:
         """Send a line of live output to run watchers."""
-        await self.send_to_run(run_id, {
-            "type": "run_output",
-            "run_id": run_id,
-            "line": line,
-        })
+        await self.send_to_run(
+            run_id,
+            {
+                "type": "run_output",
+                "run_id": run_id,
+                "line": line,
+            },
+        )
 
     async def broadcast_docker_build_log(
-        self, env_id: int, line: str, done: bool = False,
+        self,
+        env_id: int,
+        line: str,
+        done: bool = False,
     ) -> None:
         """Broadcast a Docker build log line to all listeners."""
-        await self.broadcast({
-            "type": "docker_build_log",
-            "environment_id": env_id,
-            "line": line,
-            "done": done,
-        })
+        await self.broadcast(
+            {
+                "type": "docker_build_log",
+                "environment_id": env_id,
+                "line": line,
+                "done": done,
+            }
+        )
 
     async def broadcast_notification(self, title: str, message: str, level: str = "info") -> None:
         """Broadcast a notification to all connections."""
-        await self.broadcast({
-            "type": "notification",
-            "title": title,
-            "message": message,
-            "level": level,
-        })
+        await self.broadcast(
+            {
+                "type": "notification",
+                "title": title,
+                "message": message,
+                "level": level,
+            }
+        )
 
-    async def broadcast_recording_status(
-        self, recording_id: int, status: str, **extra
-    ) -> None:
+    async def broadcast_recording_status(self, recording_id: int, status: str, **extra) -> None:
         """Broadcast a recording session status change to all listeners."""
-        await self.broadcast({
-            "type": "recording_status_changed",
-            "recording_id": recording_id,
-            "status": status,
-            **extra,
-        })
+        await self.broadcast(
+            {
+                "type": "recording_status_changed",
+                "recording_id": recording_id,
+                "status": status,
+                **extra,
+            }
+        )
 
-    async def broadcast_recording_event(
-        self, recording_id: int, event_data: dict
-    ) -> None:
+    async def broadcast_recording_event(self, recording_id: int, event_data: dict) -> None:
         """Broadcast a captured recording event to all listeners."""
-        await self.broadcast({
-            "type": "recording_event",
-            "recording_id": recording_id,
-            "event": event_data,
-        })
+        await self.broadcast(
+            {
+                "type": "recording_event",
+                "recording_id": recording_id,
+                "event": event_data,
+            }
+        )
 
     @property
     def connection_count(self) -> int:

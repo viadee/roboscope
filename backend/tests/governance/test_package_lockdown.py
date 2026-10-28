@@ -23,12 +23,40 @@ def env(db_session, admin_user):
 def _mutating_calls(client, env_id, headers):
     """(label, response) for every package-mutating endpoint."""
     return [
-        ("install", client.post(f"/api/v1/environments/{env_id}/packages", json={"name": "robotframework"}, headers=headers)),
-        ("upgrade", client.post(f"/api/v1/environments/{env_id}/packages/robotframework/upgrade", headers=headers)),
-        ("retry", client.post(f"/api/v1/environments/{env_id}/packages/robotframework/retry", headers=headers)),
-        ("uninstall", client.delete(f"/api/v1/environments/{env_id}/packages/robotframework", headers=headers)),
-        ("docker_build", client.post(f"/api/v1/environments/{env_id}/docker-build", headers=headers)),
-        ("rfbrowser_init", client.post(f"/api/v1/environments/{env_id}/rfbrowser-init", headers=headers)),
+        (
+            "install",
+            client.post(
+                f"/api/v1/environments/{env_id}/packages",
+                json={"name": "robotframework"},
+                headers=headers,
+            ),
+        ),
+        (
+            "upgrade",
+            client.post(
+                f"/api/v1/environments/{env_id}/packages/robotframework/upgrade", headers=headers
+            ),
+        ),
+        (
+            "retry",
+            client.post(
+                f"/api/v1/environments/{env_id}/packages/robotframework/retry", headers=headers
+            ),
+        ),
+        (
+            "uninstall",
+            client.delete(
+                f"/api/v1/environments/{env_id}/packages/robotframework", headers=headers
+            ),
+        ),
+        (
+            "docker_build",
+            client.post(f"/api/v1/environments/{env_id}/docker-build", headers=headers),
+        ),
+        (
+            "rfbrowser_init",
+            client.post(f"/api/v1/environments/{env_id}/rfbrowser-init", headers=headers),
+        ),
     ]
 
 
@@ -38,12 +66,16 @@ class TestLockdownOff:
     ):
         monkeypatch.setenv(ENV_FLAG, "false")
         for label, resp in _mutating_calls(client, env.id, auth_header(admin_user)):
-            assert resp.status_code == 403, f"{label} should be 403 when locked, got {resp.status_code}"
+            assert resp.status_code == 403, (
+                f"{label} should be 403 when locked, got {resp.status_code}"
+            )
             assert "feature_disabled:packageManagement" in resp.json()["detail"], label
 
     def test_read_endpoint_still_works_when_locked(self, client, env, admin_user, monkeypatch):
         monkeypatch.setenv(ENV_FLAG, "false")
-        resp = client.get(f"/api/v1/environments/{env.id}/packages", headers=auth_header(admin_user))
+        resp = client.get(
+            f"/api/v1/environments/{env.id}/packages", headers=auth_header(admin_user)
+        )
         assert resp.status_code == 200
 
     def test_setup_default_is_locked(self, client, admin_user, monkeypatch):
@@ -81,9 +113,7 @@ class TestLockdownOff:
             headers=auth_header(admin_user),
         )
         rows = list(
-            db_session.execute(
-                select(AuditLog).where(AuditLog.action == "blocked")
-            ).scalars().all()
+            db_session.execute(select(AuditLog).where(AuditLog.action == "blocked")).scalars().all()
         )
         assert any("feature_disabled:packageManagement" in (r.detail or "") for r in rows)
 

@@ -16,10 +16,10 @@ def test_single_subscriber_enforced() -> None:
     sid = 990001
     register_session(sid)
     try:
-        assert try_acquire_subscriber(sid) is True   # first consumer wins
+        assert try_acquire_subscriber(sid) is True  # first consumer wins
         assert try_acquire_subscriber(sid) is False  # second is rejected (→409)
         release_subscriber(sid)
-        assert try_acquire_subscriber(sid) is True    # reconnect after release
+        assert try_acquire_subscriber(sid) is True  # reconnect after release
         release_subscriber(sid)
     finally:
         tear_down_session(sid)

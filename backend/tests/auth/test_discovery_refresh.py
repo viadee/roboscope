@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -45,11 +44,11 @@ def _make_mock_idp(
 
 
 def _stale_time() -> datetime:
-    return datetime.now(timezone.utc) - timedelta(hours=25)
+    return datetime.now(UTC) - timedelta(hours=25)
 
 
 def _fresh_time() -> datetime:
-    return datetime.now(timezone.utc) - timedelta(hours=1)
+    return datetime.now(UTC) - timedelta(hours=1)
 
 
 # ---------------------------------------------------------------------------

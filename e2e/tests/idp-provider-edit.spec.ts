@@ -1,7 +1,6 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
-import { loginViaApi } from '../helpers';
+import { API, loginViaApi } from '../helpers';
 
-const API = 'http://localhost:8000/api/v1';
 const ADMIN_EMAIL = 'admin@roboscope.local';
 const ADMIN_PASSWORD = 'admin123';
 

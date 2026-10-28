@@ -1,6 +1,6 @@
 """Authentication dependencies for FastAPI dependency injection."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -46,7 +46,7 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=ERR_TOKEN_INVALID,
-        )
+        ) from None
 
     if payload.get("type") != "access":
         raise HTTPException(
@@ -74,7 +74,7 @@ def get_current_user(
 
 def _authenticate_api_token(token_str: str, db: Session) -> User:
     """Authenticate a request using an API token (rbs_... prefix)."""
-    from src.webhooks.service import get_token_by_hash, verify_token, update_token_last_used
+    from src.webhooks.service import get_token_by_hash, update_token_last_used, verify_token
 
     token_hash = verify_token(token_str)
     api_token = get_token_by_hash(db, token_hash)
@@ -86,7 +86,7 @@ def _authenticate_api_token(token_str: str, db: Session) -> User:
         )
 
     # Check expiry
-    if api_token.expires_at and api_token.expires_at < datetime.now(timezone.utc):
+    if api_token.expires_at and api_token.expires_at < datetime.now(UTC):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="API token has expired",
@@ -164,7 +164,7 @@ def require_effective_role(min_role: Role):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Repository not found",
-            )
+            ) from None
 
         repo = db.get(Repository, repo_id)
         if repo is None:
@@ -221,7 +221,7 @@ def require_effective_role_for_run(min_role: Role):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Run not found",
-            )
+            ) from None
 
         run = db.get(ExecutionRun, run_id)
         if run is None:
@@ -286,7 +286,7 @@ def require_effective_role_for_recording(min_role: Role):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Recording not found",
-            )
+            ) from None
 
         recording = db.get(RecordingSession, recording_id)
         if recording is None:
@@ -348,7 +348,7 @@ def require_effective_role_for_report(min_role: Role):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Report not found",
-            )
+            ) from None
 
         report = db.get(Report, report_id)
         if report is None:

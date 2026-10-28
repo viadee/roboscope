@@ -371,7 +371,7 @@ function outcomeIcon(entry: HealAuditEntry): string {
 .heal-entry__cmd-id {
   font-family: var(--font-mono, monospace);
   font-size: 0.7rem;
-  color: var(--color-text-secondary, #6b7280);
+  color: var(--color-text-muted);
   background: rgba(107, 114, 128, 0.10);
   padding: 1px 6px;
   border-radius: 3px;

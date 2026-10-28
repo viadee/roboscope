@@ -137,7 +137,7 @@ onUnmounted(() => {
 }
 
 .bypass-admin__hint {
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
 }
 
 .bypass-admin__status {
@@ -161,14 +161,14 @@ onUnmounted(() => {
 
 .bypass-admin__cta {
   padding: 0.5rem 1rem;
-  border: 1px solid var(--color-primary, #3B7DD8);
+  border: 1px solid var(--color-primary, #2D63B0);
   border-radius: 4px;
   font: inherit;
   cursor: pointer;
 }
 
 .bypass-admin__cta--primary {
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: white;
 }
 

@@ -1,13 +1,13 @@
 """Tests for execution API endpoints: runs and schedules."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 from sqlalchemy.orm import Session
 
 from src.auth.constants import Role
 from src.auth.service import hash_password
-from src.execution.models import RunStatus, RunType, RunnerType
+from src.execution.models import RunnerType, RunStatus
 from src.repos.models import Repository
 from tests.conftest import auth_header
 
@@ -141,8 +141,8 @@ class TestExecutionRuns:
 
     def test_list_runs_paginated(self, client, runner_user, repo, db_session):
         """GET /runs returns paginated results."""
-        from src.execution.service import create_run as svc_create_run
         from src.execution.schemas import RunCreate
+        from src.execution.service import create_run as svc_create_run
 
         for i in range(5):
             data = RunCreate(
@@ -165,14 +165,19 @@ class TestExecutionRuns:
 
     def test_list_runs_filter_by_status(self, client, runner_user, repo, db_session):
         """GET /runs?status=pending filters correctly."""
-        from src.execution.service import create_run as svc_create_run, update_run_status
         from src.execution.schemas import RunCreate
+        from src.execution.service import create_run as svc_create_run
+        from src.execution.service import update_run_status
 
         run1 = svc_create_run(
-            db_session, RunCreate(repository_id=repo.id, target_path="t1", branch="main"), runner_user.id
+            db_session,
+            RunCreate(repository_id=repo.id, target_path="t1", branch="main"),
+            runner_user.id,
         )
         run2 = svc_create_run(
-            db_session, RunCreate(repository_id=repo.id, target_path="t2", branch="main"), runner_user.id
+            db_session,
+            RunCreate(repository_id=repo.id, target_path="t2", branch="main"),
+            runner_user.id,
         )
         update_run_status(db_session, run2, RunStatus.RUNNING)
 
@@ -187,8 +192,8 @@ class TestExecutionRuns:
 
     def test_get_run_detail(self, client, runner_user, repo, db_session):
         """GET /runs/{run_id} returns run details."""
-        from src.execution.service import create_run as svc_create_run
         from src.execution.schemas import RunCreate
+        from src.execution.service import create_run as svc_create_run
 
         run = svc_create_run(
             db_session,
@@ -216,8 +221,8 @@ class TestExecutionRuns:
 
     def test_cancel_pending_run(self, client, runner_user, repo, db_session):
         """POST /runs/{run_id}/cancel on a pending run succeeds."""
-        from src.execution.service import create_run as svc_create_run
         from src.execution.schemas import RunCreate
+        from src.execution.service import create_run as svc_create_run
 
         run = svc_create_run(
             db_session,
@@ -233,21 +238,18 @@ class TestExecutionRuns:
         data = response.json()
         assert data["status"] == RunStatus.CANCELLED
 
-    def test_cancel_running_run(
-        self, client, runner_user, repo, db_session
-    ):
+    def test_cancel_running_run(self, client, runner_user, repo, db_session):
         """POST /runs/{run_id}/cancel on a running run succeeds."""
-        from src.execution.service import create_run as svc_create_run, update_run_status
         from src.execution.schemas import RunCreate
+        from src.execution.service import create_run as svc_create_run
+        from src.execution.service import update_run_status
 
         run = svc_create_run(
             db_session,
             RunCreate(repository_id=repo.id, target_path="tests/cancel_running", branch="main"),
             runner_user.id,
         )
-        update_run_status(
-            db_session, run, RunStatus.RUNNING, task_id="task-cancel-me"
-        )
+        update_run_status(db_session, run, RunStatus.RUNNING, task_id="task-cancel-me")
 
         response = client.post(
             f"/api/v1/runs/{run.id}/cancel",
@@ -259,8 +261,9 @@ class TestExecutionRuns:
 
     def test_cancel_finished_run_returns_400(self, client, runner_user, repo, db_session):
         """POST /runs/{run_id}/cancel on a passed run returns 400."""
-        from src.execution.service import create_run as svc_create_run, update_run_status
         from src.execution.schemas import RunCreate
+        from src.execution.service import create_run as svc_create_run
+        from src.execution.service import update_run_status
 
         run = svc_create_run(
             db_session,
@@ -286,8 +289,9 @@ class TestExecutionRuns:
 
     def test_retry_failed_run(self, client, runner_user, repo, db_session):
         """POST /runs/{run_id}/retry on a failed run creates a new pending run."""
-        from src.execution.service import create_run as svc_create_run, update_run_status
         from src.execution.schemas import RunCreate
+        from src.execution.service import create_run as svc_create_run
+        from src.execution.service import update_run_status
 
         run = svc_create_run(
             db_session,
@@ -315,8 +319,9 @@ class TestExecutionRuns:
 
     def test_retry_error_run(self, client, runner_user, repo, db_session):
         """POST /runs/{run_id}/retry on an errored run succeeds."""
-        from src.execution.service import create_run as svc_create_run, update_run_status
         from src.execution.schemas import RunCreate
+        from src.execution.service import create_run as svc_create_run
+        from src.execution.service import update_run_status
 
         run = svc_create_run(
             db_session,
@@ -336,8 +341,8 @@ class TestExecutionRuns:
 
     def test_retry_pending_run_returns_400(self, client, runner_user, repo, db_session):
         """POST /runs/{run_id}/retry on a pending run returns 400."""
-        from src.execution.service import create_run as svc_create_run
         from src.execution.schemas import RunCreate
+        from src.execution.service import create_run as svc_create_run
 
         run = svc_create_run(
             db_session,
@@ -350,12 +355,16 @@ class TestExecutionRuns:
             headers=auth_header(runner_user),
         )
         assert response.status_code == 400
-        assert "only retry" in response.json()["detail"].lower() or "Can only retry" in response.json()["detail"]
+        assert (
+            "only retry" in response.json()["detail"].lower()
+            or "Can only retry" in response.json()["detail"]
+        )
 
     def test_retry_passed_run_returns_400(self, client, runner_user, repo, db_session):
         """POST /runs/{run_id}/retry on a passed run returns 400."""
-        from src.execution.service import create_run as svc_create_run, update_run_status
         from src.execution.schemas import RunCreate
+        from src.execution.service import create_run as svc_create_run
+        from src.execution.service import update_run_status
 
         run = svc_create_run(
             db_session,
@@ -388,16 +397,14 @@ class TestPendingActivity:
     """GET /runs/{id}/pending-activity — queue position + active-build view."""
 
     def test_404_when_run_missing(self, client, admin_user):
-        resp = client.get(
-            "/api/v1/runs/99999/pending-activity", headers=auth_header(admin_user)
-        )
+        resp = client.get("/api/v1/runs/99999/pending-activity", headers=auth_header(admin_user))
         assert resp.status_code == 404
 
     def test_returns_queue_position_for_pending_behind_two(
         self, client, runner_user, repo, db_session
     ):
-        from src.execution.service import create_run as svc_create_run
         from src.execution.schemas import RunCreate
+        from src.execution.service import create_run as svc_create_run
 
         # Three pending runs created in order. The third one should
         # see queue_position == 3 and ahead_count == 2.
@@ -431,12 +438,10 @@ class TestPendingActivity:
         assert body["queue_position"] == 3
         assert body["active_build"] is None
 
-    def test_surfaces_active_docker_build(
-        self, client, runner_user, repo, db_session
-    ):
+    def test_surfaces_active_docker_build(self, client, runner_user, repo, db_session):
         from src.environments.models import Environment
-        from src.execution.service import create_run as svc_create_run
         from src.execution.schemas import RunCreate
+        from src.execution.service import create_run as svc_create_run
 
         env = Environment(
             name="pending-test-env",
@@ -480,8 +485,8 @@ class TestPendingActivity:
         self, client, runner_user, repo, db_session
     ):
         from src.environments.models import Environment
-        from src.execution.service import create_run as svc_create_run
         from src.execution.schemas import RunCreate
+        from src.execution.service import create_run as svc_create_run
 
         env = Environment(
             name="docker-default-env",
@@ -724,9 +729,7 @@ class TestSchedules:
         )
         assert response.status_code == 404
 
-    def test_toggle_schedule_as_runner_forbidden(
-        self, client, runner_user, repo, editor_user
-    ):
+    def test_toggle_schedule_as_runner_forbidden(self, client, runner_user, repo, editor_user):
         """POST /schedules/{id}/toggle with RUNNER role returns 403."""
         create_resp = client.post(
             "/api/v1/schedules",

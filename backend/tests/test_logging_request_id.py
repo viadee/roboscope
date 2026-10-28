@@ -17,11 +17,9 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter
 from fastapi.testclient import TestClient
 
 from src.logging_context import RequestIdFilter, request_id_var
-
 
 # ---------------------------------------------------------------------------
 # Helper logger that captures records *with their custom attributes intact*.
@@ -51,8 +49,13 @@ class TestRequestIdFilter:
     def test_no_id_outside_context(self):
         f = RequestIdFilter()
         record = logging.LogRecord(
-            name="x", level=logging.INFO, pathname=__file__, lineno=1,
-            msg="hi", args=None, exc_info=None,
+            name="x",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="hi",
+            args=None,
+            exc_info=None,
         )
         f.filter(record)
         assert getattr(record, "request_id", None) is None
@@ -60,8 +63,13 @@ class TestRequestIdFilter:
     def test_stamps_when_context_set(self):
         f = RequestIdFilter()
         record = logging.LogRecord(
-            name="x", level=logging.INFO, pathname=__file__, lineno=1,
-            msg="hi", args=None, exc_info=None,
+            name="x",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="hi",
+            args=None,
+            exc_info=None,
         )
         token = request_id_var.set("test-abc")
         try:
@@ -79,9 +87,11 @@ class TestRequestIdFilter:
 
 def _build_app_with_endpoint(handler: _CapturingHandler):
     """Build a minimal FastAPI app reusing the production middleware."""
-    from fastapi import FastAPI, Request
-    from src.logging_context import request_id_var as rid_var
     import uuid
+
+    from fastapi import FastAPI, Request
+
+    from src.logging_context import request_id_var as rid_var
 
     app = FastAPI()
 

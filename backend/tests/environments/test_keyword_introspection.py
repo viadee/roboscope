@@ -20,7 +20,10 @@ class TestComputePackagesHash:
         assert ki.compute_packages_hash(None) == ""
 
     def test_hash_is_deterministic_and_order_independent(self):
-        pkgs_a = [{"name": "robotframework", "version": "7.4.2"}, {"name": "robotframework-browser", "version": "18.0.0"}]
+        pkgs_a = [
+            {"name": "robotframework", "version": "7.4.2"},
+            {"name": "robotframework-browser", "version": "18.0.0"},
+        ]
         pkgs_b = list(reversed(pkgs_a))
         with patch.object(ki, "pip_list_installed", return_value=pkgs_a):
             h1 = ki.compute_packages_hash("/venv")
@@ -59,11 +62,15 @@ class TestIntrospectKeywords:
         py = tmp_path / "bin" / "python"
         py.parent.mkdir(parents=True)
         py.write_text("")
-        payload = [{"name": "Click", "library": "Browser", "args": ["selector"], "shortdoc": "Click it"}]
+        payload = [
+            {"name": "Click", "library": "Browser", "args": ["selector"], "shortdoc": "Click it"}
+        ]
         fake = MagicMock(returncode=0, stdout=json.dumps(payload), stderr="")
-        with patch.object(ki, "get_python_path", return_value=str(py)), \
-             patch.object(ki, "target_library_names", return_value=["Browser"]), \
-             patch.object(ki.subprocess, "run", return_value=fake):
+        with (
+            patch.object(ki, "get_python_path", return_value=str(py)),
+            patch.object(ki, "target_library_names", return_value=["Browser"]),
+            patch.object(ki.subprocess, "run", return_value=fake),
+        ):
             out = ki.introspect_keywords(str(tmp_path))
         assert out == payload
 
@@ -72,20 +79,29 @@ class TestIntrospectKeywords:
         py.parent.mkdir(parents=True)
         py.write_text("")
         fake = MagicMock(returncode=0, stdout="not json", stderr="")
-        with patch.object(ki, "get_python_path", return_value=str(py)), \
-             patch.object(ki, "target_library_names", return_value=["Browser"]), \
-             patch.object(ki.subprocess, "run", return_value=fake):
+        with (
+            patch.object(ki, "get_python_path", return_value=str(py)),
+            patch.object(ki, "target_library_names", return_value=["Browser"]),
+            patch.object(ki.subprocess, "run", return_value=fake),
+        ):
             assert ki.introspect_keywords(str(tmp_path)) == []
 
 
 class TestRebuildKeywordCache:
     def test_persists_keywords_and_hash(self, db_session, admin_user):
-        env = Environment(name="kw-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id)
+        env = Environment(
+            name="kw-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id
+        )
         db_session.add(env)
         db_session.flush()
         kws = [{"name": "Log", "library": "BuiltIn", "args": ["message"], "shortdoc": ""}]
-        with patch("src.environments.keyword_introspection.introspect_keywords", return_value=kws), \
-             patch("src.environments.keyword_introspection.compute_packages_hash", return_value="abc123"):
+        with (
+            patch("src.environments.keyword_introspection.introspect_keywords", return_value=kws),
+            patch(
+                "src.environments.keyword_introspection.compute_packages_hash",
+                return_value="abc123",
+            ),
+        ):
             cache = service.rebuild_keyword_cache(db_session, env.id)
         assert cache is not None
         assert cache.status == "ready"
@@ -93,10 +109,15 @@ class TestRebuildKeywordCache:
         assert json.loads(cache.keywords_json) == kws
 
     def test_marks_error_on_introspection_failure(self, db_session, admin_user):
-        env = Environment(name="kw-env2", python_version="3.12", venv_path="/venv", created_by=admin_user.id)
+        env = Environment(
+            name="kw-env2", python_version="3.12", venv_path="/venv", created_by=admin_user.id
+        )
         db_session.add(env)
         db_session.flush()
-        with patch("src.environments.keyword_introspection.introspect_keywords", side_effect=RuntimeError("boom")):
+        with patch(
+            "src.environments.keyword_introspection.introspect_keywords",
+            side_effect=RuntimeError("boom"),
+        ):
             cache = service.rebuild_keyword_cache(db_session, env.id)
         assert cache.status == "error"
         assert "boom" in (cache.error or "")
@@ -109,12 +130,17 @@ class TestKeywordsEndpoint:
 
     def test_fresh_cache_returns_ready(self, client, db_session, admin_user):
         from datetime import datetime
-        env = Environment(name="fresh-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id)
+
+        env = Environment(
+            name="fresh-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id
+        )
         db_session.add(env)
         db_session.flush()
         kws = [{"name": "Click", "library": "Browser", "args": ["selector"], "shortdoc": "x"}]
         cache = EnvironmentKeywordCache(
-            environment_id=env.id, source_hash="HASH", status="ready",
+            environment_id=env.id,
+            source_hash="HASH",
+            status="ready",
             keywords_json=json.dumps(kws),
             # built recently; env.packages_changed_at is None (never changed) → fresh.
             updated_at=datetime.now(UTC),
@@ -128,18 +154,27 @@ class TestKeywordsEndpoint:
         assert body["keywords"][0]["name"] == "Click"
         assert body["keywords"][0]["library"] == "Browser"
 
-    def test_stale_cache_dispatches_rebuild_and_returns_building(self, client, db_session, admin_user):
+    def test_stale_cache_dispatches_rebuild_and_returns_building(
+        self, client, db_session, admin_user
+    ):
         from datetime import datetime, timedelta
+
         now = datetime.now(UTC)
         env = Environment(
-            name="stale-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id,
+            name="stale-env",
+            python_version="3.12",
+            venv_path="/venv",
+            created_by=admin_user.id,
             # packages changed AFTER the cache was built → stale.
             packages_changed_at=now,
         )
         db_session.add(env)
         db_session.flush()
         cache = EnvironmentKeywordCache(
-            environment_id=env.id, source_hash="OLD", status="ready", keywords_json="[]",
+            environment_id=env.id,
+            source_hash="OLD",
+            status="ready",
+            keywords_json="[]",
             updated_at=now - timedelta(hours=1),
         )
         db_session.add(cache)
@@ -152,11 +187,16 @@ class TestKeywordsEndpoint:
 
     def test_building_in_flight_does_not_redispatch(self, client, db_session, admin_user):
         from datetime import datetime
-        env = Environment(name="building-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id)
+
+        env = Environment(
+            name="building-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id
+        )
         db_session.add(env)
         db_session.flush()
         cache = EnvironmentKeywordCache(
-            environment_id=env.id, status="building", keywords_json="[]",
+            environment_id=env.id,
+            status="building",
+            keywords_json="[]",
             updated_at=datetime.now(UTC),  # just dispatched
         )
         db_session.add(cache)
@@ -168,7 +208,9 @@ class TestKeywordsEndpoint:
         assert not disp.called  # an in-flight build must not spawn a second task
 
     def test_missing_cache_dispatches_and_builds(self, client, db_session, admin_user):
-        env = Environment(name="nocache-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id)
+        env = Environment(
+            name="nocache-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id
+        )
         db_session.add(env)
         db_session.flush()
         with patch("src.environments.router.dispatch_task") as disp:
@@ -178,7 +220,9 @@ class TestKeywordsEndpoint:
         assert disp.called
 
     def test_unauthenticated_rejected(self, client, db_session, admin_user):
-        env = Environment(name="auth-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id)
+        env = Environment(
+            name="auth-env", python_version="3.12", venv_path="/venv", created_by=admin_user.id
+        )
         db_session.add(env)
         db_session.flush()
         resp = client.get(f"{URL}/{env.id}/keywords")

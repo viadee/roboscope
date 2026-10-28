@@ -94,12 +94,17 @@ def _method_to_action(method: str) -> str:
 
 
 def _log_audit_in_background(
-    method: str, path: str, status_code: int, auth_header_value: str, ip: str | None,
+    method: str,
+    path: str,
+    status_code: int,
+    auth_header_value: str,
+    ip: str | None,
 ) -> None:
     """Fire-and-forget audit log write in a daemon thread.
 
     This avoids blocking the async event loop with sync DB operations.
     """
+
     def _write():
         try:
             from src.database import SessionLocal
@@ -111,16 +116,19 @@ def _log_audit_in_background(
                 try:
                     if token.startswith("rbs_"):
                         from src.webhooks.service import get_token_by_hash, verify_token
+
                         token_hash = verify_token(token)
                         with SessionLocal() as session:
                             api_token = get_token_by_hash(session, token_hash)
                             if api_token:
                                 user_id = api_token.user_id
                                 from src.auth.service import get_user_by_id
+
                                 user = get_user_by_id(session, api_token.user_id)
                                 username = user.username if user else None
                     else:
                         from src.auth.service import decode_token, get_user_by_id
+
                         payload = decode_token(token)
                         user_id = int(payload.get("sub", 0))
                         with SessionLocal() as session:

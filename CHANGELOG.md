@@ -1,6 +1,61 @@
 # Changelog
 
-## [Unreleased]
+## [0.16.0] - 2026-10-28
+
+### Changed
+
+- **Backend is ruff-clean**: `ruff check` and `ruff format --check` pass over `src/` and
+  `tests/` (was ~430 findings and 103 unformatted files). Mechanical pass only — import
+  order, `datetime.UTC`, `raise … from`, `contextlib.suppress`, collapsed conditions; no
+  behaviour change. E501 / N806 / N817 are now ignored by config (the formatter owns line
+  length). `make lint` is green again.
+
+### Added
+
+- **Deep output.xml parser pinned by unit tests**: `tests/reports/test_parser_deep.py`
+  covers `parse_output_xml_deep`, the statistics block, defused-parser rejection and both
+  `_calc_duration` timestamp formats (written against the mutmut survivors).
+- **`INSECURE_TLS=true` for corporate MITM proxies**: one `.env` switch disables
+  certificate verification on every outbound path — uv/pip installs, `rfbrowser init`
+  (npm + Playwright download), git, in-process HTTP clients (LLM, RF knowledge,
+  webhooks, PyPI search, OIDC), the generated Dockerfile and recorder browser
+  contexts. Off by default; the startup log warns when it is on. The docs recommend
+  `SSL_CERT_FILE` / `NODE_EXTRA_CA_CERTS` / `GIT_SSL_CAINFO` first.
+- **Test tiers and mutation testing**: backend tests are auto-marked `unit` / `db`
+  (plus explicit `slow` / `integration`), with `make test-unit`, `make test-backend-db`
+  and friends. `make mutation` runs mutmut (backend) and Stryker (frontend) over the
+  pure-logic modules; `docs/TESTING.md` documents tiers, commands and the measured
+  baseline.
+
+### Fixed
+
+- **Undefined CSS token `--color-text-secondary`**: 29 uses relied on six different
+  ad-hoc grey fallbacks, several below WCAG AA. All now use the defined
+  `--color-text-muted` (#5A6380).
+
+- **In-place upgrade from ≤0.14 broke runs and schedules** (#66): the columns
+  `execution_runs.advanced_config`, `schedules.variables` and
+  `schedules.advanced_config` existed only in an Alembic revision, which never runs
+  on boot. The startup migrations now add them on SQLite and PostgreSQL; a new test
+  boots a pre-0.15 schema and checks every model column is present afterwards.
+- **Deep links survive a login redirect**: the router guard now sends
+  `/login?return_to=…` (the key the SSO flow and backend already use) and also when a
+  stale token is detected; the login view honours `return_to` and the old `redirect`.
+- **Brand palette passes WCAG AA** (#38): `--color-primary` `#3B7DD8 → #2D63B0`,
+  `--color-primary-dark` `#2A5FA8 → #1F4E8C` (5.96:1 on white, 5.54:1 on the page
+  background); hard-coded fallbacks and `rgba(59,125,216,…)` tints follow. The
+  `color-contrast` axe rule is enabled again in the accessibility gate.
+- **E2E config honours `BASE_URL` / `API_URL`**; the never-wired `global-setup.ts`
+  is gone. Six frontend specs that tested copied-in logic now import the real code
+  (`robotTextIO`, `utils/recorderLaunch`, `utils/recorderPhase`, `router/authGuard`).
+
+### Security
+
+- Dependency bumps for all open Dependabot alerts: Pillow 13, GitPython 3.2.1,
+  virtualenv 21.15, filelock 4.2.4, fastmcp 3.4.11, opentelemetry-api 1.45.1
+  (backend lockfile); dompurify, vite, `@vitest/mocker`, undici, follow-redirects,
+  qs, source-map-js (frontend); undici, serialize-javascript, source-map-js
+  (extension).
 
 ## [0.15.0] - 2026-09-28
 

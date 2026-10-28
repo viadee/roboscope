@@ -50,7 +50,9 @@ class EnvironmentPackage(Base):
     __table_args__ = (UniqueConstraint("environment_id", "package_name", name="uq_env_pkg"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    environment_id: Mapped[int] = mapped_column(ForeignKey("environments.id", ondelete="CASCADE"), index=True)
+    environment_id: Mapped[int] = mapped_column(
+        ForeignKey("environments.id", ondelete="CASCADE"), index=True
+    )
     package_name: Mapped[str] = mapped_column(String(255))
     version: Mapped[str | None] = mapped_column(String(50), default=None)
     installed_version: Mapped[str | None] = mapped_column(String(50), default=None)
@@ -64,7 +66,9 @@ class EnvironmentVariable(Base):
     __tablename__ = "environment_variables"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    environment_id: Mapped[int] = mapped_column(ForeignKey("environments.id", ondelete="CASCADE"), index=True)
+    environment_id: Mapped[int] = mapped_column(
+        ForeignKey("environments.id", ondelete="CASCADE"), index=True
+    )
     key: Mapped[str] = mapped_column(String(255))
     value: Mapped[str] = mapped_column(Text)
     is_secret: Mapped[bool] = mapped_column(Boolean, default=False)

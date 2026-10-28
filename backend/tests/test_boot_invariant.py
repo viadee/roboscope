@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -22,7 +22,7 @@ def test_discovery_job_next_run_time_deferred():
 
     scheduler = BackgroundScheduler()
     scheduler.start()
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
 
     try:
         scheduler.add_job(
@@ -30,7 +30,7 @@ def test_discovery_job_next_run_time_deferred():
             trigger=IntervalTrigger(hours=24),
             id="oidc_discovery_refresh_test",
             name="OIDC Discovery Cache Refresh (test)",
-            next_run_time=datetime.now(timezone.utc) + timedelta(hours=24),
+            next_run_time=datetime.now(UTC) + timedelta(hours=24),
             replace_existing=True,
         )
 
@@ -71,7 +71,7 @@ def test_discovery_job_does_not_probe_at_boot():
                 trigger=IntervalTrigger(hours=24),
                 id="oidc_discovery_refresh_boot_test",
                 name="OIDC Discovery Cache Refresh (boot invariant test)",
-                next_run_time=datetime.now(timezone.utc) + timedelta(hours=24),
+                next_run_time=datetime.now(UTC) + timedelta(hours=24),
                 replace_existing=True,
             )
             # Allow scheduler main loop to tick (default interval: 0.1s) — 5 ticks

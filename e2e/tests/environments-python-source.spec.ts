@@ -1,7 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
-import { loginAndGoToDashboard } from '../helpers';
+import { API, loginAndGoToDashboard } from '../helpers';
 
-const API = 'http://localhost:8000/api/v1';
 
 async function token(page: Page): Promise<string> {
   return page.evaluate(() => localStorage.getItem('access_token') || '');

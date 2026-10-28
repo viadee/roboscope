@@ -9,11 +9,13 @@ Conventions:
 
 from __future__ import annotations
 
+import contextlib
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.auth.models import IdPGroupMapping, IdentityProvider, User
+from src.auth.models import IdentityProvider, IdPGroupMapping, User
 from src.teams.models import Team, TeamMember
 from src.teams.schemas import (
     GroupMappingCreate,
@@ -25,7 +27,6 @@ from src.teams.schemas import (
     TeamMemberUpdate,
     TeamUpdate,
 )
-
 
 # ---------- Team ------------------------------------------------------------
 
@@ -80,9 +81,7 @@ def delete_team(db: Session, team_id: int) -> bool:
 # ---------- Members ---------------------------------------------------------
 
 
-def add_member(
-    db: Session, team_id: int, data: TeamMemberCreate
-) -> TeamMember | None:
+def add_member(db: Session, team_id: int, data: TeamMemberCreate) -> TeamMember | None:
     if get_team(db, team_id) is None:
         return None
     if db.get(User, data.user_id) is None:
@@ -166,9 +165,7 @@ def create_group_mapping(
     return mapping
 
 
-def list_group_mappings_for_team(
-    db: Session, team_id: int
-) -> list[IdPGroupMapping]:
+def list_group_mappings_for_team(db: Session, team_id: int) -> list[IdPGroupMapping]:
     result = db.execute(
         select(IdPGroupMapping)
         .where(IdPGroupMapping.team_id == team_id)
@@ -207,11 +204,15 @@ def list_available_groups_for_idp(db: Session, idp_id: int) -> list[str]:
     """
     from src.auth.seen_groups import list_seen_groups
 
-    mapped = db.execute(
-        select(IdPGroupMapping.group_claim_value)
-        .where(IdPGroupMapping.idp_id == idp_id)
-        .distinct()
-    ).scalars().all()
+    mapped = (
+        db.execute(
+            select(IdPGroupMapping.group_claim_value)
+            .where(IdPGroupMapping.idp_id == idp_id)
+            .distinct()
+        )
+        .scalars()
+        .all()
+    )
     seen = list_seen_groups(db, idp_id)
     return sorted(set(mapped) | set(seen))
 
@@ -296,10 +297,8 @@ def import_teams_from_idp_groups(
             failed += 1
             errors.append(f"{row.team_name}: {err}")
             # Best-effort recovery so the next row still runs.
-            try:
+            with contextlib.suppress(Exception):
                 db.rollback()
-            except Exception:
-                pass
 
     summary = TeamImportSummary(
         created=created,

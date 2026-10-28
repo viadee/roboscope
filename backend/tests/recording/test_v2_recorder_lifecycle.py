@@ -28,9 +28,9 @@ from sqlalchemy.orm import Session
 from src.auth.models import User
 from src.recording.models import RecordingSession, RecordingSource, RecordingStatus
 from src.recording.v2_command_queue import (
-    register_session,
     enqueue_command,
     iterate_commands,
+    register_session,
 )
 
 
@@ -115,7 +115,8 @@ class TestCrashPathFlipsStatusAndCleansUp:
         # The wrapper used logger.exception — must include the
         # session id somewhere in the captured records.
         crash_logs = [
-            r for r in caplog.records
+            r
+            for r in caplog.records
             if r.name == "roboscope.recording.v2_recorder"
             and r.levelname == "ERROR"
             and "crashed" in r.getMessage()
@@ -126,9 +127,7 @@ class TestCrashPathFlipsStatusAndCleansUp:
         # Wrapper invoked _mark_status with FAILED + the canonical
         # error message exactly once.
         failed_calls = [c for c in mark_calls if c[1] == RecordingStatus.FAILED]
-        assert len(failed_calls) == 1, (
-            f"expected exactly one FAILED mark, got {mark_calls}"
-        )
+        assert len(failed_calls) == 1, f"expected exactly one FAILED mark, got {mark_calls}"
         sid, _status, msg = failed_calls[0]
         assert sid == rec.id
         assert msg == "recorder crashed"
@@ -189,6 +188,7 @@ class TestCrashPathFlipsStatusAndCleansUp:
         # what's NOT valid is hanging or raising.
         assert isinstance(items, list)
 
+
 class TestWaitForStopEvent:
     """`_wait_for_stop_event` replaced a 1Hz busy-poll. Stop latency
     used to be up to a full second after the user clicked Stop —
@@ -243,8 +243,7 @@ class TestWaitForStopEvent:
         # already set — the executor round-trip is the only
         # measurable cost.
         assert elapsed < 0.1, (
-            f"already-set event took {elapsed:.3f}s — "
-            "wait must return without sleeping"
+            f"already-set event took {elapsed:.3f}s — wait must return without sleeping"
         )
 
     @pytest.mark.asyncio

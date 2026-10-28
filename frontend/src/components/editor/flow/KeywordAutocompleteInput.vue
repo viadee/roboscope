@@ -239,7 +239,7 @@ onBeforeUnmount(unbindOutsideClick)
   box-sizing: border-box;
 }
 .flow-input:focus {
-  border-color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
 }
 .kw-autocomplete-dropdown {
   position: absolute;

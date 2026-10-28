@@ -750,7 +750,7 @@ function onSecretInput(value: string) {
 
 .handoff-description {
   font-size: 13px;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-muted);
   margin: 0 0 12px;
 }
 
@@ -768,7 +768,7 @@ function onSecretInput(value: string) {
   font-size: 11px;
   font-weight: 600;
   background-color: var(--color-accent, #D4883E);
-  color: #fff;
+  color: var(--color-navy, #1A2D50); /* 4.8:1 on the accent; white was 2.8:1 */
   vertical-align: middle;
 }
 

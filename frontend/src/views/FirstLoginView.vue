@@ -121,7 +121,8 @@ async function dismissAndGo(path: string) {
 }
 
 .welcome-section--tour {
-  opacity: 0.7;
+  /* De-emphasise via colour, not opacity: alpha dims the skip button below AA. */
+  color: var(--color-text-muted);
   font-size: 0.9rem;
 }
 
@@ -132,7 +133,7 @@ async function dismissAndGo(path: string) {
 
 .welcome-subheading {
   margin: 0 0 1rem;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted); /* 5.5:1 on the page background (axe gate) */
 }
 
 .welcome-why {
@@ -140,7 +141,7 @@ async function dismissAndGo(path: string) {
 }
 
 .welcome-why--empty {
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted); /* 5.5:1 on the page background (axe gate) */
   font-style: italic;
 }
 
@@ -154,20 +155,20 @@ async function dismissAndGo(path: string) {
 }
 
 .welcome-cta--primary {
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: white;
 }
 
 .welcome-cta--secondary {
   background: transparent;
-  border-color: var(--color-primary, #3B7DD8);
-  color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
+  color: var(--color-primary, #2D63B0);
 }
 
 .welcome-skip {
   background: transparent;
   border: none;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted); /* 5.5:1 on the page background (axe gate) */
   cursor: pointer;
   text-decoration: underline;
   font: inherit;

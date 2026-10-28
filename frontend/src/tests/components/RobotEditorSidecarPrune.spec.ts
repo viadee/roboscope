@@ -10,20 +10,11 @@
  * dead command's selector by value and stamp the audit with an
  * `rbs:<id>` chip that points to a row the user removed.
  *
- * The scanner regex lives inside RobotEditor.vue's `<script setup>`
- * block. We mirror it here (same pattern as
- * RobotEditorEscapeRoundTrip.spec.ts).
+ * The scanner lives in robotTextIO.ts next to the rbs-id parser.
  */
 import { describe, it, expect } from 'vitest'
 
-// Mirror of `RobotEditor.vue::_collectRbsIdsFromContent`.
-function collectRbsIdsFromContent(content: string): Set<string> {
-  const ids = new Set<string>()
-  const re = /\s+# rbs:([a-f0-9]{8,32})\s*$/gm
-  let m: RegExpExecArray | null
-  while ((m = re.exec(content)) !== null) ids.add(m[1])
-  return ids
-}
+import { collectRbsIdsFromContent } from '@/components/editor/robotTextIO'
 
 describe('collectRbsIdsFromContent — scan .robot for live rbs ids', () => {
   it('finds a single id on a Click line', () => {

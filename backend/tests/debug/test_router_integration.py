@@ -40,13 +40,17 @@ def _check_or_skip() -> Path:
         pytest.skip("RoboScope default venv not found")
     if not (env_python.parent / "robotcode").is_file():
         pytest.skip("robotcode binary missing")
-    if not list(_DEFAULT_ROBOSCOPE_VENV.glob(
-        "lib/python*/site-packages/robotcode/debugger",
-    )):
+    if not list(
+        _DEFAULT_ROBOSCOPE_VENV.glob(
+            "lib/python*/site-packages/robotcode/debugger",
+        )
+    ):
         pytest.skip("robotcode-debugger plugin missing")
-    if not list(_DEFAULT_ROBOSCOPE_VENV.glob(
-        "lib/python*/site-packages/robot",
-    )):
+    if not list(
+        _DEFAULT_ROBOSCOPE_VENV.glob(
+            "lib/python*/site-packages/robot",
+        )
+    ):
         pytest.skip("robotframework missing")
     return env_python
 
@@ -69,11 +73,7 @@ def _make_repo_run(db, user, tmp_path: Path) -> tuple[Repository, ExecutionRun, 
     # Lines: 1=section, 2=test name, 3-7=keyword body. Breakpoint
     # candidate is line 3 (Log one).
     robot.write_text(
-        "*** Test Cases ***\n"
-        "Demo\n"
-        "    Log    one\n"
-        "    Log    two\n"
-        "    Log    three\n",
+        "*** Test Cases ***\nDemo\n    Log    one\n    Log    two\n    Log    three\n",
         encoding="utf-8",
     )
 

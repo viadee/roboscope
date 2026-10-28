@@ -1,15 +1,16 @@
 """Background tasks for browser recording."""
 
 import asyncio
+import contextlib
 import json
 import logging
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 # Import all models so SQLAlchemy can resolve foreign keys.
 import src.auth.models  # noqa: F401
 import src.repos.models  # noqa: F401
-
+from src.config import settings
 from src.database import get_sync_session
 from src.recording.generator import generate_robot_file
 from src.recording.models import RecordingSession, RecordingStatus
@@ -22,32 +23,28 @@ _stop_signals: dict[int, threading.Event] = {}
 
 def _broadcast_recording_status(recording_id: int, status: str, **extra) -> None:
     """Broadcast a recording status change from a sync background thread."""
-    from src.websocket.manager import ws_manager
     from src.main import _event_loop
+    from src.websocket.manager import ws_manager
 
     coro = ws_manager.broadcast_recording_status(recording_id, status, **extra)
 
     if _event_loop and _event_loop.is_running():
         asyncio.run_coroutine_threadsafe(coro, _event_loop)
     else:
-        logger.warning(
-            "No event loop available to broadcast recording %d status", recording_id
-        )
+        logger.warning("No event loop available to broadcast recording %d status", recording_id)
 
 
 def _broadcast_recording_event(recording_id: int, event_data: dict) -> None:
     """Broadcast a recorded event to WebSocket listeners."""
-    from src.websocket.manager import ws_manager
     from src.main import _event_loop
+    from src.websocket.manager import ws_manager
 
     coro = ws_manager.broadcast_recording_event(recording_id, event_data)
 
     if _event_loop and _event_loop.is_running():
         asyncio.run_coroutine_threadsafe(coro, _event_loop)
     else:
-        logger.warning(
-            "No event loop available to broadcast recording %d event", recording_id
-        )
+        logger.warning("No event loop available to broadcast recording %d event", recording_id)
 
 
 def signal_stop_playwright(recording_id: int) -> bool:
@@ -78,7 +75,7 @@ def run_playwright_recorder(recording_id: int, target_url: str | None = None) ->
             return
 
         recording.status = RecordingStatus.RECORDING
-        recording.started_at = datetime.now(timezone.utc)
+        recording.started_at = datetime.now(UTC)
         session.commit()
         _broadcast_recording_status(recording_id, RecordingStatus.RECORDING)
 
@@ -87,7 +84,7 @@ def run_playwright_recorder(recording_id: int, target_url: str | None = None) ->
     try:
         pw = sync_playwright().start()
         browser = pw.chromium.launch(headless=False)
-        context = browser.new_context()
+        context = browser.new_context(ignore_https_errors=settings.INSECURE_TLS)
         page = context.new_page()
 
         def _store_event(event_data: dict) -> None:
@@ -174,11 +171,13 @@ def run_playwright_recorder(recording_id: int, target_url: str | None = None) ->
         # Hook navigation events
         def _on_navigate(frame) -> None:
             if frame == page.main_frame:
-                _store_event({
-                    "event_type": "navigate",
-                    "url": frame.url,
-                    "timestamp": datetime.now(timezone.utc).timestamp(),
-                })
+                _store_event(
+                    {
+                        "event_type": "navigate",
+                        "url": frame.url,
+                        "timestamp": datetime.now(UTC).timestamp(),
+                    }
+                )
                 # Re-inject capture script after navigation. Expected to
                 # fail mid-flight when the frame is detached between the
                 # event and the evaluate call — debug-log it so we can
@@ -199,15 +198,11 @@ def run_playwright_recorder(recording_id: int, target_url: str | None = None) ->
         # (setting a threading.Event is safe; calling any Playwright sync
         # API from the listener would deadlock).
         def _on_browser_disconnected() -> None:
-            logger.info(
-                "Recording %d: browser disconnected", recording_id
-            )
+            logger.info("Recording %d: browser disconnected", recording_id)
             stop_event.set()
 
         def _on_page_close(_page) -> None:
-            logger.info(
-                "Recording %d: page closed by user", recording_id
-            )
+            logger.info("Recording %d: page closed by user", recording_id)
             stop_event.set()
 
         browser.on("disconnected", _on_browser_disconnected)
@@ -216,11 +211,13 @@ def run_playwright_recorder(recording_id: int, target_url: str | None = None) ->
         # Navigate to target URL if provided
         if target_url:
             page.goto(target_url)
-            _store_event({
-                "event_type": "navigate",
-                "url": target_url,
-                "timestamp": datetime.now(timezone.utc).timestamp(),
-            })
+            _store_event(
+                {
+                    "event_type": "navigate",
+                    "url": target_url,
+                    "timestamp": datetime.now(UTC).timestamp(),
+                }
+            )
 
         logger.info("Recording %d: Playwright browser opened", recording_id)
 
@@ -240,22 +237,18 @@ def run_playwright_recorder(recording_id: int, target_url: str | None = None) ->
             if recording:
                 recording.status = RecordingStatus.FAILED
                 recording.error_message = str(e)[:2000]
-                recording.finished_at = datetime.now(timezone.utc)
+                recording.finished_at = datetime.now(UTC)
                 session.commit()
         _broadcast_recording_status(recording_id, RecordingStatus.FAILED)
         return
     finally:
         _stop_signals.pop(recording_id, None)
         if browser:
-            try:
+            with contextlib.suppress(Exception):
                 browser.close()
-            except Exception:
-                pass
         if pw:
-            try:
+            with contextlib.suppress(Exception):
                 pw.stop()
-            except Exception:
-                pass
 
     # Recording finished — generate .robot file
     generate_robot_for_recording(recording_id)
@@ -287,7 +280,7 @@ def generate_robot_for_recording(recording_id: int) -> None:
             recording.generated_robot = robot_content
             recording.status = RecordingStatus.COMPLETED
             if not recording.finished_at:
-                recording.finished_at = datetime.now(timezone.utc)
+                recording.finished_at = datetime.now(UTC)
             session.commit()
 
             _broadcast_recording_status(recording_id, RecordingStatus.COMPLETED)
@@ -302,6 +295,6 @@ def generate_robot_for_recording(recording_id: int) -> None:
             recording.status = RecordingStatus.FAILED
             recording.error_message = str(e)[:2000]
             if not recording.finished_at:
-                recording.finished_at = datetime.now(timezone.utc)
+                recording.finished_at = datetime.now(UTC)
             session.commit()
             _broadcast_recording_status(recording_id, RecordingStatus.FAILED)

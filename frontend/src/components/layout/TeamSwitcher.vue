@@ -121,16 +121,16 @@ function onKeyDown(event: KeyboardEvent) {
 .team-switcher--single {
   padding: 0.25rem 0.6rem;
   border-radius: 999px;
-  background: rgba(59, 125, 216, 0.1);
-  color: var(--color-primary, #3B7DD8);
+  background: rgba(45, 99, 176, 0.1);
+  color: var(--color-primary, #2D63B0);
 }
 
 .team-switcher__chip {
   padding: 0.25rem 0.6rem;
-  border: 1px solid var(--color-primary, #3B7DD8);
+  border: 1px solid var(--color-primary, #2D63B0);
   border-radius: 999px;
   background: transparent;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   font: inherit;
   cursor: pointer;
   display: inline-flex;
@@ -160,6 +160,6 @@ function onKeyDown(event: KeyboardEvent) {
 
 .team-switcher__item:hover,
 .team-switcher__item.is-active {
-  background: rgba(59, 125, 216, 0.1);
+  background: rgba(45, 99, 176, 0.1);
 }
 </style>

@@ -23,7 +23,6 @@ import pytest
 
 from src.websocket.manager import ConnectionManager
 
-
 # ---------------------------------------------------------------------------
 # Tiny stub WebSocket: `accept()` is a no-op coro, `send_text` is an AsyncMock
 # that the test can configure to raise.
@@ -204,7 +203,9 @@ class TestConvenienceBroadcasters:
 
         assert outsider.sent == []
         assert json.loads(watcher.sent[0]) == {
-            "type": "run_output", "run_id": 11, "line": "log line",
+            "type": "run_output",
+            "run_id": 11,
+            "line": "log line",
         }
 
     @pytest.mark.asyncio
@@ -213,7 +214,9 @@ class TestConvenienceBroadcasters:
         ws = _make_ws()
         await m.connect(ws)
         await m.broadcast_package_status(
-            env_id=3, package_name="robot", status="installed",
+            env_id=3,
+            package_name="robot",
+            status="installed",
             installed_version="7.3",
         )
         payload = json.loads(ws.sent[0])
@@ -231,7 +234,8 @@ class TestConvenienceBroadcasters:
         ws = _make_ws()
         await m.connect(ws)
         await m.broadcast_recording_event(
-            recording_id=42, event_data={"action": "click", "selector": "#go"},
+            recording_id=42,
+            event_data={"action": "click", "selector": "#go"},
         )
         payload = json.loads(ws.sent[0])
         assert payload["type"] == "recording_event"

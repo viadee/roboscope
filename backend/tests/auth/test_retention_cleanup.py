@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -35,7 +35,7 @@ def _mk_idp(db: Session) -> IdentityProvider:
 class TestOidcLoginAttemptCleanup:
     def test_deletes_expired_rows(self, db_session: Session) -> None:
         idp = _mk_idp(db_session)
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = datetime.now(UTC).replace(tzinfo=None)
 
         expired = OidcLoginAttempt(
             state="expired-state",
@@ -65,7 +65,7 @@ class TestOidcLoginAttemptCleanup:
 
     def test_no_expired_rows_returns_zero(self, db_session: Session) -> None:
         idp = _mk_idp(db_session)
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = datetime.now(UTC).replace(tzinfo=None)
         db_session.add(
             OidcLoginAttempt(
                 state="only-fresh",
@@ -83,7 +83,7 @@ class TestOidcLoginAttemptCleanup:
 
 class TestRateLimitCounterCleanup:
     def test_deletes_old_windows(self, db_session: Session) -> None:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = datetime.now(UTC).replace(tzinfo=None)
         stale = RateLimitCounter(
             bucket_key="stale-bucket",
             window_start=now - timedelta(hours=2),
@@ -104,7 +104,7 @@ class TestRateLimitCounterCleanup:
         assert remaining == {"fresh-bucket"}
 
     def test_boundary_exact_hour_keeps_row(self, db_session: Session) -> None:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = datetime.now(UTC).replace(tzinfo=None)
         # Row with window_start === cutoff should NOT be deleted (strict <).
         on_boundary = RateLimitCounter(
             bucket_key="on-boundary",

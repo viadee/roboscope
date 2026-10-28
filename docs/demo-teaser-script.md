@@ -20,7 +20,7 @@
 ### Kinetische Typografie
 - Text fliegt Wort fuer Wort ein (0.1s pro Wort)
 - Schrift: Bold, 48-72px, weiss auf dunklem Hintergrund
-- Glow-Effekt auf Schluesselwoertern (Steel Blue #3B7DD8)
+- Glow-Effekt auf Schluesselwoertern (Steel Blue #2D63B0)
 
 ### UI-Showcases
 - Schnelle Zoom-Ins auf Features (0.5s pro Schnitt)

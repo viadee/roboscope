@@ -217,9 +217,10 @@ def build_analyze_user_prompt(
         prompt += f"### {i}. {test['name']}\n"
         prompt += f"- **Suite**: {test['suite']}\n"
         prompt += f"- **Duration**: {test['duration']:.2f}s\n"
-        if test.get('tags'):
+        if test.get("tags"):
             prompt += f"- **Tags**: {test['tags']}\n"
-        prompt += f"- **Error Message**:\n```\n{test['error_message'] or 'No error message'}\n```\n\n"
+        error_message = test["error_message"] or "No error message"
+        prompt += f"- **Error Message**:\n```\n{error_message}\n```\n\n"
 
     prompt += "Please analyze the failures above and provide root-cause analysis, "
     prompt += "pattern detection, fix suggestions, and priority ranking."

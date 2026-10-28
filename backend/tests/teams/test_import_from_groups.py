@@ -13,7 +13,6 @@ from src.encryption import encrypt_value
 from src.teams.models import Team
 from tests.conftest import auth_header
 
-
 AVAILABLE = "/api/v1/auth/idp-providers"
 IMPORT_URL = "/api/v1/teams/import-from-idp-groups"
 
@@ -86,9 +85,7 @@ class TestAvailableGroups:
         )
         assert resp.json() == ["alpha", "mango", "zebra"]
 
-    def test_nonexistent_idp_returns_404(
-        self, client: TestClient, admin_user: User
-    ) -> None:
+    def test_nonexistent_idp_returns_404(self, client: TestClient, admin_user: User) -> None:
         resp = client.get(
             f"{AVAILABLE}/99999/available-groups",
             headers=auth_header(admin_user),
@@ -131,9 +128,9 @@ class TestBulkImport:
         assert body["failed"] == 0
         assert len(body["team_ids"]) == 2
 
-        teams = db_session.query(Team).filter(
-            Team.name.in_(["Engineering", "Quality Assurance"])
-        ).all()
+        teams = (
+            db_session.query(Team).filter(Team.name.in_(["Engineering", "Quality Assurance"])).all()
+        )
         assert len(teams) == 2
 
     def test_import_skips_taken_team_names(
@@ -200,9 +197,7 @@ class TestBulkImport:
         assert body["created"] == 0
         assert body["skipped"] == 1
 
-    def test_import_unknown_idp_returns_404(
-        self, client: TestClient, admin_user: User
-    ) -> None:
+    def test_import_unknown_idp_returns_404(self, client: TestClient, admin_user: User) -> None:
         resp = client.post(
             IMPORT_URL,
             json={
@@ -233,15 +228,9 @@ class TestBulkImport:
             },
             headers=auth_header(admin_user),
         )
-        created_events = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "team.created")
-            .all()
-        )
+        created_events = db_session.query(AuditLog).filter(AuditLog.action == "team.created").all()
         mapping_events = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "group_mapping.created")
-            .all()
+            db_session.query(AuditLog).filter(AuditLog.action == "group_mapping.created").all()
         )
         # Two teams created, two mappings created.
         assert len(created_events) == 2

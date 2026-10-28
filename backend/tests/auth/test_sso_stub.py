@@ -108,9 +108,7 @@ def test_unknown_idp_returns_404(client: TestClient):
 
 
 def test_disabled_idp_returns_404(client: TestClient, disabled_idp: IdentityProvider):
-    res = client.get(
-        f"{BASE_URL}/{disabled_idp.id}/login", params={"return_to": "/"}
-    )
+    res = client.get(f"{BASE_URL}/{disabled_idp.id}/login", params={"return_to": "/"})
     assert res.status_code == 404
 
 
@@ -124,7 +122,5 @@ def test_idp_lookup_precedes_return_to_validation(client: TestClient):
     invalid idp_id — every request with an unknown idp returns 404
     regardless of return_to shape.
     """
-    res = client.get(
-        f"{BASE_URL}/99999/login", params={"return_to": "https://evil.com"}
-    )
+    res = client.get(f"{BASE_URL}/99999/login", params={"return_to": "https://evil.com"})
     assert res.status_code == 404

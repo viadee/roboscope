@@ -13,7 +13,6 @@ the new endpoints / service helpers against them, and asserts that:
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -31,6 +30,8 @@ from src.repos.service import (
     push_branch,
 )
 from tests.conftest import auth_header
+
+pytestmark = pytest.mark.slow  # real subprocess / git in tmp_path — out of the fast dev loop
 
 
 # ---------------------------------------------------------------------------
@@ -60,8 +61,10 @@ def working_clone(tmp_path: Path, bare_remote: Path) -> Path:
     # Commit with a stable identity so `committer` doesn't pick up the
     # test runner's local git config.
     repo.git.update_environment(
-        GIT_AUTHOR_NAME="seed", GIT_AUTHOR_EMAIL="seed@example.com",
-        GIT_COMMITTER_NAME="seed", GIT_COMMITTER_EMAIL="seed@example.com",
+        GIT_AUTHOR_NAME="seed",
+        GIT_AUTHOR_EMAIL="seed@example.com",
+        GIT_COMMITTER_NAME="seed",
+        GIT_COMMITTER_EMAIL="seed@example.com",
     )
     repo.git.commit("-m", "seed")
     repo.git.push("origin", "main")
@@ -205,23 +208,30 @@ class TestServiceLayer:
     def test_push_succeeds_when_fast_forward(self, working_clone: Path):
         (working_clone / "ff.robot").write_text("ff\n", encoding="utf-8")
         commit_changes(
-            str(working_clone), "add ff",
-            paths=None, author_name="A", author_email="a@b.com",
+            str(working_clone),
+            "add ff",
+            paths=None,
+            author_name="A",
+            author_email="a@b.com",
         )
         result = push_branch(str(working_clone))
         assert result["branch"] == "main"
         assert result["ahead_after"] == 0
 
     def test_push_raises_on_non_fast_forward(
-        self, working_clone: Path, divergent_clone: Path,
+        self,
+        working_clone: Path,
+        divergent_clone: Path,
     ):
         # divergent_clone pushes first — main moves on the remote.
         (divergent_clone / "from-other.robot").write_text("other\n", encoding="utf-8")
         other = Repo(divergent_clone)
         other.index.add(["from-other.robot"])
         other.git.update_environment(
-            GIT_AUTHOR_NAME="other", GIT_AUTHOR_EMAIL="other@example.com",
-            GIT_COMMITTER_NAME="other", GIT_COMMITTER_EMAIL="other@example.com",
+            GIT_AUTHOR_NAME="other",
+            GIT_AUTHOR_EMAIL="other@example.com",
+            GIT_COMMITTER_NAME="other",
+            GIT_COMMITTER_EMAIL="other@example.com",
         )
         other.git.commit("-m", "from other")
         other.git.push("origin", "main")
@@ -229,8 +239,11 @@ class TestServiceLayer:
         # Now the primary clone makes its own commit and tries to push.
         (working_clone / "from-primary.robot").write_text("primary\n", encoding="utf-8")
         commit_changes(
-            str(working_clone), "from primary",
-            paths=None, author_name="P", author_email="p@example.com",
+            str(working_clone),
+            "from primary",
+            paths=None,
+            author_name="P",
+            author_email="p@example.com",
         )
         with pytest.raises(GitOperationError) as excinfo:
             push_branch(str(working_clone))
@@ -239,22 +252,29 @@ class TestServiceLayer:
     def test_publish_combined_succeeds(self, working_clone: Path):
         (working_clone / "publish.robot").write_text("ok\n", encoding="utf-8")
         result = publish_changes(
-            str(working_clone), "publish",
-            paths=None, author_name="A", author_email="a@b.com",
+            str(working_clone),
+            "publish",
+            paths=None,
+            author_name="A",
+            author_email="a@b.com",
         )
         assert result["pushed"] is True
         assert result["conflict"] is False
 
     def test_publish_keeps_local_commit_on_push_conflict(
-        self, working_clone: Path, divergent_clone: Path,
+        self,
+        working_clone: Path,
+        divergent_clone: Path,
     ):
         # Make the remote diverge first.
         (divergent_clone / "rival.robot").write_text("rival\n", encoding="utf-8")
         other = Repo(divergent_clone)
         other.index.add(["rival.robot"])
         other.git.update_environment(
-            GIT_AUTHOR_NAME="other", GIT_AUTHOR_EMAIL="other@example.com",
-            GIT_COMMITTER_NAME="other", GIT_COMMITTER_EMAIL="other@example.com",
+            GIT_AUTHOR_NAME="other",
+            GIT_AUTHOR_EMAIL="other@example.com",
+            GIT_COMMITTER_NAME="other",
+            GIT_COMMITTER_EMAIL="other@example.com",
         )
         other.git.commit("-m", "rival")
         other.git.push("origin", "main")
@@ -262,8 +282,11 @@ class TestServiceLayer:
         (working_clone / "ours.robot").write_text("ours\n", encoding="utf-8")
         with pytest.raises(GitOperationError) as excinfo:
             publish_changes(
-                str(working_clone), "ours",
-                paths=None, author_name="A", author_email="a@b.com",
+                str(working_clone),
+                "ours",
+                paths=None,
+                author_name="A",
+                author_email="a@b.com",
             )
         e = excinfo.value
         assert e.kind == "non_fast_forward"
@@ -284,7 +307,11 @@ class TestServiceLayer:
 
 class TestRouterStatus:
     def test_returns_status_for_authenticated_user(
-        self, client, admin_user, seed_repo_for_clone, working_clone,
+        self,
+        client,
+        admin_user,
+        seed_repo_for_clone,
+        working_clone,
     ):
         (working_clone / "x.robot").write_text("x\n", encoding="utf-8")
         r = client.get(
@@ -297,7 +324,10 @@ class TestRouterStatus:
         assert "x.robot" in body["untracked"]
 
     def test_local_repo_returns_zeroed_status(
-        self, client, admin_user, local_repo,
+        self,
+        client,
+        admin_user,
+        local_repo,
     ):
         r = client.get(
             f"/api/v1/repos/{local_repo.id}/status",
@@ -309,7 +339,11 @@ class TestRouterStatus:
 
 class TestRouterCommit:
     def test_commit_happy_path(
-        self, client, editor_user, seed_repo_for_clone, working_clone,
+        self,
+        client,
+        editor_user,
+        seed_repo_for_clone,
+        working_clone,
     ):
         (working_clone / "ok.robot").write_text("ok\n", encoding="utf-8")
         r = client.post(
@@ -326,7 +360,10 @@ class TestRouterCommit:
         assert head.author.email == editor_user.email
 
     def test_commit_with_no_changes_returns_400(
-        self, client, editor_user, seed_repo_for_clone,
+        self,
+        client,
+        editor_user,
+        seed_repo_for_clone,
     ):
         r = client.post(
             f"/api/v1/repos/{seed_repo_for_clone.id}/commit",
@@ -336,7 +373,11 @@ class TestRouterCommit:
         assert r.status_code == 400
 
     def test_runner_cannot_commit(
-        self, client, runner_user, seed_repo_for_clone, working_clone,
+        self,
+        client,
+        runner_user,
+        seed_repo_for_clone,
+        working_clone,
     ):
         (working_clone / "blocked.robot").write_text("nope\n", encoding="utf-8")
         r = client.post(
@@ -347,7 +388,10 @@ class TestRouterCommit:
         assert r.status_code == 403
 
     def test_local_repo_returns_400(
-        self, client, editor_user, local_repo,
+        self,
+        client,
+        editor_user,
+        local_repo,
     ):
         r = client.post(
             f"/api/v1/repos/{local_repo.id}/commit",
@@ -359,7 +403,11 @@ class TestRouterCommit:
 
 class TestRouterPublish:
     def test_publish_happy_path(
-        self, client, editor_user, seed_repo_for_clone, working_clone,
+        self,
+        client,
+        editor_user,
+        seed_repo_for_clone,
+        working_clone,
     ):
         (working_clone / "pub.robot").write_text("pub\n", encoding="utf-8")
         r = client.post(
@@ -374,16 +422,22 @@ class TestRouterPublish:
         assert body["commit_hash"]
 
     def test_publish_returns_409_on_non_fast_forward(
-        self, client, editor_user, seed_repo_for_clone,
-        working_clone, divergent_clone,
+        self,
+        client,
+        editor_user,
+        seed_repo_for_clone,
+        working_clone,
+        divergent_clone,
     ):
         # Remote diverges first.
         (divergent_clone / "rival.robot").write_text("rival\n", encoding="utf-8")
         other = Repo(divergent_clone)
         other.index.add(["rival.robot"])
         other.git.update_environment(
-            GIT_AUTHOR_NAME="other", GIT_AUTHOR_EMAIL="other@example.com",
-            GIT_COMMITTER_NAME="other", GIT_COMMITTER_EMAIL="other@example.com",
+            GIT_AUTHOR_NAME="other",
+            GIT_AUTHOR_EMAIL="other@example.com",
+            GIT_COMMITTER_NAME="other",
+            GIT_COMMITTER_EMAIL="other@example.com",
         )
         other.git.commit("-m", "rival")
         other.git.push("origin", "main")

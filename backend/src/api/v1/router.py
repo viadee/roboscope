@@ -19,6 +19,8 @@ from src.settings.router import router as settings_router
 from src.stats.router import router as stats_router
 from src.teams.router import (
     group_mappings_router as team_group_mappings_router,
+)
+from src.teams.router import (
     router as teams_router,
 )
 from src.webhooks.router import router as webhooks_router
@@ -42,6 +44,4 @@ api_router.include_router(recording_router, tags=["Recording"])
 api_router.include_router(audit_router, prefix="/audit", tags=["Audit Log"])
 api_router.include_router(debug_router, prefix="/debug", tags=["Debug"])
 api_router.include_router(teams_router, prefix="/teams", tags=["Teams"])
-api_router.include_router(
-    team_group_mappings_router, prefix="/group-mappings", tags=["Teams"]
-)
+api_router.include_router(team_group_mappings_router, prefix="/group-mappings", tags=["Teams"])

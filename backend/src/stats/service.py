@@ -3,12 +3,11 @@
 import json
 from datetime import date, timedelta
 
-from sqlalchemy import and_, case, desc, distinct, func, select
+from sqlalchemy import desc, distinct, func, select
 from sqlalchemy.orm import Session
 
 from src.execution.models import ExecutionRun, RunStatus
 from src.reports.models import Report, TestResult
-from src.repos.models import Repository
 from src.stats.models import AnalysisReport, KpiRecord
 from src.stats.schemas import (
     AnalysisCreate,
@@ -30,30 +29,22 @@ def get_overview(
     since = date.today() - timedelta(days=days)
 
     # Base query for runs
-    run_query = select(ExecutionRun).where(
-        ExecutionRun.created_at >= str(since)
-    )
+    run_query = select(ExecutionRun).where(ExecutionRun.created_at >= str(since))
     if repository_id:
         run_query = run_query.where(ExecutionRun.repository_id == repository_id)
 
     # Total runs
-    total_result = db.execute(
-        select(func.count()).select_from(run_query.subquery())
-    )
+    total_result = db.execute(select(func.count()).select_from(run_query.subquery()))
     total_runs = total_result.scalar() or 0
 
     # Passed runs
     passed_query = run_query.where(ExecutionRun.status == RunStatus.PASSED)
-    passed_result = db.execute(
-        select(func.count()).select_from(passed_query.subquery())
-    )
+    passed_result = db.execute(select(func.count()).select_from(passed_query.subquery()))
     passed_runs = passed_result.scalar() or 0
 
     # Failed runs
     failed_query = run_query.where(ExecutionRun.status == RunStatus.FAILED)
-    failed_result = db.execute(
-        select(func.count()).select_from(failed_query.subquery())
-    )
+    failed_result = db.execute(select(func.count()).select_from(failed_query.subquery()))
     failed_runs = failed_result.scalar() or 0
 
     # Average duration
@@ -67,9 +58,7 @@ def get_overview(
 
     # Total tests from reports
     test_count_result = db.execute(
-        select(func.sum(Report.total_tests)).where(
-            Report.created_at >= str(since)
-        )
+        select(func.sum(Report.total_tests)).where(Report.created_at >= str(since))
     )
     total_tests = test_count_result.scalar() or 0
 
@@ -123,11 +112,13 @@ def get_success_rate_trend(
 
     for d, data in sorted(date_map.items()):
         rate = (data["passed"] / data["total"] * 100) if data["total"] > 0 else 0.0
-        points.append(SuccessRatePoint(
-            date=d,
-            success_rate=round(rate, 1),
-            total_runs=data["total"],
-        ))
+        points.append(
+            SuccessRatePoint(
+                date=d,
+                success_rate=round(rate, 1),
+                total_runs=data["total"],
+            )
+        )
 
     return points
 
@@ -229,18 +220,20 @@ def get_flaky_tests(
             q_row = quarantine_index.get(
                 (data["repository_id"], data["suite_name"], data["test_name"]),
             )
-            flaky_tests.append(FlakyTest(
-                test_name=data["test_name"],
-                suite_name=data["suite_name"],
-                total_runs=len(statuses),
-                pass_count=pass_count,
-                fail_count=fail_count,
-                flaky_rate=round(flaky_rate * 100, 1),
-                last_status=statuses[-1],
-                is_quarantined=q_row is not None,
-                quarantine_id=q_row.id if q_row is not None else None,
-                repository_id=data["repository_id"],
-            ))
+            flaky_tests.append(
+                FlakyTest(
+                    test_name=data["test_name"],
+                    suite_name=data["suite_name"],
+                    total_runs=len(statuses),
+                    pass_count=pass_count,
+                    fail_count=fail_count,
+                    flaky_rate=round(flaky_rate * 100, 1),
+                    last_status=statuses[-1],
+                    is_quarantined=q_row is not None,
+                    quarantine_id=q_row.id if q_row is not None else None,
+                    repository_id=data["repository_id"],
+                )
+            )
 
     # Sort: quarantined tests first (so admins see outstanding muted
     # items up top), then by flaky rate desc.
@@ -262,15 +255,13 @@ def get_heal_rate(
     """
     from pathlib import Path
 
-    from src.execution.models import ExecutionRun
     from RoboScopeHeal.heal_report import parse_heal_audit
+
+    from src.execution.models import ExecutionRun
     from src.stats.schemas import HealRatePoint, HealRateResponse
 
     since = date.today() - timedelta(days=days)
-    stmt = (
-        select(ExecutionRun)
-        .where(ExecutionRun.created_at >= str(since))
-    )
+    stmt = select(ExecutionRun).where(ExecutionRun.created_at >= str(since))
     if repository_id is not None:
         stmt = stmt.where(ExecutionRun.repository_id == repository_id)
     runs = list(db.execute(stmt).scalars().all())
@@ -455,12 +446,14 @@ def get_heatmap_data(
 
     for row in result.all():
         run_date = row.created_at.date() if hasattr(row.created_at, "date") else row.created_at
-        cells.append(HeatmapCell(
-            test_name=row.test_name,
-            date=run_date,
-            status=row.status,
-            duration=row.duration_seconds,
-        ))
+        cells.append(
+            HeatmapCell(
+                test_name=row.test_name,
+                date=run_date,
+                status=row.status,
+                duration=row.duration_seconds,
+            )
+        )
 
     return cells
 
@@ -489,9 +482,7 @@ def create_analysis(
 
 def get_analysis(db: Session, analysis_id: int) -> AnalysisReport | None:
     """Get a single analysis report by ID."""
-    result = db.execute(
-        select(AnalysisReport).where(AnalysisReport.id == analysis_id)
-    )
+    result = db.execute(select(AnalysisReport).where(AnalysisReport.id == analysis_id))
     return result.scalar_one_or_none()
 
 

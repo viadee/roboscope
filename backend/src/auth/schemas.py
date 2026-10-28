@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.auth.constants import Role
 
@@ -141,8 +141,7 @@ class IdentityProviderUpdate(BaseModel):
     def reject_null_client_secret(self) -> IdentityProviderUpdate:
         if "client_secret" in self.model_fields_set and self.client_secret is None:
             raise ValueError(
-                "client_secret cannot be null; omit the field to keep"
-                " the existing value"
+                "client_secret cannot be null; omit the field to keep the existing value"
             )
         return self
 

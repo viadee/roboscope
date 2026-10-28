@@ -45,18 +45,17 @@ class StartDebugSessionRequest(BaseModel):
             )
         if not run_shape and not step_shape_any:
             raise ValueError(
-                "Body must include either {run_id} or "
-                "{file, test_name, line, repo_id}"
+                "Body must include either {run_id} or {file, test_name, line, repo_id}"
             )
         if step_shape_any and not step_shape_full:
             missing = [
-                name for name, val in zip(
+                name
+                for name, val in zip(
                     ("file", "test_name", "line", "repo_id"), step_fields, strict=True
-                ) if val is None
+                )
+                if val is None
             ]
-            raise ValueError(
-                f"Step-shape body is missing required fields: {', '.join(missing)}"
-            )
+            raise ValueError(f"Step-shape body is missing required fields: {', '.join(missing)}")
         if self.line is not None and self.line < 1:
             raise ValueError("line must be a 1-based positive integer")
         return self

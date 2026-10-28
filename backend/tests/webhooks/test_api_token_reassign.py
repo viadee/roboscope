@@ -14,7 +14,6 @@ from src.webhooks.models import ApiToken
 from src.webhooks.service import create_api_token
 from tests.conftest import auth_header
 
-
 ENDPOINT = "/api/v1/webhooks/tokens/{tid}/reassign"
 
 

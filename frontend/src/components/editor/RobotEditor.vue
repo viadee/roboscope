@@ -42,6 +42,7 @@ import {
   type RobotTestCase,
   type RobotKeyword,
   type RobotForm,
+  collectRbsIdsFromContent,
 } from '@/components/editor/robotTextIO'
 
 // CodeMirror imports
@@ -506,20 +507,6 @@ function onSidecarUpdated(updated: RecordedFlow) {
   if (updated === sidecar.value) sidecarDirty.value = true
 }
 
-/**
- * Scan a .robot text for trailing `# rbs:<id>` comments and return the
- * set of ids the file references. Used to prune dead sidecar commands
- * after the user deletes a step in the editor.
- */
-function _collectRbsIdsFromContent(content: string): Set<string> {
-  const ids = new Set<string>()
-  // Same shape as the backend emitter: 1+ whitespace, then `# rbs:`,
-  // then 8–32 hex chars at the end of a line.
-  const re = /\s+# rbs:([a-f0-9]{8,32})\s*$/gm
-  let m: RegExpExecArray | null
-  while ((m = re.exec(content)) !== null) ids.add(m[1])
-  return ids
-}
 
 /**
  * Persist the sidecar if it has been modified since the last save.
@@ -543,7 +530,7 @@ async function saveSidecarIfDirty(robotContent?: string): Promise<void> {
     return
   }
   if (robotContent != null && Array.isArray(sidecar.value.commands)) {
-    const liveIds = _collectRbsIdsFromContent(robotContent)
+    const liveIds = collectRbsIdsFromContent(robotContent)
     const before = sidecar.value.commands.length
     const kept = sidecar.value.commands.filter(
       c => !c.id || liveIds.has(c.id),
@@ -2542,7 +2529,7 @@ watch(() => props.content, (newContent) => {
   font-weight: 500; color: var(--color-text-muted); cursor: pointer;
   border-bottom: 2px solid transparent; transition: all 0.15s ease;
 }
-.tab-btn:hover { color: var(--color-text); background: rgba(59, 125, 216, 0.05); }
+.tab-btn:hover { color: var(--color-text); background: rgba(45, 99, 176, 0.05); }
 .tab-btn.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
 .tab-toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
 .tab-toolbar .icon-btn { background: none; border: 1px solid var(--color-border); border-radius: 4px; cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; color: var(--color-text-muted); }
@@ -2561,12 +2548,12 @@ watch(() => props.content, (newContent) => {
   cursor: pointer;
 }
 .heal-toggle-btn:hover {
-  border-color: var(--color-primary, #3B7DD8);
-  color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
+  color: var(--color-primary, #2D63B0);
 }
 .heal-toggle-btn--on {
-  background: var(--color-primary, #3B7DD8);
-  border-color: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
+  border-color: var(--color-primary, #2D63B0);
   color: #fff;
 }
 .heal-toggle-btn--on:hover {
@@ -2589,11 +2576,11 @@ watch(() => props.content, (newContent) => {
 .editor-section { background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px; overflow: visible; flex-shrink: 0; }
 .section-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--color-bg); border-bottom: 1px solid var(--color-border); cursor: pointer; user-select: none; }
 .section-header h3 { margin: 0; font-size: 14px; font-weight: 600; flex: 1; }
-.section-count { font-size: 11px; color: var(--color-text-muted); padding: 1px 8px; background: rgba(59, 125, 216, 0.1); border-radius: 8px; }
+.section-count { font-size: 11px; color: var(--color-text-muted); padding: 1px 8px; background: rgba(45, 99, 176, 0.1); border-radius: 8px; }
 
 /* Section accent colors */
-.section-settings > .section-header { border-left: 3px solid #3B7DD8; }
-.section-settings .section-count { background: rgba(59, 125, 216, 0.1); color: #1a5fb4; }
+.section-settings > .section-header { border-left: 3px solid #2D63B0; }
+.section-settings .section-count { background: rgba(45, 99, 176, 0.1); color: #1a5fb4; }
 .section-variables > .section-header { border-left: 3px solid #7c3aed; }
 .section-variables .section-count { background: rgba(124, 58, 237, 0.1); color: #7c3aed; }
 .section-testcases > .section-header { border-left: 3px solid #2e7d32; }
@@ -2625,7 +2612,7 @@ watch(() => props.content, (newContent) => {
 .item-card { border: 1px solid var(--color-border); border-radius: 8px; }
 .item-header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--color-bg); border-bottom: 1px solid var(--color-border); cursor: pointer; user-select: none; }
 .item-title { flex: 1; font-weight: 500; font-size: 13px; }
-.item-count { font-size: 11px; color: var(--color-text-muted); padding: 1px 8px; background: rgba(59, 125, 216, 0.1); border-radius: 8px; }
+.item-count { font-size: 11px; color: var(--color-text-muted); padding: 1px 8px; background: rgba(45, 99, 176, 0.1); border-radius: 8px; }
 .item-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .remove-btn { border: none; background: none; cursor: pointer; font-size: 14px; padding: 2px 4px; opacity: 0.5; transition: opacity 0.15s; }
 .remove-btn:hover { opacity: 1; }
@@ -2637,7 +2624,7 @@ watch(() => props.content, (newContent) => {
 .form-label { font-size: 12px; font-weight: 500; color: var(--color-text-muted); }
 .required { color: var(--color-danger); }
 .form-input { padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 6px; font-size: 13px; background: var(--color-bg-card); color: var(--color-text); transition: border-color 0.15s; }
-.form-input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(59, 125, 216, 0.15); }
+.form-input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(45, 99, 176, 0.15); }
 .form-textarea { resize: vertical; min-height: 40px; font-family: inherit; }
 
 /* Chips/Tags */
@@ -2816,7 +2803,7 @@ watch(() => props.content, (newContent) => {
   border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-top: 2px;
 }
 .keyword-dropdown-item { padding: 6px 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
-.keyword-dropdown-item:hover, .keyword-dropdown-item.active { background: rgba(59,125,216,0.08); }
+.keyword-dropdown-item:hover, .keyword-dropdown-item.active { background: rgba(45, 99, 176,0.08); }
 .kw-suggestion-name { font-family: 'Fira Code', monospace; font-size: 12px; }
 .kw-suggestion-args { font-size: 10px; color: var(--color-text-muted); font-style: italic; margin-left: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
 .kw-suggestion-source { font-size: 10px; padding: 1px 6px; border-radius: 8px; font-weight: 600; text-transform: uppercase; }
@@ -2888,7 +2875,7 @@ watch(() => props.content, (newContent) => {
 /* Auto-install dialog body */
 .lib-install-intro {
   margin: 0 0 1rem;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   font-size: 0.9rem;
   line-height: 1.45;
 }

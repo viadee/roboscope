@@ -1,7 +1,7 @@
 """Recording service: CRUD and session management."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -30,9 +30,7 @@ def create_recording(db: Session, data: RecordingCreate, user_id: int) -> Record
 
 def get_recording(db: Session, recording_id: int) -> RecordingSession | None:
     """Get a recording session by ID."""
-    result = db.execute(
-        select(RecordingSession).where(RecordingSession.id == recording_id)
-    )
+    result = db.execute(select(RecordingSession).where(RecordingSession.id == recording_id))
     return result.scalar_one_or_none()
 
 
@@ -74,20 +72,20 @@ def append_event(db: Session, recording: RecordingSession, event_data: dict) -> 
 def start_recording(db: Session, recording: RecordingSession) -> None:
     """Mark recording as actively capturing."""
     recording.status = RecordingStatus.RECORDING
-    recording.started_at = datetime.now(timezone.utc)
+    recording.started_at = datetime.now(UTC)
     db.flush()
 
 
 def stop_recording(db: Session, recording: RecordingSession) -> None:
     """Mark recording as stopped and calculate duration."""
     recording.status = RecordingStatus.PROCESSING
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     recording.finished_at = now
     if recording.started_at:
         started = recording.started_at
         # SQLite strips timezone info — ensure both are comparable
         if started.tzinfo is None:
-            started = started.replace(tzinfo=timezone.utc)
+            started = started.replace(tzinfo=UTC)
         recording.duration_seconds = (now - started).total_seconds()
     db.flush()
 
@@ -100,7 +98,7 @@ def complete_recording(
     if generated_robot:
         recording.generated_robot = generated_robot
     if not recording.finished_at:
-        recording.finished_at = datetime.now(timezone.utc)
+        recording.finished_at = datetime.now(UTC)
     db.flush()
 
 
@@ -109,7 +107,7 @@ def fail_recording(db: Session, recording: RecordingSession, error: str) -> None
     recording.status = RecordingStatus.FAILED
     recording.error_message = error[:2000]
     if not recording.finished_at:
-        recording.finished_at = datetime.now(timezone.utc)
+        recording.finished_at = datetime.now(UTC)
     db.flush()
 
 
@@ -117,7 +115,7 @@ def cancel_recording(db: Session, recording: RecordingSession) -> None:
     """Cancel a recording session."""
     recording.status = RecordingStatus.CANCELLED
     if not recording.finished_at:
-        recording.finished_at = datetime.now(timezone.utc)
+        recording.finished_at = datetime.now(UTC)
     db.flush()
 
 

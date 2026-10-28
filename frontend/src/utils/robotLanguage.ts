@@ -349,7 +349,7 @@ export function robotLanguage() {
  * folding into the generic CodeMirror palette.
  *
  * Colours match the brand vars in `frontend/src/assets/styles/main.css`:
- *   --color-primary  #3B7DD8 (blue)
+ *   --color-primary  #2D63B0 (blue)
  *   --color-accent   #D4883E (orange)
  *   --color-navy     #1A2D50 (deep navy)
  */
@@ -364,7 +364,7 @@ export const robotHighlightStyle = HighlightStyle.define([
   { tag: t.definition(t.name), color: '#1A2D50', fontWeight: '700' },
 
   // Keyword CALLS (the verbs in test bodies) — brand-blue, regular.
-  { tag: [t.function(t.name), t.function(t.variableName)], color: '#3B7DD8' },
+  { tag: [t.function(t.name), t.function(t.variableName)], color: '#2D63B0' },
 
   // Library namespace (`Browser` in `Browser.Click`).
   { tag: t.tagName, color: '#7B61FF' },

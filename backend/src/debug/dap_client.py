@@ -24,6 +24,7 @@ semantics during ``stop()``.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -81,10 +82,8 @@ class DapClient:
         self._closed = True
         if self._read_task is not None:
             self._read_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError, Exception):  # noqa: BLE001
                 await self._read_task
-            except (asyncio.CancelledError, Exception):  # noqa: BLE001
-                pass
             self._read_task = None
         try:
             self._writer.close()
@@ -111,9 +110,7 @@ class DapClient:
             raise ConnectionResetError("DAP client is closed")
         seq = self._next_seq
         self._next_seq += 1
-        fut: asyncio.Future[dict[str, Any]] = (
-            asyncio.get_running_loop().create_future()
-        )
+        fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
         self._pending[seq] = fut
         msg: DapMessage = {
             "seq": seq,
@@ -189,9 +186,7 @@ class DapClient:
                 try:
                     h(body)
                 except Exception:  # noqa: BLE001
-                    logger.exception(
-                        "DAP event handler for %r raised", event
-                    )
+                    logger.exception("DAP event handler for %r raised", event)
         else:
             # Unknown message types are logged and ignored — DAP is
             # forward-extensible and we don't want to crash the loop

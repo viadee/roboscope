@@ -89,9 +89,7 @@ class TestRoboscopeToXray:
             "test_sets": [
                 {
                     "name": "Set1",
-                    "test_cases": [
-                        {"name": "TC1", "priority": "low", "steps": ["Do something"]}
-                    ],
+                    "test_cases": [{"name": "TC1", "priority": "low", "steps": ["Do something"]}],
                 }
             ],
         }

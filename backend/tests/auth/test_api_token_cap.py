@@ -30,9 +30,7 @@ def _mk_user(db: Session, *, role: str, email: str) -> User:
     return u
 
 
-def _mk_team_with_member(
-    db: Session, user: User, role: str = "editor"
-) -> Team:
+def _mk_team_with_member(db: Session, user: User, role: str = "editor") -> Team:
     team = Team(name=f"T-{user.id}")
     db.add(team)
     db.commit()
@@ -119,9 +117,7 @@ class TestApiTokenRoleCapRegression:
         db_session.commit()
 
         headers = {"Authorization": f"Bearer {raw}"}
-        resp = client.post(
-            f"/api/v1/runs/{run.id}/cancel", headers=headers
-        )
+        resp = client.post(f"/api/v1/runs/{run.id}/cancel", headers=headers)
         assert resp.status_code == 403
 
     def test_runner_token_on_editor_team_grant_does_not_elevate_to_editor(
@@ -164,9 +160,7 @@ class TestApiTokenRoleCapRegression:
         # Grant bob project-membership so the vanilla require_effective_role
         # path would also grant EDITOR — proving that WITHOUT a team grant,
         # the token's own EDITOR role is enough.
-        _token, raw = create_api_token(
-            db_session, name="bob-ci", role="editor", user_id=bob.id
-        )
+        _token, raw = create_api_token(db_session, name="bob-ci", role="editor", user_id=bob.id)
         db_session.commit()
 
         # Bob is the repo creator — but team_id is None, so effective_role is

@@ -1,5 +1,6 @@
 """Docker-based test runner for isolated execution."""
 
+import contextlib
 import logging
 import time
 from collections.abc import Callable
@@ -63,7 +64,7 @@ class DockerRunner(AbstractRunner):
             try:
                 client.images.pull(image)
             except Exception:
-                raise DockerImageNotFoundError(image)
+                raise DockerImageNotFoundError(image) from None
 
     def execute(
         self,
@@ -238,9 +239,7 @@ class DockerRunner(AbstractRunner):
                 output_dir=output_dir,
                 timed_out=timed_out,
                 stdout="".join(stdout_lines),
-                error_message=(
-                    f"Timeout after {timeout} seconds" if timed_out else str(e)
-                ),
+                error_message=(f"Timeout after {timeout} seconds" if timed_out else str(e)),
                 duration_seconds=duration,
             )
 
@@ -258,18 +257,14 @@ class DockerRunner(AbstractRunner):
             try:
                 self._container.stop(timeout=10)
             except Exception:
-                try:
+                with contextlib.suppress(Exception):
                     self._container.kill()
-                except Exception:
-                    pass
 
     def cleanup(self) -> None:
         """Remove the container."""
         if self._container:
-            try:
+            with contextlib.suppress(Exception):
                 self._container.remove(force=True)
-            except Exception:
-                pass
             self._container = None
 
     def _build_robot_command(

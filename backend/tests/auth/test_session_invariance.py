@@ -12,14 +12,12 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import httpx
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from src.auth.constants import ERR_INACTIVE_USER
 from src.auth.models import User
 from tests.conftest import auth_header
-
 
 ME_ENDPOINT = "/api/v1/auth/me"
 
@@ -35,6 +33,7 @@ class TestSessionInvariance:
         httpx transport is unaffected because it's the in-process ASGI
         transport, not an outbound HTTP call.
         """
+
         def _fail(*_args, **_kwargs):
             raise httpx.ConnectError("simulated IdP outage")
 

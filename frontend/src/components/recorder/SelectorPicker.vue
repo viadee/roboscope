@@ -633,7 +633,7 @@ const addEffectiveIsOverride = computed(() => {
   border: none;
   padding: 0 4px;
   cursor: pointer;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
 }
 
 .selector-picker__menu {
@@ -662,7 +662,7 @@ const addEffectiveIsOverride = computed(() => {
 
 .selector-picker__item:hover,
 .selector-picker__item.is-active {
-  background: rgba(59, 125, 216, 0.08);
+  background: rgba(45, 99, 176, 0.08);
 }
 
 .selector-picker__item .selector-picker__dot,
@@ -674,7 +674,7 @@ const addEffectiveIsOverride = computed(() => {
 
 .selector-picker__strategy {
   font-family: var(--font-sans, sans-serif);
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -694,7 +694,7 @@ const addEffectiveIsOverride = computed(() => {
   font-family: var(--font-mono, monospace);
   font-size: 0.85rem;
   padding: 3px 6px;
-  border: 1px solid var(--color-primary, #3B7DD8);
+  border: 1px solid var(--color-primary, #2D63B0);
   border-radius: 3px;
   outline: none;
   min-width: 0;
@@ -702,7 +702,7 @@ const addEffectiveIsOverride = computed(() => {
 
 .selector-picker__score {
   font-family: var(--font-mono, monospace);
-  color: var(--color-text-secondary, #777);
+  color: var(--color-text-muted);
   font-size: 0.75rem;
 }
 
@@ -719,7 +719,7 @@ const addEffectiveIsOverride = computed(() => {
   padding: 0 6px;
   cursor: pointer;
   font-size: 0.85rem;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   line-height: 1.6;
 }
 
@@ -755,14 +755,14 @@ const addEffectiveIsOverride = computed(() => {
   border-radius: 3px;
   padding: 4px 8px;
   cursor: pointer;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   font-family: var(--font-sans, sans-serif);
   font-size: 0.82rem;
   text-align: left;
 }
 .selector-picker__add-btn:hover {
-  border-color: var(--color-primary, #3B7DD8);
-  background: rgba(59, 125, 216, 0.06);
+  border-color: var(--color-primary, #2D63B0);
+  background: rgba(45, 99, 176, 0.06);
 }
 
 .selector-picker--compact .selector-picker__value {
@@ -781,7 +781,7 @@ const addEffectiveIsOverride = computed(() => {
 
 .selector-picker__effective-label {
   font-family: var(--font-sans, sans-serif);
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -800,7 +800,7 @@ const addEffectiveIsOverride = computed(() => {
   min-width: 0;
 }
 .selector-picker__effective-input:focus {
-  border-color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
 }
 .selector-picker__effective-input.is-override {
   border-color: var(--color-accent, #D4883E);
@@ -814,7 +814,7 @@ const addEffectiveIsOverride = computed(() => {
   padding: 0 6px;
   cursor: pointer;
   font-size: 0.85rem;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   line-height: 1.6;
   flex-shrink: 0;
 }

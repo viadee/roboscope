@@ -104,22 +104,18 @@ async def read_message(reader: asyncio.StreamReader) -> DapMessage:
         ) from e
 
     # Header lines are CRLF-separated; drop the trailing empty line.
-    raw_lines = header_block[:-len(_HEADER_TERMINATOR)].split(b"\r\n")
+    raw_lines = header_block[: -len(_HEADER_TERMINATOR)].split(b"\r\n")
     content_length: int | None = None
     for line in raw_lines:
         if line[: len(_CONTENT_LENGTH_PREFIX)].lower() == _CONTENT_LENGTH_PREFIX.lower():
-            value = line[len(_CONTENT_LENGTH_PREFIX):].strip()
+            value = line[len(_CONTENT_LENGTH_PREFIX) :].strip()
             try:
                 content_length = int(value)
             except ValueError as e:
-                raise DapProtocolError(
-                    f"DAP Content-Length is not an integer: {value!r}"
-                ) from e
+                raise DapProtocolError(f"DAP Content-Length is not an integer: {value!r}") from e
             break
     if content_length is None:
-        raise DapProtocolError(
-            f"DAP frame missing Content-Length header: {header_block!r}"
-        )
+        raise DapProtocolError(f"DAP frame missing Content-Length header: {header_block!r}")
 
     try:
         body_bytes = await reader.readexactly(content_length)
@@ -135,9 +131,7 @@ async def read_message(reader: asyncio.StreamReader) -> DapMessage:
         raise DapProtocolError(f"DAP body is not valid UTF-8 JSON: {e}") from e
 
     if not isinstance(parsed, dict):
-        raise DapProtocolError(
-            f"DAP body is not a JSON object: {type(parsed).__name__}"
-        )
+        raise DapProtocolError(f"DAP body is not a JSON object: {type(parsed).__name__}")
 
     return parsed  # type: ignore[return-value]
 

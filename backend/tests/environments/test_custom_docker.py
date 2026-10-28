@@ -222,11 +222,13 @@ def test_lightweight_migration_adds_columns(tmp_path):
     with eng.begin() as conn:
         conn.execute(text("ALTER TABLE environments DROP COLUMN dockerfile_override"))
         conn.execute(text("ALTER TABLE environments DROP COLUMN docker_image_custom"))
-        conn.execute(text(
-            "INSERT INTO environments (name, python_version, default_runner_type, "
-            "max_docker_containers, is_default, created_by, created_at, updated_at) "
-            "VALUES ('old', '3.12', 'subprocess', 1, 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
-        ))
+        conn.execute(
+            text(
+                "INSERT INTO environments (name, python_version, default_runner_type, "
+                "max_docker_containers, is_default, created_by, created_at, updated_at) "
+                "VALUES ('old', '3.12', 'subprocess', 1, 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            )
+        )
 
     for _ in range(2):  # idempotent
         with eng.begin() as conn:

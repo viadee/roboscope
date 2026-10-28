@@ -21,15 +21,27 @@ from tests.conftest import auth_header
 
 
 def _seed(db, user_id, run_status=RunStatus.PASSED, report_dir: Path | None = None):
-    repo = Repository(name="doomed", repo_type="local", local_path="/tmp/doomed-repo", created_by=user_id)
+    repo = Repository(
+        name="doomed", repo_type="local", local_path="/tmp/doomed-repo", created_by=user_id
+    )
     db.add(repo)
     db.flush()
-    sched = Schedule(name="nightly", cron_expression="0 2 * * *", repository_id=repo.id,
-                     target_path=".", created_by=user_id)
+    sched = Schedule(
+        name="nightly",
+        cron_expression="0 2 * * *",
+        repository_id=repo.id,
+        target_path=".",
+        created_by=user_id,
+    )
     db.add(sched)
     db.flush()
-    run = ExecutionRun(repository_id=repo.id, target_path=".", triggered_by=user_id,
-                       status=run_status, schedule_id=sched.id)
+    run = ExecutionRun(
+        repository_id=repo.id,
+        target_path=".",
+        triggered_by=user_id,
+        status=run_status,
+        schedule_id=sched.id,
+    )
     db.add(run)
     db.flush()
     xml = str((report_dir / "output.xml") if report_dir else "/nonexistent/output.xml")

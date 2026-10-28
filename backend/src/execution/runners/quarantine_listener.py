@@ -21,7 +21,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 ROBOT_LISTENER_API_VERSION = 3
 
 
@@ -43,11 +42,13 @@ class QuarantineSkipListener:
                         continue
                     if "test_name" not in r:
                         continue
-                    self._entries.append({
-                        "suite_name": str(r.get("suite_name", "")),
-                        "test_name": str(r["test_name"]),
-                        "reason": str(r.get("reason", "") or ""),
-                    })
+                    self._entries.append(
+                        {
+                            "suite_name": str(r.get("suite_name", "")),
+                            "test_name": str(r["test_name"]),
+                            "reason": str(r.get("reason", "") or ""),
+                        }
+                    )
         except Exception:
             # Any parse / IO issue → listener is effectively inert.
             self._entries = []
@@ -73,6 +74,7 @@ class QuarantineSkipListener:
         msg = f"[roboscope-quarantine] {reason}"
         try:
             from robot.libraries.BuiltIn import BuiltIn  # local import
+
             BuiltIn().skip(msg)
         except Exception:
             # BuiltIn isn't reachable outside a running Robot execution

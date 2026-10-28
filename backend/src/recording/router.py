@@ -1,19 +1,24 @@
 """Recording API endpoints: browser recording sessions."""
 
 import json
+import json as _json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.auth.constants import Role
+from src.audit.event_types import AuditEventType
+from src.audit.service import log_event
+from src.auth.constants import ERR_INSUFFICIENT_PERMISSIONS, ROLE_HIERARCHY, Role
 from src.auth.dependencies import get_current_user, require_effective_role_for_recording
 from src.auth.models import User
+from src.auth.permissions import effective_role
 from src.database import get_db
 from src.rate_limit import limiter
-from src.task_executor import TaskDispatchError, dispatch_task
-from src.recording.models import RecordingStatus
+from src.recording.models import RecordingSession, RecordingSource, RecordingStatus
 from src.recording.schemas import (
     RecordingCreate,
     RecordingEventIn,
@@ -21,6 +26,7 @@ from src.recording.schemas import (
     RecordingResponse,
     RecordingStopRequest,
 )
+from src.recording.selector_schema import RecordingTransport
 from src.recording.service import (
     append_event,
     cancel_recording,
@@ -33,6 +39,8 @@ from src.recording.service import (
     start_recording,
     stop_recording,
 )
+from src.repos.models import Repository
+from src.task_executor import TaskDispatchError, dispatch_task
 
 logger = logging.getLogger("roboscope.recording")
 
@@ -94,8 +102,11 @@ def list_recordings_endpoint(
 ):
     """List recording sessions with pagination."""
     items, total = list_recordings(
-        db, page=page, page_size=page_size,
-        repository_id=repository_id, status=status_filter,
+        db,
+        page=page,
+        page_size=page_size,
+        repository_id=repository_id,
+        status=status_filter,
     )
     return RecordingListResponse(
         items=[RecordingResponse.model_validate(r) for r in items],
@@ -177,12 +188,13 @@ def start_browser_recording_endpoint(
 
     try:
         from src.recording.tasks import run_playwright_recorder
+
         dispatch_task(run_playwright_recorder, recording_id, recording.target_url)
     except TaskDispatchError as e:
         logger.error("Failed to dispatch Playwright recorder: %s", e)
         fail_recording(db, recording, f"Browser launch failed: {e}")
         db.commit()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
     db.refresh(recording)
     return recording
@@ -211,6 +223,7 @@ def append_event_endpoint(
     # Broadcast event via WebSocket (best-effort, don't block)
     try:
         from src.recording.tasks import _broadcast_recording_event
+
         _broadcast_recording_event(recording_id, event_data)
     except Exception:
         pass  # Non-critical
@@ -239,6 +252,7 @@ def stop_recording_endpoint(
 
     # Signal Playwright recorder to stop (if running)
     from src.recording.tasks import signal_stop_playwright
+
     signalled = signal_stop_playwright(recording_id)
 
     if signalled:
@@ -252,6 +266,7 @@ def stop_recording_endpoint(
         if stop_data.generate_robot:
             try:
                 from src.recording.tasks import generate_robot_for_recording
+
                 dispatch_task(generate_robot_for_recording, recording_id)
             except TaskDispatchError as e:
                 logger.error("Failed to dispatch robot generation: %s", e)
@@ -263,9 +278,7 @@ def stop_recording_endpoint(
     return recording
 
 
-@router.post(
-    "/recordings/{recording_id}/cancel", response_model=RecordingResponse
-)
+@router.post("/recordings/{recording_id}/cancel", response_model=RecordingResponse)
 def cancel_recording_endpoint(
     recording_id: int,
     db: Session = Depends(get_db),
@@ -282,12 +295,10 @@ def cancel_recording_endpoint(
         )
     # Signal Playwright to stop if running
     from src.recording.tasks import signal_stop_playwright
+
     signal_stop_playwright(recording_id)
     cancel_recording(db, recording)
     return recording
-
-
-from fastapi.responses import PlainTextResponse
 
 
 @router.get("/recordings/{recording_id}/robot", response_class=PlainTextResponse)
@@ -329,16 +340,6 @@ def get_recording_events(
 # Recorder v2 — Session endpoint family (Story W.1 stub + W.8 audit)
 # ---------------------------------------------------------------------------
 
-from pydantic import BaseModel
-
-from src.audit.event_types import AuditEventType
-from src.audit.service import log_event
-from src.auth.constants import ERR_INSUFFICIENT_PERMISSIONS, ROLE_HIERARCHY
-from src.auth.permissions import effective_role
-from src.recording.models import RecordingSession, RecordingSource
-from src.recording.selector_schema import RecordingTransport
-from src.repos.models import Repository
-
 
 class V2CapabilitiesResponse(BaseModel):
     web_playwright_viable: bool
@@ -360,6 +361,7 @@ def _web_playwright_viable() -> bool:
     """
     import os as _os
     import sys as _sys
+
     override = _os.environ.get("ROBOSCOPE_HEADED_BROWSER", "auto").strip().lower()
     if override in ("1", "true", "yes", "on"):
         return True
@@ -380,6 +382,7 @@ def v2_recorder_capabilities(
     backend has no display to render Chromium into.
     """
     import sys as _sys
+
     return V2CapabilitiesResponse(
         web_playwright_viable=_web_playwright_viable(),
         desktop_windows_viable=_sys.platform.startswith("win"),
@@ -433,9 +436,7 @@ def v2_create_session(
     """
     repo = db.get(Repository, data.repo_id)
     if repo is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
     if getattr(current_user, "_auth_via_api_token", False):
         # Story 3-15: API tokens stay capped at scoped role; no team/project grant.
         role_level = ROLE_HIERARCHY.get(Role(current_user.role), -1)
@@ -460,7 +461,7 @@ def v2_create_session(
     )
     for row in existing:
         row.status = RecordingStatus.CANCELLED
-        row.finished_at = datetime.now(timezone.utc)
+        row.finished_at = datetime.now(UTC)
         log_event(
             db,
             AuditEventType.RECORDING_SESSION_ABORTED,
@@ -474,7 +475,7 @@ def v2_create_session(
         status=RecordingStatus.RECORDING,
         source=_transport_to_source(data.transport),
         triggered_by=current_user.id,
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
     )
     db.add(session)
     db.flush()
@@ -483,6 +484,7 @@ def v2_create_session(
     # Story W.2 — register the in-memory FIFO so the SSE endpoint and
     # the capture producer (future W.1 full) share it.
     from src.recording.v2_command_queue import register_session
+
     register_session(session.id)
 
     log_event(
@@ -529,7 +531,6 @@ def v2_save_flow(
     the session-create endpoint. Path validation blocks `..` escape and
     absolute paths — the flow lands strictly under `<repo local_path>/<path>`.
     """
-    import os
     from pathlib import Path
 
     from src.recording.robot_emit import emit_robot
@@ -540,9 +541,7 @@ def v2_save_flow(
 
     repo = db.get(Repository, data.repo_id)
     if repo is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
     if getattr(current_user, "_auth_via_api_token", False):
         role_level = ROLE_HIERARCHY.get(Role(current_user.role), -1)
     else:
@@ -580,7 +579,9 @@ def v2_save_flow(
     try:
         target.relative_to(repo_root)
     except ValueError:
-        raise HTTPException(status_code=400, detail="path resolves outside the repository")
+        raise HTTPException(
+            status_code=400, detail="path resolves outside the repository"
+        ) from None
 
     # Auto-suffix .robot if missing for a smoother UX.
     if target.suffix != ".robot":
@@ -600,6 +601,7 @@ def v2_save_flow(
     sidecar_path = target.with_suffix(".rbs.json")
     sidecar_payload = parsed.model_dump(mode="json")
     import json as _sh_json
+
     sidecar_path.write_text(
         _sh_json.dumps(sidecar_payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -690,9 +692,7 @@ def v2_start_browser(
         target_url = target_url.strip()
         if not target_url:
             target_url = None
-        elif not (
-            target_url.startswith("http://") or target_url.startswith("https://")
-        ):
+        elif not (target_url.startswith("http://") or target_url.startswith("https://")):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
@@ -709,6 +709,7 @@ def v2_start_browser(
     # the UI can surface a "this host cannot record desktop flows"
     # message instead of silently FAILing the session row.
     import sys as _sys
+
     if transport == "desktop_windows":
         if not _sys.platform.startswith("win"):
             raise HTTPException(
@@ -717,12 +718,11 @@ def v2_start_browser(
             )
         try:
             from src.recording.desktop_recorder_task import run_desktop_recorder_session
+
             result = dispatch_task(run_desktop_recorder_session, session_id)
             task_id = result.id
         except TaskDispatchError as exc:
-            logger.error(
-                "desktop recorder dispatch failed for session %d: %s", session_id, exc
-            )
+            logger.error("desktop recorder dispatch failed for session %d: %s", session_id, exc)
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         return V2StartBrowserResponse(session_id=session_id, task_id=task_id)
     if transport == "desktop_macos":
@@ -738,6 +738,7 @@ def v2_start_browser(
 
     try:
         from src.recording.v2_recorder_task import run_v2_recorder_session
+
         result = dispatch_task(run_v2_recorder_session, session_id, target_url)
         task_id = result.id
     except TaskDispatchError as exc:
@@ -800,9 +801,9 @@ def v2_restart_browser(
 
     from src.recording.v2_command_queue import LifecycleEvent, enqueue_lifecycle
     from src.recording.v2_recorder_task import (
-        signal_restart_v2,
         is_v2_session_active,
         run_v2_recorder_session,
+        signal_restart_v2,
     )
 
     if not is_v2_session_active(session_id):
@@ -821,7 +822,8 @@ def v2_restart_browser(
     # Surface the restart intent on the SSE channel BEFORE we tear
     # down the old task, so the live view's pill flips immediately.
     enqueue_lifecycle(
-        session_id, LifecycleEvent(phase="browser_restarting"),
+        session_id,
+        LifecycleEvent(phase="browser_restarting"),
     )
     if not signal_restart_v2(session_id):
         # Race: the task vacated between is_v2_session_active() and
@@ -843,7 +845,7 @@ def v2_restart_browser(
         raise HTTPException(
             status_code=409,
             detail="Previous recorder task did not release its slot within 5s. "
-                   "Try again, or abort the session and create a new one.",
+            "Try again, or abort the session and create a new one.",
         )
 
     target_url = (session.target_url or "").strip() or None
@@ -878,11 +880,12 @@ def v2_abort_session(
         # Already terminal — idempotent.
         return
     session.status = RecordingStatus.CANCELLED
-    session.finished_at = datetime.now(timezone.utc)
+    session.finished_at = datetime.now(UTC)
     # Story W.2 — tell any live SSE subscriber to close cleanly.
     from src.recording.desktop_recorder_task import signal_stop_desktop
     from src.recording.v2_command_queue import finalize_session, tear_down_session
     from src.recording.v2_recorder_task import signal_stop_v2
+
     # Story W.1 full / D.1 — signal whichever task owns this session to
     # tear down its backend (Chromium or UIA). The other registry is a
     # no-op when the session isn't registered, so calling both is safe
@@ -952,7 +955,7 @@ def v2_reset_stuck_sessions(
     if not stuck:
         return {"aborted": 0}
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for session in stuck:
         # Best-effort graceful stop — no-op if the underlying task is
         # already dead (which is the whole reason this endpoint exists).
@@ -972,7 +975,8 @@ def v2_reset_stuck_sessions(
     db.commit()
     logger.info(
         "user %d reset %d stuck recording session(s)",
-        current_user.id, len(stuck),
+        current_user.id,
+        len(stuck),
     )
     return {"aborted": len(stuck)}
 
@@ -980,8 +984,6 @@ def v2_reset_stuck_sessions(
 # ---------------------------------------------------------------------------
 # Recorder v2 — Story W.2: SSE command stream
 # ---------------------------------------------------------------------------
-
-import json as _json
 
 
 @router.get("/recordings/sessions/{session_id}/commands")
@@ -1006,14 +1008,15 @@ def v2_command_stream(
     Single-subscriber per AR-3 — a second concurrent GET returns 409.
     """
     from fastapi.responses import StreamingResponse
+
     from src.auth.service import decode_token, get_user_by_id
+    from src.recording.selector_schema import RecordedCommand as _RecCmd
     from src.recording.v2_command_queue import (
         LifecycleEvent,
         iterate_events,
         release_subscriber,
         try_acquire_subscriber,
     )
-    from src.recording.selector_schema import RecordedCommand as _RecCmd
 
     # Resolve current user: Authorization header wins, ?token= falls back.
     # Duplicates a little logic from get_current_user because EventSource
@@ -1022,7 +1025,7 @@ def v2_command_stream(
     raw_token: str | None = None
     auth_header = request.headers.get("authorization", "")
     if auth_header.startswith("Bearer "):
-        raw_token = auth_header[len("Bearer "):]
+        raw_token = auth_header[len("Bearer ") :]
     elif token:
         raw_token = token
     if not raw_token:
@@ -1041,10 +1044,7 @@ def v2_command_stream(
     session = db.get(RecordingSession, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    if (
-        session.triggered_by != current_user.id
-        and current_user.role != Role.ADMIN
-    ):
+    if session.triggered_by != current_user.id and current_user.role != Role.ADMIN:
         raise HTTPException(
             status_code=403,
             detail="Only the session owner or an admin can subscribe",
@@ -1069,11 +1069,13 @@ def v2_command_stream(
                     payload = _json.dumps(item.model_dump(mode="json"), default=str)
                     yield f"event: command\ndata: {payload}\n\n"
                 elif isinstance(item, LifecycleEvent):
-                    payload = _json.dumps({
-                        "phase": item.phase,
-                        "ts": item.ts,
-                        "message": item.message,
-                    })
+                    payload = _json.dumps(
+                        {
+                            "phase": item.phase,
+                            "ts": item.ts,
+                            "message": item.message,
+                        }
+                    )
                     yield f"event: lifecycle\ndata: {payload}\n\n"
             # End of stream — SSE clients close on connection end; emit a
             # final explicit `event: end` so the browser-side EventSource

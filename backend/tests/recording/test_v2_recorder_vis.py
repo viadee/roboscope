@@ -15,7 +15,6 @@ Pins the new contracts:
 
 from __future__ import annotations
 
-import asyncio
 import threading
 import time
 from typing import Any
@@ -39,7 +38,6 @@ from src.recording.v2_command_queue import (
 )
 from src.repos.models import Repository
 from tests.conftest import auth_header
-
 
 # ─── Fixtures + helpers ────────────────────────────────────────────
 
@@ -195,12 +193,14 @@ class TestWrapperEmitsCrashLifecycle:
         # need to inspect indirectly. Easiest: register the queue
         # AGAIN and verify it's a fresh one (tear-down happened).
         from src.recording.v2_command_queue import _registry as queue_registry  # type: ignore
+
         assert rec.id not in queue_registry  # tear_down ran
 
 
 class TestSignalRestart:
     def test_signal_restart_without_active_task_returns_false(self) -> None:
         from src.recording.v2_recorder_task import signal_restart_v2
+
         assert signal_restart_v2(91234) is False
 
     def test_signal_restart_sets_event_and_marks_pending(
@@ -210,9 +210,9 @@ class TestSignalRestart:
         repo_id: int,
     ) -> None:
         from src.recording.v2_recorder_task import (
-            signal_restart_v2,
-            _stop_signals,
             _restart_pending,
+            _stop_signals,
+            signal_restart_v2,
         )
 
         rec = _make_session(db_session, admin_user, repo_id)
@@ -266,7 +266,10 @@ class TestRestartEndpoint:
         repo_id: int,
     ) -> None:
         rec = _make_session(
-            db_session, admin_user, repo_id, status=RecordingStatus.COMPLETED,
+            db_session,
+            admin_user,
+            repo_id,
+            status=RecordingStatus.COMPLETED,
         )
         db_session.commit()
         resp = client.post(
@@ -369,7 +372,9 @@ class TestRestartEndpoint:
             return ok
 
         monkeypatch.setattr(
-            v2_recorder_task, "signal_restart_v2", _signal_and_clear,
+            v2_recorder_task,
+            "signal_restart_v2",
+            _signal_and_clear,
         )
         # The router does `from ... import signal_restart_v2` inside
         # the handler — patching v2_recorder_task is what the
@@ -426,10 +431,7 @@ class TestSSEMultiplex:
         t = threading.Thread(target=_producer)
         t.start()
         try:
-            url = (
-                f"/api/v1/recordings/sessions/{rec.id}/commands"
-                f"?token={token}"
-            )
+            url = f"/api/v1/recordings/sessions/{rec.id}/commands?token={token}"
             with client.stream("GET", url) as resp:
                 assert resp.status_code == 200
                 body = b"".join(resp.iter_bytes())
@@ -453,4 +455,5 @@ class TestSSEMultiplex:
 def _token_for(user: User) -> str:
     """Mint a JWT for the SSE endpoint's `?token=` fallback."""
     from src.auth.service import create_access_token
+
     return create_access_token(user.id, user.role)

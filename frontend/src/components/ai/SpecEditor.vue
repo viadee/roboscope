@@ -1389,7 +1389,7 @@ watch(() => props.content, (newContent) => {
 
 .tab-btn:hover {
   color: var(--color-text);
-  background: rgba(59, 125, 216, 0.05);
+  background: rgba(45, 99, 176, 0.05);
 }
 
 .tab-btn.active {
@@ -1556,7 +1556,7 @@ watch(() => props.content, (newContent) => {
 .form-input:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(59, 125, 216, 0.15);
+  box-shadow: 0 0 0 2px rgba(45, 99, 176, 0.15);
 }
 
 .form-textarea {
@@ -1675,7 +1675,7 @@ watch(() => props.content, (newContent) => {
   font-size: 11px;
   color: var(--color-text-muted);
   padding: 1px 8px;
-  background: rgba(59, 125, 216, 0.1);
+  background: rgba(45, 99, 176, 0.1);
   border-radius: 8px;
 }
 
@@ -1876,7 +1876,7 @@ watch(() => props.content, (newContent) => {
 }
 
 .step-btn.active {
-  background: rgba(59, 125, 216, 0.1);
+  background: rgba(45, 99, 176, 0.1);
   border-color: var(--color-primary);
   color: var(--color-primary);
 }
@@ -1948,7 +1948,7 @@ watch(() => props.content, (newContent) => {
 
 .library-dropdown-item:hover,
 .library-dropdown-item.active {
-  background: rgba(59, 125, 216, 0.08);
+  background: rgba(45, 99, 176, 0.08);
 }
 
 .library-name {

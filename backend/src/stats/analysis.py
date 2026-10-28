@@ -5,16 +5,15 @@ import json
 import logging
 import re
 from collections import Counter, defaultdict
-from datetime import date, datetime, time, timezone
+from datetime import UTC, datetime, time
 from pathlib import Path
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import src.auth.models  # noqa: F401
-import src.repos.models  # noqa: F401
 import src.execution.models  # noqa: F401
-
+import src.repos.models  # noqa: F401
 from src.database import get_sync_session
 from src.execution.models import ExecutionRun
 from src.reports.models import Report, TestResult
@@ -27,15 +26,17 @@ logger = logging.getLogger("roboscope.stats.analysis")
 
 def _broadcast_analysis_status(analysis_id: int, status: str, progress: int = 0) -> None:
     """Broadcast analysis status change from a sync background thread."""
-    from src.websocket.manager import ws_manager
     from src.main import _event_loop
+    from src.websocket.manager import ws_manager
 
-    coro = ws_manager.broadcast({
-        "type": "analysis_status_changed",
-        "analysis_id": analysis_id,
-        "status": status,
-        "progress": progress,
-    })
+    coro = ws_manager.broadcast(
+        {
+            "type": "analysis_status_changed",
+            "analysis_id": analysis_id,
+            "status": status,
+            "progress": progress,
+        }
+    )
 
     if _event_loop and _event_loop.is_running():
         asyncio.run_coroutine_threadsafe(coro, _event_loop)
@@ -52,13 +53,15 @@ def _flatten_keywords(suites: list[dict]) -> list[dict]:
 
     def _walk_keywords(kw_list: list[dict]) -> None:
         for kw in kw_list:
-            keywords.append({
-                "name": kw.get("name", ""),
-                "library": kw.get("library", ""),
-                "type": kw.get("type", "kw"),
-                "duration": kw.get("duration", 0.0),
-                "status": kw.get("status", ""),
-            })
+            keywords.append(
+                {
+                    "name": kw.get("name", ""),
+                    "library": kw.get("library", ""),
+                    "type": kw.get("type", "kw"),
+                    "duration": kw.get("duration", 0.0),
+                    "status": kw.get("status", ""),
+                }
+            )
             _walk_keywords(kw.get("keywords", []))
 
     def _walk_suites(suite_list: list[dict]) -> None:
@@ -80,15 +83,17 @@ def _flatten_tests(suites: list[dict]) -> list[dict]:
             suite_name = suite.get("name", "")
             full_name = f"{parent_suite}.{suite_name}" if parent_suite else suite_name
             for test in suite.get("tests", []):
-                tests.append({
-                    "name": test.get("name", ""),
-                    "suite": full_name,
-                    "status": test.get("status", ""),
-                    "duration": test.get("duration", 0.0),
-                    "tags": test.get("tags", []),
-                    "error_message": test.get("error_message", ""),
-                    "keywords": test.get("keywords", []),
-                })
+                tests.append(
+                    {
+                        "name": test.get("name", ""),
+                        "suite": full_name,
+                        "status": test.get("status", ""),
+                        "duration": test.get("duration", 0.0),
+                        "tags": test.get("tags", []),
+                        "error_message": test.get("error_message", ""),
+                        "keywords": test.get("keywords", []),
+                    }
+                )
             _walk_suites(suite.get("suites", []), full_name)
 
     _walk_suites(suites)
@@ -250,17 +255,17 @@ def compute_assertion_density(tests: list[dict]) -> dict:
         kw_names = _get_kw_names(test["keywords"])
         total = len(kw_names) or 1
         assertions = sum(1 for name in kw_names if assertion_pattern.search(name))
-        results.append({
-            "name": test["name"],
-            "suite": test["suite"],
-            "total_keywords": len(kw_names),
-            "assertion_count": assertions,
-            "density": round(assertions / total * 100, 1),
-        })
+        results.append(
+            {
+                "name": test["name"],
+                "suite": test["suite"],
+                "total_keywords": len(kw_names),
+                "assertion_count": assertions,
+                "density": round(assertions / total * 100, 1),
+            }
+        )
 
-    avg_density = (
-        sum(r["density"] for r in results) / len(results) if results else 0
-    )
+    avg_density = sum(r["density"] for r in results) / len(results) if results else 0
     no_assertions = [r for r in results if r["assertion_count"] == 0]
     results.sort(key=lambda r: r["density"])
 
@@ -292,10 +297,7 @@ def compute_tag_coverage(tests: list[dict]) -> dict:
         "total_tests": len(tests),
         "untagged_count": untagged,
         "avg_tags_per_test": round(avg_tags, 1),
-        "tags": [
-            {"tag": tag, "count": count}
-            for tag, count in tag_counter.most_common(50)
-        ],
+        "tags": [{"tag": tag, "count": count} for tag, count in tag_counter.most_common(50)],
     }
 
 
@@ -343,7 +345,7 @@ def compute_redundancy_detection(tests: list[dict]) -> dict:
             continue
         seen_in_test: set[tuple] = set()
         for i in range(len(kw_names) - n + 1):
-            gram = tuple(kw_names[i:i + n])
+            gram = tuple(kw_names[i : i + n])
             if gram not in seen_in_test:
                 seen_in_test.add(gram)
                 if gram not in ngram_tests:
@@ -352,9 +354,7 @@ def compute_redundancy_detection(tests: list[dict]) -> dict:
 
     # Only keep sequences appearing in 2+ different tests
     shared = {
-        gram: test_names
-        for gram, test_names in ngram_tests.items()
-        if len(set(test_names)) >= 2
+        gram: test_names for gram, test_names in ngram_tests.items() if len(set(test_names)) >= 2
     }
 
     sorted_shared = sorted(shared.items(), key=lambda x: len(x[1]), reverse=True)
@@ -375,7 +375,15 @@ def compute_redundancy_detection(tests: list[dict]) -> dict:
 # --- Source Analysis (parse .robot files directly) ---
 
 # Directories to skip when scanning source files
-_IGNORE_DIRS = {".git", "__pycache__", ".venv", "node_modules", ".tox", ".pytest_cache", ".mypy_cache"}
+_IGNORE_DIRS = {
+    ".git",
+    "__pycache__",
+    ".venv",
+    "node_modules",
+    ".tox",
+    ".pytest_cache",
+    ".mypy_cache",
+}
 
 
 def _parse_source_tests(base_path: str) -> list[dict]:
@@ -413,7 +421,9 @@ def _parse_source_tests(base_path: str) -> list[dict]:
                 in_test_section = True
                 if current_test:
                     current_test["line_end"] = i - 1
-                    current_test["lines"] = current_test["line_end"] - current_test["line_start"] + 1
+                    current_test["lines"] = (
+                        current_test["line_end"] - current_test["line_start"] + 1
+                    )
                     tests.append(current_test)
                     current_test = None
                 continue
@@ -421,7 +431,9 @@ def _parse_source_tests(base_path: str) -> list[dict]:
             if stripped.startswith("***"):
                 if current_test:
                     current_test["line_end"] = i - 1
-                    current_test["lines"] = current_test["line_end"] - current_test["line_start"] + 1
+                    current_test["lines"] = (
+                        current_test["line_end"] - current_test["line_start"] + 1
+                    )
                     tests.append(current_test)
                     current_test = None
                 in_test_section = False
@@ -434,7 +446,9 @@ def _parse_source_tests(base_path: str) -> list[dict]:
             if stripped and not line.startswith((" ", "\t")) and not stripped.startswith("#"):
                 if current_test:
                     current_test["line_end"] = i - 1
-                    current_test["lines"] = current_test["line_end"] - current_test["line_start"] + 1
+                    current_test["lines"] = (
+                        current_test["line_end"] - current_test["line_start"] + 1
+                    )
                     tests.append(current_test)
                 current_test = {
                     "name": stripped,
@@ -453,7 +467,9 @@ def _parse_source_tests(base_path: str) -> list[dict]:
                     continue
                 if stripped.lower().startswith("[tags]"):
                     tags_str = stripped[6:].strip()
-                    current_test["tags"] = [t.strip() for t in re.split(r"  +|\t+", tags_str) if t.strip()]
+                    current_test["tags"] = [
+                        t.strip() for t in re.split(r"  +|\t+", tags_str) if t.strip()
+                    ]
                 elif stripped.lower().startswith("[documentation]"):
                     current_test["doc"] = stripped[15:].strip()
                 elif stripped.lower().startswith("["):
@@ -519,8 +535,7 @@ def _parse_source_libraries(base_path: str) -> list[dict]:
             continue
 
     return [
-        {"library_name": name, "files": sorted(files)}
-        for name, files in sorted(lib_map.items())
+        {"library_name": name, "files": sorted(files)} for name, files in sorted(lib_map.items())
     ]
 
 
@@ -534,10 +549,17 @@ def compute_source_test_stats(base_path: str) -> dict:
 
     if not tests:
         return {
-            "total_files": 0, "total_tests": 0,
-            "avg_lines": 0, "min_lines": 0, "max_lines": 0,
-            "avg_steps": 0, "min_steps": 0, "max_steps": 0,
-            "step_histogram": [], "top_keywords": [], "files": [],
+            "total_files": 0,
+            "total_tests": 0,
+            "avg_lines": 0,
+            "min_lines": 0,
+            "max_lines": 0,
+            "avg_steps": 0,
+            "min_steps": 0,
+            "max_steps": 0,
+            "step_histogram": [],
+            "top_keywords": [],
+            "files": [],
         }
 
     files_set = {t["file"] for t in tests}
@@ -619,7 +641,8 @@ def compute_source_library_distribution(base_path: str) -> dict:
                 "library": lib["library_name"],
                 "file_count": len(lib["files"]),
                 "percentage": round(len(lib["files"]) / total_files_with_imports * 100, 1)
-                if total_files_with_imports else 0,
+                if total_files_with_imports
+                else 0,
                 "files": lib["files"][:10],
             }
             for lib in sorted(libraries, key=lambda x: len(x["files"]), reverse=True)
@@ -636,10 +659,10 @@ def _init_roboview_services(repo_path: str):
     Returns (keyword_usage_service, keyword_similarity_service, robocop_service)
     or raises ImportError if roboview is not installed.
     """
-    from roboview.services.keyword_register_service import KeywordRegistryService
     from roboview.services.file_register_service import FileRegistryService
-    from roboview.services.keyword_usage_service import KeywordUsageService
+    from roboview.services.keyword_register_service import KeywordRegistryService
     from roboview.services.keyword_similarity_service import KeywordSimilarityService
+    from roboview.services.keyword_usage_service import KeywordUsageService
     from roboview.services.robocop_register_service import RobocopRegistryService
     from roboview.services.robocop_service import RobocopService
 
@@ -754,22 +777,29 @@ def compute_keyword_similarity(repo_path: str) -> dict:
         if kw is None:
             continue
         top = sim_service.get_n_most_similar_keywords(
-            kw.keyword_name_without_prefix, top_n=3,
+            kw.keyword_name_without_prefix,
+            top_n=3,
         )
         for sim_kw in top:
-            pair_key = tuple(sorted([
-                kw.keyword_name_without_prefix,
-                sim_kw.keyword_name_without_prefix,
-            ]))
+            pair_key = tuple(
+                sorted(
+                    [
+                        kw.keyword_name_without_prefix,
+                        sim_kw.keyword_name_without_prefix,
+                    ]
+                )
+            )
             if pair_key not in seen:
                 seen.add(pair_key)
-                pairs.append({
-                    "keyword_a": kw.keyword_name_without_prefix,
-                    "source_a": kw.source,
-                    "keyword_b": sim_kw.keyword_name_without_prefix,
-                    "source_b": sim_kw.source,
-                    "score": sim_kw.score,
-                })
+                pairs.append(
+                    {
+                        "keyword_a": kw.keyword_name_without_prefix,
+                        "source_a": kw.source,
+                        "keyword_b": sim_kw.keyword_name_without_prefix,
+                        "source_b": sim_kw.source,
+                        "score": sim_kw.score,
+                    }
+                )
 
     pairs.sort(key=lambda p: p["score"], reverse=True)
 
@@ -933,14 +963,16 @@ def compute_slowest_tests(
     tests = []
     for name, durations in duration_map.items():
         avg_d = sum(durations) / len(durations)
-        tests.append({
-            "test_name": name,
-            "suite_name": suite_map[name],
-            "avg_duration": round(avg_d, 2),
-            "min_duration": round(min(durations), 2),
-            "max_duration": round(max(durations), 2),
-            "run_count": len(durations),
-        })
+        tests.append(
+            {
+                "test_name": name,
+                "suite_name": suite_map[name],
+                "avg_duration": round(avg_d, 2),
+                "min_duration": round(min(durations), 2),
+                "max_duration": round(max(durations), 2),
+                "run_count": len(durations),
+            }
+        )
 
     tests.sort(key=lambda t: t["avg_duration"], reverse=True)
     return {
@@ -963,10 +995,12 @@ def compute_flakiness_score(
     test_runs: dict[str, list[dict]] = defaultdict(list)
     suite_map: dict[str, str] = {}
     for tr in results:
-        test_runs[tr.test_name].append({
-            "status": tr.status,
-            "start_time": tr.start_time or "",
-        })
+        test_runs[tr.test_name].append(
+            {
+                "status": tr.status,
+                "start_time": tr.start_time or "",
+            }
+        )
         suite_map[tr.test_name] = tr.suite_name
 
     tests = []
@@ -987,18 +1021,18 @@ def compute_flakiness_score(
         score = round(transitions / (len(runs) - 1), 3) if len(runs) > 1 else 0.0
 
         # Build status timeline (last 20 runs)
-        timeline = [
-            {"status": r["status"]} for r in runs[-20:]
-        ]
+        timeline = [{"status": r["status"]} for r in runs[-20:]]
 
-        tests.append({
-            "test_name": name,
-            "suite_name": suite_map.get(name, ""),
-            "total_runs": len(runs),
-            "transitions": transitions,
-            "flakiness_score": score,
-            "timeline": timeline,
-        })
+        tests.append(
+            {
+                "test_name": name,
+                "suite_name": suite_map.get(name, ""),
+                "total_runs": len(runs),
+                "transitions": transitions,
+                "flakiness_score": score,
+                "timeline": timeline,
+            }
+        )
 
     tests.sort(key=lambda t: t["flakiness_score"], reverse=True)
     return {
@@ -1039,10 +1073,7 @@ def compute_failure_heatmap(
 
     for row in rows:
         run_date = row.created_at
-        if hasattr(run_date, "date"):
-            day_str = run_date.date().isoformat()
-        else:
-            day_str = str(run_date)[:10]
+        day_str = run_date.date().isoformat() if hasattr(run_date, "date") else str(run_date)[:10]
 
         key = (row.test_name, day_str)
         if key not in cell_data:
@@ -1057,7 +1088,7 @@ def compute_failure_heatmap(
     top_tests = [name for name, _ in test_fail_counts.most_common(20)]
 
     # Collect unique dates
-    all_dates = sorted({k[1] for k in cell_data.keys()})
+    all_dates = sorted({k[1] for k in cell_data})
 
     # Build matrix
     matrix = []
@@ -1069,10 +1100,12 @@ def compute_failure_heatmap(
                 row_cells.append({"date": d, "status": cell_data[key]["status"]})
             else:
                 row_cells.append({"date": d, "status": "NONE"})
-        matrix.append({
-            "test_name": test_name,
-            "cells": row_cells,
-        })
+        matrix.append(
+            {
+                "test_name": test_name,
+                "cells": row_cells,
+            }
+        )
 
     return {
         "dates": all_dates,
@@ -1124,7 +1157,7 @@ def run_analysis(analysis_id: int) -> None:
 
         try:
             analysis.status = "running"
-            analysis.started_at = datetime.now(timezone.utc)
+            analysis.started_at = datetime.now(UTC)
             analysis.progress = 0
             session.commit()
 
@@ -1136,21 +1169,14 @@ def run_analysis(analysis_id: int) -> None:
             selected = json.loads(analysis.selected_kpis)
 
             # Convert date filters to proper datetime objects
-            dt_from = (
-                datetime.combine(analysis.date_from, time.min)
-                if analysis.date_from else None
-            )
-            dt_to = (
-                datetime.combine(analysis.date_to, time.max)
-                if analysis.date_to else None
-            )
+            dt_from = datetime.combine(analysis.date_from, time.min) if analysis.date_from else None
+            dt_to = datetime.combine(analysis.date_to, time.max) if analysis.date_to else None
 
             # Query reports matching filters
             query = select(Report)
             if analysis.repository_id:
-                query = (
-                    query.join(ExecutionRun, Report.execution_run_id == ExecutionRun.id)
-                    .where(ExecutionRun.repository_id == analysis.repository_id)
+                query = query.join(ExecutionRun, Report.execution_run_id == ExecutionRun.id).where(
+                    ExecutionRun.repository_id == analysis.repository_id
                 )
             if dt_from:
                 query = query.where(Report.created_at >= dt_from)
@@ -1172,7 +1198,9 @@ def run_analysis(analysis_id: int) -> None:
                 except Exception as e:
                     logger.warning(
                         "Skipping report %d (%s): %s",
-                        report.id, report.output_xml_path, e,
+                        report.id,
+                        report.output_xml_path,
+                        e,
                     )
 
                 analysis.progress = int((i + 1) / max(total_reports, 1) * 80)
@@ -1186,10 +1214,15 @@ def run_analysis(analysis_id: int) -> None:
 
             # Also load DB test results for tag_coverage / error_patterns
             # Determine which KPIs need DB test results
-            needs_db_results = {"tag_coverage", "error_patterns",
-                                "test_pass_rate_trend", "slowest_tests",
-                                "flakiness_score", "failure_heatmap",
-                                "suite_duration_treemap"}
+            needs_db_results = {
+                "tag_coverage",
+                "error_patterns",
+                "test_pass_rate_trend",
+                "slowest_tests",
+                "flakiness_score",
+                "failure_heatmap",
+                "suite_duration_treemap",
+            }
             if needs_db_results & set(selected):
                 tr_query = select(TestResult)
                 if analysis.repository_id:
@@ -1208,15 +1241,17 @@ def run_analysis(analysis_id: int) -> None:
                 # Supplement XML tests with DB data for missing tags/errors
                 if not all_tests and db_results:
                     for tr in db_results:
-                        all_tests.append({
-                            "name": tr.test_name,
-                            "suite": tr.suite_name,
-                            "status": tr.status,
-                            "duration": tr.duration_seconds,
-                            "tags": tr.tags.split(",") if tr.tags else [],
-                            "error_message": tr.error_message or "",
-                            "keywords": [],
-                        })
+                        all_tests.append(
+                            {
+                                "name": tr.test_name,
+                                "suite": tr.suite_name,
+                                "status": tr.status,
+                                "duration": tr.duration_seconds,
+                                "tags": tr.tags.split(",") if tr.tags else [],
+                                "error_message": tr.error_message or "",
+                                "keywords": [],
+                            }
+                        )
 
             analysis.progress = 85
             session.commit()
@@ -1225,6 +1260,7 @@ def run_analysis(analysis_id: int) -> None:
             repo_local_path: str | None = None
             if analysis.repository_id:
                 from src.repos.models import Repository
+
                 repo = session.get(Repository, analysis.repository_id)
                 if repo and repo.local_path:
                     repo_local_path = repo.local_path
@@ -1243,48 +1279,53 @@ def run_analysis(analysis_id: int) -> None:
 
             # Execution KPIs (query DB test results directly)
             compute_map["test_pass_rate_trend"] = lambda: compute_test_pass_rate_trend(
-                session, analysis.repository_id, dt_from, dt_to,
+                session,
+                analysis.repository_id,
+                dt_from,
+                dt_to,
             )
             compute_map["slowest_tests"] = lambda: compute_slowest_tests(
-                session, analysis.repository_id, dt_from, dt_to,
+                session,
+                analysis.repository_id,
+                dt_from,
+                dt_to,
             )
             compute_map["flakiness_score"] = lambda: compute_flakiness_score(
-                session, analysis.repository_id, dt_from, dt_to,
+                session,
+                analysis.repository_id,
+                dt_from,
+                dt_to,
             )
             compute_map["failure_heatmap"] = lambda: compute_failure_heatmap(
-                session, analysis.repository_id, dt_from, dt_to,
+                session,
+                analysis.repository_id,
+                dt_from,
+                dt_to,
             )
             compute_map["suite_duration_treemap"] = lambda: compute_suite_duration_treemap(
-                session, analysis.repository_id, dt_from, dt_to,
+                session,
+                analysis.repository_id,
+                dt_from,
+                dt_to,
             )
 
             # Source analysis KPIs (require repo with local_path)
             if repo_local_path:
                 _path = repo_local_path  # capture for lambda
                 compute_map["source_test_stats"] = lambda p=_path: compute_source_test_stats(p)
-                compute_map["source_library_distribution"] = (
-                    lambda p=_path: compute_source_library_distribution(p)
+                compute_map["source_library_distribution"] = lambda p=_path: (
+                    compute_source_library_distribution(p)
                 )
 
                 # Code quality KPIs (RoboView integration, also require local_path)
-                compute_map["keyword_reuse_rate"] = (
-                    lambda p=_path: compute_keyword_reuse_rate(p)
+                compute_map["keyword_reuse_rate"] = lambda p=_path: compute_keyword_reuse_rate(p)
+                compute_map["unused_keywords"] = lambda p=_path: compute_unused_keywords(p)
+                compute_map["keyword_duplicates"] = lambda p=_path: compute_keyword_duplicates(p)
+                compute_map["keyword_similarity"] = lambda p=_path: compute_keyword_similarity(p)
+                compute_map["documentation_coverage"] = lambda p=_path: (
+                    compute_documentation_coverage(p)
                 )
-                compute_map["unused_keywords"] = (
-                    lambda p=_path: compute_unused_keywords(p)
-                )
-                compute_map["keyword_duplicates"] = (
-                    lambda p=_path: compute_keyword_duplicates(p)
-                )
-                compute_map["keyword_similarity"] = (
-                    lambda p=_path: compute_keyword_similarity(p)
-                )
-                compute_map["documentation_coverage"] = (
-                    lambda p=_path: compute_documentation_coverage(p)
-                )
-                compute_map["robocop_violations"] = (
-                    lambda p=_path: compute_robocop_violations(p)
-                )
+                compute_map["robocop_violations"] = lambda p=_path: compute_robocop_violations(p)
 
             results = {}
             for kpi_id in selected:
@@ -1298,7 +1339,7 @@ def run_analysis(analysis_id: int) -> None:
             analysis.progress = 100
             analysis.results = json.dumps(results)
             analysis.status = "completed"
-            analysis.completed_at = datetime.now(timezone.utc)
+            analysis.completed_at = datetime.now(UTC)
             session.commit()
 
             # Broadcast WebSocket notification
@@ -1307,11 +1348,16 @@ def run_analysis(analysis_id: int) -> None:
             except Exception:
                 logger.debug("Could not broadcast WS notification for analysis %d", analysis_id)
 
-            logger.info("Analysis %d completed: %d reports, %d KPIs", analysis_id, parsed_count, len(results))
+            logger.info(
+                "Analysis %d completed: %d reports, %d KPIs",
+                analysis_id,
+                parsed_count,
+                len(results),
+            )
 
         except Exception as e:
             logger.exception("Analysis %d failed", analysis_id)
             analysis.status = "error"
             analysis.error_message = str(e)[:500]
-            analysis.completed_at = datetime.now(timezone.utc)
+            analysis.completed_at = datetime.now(UTC)
             session.commit()

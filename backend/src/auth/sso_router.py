@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 from urllib.parse import quote
 
@@ -18,8 +18,8 @@ from src.auth.client_ip import get_client_ip
 from src.auth.idp_service import get_identity_provider
 from src.auth.models import IdentityProvider
 from src.auth.oidc_callback_service import SsoCallbackError, handle_sso_callback
-from src.auth.pii_hash import hash_email
 from src.auth.oidc_service import initiate_sso_login
+from src.auth.pii_hash import hash_email
 from src.auth.return_to import is_valid_return_to, validate_return_to
 from src.auth.schemas import SsoProviderPublic
 from src.auth.service import create_token_response
@@ -53,6 +53,7 @@ def _clear_audit_dedup_state() -> None:
 
 def _should_audit_429(client_ip: str) -> bool:
     import time
+
     now = time.monotonic()
     last = _last_audit_emit.get(client_ip)
     if last is not None and now - last < _AUDIT_DEDUP_WINDOW_S:
@@ -67,9 +68,7 @@ def _should_audit_429(client_ip: str) -> bool:
     return True
 
 
-def _rate_limit_response_if_blocked(
-    db: Session, client_ip: str | None
-) -> JSONResponse | None:
+def _rate_limit_response_if_blocked(db: Session, client_ip: str | None) -> JSONResponse | None:
     """Return a 429 response if `client_ip` has exceeded the SSO-failure
     threshold in the current window; otherwise None.
 
@@ -168,9 +167,7 @@ def sso_login_initiate(
     authorization_url = initiate_sso_login(db, idp, safe_return_to, redirect_uri)
     db.commit()
 
-    response = RedirectResponse(
-        url=authorization_url, status_code=status.HTTP_302_FOUND
-    )
+    response = RedirectResponse(url=authorization_url, status_code=status.HTTP_302_FOUND)
     # state/nonce are in the URL — prevent caches or browser history from retaining them.
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
@@ -274,9 +271,7 @@ def sso_callback(
     # current base_url. Attempt rows survive base_url config changes and an
     # admin could edit the DB; treat the stored value as untrusted.
     safe_return_to = validate_return_to(result.return_to, base_url)
-    resp = RedirectResponse(
-        url=safe_return_to, status_code=status.HTTP_302_FOUND
-    )
+    resp = RedirectResponse(url=safe_return_to, status_code=status.HTTP_302_FOUND)
     resp.headers["Cache-Control"] = "no-store"
     # Non-HttpOnly by design: frontend (Story 2-3) reads these on landing,
     # migrates them to localStorage, then clears both cookies.
@@ -350,9 +345,7 @@ def sso_link_consent(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive")
     if user.email != payload["email"]:
         # Defense in depth — token's email must still match. If email was
         # changed admin-side between mint and redeem, refuse.
@@ -376,7 +369,7 @@ def sso_link_consent(
 
     # Approve: detach local password, sync teams, mint session.
     user.hashed_password = ""
-    user.last_login_at = datetime.now(timezone.utc)
+    user.last_login_at = datetime.now(UTC)
     db.flush()
 
     try:

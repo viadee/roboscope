@@ -134,9 +134,7 @@ def _make_fake_robotcode(tmp_path: Path) -> Path:
 def _make_robot_file(tmp_path: Path) -> Path:
     f = tmp_path / "tests.robot"
     f.write_text(
-        "*** Test Cases ***\n"
-        "Sample\n"
-        "    Log    hello\n",
+        "*** Test Cases ***\nSample\n    Log    hello\n",
         encoding="utf-8",
     )
     return f
@@ -161,7 +159,8 @@ class TestSpawnAndHandshake:
 
     @pytest.mark.asyncio
     async def test_missing_robotcode_binary_raises_friendly(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
@@ -205,7 +204,8 @@ class TestSpawnAndHandshake:
 
     @pytest.mark.asyncio
     async def test_timeout_error_includes_captured_boot_output(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """Regression: users hit a bare error and had no idea what
         robotcode was actually saying. The error must echo the
@@ -240,7 +240,8 @@ class TestSpawnAndHandshake:
 
     @pytest.mark.asyncio
     async def test_robotcode_crash_during_boot_surfaces_returncode(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """If robotcode exits before listening, the error must carry
         the exit code AND the stderr/stdout tail. Pinned by the
@@ -274,7 +275,8 @@ class TestSpawnAndHandshake:
 
     @pytest.mark.asyncio
     async def test_argv_does_not_include_legacy_dash_w_or_positional(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """Regression-pin against the actual production failure: the
         spawn must NOT pass ``-w`` (removed from modern robotcode) or
@@ -314,6 +316,7 @@ class TestSpawnAndHandshake:
 
         assert argv_log.is_file(), "fake robotcode never wrote its argv"
         import json
+
         argv = json.loads(argv_log.read_text())
         # argv[0] is the script path; the rest is the CLI we passed.
         cli_args = argv[1:]
@@ -379,13 +382,17 @@ class TestRealRobotCodeSpawn:
             )
         if not (env_python.parent / "robotcode").is_file():
             pytest.skip("robotcode binary not in default venv")
-        if not list(_DEFAULT_ROBOSCOPE_VENV.glob(
-            "lib/python*/site-packages/robotcode/debugger",
-        )):
+        if not list(
+            _DEFAULT_ROBOSCOPE_VENV.glob(
+                "lib/python*/site-packages/robotcode/debugger",
+            )
+        ):
             pytest.skip("robotcode-debugger plugin missing — install [debugger] extra")
-        if not list(_DEFAULT_ROBOSCOPE_VENV.glob(
-            "lib/python*/site-packages/robot",
-        )):
+        if not list(
+            _DEFAULT_ROBOSCOPE_VENV.glob(
+                "lib/python*/site-packages/robot",
+            )
+        ):
             pytest.skip("robotframework not in default venv")
         return env_python
 
@@ -397,17 +404,15 @@ class TestRealRobotCodeSpawn:
         # 4:     Log    line two
         robot = tmp_path / "demo.robot"
         robot.write_text(
-            "*** Test Cases ***\n"
-            "Demo\n"
-            "    Log    line one\n"
-            "    Log    line two\n",
+            "*** Test Cases ***\nDemo\n    Log    line one\n    Log    line two\n",
             encoding="utf-8",
         )
         return robot.resolve()  # macOS /var → /private/var
 
     @pytest.mark.asyncio
     async def test_real_spawn_handshake_and_test_runs(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """Confirms the spawn → handshake → setBreakpoints →
         configurationDone pipeline against the actual robotcode CLI.
@@ -456,7 +461,8 @@ class TestRealRobotCodeSpawn:
 
     @pytest.mark.asyncio
     async def test_real_breakpoint_pauses_execution(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """End-to-end: spawn → handshake → setBreakpoints →
         configurationDone → RF runs → breakpoint hit → ``stopped``
@@ -472,6 +478,7 @@ class TestRealRobotCodeSpawn:
             env_python_path=env_python,
             port_parse_timeout=15.0,
         ) as session:
+
             async def wait_for_stopped() -> dict[str, object]:
                 while True:
                     evt = await session.events.get()
@@ -496,7 +503,8 @@ class TestRealRobotCodeSpawn:
 
     @pytest.mark.asyncio
     async def test_real_pause_request_pauses_execution(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """The DAP ``pause`` request also produces a ``stopped`` event.
 
@@ -508,10 +516,7 @@ class TestRealRobotCodeSpawn:
         env_python = self._check_or_skip()
         robot = tmp_path / "sleeper.robot"
         robot.write_text(
-            "*** Test Cases ***\n"
-            "Sleeper\n"
-            "    Sleep    3s\n"
-            "    Log    woke up\n",
+            "*** Test Cases ***\nSleeper\n    Sleep    3s\n    Log    woke up\n",
             encoding="utf-8",
         )
         robot = robot.resolve()
@@ -553,6 +558,7 @@ async def _wait_for_kind(session: object, kind: str, timeout: float = 20.0) -> d
     Returns the event dict. Fails the test on `terminated` arriving
     first (unless `kind == "terminated"`).
     """
+
     async def _loop() -> dict:
         while True:
             evt = await session.events.get()  # type: ignore[attr-defined]
@@ -605,7 +611,8 @@ class TestRealControlButtons(TestRealRobotCodeSpawn):
 
     @pytest.mark.asyncio
     async def test_continue_resumes_until_terminated(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """``Continue`` button: from a paused state, resume execution
         until the test ends. Expect a `terminated` event without any
@@ -623,7 +630,8 @@ class TestRealControlButtons(TestRealRobotCodeSpawn):
             stopped = await _wait_for_kind(session, "stopped")
             body = stopped.get("body") or {}
             assert isinstance(body, dict) and body.get("reason") in {
-                "breakpoint", "Breakpoint hit",
+                "breakpoint",
+                "Breakpoint hit",
             }
             await session.continue_()
             # No further stop should fire — only the terminate.
@@ -631,7 +639,8 @@ class TestRealControlButtons(TestRealRobotCodeSpawn):
 
     @pytest.mark.asyncio
     async def test_next_steps_to_following_line(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """``Step Over`` button: from a paused state, advance to the
         next executable line in the same scope. Expect a fresh
@@ -651,14 +660,16 @@ class TestRealControlButtons(TestRealRobotCodeSpawn):
             second = await _wait_for_kind(session, "stopped", timeout=10.0)
             body = second.get("body") or {}
             assert isinstance(body, dict) and body.get("reason") in {
-                "step", "Next step",
+                "step",
+                "Next step",
             }
             await session.continue_()
             await _wait_for_kind(session, "terminated", timeout=15.0)
 
     @pytest.mark.asyncio
     async def test_step_in_advances_into_next_keyword(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """``Step Into`` button: from a paused state, step into the
         next keyword. With a built-in like Log there's no inner scope
@@ -679,14 +690,16 @@ class TestRealControlButtons(TestRealRobotCodeSpawn):
             second = await _wait_for_kind(session, "stopped", timeout=10.0)
             body = second.get("body") or {}
             assert isinstance(body, dict) and body.get("reason") in {
-                "step", "Step in",
+                "step",
+                "Step in",
             }
             await session.continue_()
             await _wait_for_kind(session, "terminated", timeout=15.0)
 
     @pytest.mark.asyncio
     async def test_step_out_completes_current_scope(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """``Step Out`` button: from a paused state, run until the
         current scope returns. For a flat test of built-ins the
@@ -719,7 +732,8 @@ class TestRealControlButtons(TestRealRobotCodeSpawn):
 
     @pytest.mark.asyncio
     async def test_disconnect_terminates_running_session(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """``Stop`` button: from a paused state, ``disconnect``
         (with terminateDebuggee) tears the run down cleanly. We
@@ -836,17 +850,15 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
         """
         robot = tmp_path / "slow.robot"
         robot.write_text(
-            "*** Test Cases ***\n"
-            "Slow\n"
-            "    Sleep    5s\n"
-            "    Log    woke\n",
+            "*** Test Cases ***\nSlow\n    Sleep    5s\n    Log    woke\n",
             encoding="utf-8",
         )
         return robot.resolve()
 
     @pytest.mark.asyncio
     async def test_sequential_step_through_then_continue(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """Step through every line of the test individually with
         ``next``, then ``continue`` to terminate. The user-reported
@@ -857,11 +869,7 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
         # quick iteration.
         robot = tmp_path / "stepwalk.robot"
         robot.write_text(
-            "*** Test Cases ***\n"
-            "StepWalk\n"
-            "    Log    a\n"
-            "    Log    b\n"
-            "    Log    c\n",
+            "*** Test Cases ***\nStepWalk\n    Log    a\n    Log    b\n    Log    c\n",
             encoding="utf-8",
         )
         robot = robot.resolve()
@@ -880,7 +888,8 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
                 evt = await _wait_for_kind(session, "stopped", timeout=10.0)
                 body = evt.get("body") or {}
                 assert isinstance(body, dict) and body.get("reason") in {
-                    "step", "Next step",
+                    "step",
+                    "Next step",
                 }, f"unexpected reason: {body.get('reason')}"
             # Continue from the last paused line — should run through.
             await session.continue_()
@@ -888,7 +897,8 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
 
     @pytest.mark.asyncio
     async def test_breakpoint_inside_for_loop_fires_per_iteration(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """Breakpoint on the body line of a FOR loop fires EACH
         iteration. Verify by counting stops and continuing from each."""
@@ -913,7 +923,8 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
 
     @pytest.mark.asyncio
     async def test_step_into_custom_keyword_descends_then_step_out_returns(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """``Step Into`` on a user-defined keyword call should descend
         into the keyword body. ``Step Out`` from inside should return
@@ -935,7 +946,8 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
             evt = await _wait_for_kind(session, "stopped", timeout=10.0)
             body = evt.get("body") or {}
             assert isinstance(body, dict) and body.get("reason") in {
-                "step", "Step in",
+                "step",
+                "Step in",
             }
             # Step out of the keyword — back to caller, line 4.
             await session.step_out()
@@ -957,7 +969,8 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
 
     @pytest.mark.asyncio
     async def test_pause_during_long_running_keyword_then_continue(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """Send ``pause`` while the test is mid-Sleep. Expect a
         ``stopped`` with reason=pause, then ``continue`` finishes the
@@ -980,7 +993,8 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
             evt = await _wait_for_kind(session, "stopped", timeout=15.0)
             body = evt.get("body") or {}
             assert isinstance(body, dict) and body.get("reason") in {
-                "pause", "Paused",
+                "pause",
+                "Paused",
             }
             await session.continue_()
             # Sleep finishes; test hits Log line then terminates.
@@ -988,7 +1002,8 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
 
     @pytest.mark.asyncio
     async def test_multiple_breakpoints_fire_in_source_order(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """Two breakpoints in the same test fire in the natural
         execution order (line 3 then line 5)."""
@@ -1026,7 +1041,8 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
 
     @pytest.mark.asyncio
     async def test_disconnect_while_running_without_breakpoint(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """Disconnect while RF is running (NOT paused) must terminate
         cleanly. The Sleep keeps RF busy long enough for our
@@ -1055,7 +1071,8 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
 
     @pytest.mark.asyncio
     async def test_paused_at_state_advances_each_next(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """The cached `paused_at` line must advance with each ``next``.
         Mirrors what the run-detail panel reads to render the current
@@ -1065,11 +1082,7 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
         env_python = self._check_or_skip()
         robot = tmp_path / "advance.robot"
         robot.write_text(
-            "*** Test Cases ***\n"
-            "Advance\n"
-            "    Log    a\n"
-            "    Log    b\n"
-            "    Log    c\n",
+            "*** Test Cases ***\nAdvance\n    Log    a\n    Log    b\n    Log    c\n",
             encoding="utf-8",
         )
         robot = robot.resolve()
@@ -1085,7 +1098,8 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
             # Stack frame's line at first stop = 3.
             assert session._client is not None  # noqa: SLF001
             stack = await session._client.request(  # noqa: SLF001
-                "stackTrace", {"threadId": 1, "startFrame": 0, "levels": 1},
+                "stackTrace",
+                {"threadId": 1, "startFrame": 0, "levels": 1},
             )
             frames = stack.get("stackFrames", [])
             assert frames, "no stack frames at first stop"
@@ -1096,7 +1110,8 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
             await session.next_()
             await _wait_for_kind(session, "stopped", timeout=10.0)
             stack = await session._client.request(  # noqa: SLF001
-                "stackTrace", {"threadId": 1, "startFrame": 0, "levels": 1},
+                "stackTrace",
+                {"threadId": 1, "startFrame": 0, "levels": 1},
             )
             frames = stack.get("stackFrames", [])
             second_line = frames[0].get("line") if frames else None
@@ -1109,7 +1124,8 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
 
     @pytest.mark.asyncio
     async def test_continue_after_terminated_does_not_crash(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """Defensive: if the user clicks Continue after the session
         has already terminated, the call must NOT crash the session
@@ -1132,4 +1148,3 @@ class TestComplexDebugScenarios(TestRealRobotCodeSpawn):
                 await session.continue_()  # benign
             with contextlib.suppress(Exception):
                 await session.next_()  # benign
-

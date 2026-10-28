@@ -539,8 +539,8 @@ async function startAnalysis() {
 }
 
 .tab-btn.active {
-  color: var(--color-primary, #3B7DD8);
-  border-bottom-color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
+  border-bottom-color: var(--color-primary, #2D63B0);
 }
 
 .tab-content {
@@ -605,11 +605,11 @@ async function startAnalysis() {
 
 /* AI Analysis Card */
 .analysis-card {
-  border-left: 4px solid var(--color-primary, #3B7DD8);
+  border-left: 4px solid var(--color-primary, #2D63B0);
 }
 
 .analysis-header h3 {
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
 }
 
 .analysis-body {

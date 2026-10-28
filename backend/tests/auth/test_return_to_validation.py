@@ -116,9 +116,9 @@ def test_valid_absolute_is_returned_as_is():
 @pytest.mark.parametrize(
     "bad_input",
     [
-        "///evil.com",          # triple-slash — still protocol-relative-ish, external
-        "http://",              # no host
-        "://foo.com",           # no scheme
+        "///evil.com",  # triple-slash — still protocol-relative-ish, external
+        "http://",  # no host
+        "://foo.com",  # no scheme
     ],
 )
 def test_malformed_urls_are_rejected(bad_input: str):

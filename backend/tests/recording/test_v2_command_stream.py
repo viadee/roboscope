@@ -8,7 +8,6 @@ sentinel.
 
 from __future__ import annotations
 
-import queue as _queue
 import threading
 import time
 
@@ -35,7 +34,7 @@ def _mk_cmd(keyword: str = "Click", index: int = 0) -> RecordedCommand:
         index=index,
         keyword=keyword,
         selector_candidates=[
-            SelectorCandidate(strategy="testid", value=f"[data-testid=\"{index}\"]", quality_score=95)
+            SelectorCandidate(strategy="testid", value=f'[data-testid="{index}"]', quality_score=95)
         ],
     )
 
@@ -88,9 +87,7 @@ class TestQueueModule:
         assert received == []
 
 
-def _mk_repo_and_session(
-    db: Session, owner: User
-) -> tuple[Repository, RecordingSession]:
+def _mk_repo_and_session(db: Session, owner: User) -> tuple[Repository, RecordingSession]:
     r = Repository(
         name=f"cmdstream-{owner.id}",
         git_url="https://github.com/x/y.git",
@@ -119,9 +116,12 @@ class TestSseEndpoint:
         self, client: TestClient, db_session: Session, admin_user: User
     ) -> None:
         from src.auth.service import hash_password
+
         owner = User(
-            email="owner-sse@test.com", username="owner-sse",
-            hashed_password=hash_password("pw"), role="editor",
+            email="owner-sse@test.com",
+            username="owner-sse",
+            hashed_password=hash_password("pw"),
+            role="editor",
         )
         db_session.add(owner)
         db_session.commit()
@@ -130,8 +130,10 @@ class TestSseEndpoint:
         _, session = _mk_repo_and_session(db_session, owner)
 
         other = User(
-            email="other-sse@test.com", username="other-sse",
-            hashed_password=hash_password("pw"), role="editor",
+            email="other-sse@test.com",
+            username="other-sse",
+            hashed_password=hash_password("pw"),
+            role="editor",
         )
         db_session.add(other)
         db_session.commit()
@@ -172,7 +174,7 @@ class TestSseEndpoint:
 
         t.join(timeout=5)
 
-        assert 'event: command' in body
+        assert "event: command" in body
         assert '"keyword": "Go To"' in body or '"keyword":"Go To"' in body
         assert '"keyword": "Click"' in body or '"keyword":"Click"' in body
         # RECORDER-IDMAP — every SSE command frame must carry the
@@ -188,13 +190,11 @@ class TestSseEndpoint:
         # spelled `"id"` in the wire shape — `index` and
         # `session_id` are namespaced differently).
         assert body.count('"id":') >= 2
-        assert 'event: end' in body
+        assert "event: end" in body
 
         tear_down_session(session.id)
 
-    def test_404_on_unknown_session(
-        self, client: TestClient, admin_user: User
-    ) -> None:
+    def test_404_on_unknown_session(self, client: TestClient, admin_user: User) -> None:
         resp = client.get(
             "/api/v1/recordings/sessions/999999/commands",
             headers=auth_header(admin_user),

@@ -75,9 +75,7 @@ class TestRateLimitResponses:
 
         # One rate_limited audit event should be present.
         events = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "sso.login.rate_limited")
-            .all()
+            db_session.query(AuditLog).filter(AuditLog.action == "sso.login.rate_limited").all()
         )
         assert len(events) >= 1
 

@@ -17,14 +17,12 @@ These tests pin down:
 
 from __future__ import annotations
 
-import pytest
 from sqlalchemy.orm import Session
 
 from src.ai.models import AiProvider
-from src.ai.service import create_provider
 from src.ai.schemas import AiProviderCreate
+from src.ai.service import create_provider
 from tests.conftest import auth_header
-
 
 # ---------------------------------------------------------------------------
 # helpers — seed providers via the service layer
@@ -32,16 +30,16 @@ from tests.conftest import auth_header
 
 
 def _seed(db: Session, admin_user, **overrides) -> AiProvider:
-    defaults = dict(
-        name="a-provider",
-        provider_type="openai",
-        api_base_url=None,
-        api_key="sk-test-secret",
-        model_name="gpt-4o-mini",
-        temperature=0.3,
-        max_tokens=4096,
-        is_default=False,
-    )
+    defaults = {
+        "name": "a-provider",
+        "provider_type": "openai",
+        "api_base_url": None,
+        "api_key": "sk-test-secret",
+        "model_name": "gpt-4o-mini",
+        "temperature": 0.3,
+        "max_tokens": 4096,
+        "is_default": False,
+    }
     defaults.update(overrides)
     data = AiProviderCreate(**defaults)
     return create_provider(db, data, admin_user.id)
@@ -128,11 +126,11 @@ class TestCreateProvider:
         # The plaintext api_key never round-trips back.
         assert "api_key" not in body
         # Stored encrypted, not plaintext.
-        from src.ai.models import AiProvider
         from sqlalchemy import select
-        row = db_session.execute(
-            select(AiProvider).where(AiProvider.id == body["id"])
-        ).scalar_one()
+
+        from src.ai.models import AiProvider
+
+        row = db_session.execute(select(AiProvider).where(AiProvider.id == body["id"])).scalar_one()
         assert row.api_key_encrypted is not None
         assert row.api_key_encrypted != "sk-anthropic-secret"
 
@@ -166,15 +164,22 @@ class TestCreateProvider:
             "/api/v1/ai/providers",
             headers=auth_header(runner_user),
             json={
-                "name": "x", "provider_type": "openai", "model_name": "x",
+                "name": "x",
+                "provider_type": "openai",
+                "model_name": "x",
             },
         )
         assert resp.status_code == 403
 
     def test_unauthenticated_rejected(self, client):
-        resp = client.post("/api/v1/ai/providers", json={
-            "name": "x", "provider_type": "openai", "model_name": "x",
-        })
+        resp = client.post(
+            "/api/v1/ai/providers",
+            json={
+                "name": "x",
+                "provider_type": "openai",
+                "model_name": "x",
+            },
+        )
         assert resp.status_code == 401
 
 
@@ -229,7 +234,10 @@ class TestUpdateProvider:
 
 class TestUpdateIsDefaultMutex:
     def test_setting_default_true_clears_other_defaults(
-        self, client, admin_user, db_session,
+        self,
+        client,
+        admin_user,
+        db_session,
     ):
         a = _seed(db_session, admin_user, name="A", is_default=True)
         b = _seed(db_session, admin_user, name="B", is_default=False)
@@ -242,7 +250,8 @@ class TestUpdateIsDefaultMutex:
         assert resp.status_code == 200
         # Re-fetch both via list.
         listing = client.get(
-            "/api/v1/ai/providers", headers=auth_header(admin_user),
+            "/api/v1/ai/providers",
+            headers=auth_header(admin_user),
         ).json()
         by_id = {p["id"]: p for p in listing}
         assert by_id[a.id]["is_default"] is False
@@ -264,7 +273,8 @@ class TestDeleteProvider:
         assert resp.status_code == 204
         # Subsequent GET returns 404 via list-empty.
         listing = client.get(
-            "/api/v1/ai/providers", headers=auth_header(admin_user),
+            "/api/v1/ai/providers",
+            headers=auth_header(admin_user),
         ).json()
         assert all(p["id"] != prov.id for p in listing)
 

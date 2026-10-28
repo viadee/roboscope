@@ -2,11 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { setActivePinia, createPinia } from 'pinia'
 
-// We re-declare a small route table mirroring the structure of the real
-// guard. Importing the whole router + all its lazy-loaded views would pull
-// in every view SFC under test-mode — overkill for guard logic.
-//
-// The guard under test is imported from the real module to avoid drift.
+// A small stub route table — importing the whole router would pull in every
+// lazy-loaded view. The guard itself is the real exported `authGuard`.
 
 // Mock the auth store so we can flip isAuthenticated at will.
 let _isAuthenticated = false
@@ -29,16 +26,8 @@ vi.mock('@/stores/auth.store', () => ({
 const stub = { template: '<div />' }
 
 async function makeRouter() {
-  // Pull in the real guard by importing the module after mocks are set.
-  const { default: realRouter } = await import('@/router/index')
-  // We can't reuse realRouter because it ran beforeEach against real views;
-  // instead we build a fresh router with stubbed views but re-register the
-  // guard. Simplest: export the guard? It's inline. Strategy: create a new
-  // router with the same routes as the real one but stubbed components,
-  // then bolt on a guard that mirrors the real one by delegating.
-  // Rationale for this slightly indirect approach: the guard relies on the
-  // `meta.requiresAuth` flag. We mirror only the meta we care about.
-  void realRouter // keep the import so TS doesn't flag it
+  // Import after the store mock is registered.
+  const { authGuard } = await import('@/router/index')
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -48,35 +37,7 @@ async function makeRouter() {
       { path: '/', redirect: '/dashboard' },
     ],
   })
-
-  // Import the guard function by re-implementing the exact logic here would
-  // drift. Instead, register a thin wrapper that mirrors the real guard so
-  // the tests fail if the logic drifts. This is an acceptable tradeoff: the
-  // guard is short (~30 LOC) and we assert the *contract* (query keys and
-  // conditional paths) rather than the inline lambda.
-  router.beforeEach(async (to, from) => {
-    if (to.path === from.path) return
-    if (to.meta.requiresAuth && !_isAuthenticated) {
-      return { path: '/login', query: { return_to: to.fullPath } }
-    }
-    if (to.meta.requiresAuth && _isAuthenticated && !_user) {
-      try {
-        await _fetchCurrentUser()
-      } catch {
-        if (to.path !== '/login') {
-          return { path: '/login', query: { return_to: to.fullPath } }
-        }
-        return
-      }
-      if (!_isAuthenticated) {
-        if (to.path !== '/login') {
-          return { path: '/login', query: { return_to: to.fullPath } }
-        }
-        return
-      }
-    }
-  })
-
+  router.beforeEach(authGuard)
   return router
 }
 
@@ -100,7 +61,12 @@ describe('router guards — deep-link preservation (Story 2-4)', () => {
   it('stale token (fetchCurrentUser rejects) redirects to /login with return_to (AC2)', async () => {
     _isAuthenticated = true
     _user = null
-    _fetchCurrentUser = vi.fn().mockRejectedValue(new Error('token invalid'))
+    // The real store logs out before rethrowing — mirror that, otherwise the
+    // guard's `/login && isAuthenticated → /dashboard` branch would loop forever.
+    _fetchCurrentUser = vi.fn().mockImplementation(() => {
+      _isAuthenticated = false
+      return Promise.reject(new Error('token invalid'))
+    })
 
     const router = await makeRouter()
     await router.push('/reports/42')

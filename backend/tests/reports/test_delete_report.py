@@ -22,8 +22,12 @@ def reports_root(tmp_path, monkeypatch):
 
 @pytest.fixture
 def editor_user(db_session):
-    user = User(email="editor@test.com", username="editor",
-                hashed_password=hash_password("editor123"), role=Role.EDITOR)
+    user = User(
+        email="editor@test.com",
+        username="editor",
+        hashed_password=hash_password("editor123"),
+        role=Role.EDITOR,
+    )
     db_session.add(user)
     db_session.flush()
     return user

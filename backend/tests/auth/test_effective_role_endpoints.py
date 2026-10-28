@@ -7,7 +7,6 @@ through `require_effective_role` (or its run/report variants).
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -32,9 +31,7 @@ def _mk_user(db: Session, *, role: str, email: str) -> User:
     return u
 
 
-def _setup_viewer_with_team_editor(
-    db: Session, email: str, owner: User
-) -> tuple[User, Repository]:
+def _setup_viewer_with_team_editor(db: Session, email: str, owner: User) -> tuple[User, Repository]:
     """Create a viewer user who is editor on a team-assigned repo."""
     viewer = _mk_user(db, role="viewer", email=email)
     team = Team(name=f"Team-{email}")
@@ -63,9 +60,7 @@ class TestReposEndpointElevation:
     def test_team_editor_can_patch_repo(
         self, client: TestClient, db_session: Session, admin_user: User
     ) -> None:
-        viewer, repo = _setup_viewer_with_team_editor(
-            db_session, "ep-repo-patch@t.com", admin_user
-        )
+        viewer, repo = _setup_viewer_with_team_editor(db_session, "ep-repo-patch@t.com", admin_user)
         resp = client.patch(
             f"/api/v1/repos/{repo.id}",
             json={"default_branch": "develop"},
@@ -76,9 +71,7 @@ class TestReposEndpointElevation:
     def test_team_editor_can_add_project_member(
         self, client: TestClient, db_session: Session, admin_user: User
     ) -> None:
-        viewer, repo = _setup_viewer_with_team_editor(
-            db_session, "ep-member@t.com", admin_user
-        )
+        viewer, repo = _setup_viewer_with_team_editor(db_session, "ep-member@t.com", admin_user)
         # Add a second user who will become the member.
         newbie = _mk_user(db_session, role="viewer", email="newbie@t.com")
         resp = client.post(
@@ -93,9 +86,7 @@ class TestRunsEndpointElevation:
     def test_team_runner_can_cancel_run(
         self, client: TestClient, db_session: Session, admin_user: User
     ) -> None:
-        viewer, repo = _setup_viewer_with_team_editor(
-            db_session, "ep-run-cancel@t.com", admin_user
-        )
+        viewer, repo = _setup_viewer_with_team_editor(db_session, "ep-run-cancel@t.com", admin_user)
         # Create a pending run on that repo.
         run = ExecutionRun(
             repository_id=repo.id,
@@ -123,9 +114,7 @@ class TestRunsEndpointElevation:
         self, client: TestClient, db_session: Session, admin_user: User
     ) -> None:
         outsider = _mk_user(db_session, role="viewer", email="ep-outsider@t.com")
-        _viewer, repo = _setup_viewer_with_team_editor(
-            db_session, "ep-run-403@t.com", admin_user
-        )
+        _viewer, repo = _setup_viewer_with_team_editor(db_session, "ep-run-403@t.com", admin_user)
         run = ExecutionRun(
             repository_id=repo.id,
             triggered_by=admin_user.id,

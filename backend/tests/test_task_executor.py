@@ -4,7 +4,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -174,6 +174,7 @@ class TestFIFOOrdering:
                 order.append(label)
                 if is_last:
                     done.set()
+
             return task
 
         # Block the executor so we can queue up tasks

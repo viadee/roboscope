@@ -2,7 +2,6 @@
 
 import json
 
-import pytest
 from sqlalchemy.orm import Session
 
 from src.audit.service import (
@@ -85,8 +84,22 @@ class TestAuditService:
         assert total == 1
 
     def test_export_csv(self, db_session: Session):
-        log_audit(db_session, user_id=1, username="admin", action="create", resource_type="run", resource_id=1)
-        log_audit(db_session, user_id=2, username="runner", action="delete", resource_type="report", resource_id=5)
+        log_audit(
+            db_session,
+            user_id=1,
+            username="admin",
+            action="create",
+            resource_type="run",
+            resource_id=1,
+        )
+        log_audit(
+            db_session,
+            user_id=2,
+            username="runner",
+            action="delete",
+            resource_type="report",
+            resource_id=5,
+        )
         csv = export_audit_csv(db_session)
         assert "timestamp" in csv  # header
         assert "create" in csv
@@ -175,6 +188,7 @@ class TestAuditMiddlewareHelpers:
 
     def test_method_to_action_mapping(self):
         from src.audit.middleware import _method_to_action
+
         assert _method_to_action("POST") == "create"
         assert _method_to_action("PUT") == "update"
         assert _method_to_action("PATCH") == "update"
@@ -182,6 +196,7 @@ class TestAuditMiddlewareHelpers:
 
     def test_resource_type_extraction(self):
         from src.audit.middleware import _get_resource_type
+
         assert _get_resource_type("/api/v1/runs/123") == "run"
         assert _get_resource_type("/api/v1/repos/5") == "repository"
         assert _get_resource_type("/api/v1/settings") == "setting"
@@ -200,12 +215,14 @@ class TestAuditMiddlewareHelpers:
 
     def test_resource_id_extraction(self):
         from src.audit.middleware import _extract_resource_id
+
         assert _extract_resource_id("/api/v1/runs/42") == 42
         assert _extract_resource_id("/api/v1/runs/42/cancel") == 42
         assert _extract_resource_id("/api/v1/runs") is None
 
     def test_should_skip(self):
         from src.audit.middleware import _should_skip
+
         assert _should_skip("/health") is True
         assert _should_skip("/ws/notifications") is True
         assert _should_skip("/api/v1/audit") is True
@@ -214,14 +231,19 @@ class TestAuditMiddlewareHelpers:
     def test_manual_audit_helper(self, db_session: Session, admin_user):
         """The manual audit() helper logs correctly."""
         from unittest.mock import MagicMock
+
         from src.audit.middleware import audit
 
         mock_request = MagicMock()
         mock_request.client.host = "10.0.0.1"
 
         audit(
-            db_session, admin_user, mock_request,
-            action="create", resource_type="run", resource_id=99,
+            db_session,
+            admin_user,
+            mock_request,
+            action="create",
+            resource_type="run",
+            resource_id=99,
             detail={"target": "tests/"},
         )
 

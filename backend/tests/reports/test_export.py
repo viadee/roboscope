@@ -3,17 +3,25 @@
 import csv
 import io
 
+import pytest
+
 from tests.conftest import auth_header
 from tests.reports.test_router import _make_test_result, _setup_report
+
+pytestmark = pytest.mark.slow  # real subprocess / git in tmp_path — out of the fast dev loop
 
 
 def _seed(db_session, admin_user):
     report = _setup_report(db_session, admin_user)
     db_session.add(_make_test_result(report.id, test_name="Plain", tags="smoke,ui"))
-    db_session.add(_make_test_result(
-        report.id, test_name='=HYPERLINK("x")', status="FAIL",
-        error_message='line one, "quoted"\nline two',
-    ))
+    db_session.add(
+        _make_test_result(
+            report.id,
+            test_name='=HYPERLINK("x")',
+            status="FAIL",
+            error_message='line one, "quoted"\nline two',
+        )
+    )
     db_session.add(_make_test_result(report.id, test_name="@SUM(A1)", error_message="-1+2"))
     db_session.flush()
     return report
@@ -30,15 +38,22 @@ def test_csv_export(client, db_session, admin_user):
 
     rows = list(csv.reader(io.StringIO(r.text)))
     assert rows[0] == [
-        "suite_name", "test_name", "long_name", "status", "duration_seconds",
-        "tags", "start_time", "end_time", "error_message",
+        "suite_name",
+        "test_name",
+        "long_name",
+        "status",
+        "duration_seconds",
+        "tags",
+        "start_time",
+        "end_time",
+        "error_message",
     ]
     assert len(rows) == 4
     fail = next(row for row in rows[1:] if row[3] == "FAIL")
     # multi-line error with comma + quotes round-trips intact
     assert fail[8] == 'line one, "quoted"\nline two'
     # formula-looking cells are neutralised
-    assert fail[1] == "'=HYPERLINK(\"x\")"
+    assert fail[1] == '\'=HYPERLINK("x")'
     assert {"'@SUM(A1)", "Plain"} <= {row[1] for row in rows[1:]}
     assert "'-1+2" in {row[8] for row in rows[1:]}
 
@@ -109,27 +124,35 @@ def junit_report(tmp_path, db_session, admin_user):
     suite.write_text(_SUITE)
     out = tmp_path / "output.xml"
     subprocess.run(
-        [sys.executable, "-m", "robot", "--output", str(out), "--log", "NONE",
-         "--report", "NONE", str(suite)],
-        capture_output=True, check=False, timeout=120,
+        [
+            sys.executable,
+            "-m",
+            "robot",
+            "--output",
+            str(out),
+            "--log",
+            "NONE",
+            "--report",
+            "NONE",
+            str(suite),
+        ],
+        capture_output=True,
+        check=False,
+        timeout=120,
     )
     assert out.is_file()
     return _setup_report(db_session, admin_user, output_xml_path=str(out))
 
 
 def _junit(client, report_id, user):
-    return client.get(
-        f"/api/v1/reports/{report_id}/export?format=junit", headers=auth_header(user)
-    )
+    return client.get(f"/api/v1/reports/{report_id}/export?format=junit", headers=auth_header(user))
 
 
 def test_junit_export(client, junit_report, admin_user):
     r = _junit(client, junit_report.id, admin_user)
     assert r.status_code == 200, r.text
     assert r.headers["content-type"].startswith("application/xml")
-    assert (
-        f'filename="report_{junit_report.id}_xunit.xml"' in r.headers["content-disposition"]
-    )
+    assert f'filename="report_{junit_report.id}_xunit.xml"' in r.headers["content-disposition"]
     root = ET.fromstring(r.content)
     assert root.tag == "testsuite"
     assert root.get("tests") == "2"

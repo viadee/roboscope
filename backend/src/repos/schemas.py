@@ -32,8 +32,7 @@ def derive_repo_name_from_git_url(git_url: str) -> str:
     name = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-._")
     if not name:
         raise ValueError(
-            "Could not derive a repository name from the Git URL — "
-            "please provide one explicitly."
+            "Could not derive a repository name from the Git URL — please provide one explicitly."
         )
     return name
 

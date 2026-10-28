@@ -40,9 +40,7 @@ class ProjectMember(Base, TimestampMixin):
     """User membership in a project (repository) with per-project role."""
 
     __tablename__ = "project_members"
-    __table_args__ = (
-        UniqueConstraint("user_id", "repository_id", name="uq_project_member"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "repository_id", name="uq_project_member"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)

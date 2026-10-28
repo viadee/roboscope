@@ -1,15 +1,7 @@
 """Execution models: runs, schedules."""
 
-import sys
 from datetime import datetime
-
-if sys.version_info >= (3, 11):
-    from enum import StrEnum
-else:
-    from enum import Enum
-
-    class StrEnum(str, Enum):
-        pass
+from enum import StrEnum
 
 from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -63,7 +55,9 @@ class ExecutionRun(Base, TimestampMixin):
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     max_retries: Mapped[int] = mapped_column(Integer, default=0)
     timeout_seconds: Mapped[int] = mapped_column(Integer, default=3600)
-    task_id: Mapped[str | None] = mapped_column("celery_task_id", String(255), default=None)  # DB column name kept for migration compat
+    task_id: Mapped[str | None] = mapped_column(
+        "celery_task_id", String(255), default=None
+    )  # DB column name kept for migration compat
     output_dir: Mapped[str | None] = mapped_column(String(500), default=None)
     started_at: Mapped[datetime | None] = mapped_column(default=None)
     finished_at: Mapped[datetime | None] = mapped_column(default=None)

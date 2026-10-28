@@ -41,7 +41,9 @@ def _mk_repo(db_session: Session, admin_user, name: str) -> Repository:
     return repo
 
 
-def _mk_run(db_session: Session, admin_user, repo: Repository, status=RunStatus.PENDING) -> ExecutionRun:
+def _mk_run(
+    db_session: Session, admin_user, repo: Repository, status=RunStatus.PENDING
+) -> ExecutionRun:
     run = ExecutionRun(
         repository_id=repo.id,
         target_path="suite.robot",
@@ -60,9 +62,7 @@ def test_cancel_all_only_cancels_runs_on_repos_with_runner_grant(
 ):
     repo_a = _mk_repo(db_session, admin_user, "cancel-all-repo-a")
     repo_b = _mk_repo(db_session, admin_user, "cancel-all-repo-b")
-    db_session.add(
-        ProjectMember(user_id=scoped_runner.id, repository_id=repo_a.id, role="runner")
-    )
+    db_session.add(ProjectMember(user_id=scoped_runner.id, repository_id=repo_a.id, role="runner"))
     db_session.commit()
 
     run_a = _mk_run(db_session, admin_user, repo_a)

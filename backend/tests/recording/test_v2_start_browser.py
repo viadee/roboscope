@@ -6,8 +6,6 @@ actual Playwright dispatch so these tests run without Chromium.
 
 from __future__ import annotations
 
-import os
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -17,7 +15,6 @@ from src.auth.service import hash_password
 from src.recording.models import RecordingSession, RecordingStatus
 from src.repos.models import Repository
 from tests.conftest import auth_header
-
 
 ENDPOINT = "/api/v1/recordings/sessions/{}/start-browser"
 
@@ -54,8 +51,10 @@ def _mk_session(
 
 def _mk_user(db: Session, *, role: str = "editor") -> User:
     u = User(
-        email=f"sb-{role}@test.com", username=f"sb-{role}",
-        hashed_password=hash_password("pw"), role=role,
+        email=f"sb-{role}@test.com",
+        username=f"sb-{role}",
+        hashed_password=hash_password("pw"),
+        role=role,
     )
     db.add(u)
     db.commit()
@@ -68,9 +67,7 @@ class TestKillSwitch:
         self, client: TestClient, db_session: Session, admin_user: User
     ) -> None:
         session = _mk_session(db_session, admin_user)
-        resp = client.post(
-            ENDPOINT.format(session.id), headers=auth_header(admin_user)
-        )
+        resp = client.post(ENDPOINT.format(session.id), headers=auth_header(admin_user))
         assert resp.status_code == 202
         body = resp.json()
         assert body["session_id"] == session.id
@@ -78,22 +75,20 @@ class TestKillSwitch:
 
 
 class TestAuth:
-    def test_non_owner_non_admin_forbidden(
-        self, client: TestClient, db_session: Session
-    ) -> None:
+    def test_non_owner_non_admin_forbidden(self, client: TestClient, db_session: Session) -> None:
         owner = _mk_user(db_session, role="editor")
         session = _mk_session(db_session, owner)
         other = User(
-            email="sb-other@test.com", username="sb-other",
-            hashed_password=hash_password("pw"), role="editor",
+            email="sb-other@test.com",
+            username="sb-other",
+            hashed_password=hash_password("pw"),
+            role="editor",
         )
         db_session.add(other)
         db_session.commit()
         db_session.refresh(other)
 
-        resp = client.post(
-            ENDPOINT.format(session.id), headers=auth_header(other)
-        )
+        resp = client.post(ENDPOINT.format(session.id), headers=auth_header(other))
         assert resp.status_code == 403
 
     def test_admin_can_start_any(
@@ -101,30 +96,20 @@ class TestAuth:
     ) -> None:
         owner = _mk_user(db_session, role="editor")
         session = _mk_session(db_session, owner)
-        resp = client.post(
-            ENDPOINT.format(session.id), headers=auth_header(admin_user)
-        )
+        resp = client.post(ENDPOINT.format(session.id), headers=auth_header(admin_user))
         assert resp.status_code == 202
 
 
 class TestPreconditions:
-    def test_404_on_unknown_session(
-        self, client: TestClient, admin_user: User
-    ) -> None:
-        resp = client.post(
-            ENDPOINT.format(99999), headers=auth_header(admin_user)
-        )
+    def test_404_on_unknown_session(self, client: TestClient, admin_user: User) -> None:
+        resp = client.post(ENDPOINT.format(99999), headers=auth_header(admin_user))
         assert resp.status_code == 404
 
     def test_cannot_start_when_already_cancelled(
         self, client: TestClient, db_session: Session, admin_user: User
     ) -> None:
-        session = _mk_session(
-            db_session, admin_user, status=RecordingStatus.CANCELLED
-        )
-        resp = client.post(
-            ENDPOINT.format(session.id), headers=auth_header(admin_user)
-        )
+        session = _mk_session(db_session, admin_user, status=RecordingStatus.CANCELLED)
+        resp = client.post(ENDPOINT.format(session.id), headers=auth_header(admin_user))
         assert resp.status_code == 400
 
 
@@ -148,6 +133,7 @@ class TestTargetUrl:
             return _FakeResult()
 
         import src.recording.router as rr
+
         monkeypatch.setattr(rr, "dispatch_task", _fake_dispatch)
 
         session = _mk_session(db_session, admin_user)
@@ -186,6 +172,7 @@ class TestTargetUrlValidation:
             return _FakeResult()
 
         import src.recording.router as rr
+
         monkeypatch.setattr(rr, "dispatch_task", _fake)
         return called
 
@@ -203,7 +190,12 @@ class TestTargetUrlValidation:
         ids=["javascript", "file", "ftp", "data", "mailto", "no_scheme", "protocol_relative"],
     )
     def test_non_http_scheme_rejected_with_400(
-        self, client, db_session, admin_user, _no_dispatch, bad_url,
+        self,
+        client,
+        db_session,
+        admin_user,
+        _no_dispatch,
+        bad_url,
     ):
         session = _mk_session(db_session, admin_user)
         resp = client.post(
@@ -219,7 +211,11 @@ class TestTargetUrlValidation:
         )
 
     def test_http_scheme_accepted(
-        self, client, db_session, admin_user, _no_dispatch,
+        self,
+        client,
+        db_session,
+        admin_user,
+        _no_dispatch,
     ):
         session = _mk_session(db_session, admin_user)
         resp = client.post(
@@ -231,7 +227,11 @@ class TestTargetUrlValidation:
         assert _no_dispatch["args"] == (session.id, "http://internal.example.com/")
 
     def test_https_scheme_accepted(
-        self, client, db_session, admin_user, _no_dispatch,
+        self,
+        client,
+        db_session,
+        admin_user,
+        _no_dispatch,
     ):
         session = _mk_session(db_session, admin_user)
         resp = client.post(
@@ -243,7 +243,11 @@ class TestTargetUrlValidation:
         assert _no_dispatch["args"] == (session.id, "https://example.com/path?q=1")
 
     def test_whitespace_only_normalised_to_none(
-        self, client, db_session, admin_user, _no_dispatch,
+        self,
+        client,
+        db_session,
+        admin_user,
+        _no_dispatch,
     ):
         # Same UX as omitting target_url — recorder opens about:blank
         # and the user navigates manually.
@@ -257,7 +261,11 @@ class TestTargetUrlValidation:
         assert _no_dispatch["args"] == (session.id, None)
 
     def test_leading_trailing_whitespace_stripped(
-        self, client, db_session, admin_user, _no_dispatch,
+        self,
+        client,
+        db_session,
+        admin_user,
+        _no_dispatch,
     ):
         session = _mk_session(db_session, admin_user)
         resp = client.post(
@@ -269,7 +277,11 @@ class TestTargetUrlValidation:
         assert _no_dispatch["args"] == (session.id, "https://example.com/")
 
     def test_omitted_target_url_still_works(
-        self, client, db_session, admin_user, _no_dispatch,
+        self,
+        client,
+        db_session,
+        admin_user,
+        _no_dispatch,
     ):
         session = _mk_session(db_session, admin_user)
         resp = client.post(
@@ -328,6 +340,7 @@ class TestTransportDispatch:
             return _FakeResult()
 
         import src.recording.router as rr
+
         monkeypatch.setattr(rr, "dispatch_task", _fake_dispatch)
 
         session = _mk_session(db_session, admin_user)

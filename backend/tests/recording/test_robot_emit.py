@@ -90,9 +90,7 @@ class TestTargetedKeywords:
         for line in out.splitlines():
             stripped = line.strip()
             if stripped.startswith("Click"):
-                pytest.fail(
-                    f"Expected Click line to be commented, got: {line!r}"
-                )
+                pytest.fail(f"Expected Click line to be commented, got: {line!r}")
 
     def test_type_text_renders_text_arg(self) -> None:
         cmd = RecordedCommand(
@@ -100,9 +98,7 @@ class TestTargetedKeywords:
             keyword="Type Text",
             args={"text": "hello@example.com"},
             selector_candidates=[
-                SelectorCandidate(
-                    strategy="css", value="#email", quality_score=60
-                )
+                SelectorCandidate(strategy="css", value="#email", quality_score=60)
             ],
         )
         out = emit_robot(_flow([cmd]))
@@ -138,6 +134,7 @@ class TestGlobalKeywords:
         # Default value: `false` — recorded tests come from clicking a
         # real page; running them headed by default matches user intent.
         import re
+
         assert re.search(r"\$\{HEADLESS\}\s+false", out) is not None
 
 
@@ -147,9 +144,7 @@ class TestArgOrdering:
             index=0,
             keyword="Wait For Elements State",
             args={"custom_flag": True, "state": "visible"},
-            selector_candidates=[
-                SelectorCandidate(strategy="css", value="#x", quality_score=60)
-            ],
+            selector_candidates=[SelectorCandidate(strategy="css", value="#x", quality_score=60)],
         )
         out = emit_robot(_flow([cmd]))
         # 'state' is in the ordered list, custom_flag is not
@@ -165,14 +160,14 @@ class TestActiveSelectorIsHonoured:
             index=0,
             keyword="Click",
             selector_candidates=[
-                SelectorCandidate(strategy="testid", value="[data-testid=\"a\"]", quality_score=95),
+                SelectorCandidate(strategy="testid", value='[data-testid="a"]', quality_score=95),
                 SelectorCandidate(strategy="css", value=".b", quality_score=50),
             ],
             active_candidate_index=1,
         )
         out = emit_robot(_flow([cmd]))
         assert ".b" in out
-        assert "data-testid=\"a\"" not in out
+        assert 'data-testid="a"' not in out
 
 
 class TestMultiStepFlow:
@@ -190,7 +185,9 @@ class TestMultiStepFlow:
                     keyword="Type Text",
                     args={"text": "user@example.com"},
                     selector_candidates=[
-                        SelectorCandidate(strategy="testid", value='[data-testid="email"]', quality_score=95)
+                        SelectorCandidate(
+                            strategy="testid", value='[data-testid="email"]', quality_score=95
+                        )
                     ],
                 ),
                 RecordedCommand(
@@ -198,14 +195,18 @@ class TestMultiStepFlow:
                     keyword="Type Text",
                     args={"text": "secret"},
                     selector_candidates=[
-                        SelectorCandidate(strategy="testid", value='[data-testid="password"]', quality_score=95)
+                        SelectorCandidate(
+                            strategy="testid", value='[data-testid="password"]', quality_score=95
+                        )
                     ],
                 ),
                 RecordedCommand(
                     index=3,
                     keyword="Click",
                     selector_candidates=[
-                        SelectorCandidate(strategy="testid", value='[data-testid="login-btn"]', quality_score=95)
+                        SelectorCandidate(
+                            strategy="testid", value='[data-testid="login-btn"]', quality_score=95
+                        )
                     ],
                 ),
                 RecordedCommand(
@@ -229,9 +230,9 @@ class TestMultiStepFlow:
         # See note in TestGlobalKeywords — `wait_until=domcontentloaded`
         # is the regression guard for the 10s `load`-event timeout.
         assert steps[2] == "New Page    https://example.com/login    wait_until=domcontentloaded"
-        assert steps[3].startswith("Type Text    [data-testid=\"email\"]")
-        assert steps[4].startswith("Type Text    [data-testid=\"password\"]")
-        assert steps[5].startswith("Click    [data-testid=\"login-btn\"]")
+        assert steps[3].startswith('Type Text    [data-testid="email"]')
+        assert steps[4].startswith('Type Text    [data-testid="password"]')
+        assert steps[5].startswith('Click    [data-testid="login-btn"]')
         assert steps[6].startswith("Wait For Elements State    text=Welcome")
 
 
@@ -436,9 +437,7 @@ class TestCommandIdEmit:
             index=0,
             keyword="Click",
             selector_candidates=[
-                SelectorCandidate(
-                    strategy="css", value="button.x", quality_score=50
-                ),
+                SelectorCandidate(strategy="css", value="button.x", quality_score=50),
             ],
             active_candidate_index=0,
         )
@@ -535,13 +534,16 @@ class TestFrameChainEmit:
         candidate, the emitter prefers it over the URL-derived
         `iframe[src*="<host>"]` legacy locator."""
         from src.recording.selector_schema import FrameDescriptor
+
         cmd = RecordedCommand(
             index=0,
             keyword="Click",
             selector_candidates=[
                 SelectorCandidate(
-                    strategy="css", value="button.accept",
-                    quality_score=80, verified_unique=True,
+                    strategy="css",
+                    value="button.accept",
+                    quality_score=80,
+                    verified_unique=True,
                 ),
             ],
             active_candidate_index=0,
@@ -551,13 +553,16 @@ class TestFrameChainEmit:
                     url="https://cmp.example.com/consent",
                     selector_candidates=[
                         SelectorCandidate(
-                            strategy="css", value="iframe#cmp-banner",
-                            quality_score=90, verified_unique=True,
+                            strategy="css",
+                            value="iframe#cmp-banner",
+                            quality_score=90,
+                            verified_unique=True,
                         ),
                         SelectorCandidate(
                             strategy="css",
                             value='iframe[src*="cmp.example.com"]',
-                            quality_score=65, verified_unique=True,
+                            quality_score=65,
+                            verified_unique=True,
                         ),
                     ],
                 ),
@@ -577,8 +582,10 @@ class TestFrameChainEmit:
             keyword="Click",
             selector_candidates=[
                 SelectorCandidate(
-                    strategy="css", value="button.accept",
-                    quality_score=80, verified_unique=True,
+                    strategy="css",
+                    value="button.accept",
+                    quality_score=80,
+                    verified_unique=True,
                 ),
             ],
             active_candidate_index=0,
@@ -593,13 +600,16 @@ class TestFrameChainEmit:
         `iframe[src*="<host>"]` for that rung. Rest of the chain is
         unaffected."""
         from src.recording.selector_schema import FrameDescriptor
+
         cmd = RecordedCommand(
             index=0,
             keyword="Click",
             selector_candidates=[
                 SelectorCandidate(
-                    strategy="css", value="button.accept",
-                    quality_score=80, verified_unique=True,
+                    strategy="css",
+                    value="button.accept",
+                    quality_score=80,
+                    verified_unique=True,
                 ),
             ],
             active_candidate_index=0,
@@ -619,13 +629,16 @@ class TestFrameChainEmit:
         as `outer >>> inner >>> element` — the index 0 rung is the
         outermost."""
         from src.recording.selector_schema import FrameDescriptor
+
         cmd = RecordedCommand(
             index=0,
             keyword="Click",
             selector_candidates=[
                 SelectorCandidate(
-                    strategy="css", value="button.accept",
-                    quality_score=80, verified_unique=True,
+                    strategy="css",
+                    value="button.accept",
+                    quality_score=80,
+                    verified_unique=True,
                 ),
             ],
             active_candidate_index=0,
@@ -635,8 +648,10 @@ class TestFrameChainEmit:
                     url="https://outer.example.com/",
                     selector_candidates=[
                         SelectorCandidate(
-                            strategy="css", value="iframe#outer-host",
-                            quality_score=90, verified_unique=True,
+                            strategy="css",
+                            value="iframe#outer-host",
+                            quality_score=90,
+                            verified_unique=True,
                         ),
                     ],
                 ),
@@ -644,8 +659,10 @@ class TestFrameChainEmit:
                     url="https://inner.example.com/",
                     selector_candidates=[
                         SelectorCandidate(
-                            strategy="css", value="iframe[name=consent]",
-                            quality_score=85, verified_unique=True,
+                            strategy="css",
+                            value="iframe[name=consent]",
+                            quality_score=85,
+                            verified_unique=True,
                         ),
                     ],
                 ),
@@ -677,8 +694,10 @@ class TestDefensiveDisambiguation:
             keyword="Click",
             selector_candidates=[
                 SelectorCandidate(
-                    strategy="text", value='text="Zustimmen"',
-                    quality_score=70, verified_unique=False,
+                    strategy="text",
+                    value='text="Zustimmen"',
+                    quality_score=70,
+                    verified_unique=False,
                 ),
             ],
             active_candidate_index=0,
@@ -695,8 +714,10 @@ class TestDefensiveDisambiguation:
             keyword="Click",
             selector_candidates=[
                 SelectorCandidate(
-                    strategy="text", value='text="OnlyOne"',
-                    quality_score=70, verified_unique=True,
+                    strategy="text",
+                    value='text="OnlyOne"',
+                    quality_score=70,
+                    verified_unique=True,
                 ),
             ],
             active_candidate_index=0,
@@ -713,8 +734,10 @@ class TestDefensiveDisambiguation:
             keyword="Click",
             selector_candidates=[
                 SelectorCandidate(
-                    strategy="css", value="#login-form",
-                    quality_score=85, verified_unique=False,
+                    strategy="css",
+                    value="#login-form",
+                    quality_score=85,
+                    verified_unique=False,
                 ),
             ],
             active_candidate_index=0,
@@ -734,7 +757,8 @@ class TestDefensiveDisambiguation:
                 SelectorCandidate(
                     strategy="xpath",
                     value="//button[normalize-space()='Click me']",
-                    quality_score=60, verified_unique=False,
+                    quality_score=60,
+                    verified_unique=False,
                 ),
             ],
             active_candidate_index=0,
@@ -750,8 +774,10 @@ class TestDefensiveDisambiguation:
             keyword="Click",
             selector_candidates=[
                 SelectorCandidate(
-                    strategy="text", value='text="Zustimmen" >> nth=0',
-                    quality_score=55, verified_unique=False,
+                    strategy="text",
+                    value='text="Zustimmen" >> nth=0',
+                    quality_score=55,
+                    verified_unique=False,
                 ),
             ],
             active_candidate_index=0,
@@ -768,8 +794,10 @@ class TestDefensiveDisambiguation:
             keyword="Click",
             selector_candidates=[
                 SelectorCandidate(
-                    strategy="css", value="button.primary",
-                    quality_score=50, verified_unique=False,
+                    strategy="css",
+                    value="button.primary",
+                    quality_score=50,
+                    verified_unique=False,
                 ),
             ],
             active_candidate_index=0,
@@ -791,8 +819,10 @@ class TestEffectiveOverride:
             keyword="Click",
             selector_candidates=[
                 SelectorCandidate(
-                    strategy="text", value='text="Zustimmen"',
-                    quality_score=70, verified_unique=False,
+                    strategy="text",
+                    value='text="Zustimmen"',
+                    quality_score=70,
+                    verified_unique=False,
                     # User wants to drop the auto-composed
                     # `iframe#auto-synth >>> text="Zustimmen" >> nth=0`
                     # in favour of a hand-tuned chain.
@@ -801,12 +831,17 @@ class TestEffectiveOverride:
             ],
             active_candidate_index=0,
             frame_chain=[
-                FrameDescriptor(url="https://cmp.example/", selector_candidates=[
-                    SelectorCandidate(
-                        strategy="css", value="iframe#auto-synth",
-                        quality_score=90, verified_unique=True,
-                    ),
-                ]),
+                FrameDescriptor(
+                    url="https://cmp.example/",
+                    selector_candidates=[
+                        SelectorCandidate(
+                            strategy="css",
+                            value="iframe#auto-synth",
+                            quality_score=90,
+                            verified_unique=True,
+                        ),
+                    ],
+                ),
             ],
         )
         line = _emit_command(cmd)
@@ -825,8 +860,10 @@ class TestEffectiveOverride:
                 keyword="Click",
                 selector_candidates=[
                     SelectorCandidate(
-                        strategy="text", value="text=Welcome",
-                        quality_score=50, verified_unique=False,
+                        strategy="text",
+                        value="text=Welcome",
+                        quality_score=50,
+                        verified_unique=False,
                         effective_override=empty,
                     ),
                 ],
@@ -845,8 +882,10 @@ class TestEffectiveOverride:
             keyword="Click",
             selector_candidates=[
                 SelectorCandidate(
-                    strategy="css", value="button.x",
-                    quality_score=50, verified_unique=False,
+                    strategy="css",
+                    value="button.x",
+                    quality_score=50,
+                    verified_unique=False,
                     effective_override="iframe#x >>> button.x",
                 ),
             ],
@@ -854,16 +893,14 @@ class TestEffectiveOverride:
         )
         payload = cmd.model_dump_json()
         round_tripped = RecordedCommand.model_validate_json(payload)
-        assert round_tripped.selector_candidates[0].effective_override == \
-            "iframe#x >>> button.x"
+        assert round_tripped.selector_candidates[0].effective_override == "iframe#x >>> button.x"
 
     def test_legacy_sidecar_without_field_loads_with_none(self) -> None:
         """JSON from a sidecar saved before this field shipped must
         still validate — the field defaults to None and the emitter
         falls back to auto-compose."""
         legacy_json = (
-            '{"strategy": "css", "value": "button.x", '
-            '"quality_score": 70, "verified_unique": true}'
+            '{"strategy": "css", "value": "button.x", "quality_score": 70, "verified_unique": true}'
         )
         cand = SelectorCandidate.model_validate_json(legacy_json)
         assert cand.effective_override is None
@@ -875,10 +912,12 @@ class TestGoToWaitUntil:
     at replay on the default wait_until=load."""
 
     def test_subsequent_go_to_gets_domcontentloaded(self) -> None:
-        flow = _flow([
-            RecordedCommand(index=0, keyword="Go To", args={"url": "https://a.example"}),
-            RecordedCommand(index=1, keyword="Go To", args={"url": "https://b.example"}),
-        ])
+        flow = _flow(
+            [
+                RecordedCommand(index=0, keyword="Go To", args={"url": "https://a.example"}),
+                RecordedCommand(index=1, keyword="Go To", args={"url": "https://b.example"}),
+            ]
+        )
         out = emit_robot(flow)
         assert "New Page    https://a.example    wait_until=domcontentloaded" in out
         assert "Go To    https://b.example    wait_until=domcontentloaded" in out
@@ -897,21 +936,27 @@ class TestChainedSelectorDisambiguation:
 
     def test_chained_css_without_nth_gets_wrapped(self) -> None:
         cand = SelectorCandidate(
-            strategy="css", value=".host >> .inner",
-            quality_score=50, verified_unique=False,
+            strategy="css",
+            value=".host >> .inner",
+            quality_score=50,
+            verified_unique=False,
         )
         assert _render_selector(cand) == ".host >> .inner >> nth=0"
 
     def test_chained_with_existing_nth_not_double_wrapped(self) -> None:
         cand = SelectorCandidate(
-            strategy="css", value=".host >> .inner >> nth=0",
-            quality_score=50, verified_unique=False,
+            strategy="css",
+            value=".host >> .inner >> nth=0",
+            quality_score=50,
+            verified_unique=False,
         )
         assert _render_selector(cand).count("nth=0") == 1
 
     def test_verified_chained_not_wrapped(self) -> None:
         cand = SelectorCandidate(
-            strategy="css", value=".host >> .inner",
-            quality_score=90, verified_unique=True,
+            strategy="css",
+            value=".host >> .inner",
+            quality_score=90,
+            verified_unique=True,
         )
         assert _render_selector(cand) == ".host >> .inner"

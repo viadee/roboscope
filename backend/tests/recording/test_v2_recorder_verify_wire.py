@@ -24,7 +24,7 @@ from __future__ import annotations
 import pytest
 
 from src.recording.selector_schema import RecordedCommand, SelectorCandidate
-from src.recording.v2_recorder_task import _verify_command_candidates
+from src.recording.v2_recorder_task import _resolve_frame_target, _verify_command_candidates
 
 
 class _FakeLocator:
@@ -273,16 +273,18 @@ async def test_iframe_candidate_values_passed_to_frame_locator_verbatim() -> Non
         index=0,
         keyword="Click",
         selector_candidates=[
-            _cand("text=\"Accept all\"", score=70, strategy="text"),
+            _cand('text="Accept all"', score=70, strategy="text"),
             _cand("#accept-all", score=55, strategy="css"),
         ],
         active_candidate_index=0,
         frame_url="https://message-eu.sp-prod.net/?id=42",
     )
-    iframe_frame = _RecordingFakePage({
-        "text=\"Accept all\"": 1,
-        "#accept-all": 1,
-    })
+    iframe_frame = _RecordingFakePage(
+        {
+            'text="Accept all"': 1,
+            "#accept-all": 1,
+        }
+    )
 
     out = await _verify_command_candidates(cmd, iframe_frame)
 
@@ -290,9 +292,7 @@ async def test_iframe_candidate_values_passed_to_frame_locator_verbatim() -> Non
     # If the helper ever invented an iframe wrap, it would have
     # called e.g. `iframe[src*="..."] >>> #accept-all` and the
     # frame's count map would return 0 for that.
-    assert sorted(iframe_frame.locator_calls) == sorted(
-        ["text=\"Accept all\"", "#accept-all"]
-    )
+    assert sorted(iframe_frame.locator_calls) == sorted(['text="Accept all"', "#accept-all"])
     assert all(c.verified_unique for c in out.selector_candidates)
     # frame_url must round-trip — it's the metadata the emitter
     # uses to wrap the selector at .robot-emit time.
@@ -339,9 +339,6 @@ async def test_helper_uses_only_object_passed_in_never_a_global_page() -> None:
 # ──────────────────────────────────────────────────────────────────────
 
 
-from src.recording.v2_recorder_task import _resolve_frame_target
-
-
 class TestResolveFrameTarget:
     def test_dict_source_resolves_to_frame(self) -> None:
         # The canonical Playwright payload — verifier MUST get the frame.
@@ -369,9 +366,11 @@ class TestResolveFrameTarget:
         class _AttrSrc:
             frame = "F_ATTR"
             page = "P_ATTR"
+
         assert _resolve_frame_target(_AttrSrc()) == "F_ATTR"
 
     def test_attribute_source_with_only_page_attribute(self) -> None:
         class _AttrPageOnly:
             page = "P_ONLY"
+
         assert _resolve_frame_target(_AttrPageOnly()) == "P_ONLY"

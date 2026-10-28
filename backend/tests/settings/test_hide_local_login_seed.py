@@ -5,13 +5,12 @@ Locks in:
   - PATCH round-trip via the admin settings endpoint persists the new value
 """
 
-from tests.conftest import auth_header
-
 from src.settings.service import (
     get_setting,
     get_setting_value,
     seed_default_settings,
 )
+from tests.conftest import auth_header
 
 
 class TestHideLocalLoginFormSeed:

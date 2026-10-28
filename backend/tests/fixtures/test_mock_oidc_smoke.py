@@ -7,9 +7,9 @@ import pytest
 from authlib.jose import jwt
 
 from tests.fixtures.mock_oidc import (
+    _CLIENT_ID,
     ISSUER,
     MockOidcProvider,
-    _CLIENT_ID,
     mock_oidc,  # noqa: F401
 )
 

@@ -26,9 +26,7 @@ def _mk_user(db: Session, *, role: str, email: str) -> User:
 
 
 class TestMeExtension:
-    def test_existing_fields_still_present(
-        self, client: TestClient, admin_user: User
-    ) -> None:
+    def test_existing_fields_still_present(self, client: TestClient, admin_user: User) -> None:
         resp = client.get("/api/v1/auth/me", headers=auth_header(admin_user))
         assert resp.status_code == 200
         body = resp.json()
@@ -57,10 +55,12 @@ class TestMeExtension:
         db_session.commit()
         db_session.refresh(t1)
         db_session.refresh(t2)
-        db_session.add_all([
-            TeamMember(team_id=t1.id, user_id=alice.id, role="editor", source="manual"),
-            TeamMember(team_id=t2.id, user_id=alice.id, role="viewer", source="manual"),
-        ])
+        db_session.add_all(
+            [
+                TeamMember(team_id=t1.id, user_id=alice.id, role="editor", source="manual"),
+                TeamMember(team_id=t2.id, user_id=alice.id, role="viewer", source="manual"),
+            ]
+        )
         db_session.commit()
 
         resp = client.get("/api/v1/auth/me", headers=auth_header(alice))
@@ -101,9 +101,7 @@ class TestMeExtension:
         db_session.refresh(team_repo)
         db_session.refresh(solo_repo)
 
-        db_session.add(
-            ProjectMember(user_id=alice.id, repository_id=solo_repo.id, role="runner")
-        )
+        db_session.add(ProjectMember(user_id=alice.id, repository_id=solo_repo.id, role="runner"))
         db_session.commit()
 
         resp = client.get("/api/v1/auth/me", headers=auth_header(alice))

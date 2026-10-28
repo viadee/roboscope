@@ -25,12 +25,12 @@ from __future__ import annotations
 
 import queue
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import Iterator, Literal
+from typing import Literal
 
 from src.recording.selector_schema import RecordedCommand
-
 
 LifecyclePhase = Literal[
     "browser_starting",
@@ -174,9 +174,7 @@ def iterate_events(
         yield item  # type: ignore[misc]
 
 
-def iterate_commands(
-    session_id: int, *, poll_timeout_s: float = 0.5
-) -> Iterator[RecordedCommand]:
+def iterate_commands(session_id: int, *, poll_timeout_s: float = 0.5) -> Iterator[RecordedCommand]:
     """Backward-compatible filter over `iterate_events` that yields only
     `RecordedCommand` items. Kept so older tests that assume a
     command-only iterator don't need to learn the new union type.

@@ -39,7 +39,6 @@ from src.environments.service import (
     validate_playwright_pin_against_packages,
 )
 
-
 # ---------------------------------------------------------------------------
 # Unit tests — offline, stub the PyPI fetcher.
 # ---------------------------------------------------------------------------
@@ -93,7 +92,8 @@ class TestConstraintExtraction:
             playwright_constraints_for_browser_package(
                 "some-other-pkg",
                 pypi_json_fetcher=_stub_pypi(
-                    "some-other-pkg", ["requests>=2.0"],
+                    "some-other-pkg",
+                    ["requests>=2.0"],
                 ),
             )
             is None
@@ -131,7 +131,8 @@ class TestValidation:
             lambda pkg, **kw: ">=1.59,<2.0",
         )
         warnings = validate_playwright_pin_against_packages(
-            ["robotframework-browser-batteries"], "1.58.0",
+            ["robotframework-browser-batteries"],
+            "1.58.0",
         )
         assert len(warnings) == 1
         assert "1.58.0" in warnings[0]
@@ -144,7 +145,8 @@ class TestValidation:
         )
         assert (
             validate_playwright_pin_against_packages(
-                ["robotframework-browser"], "1.58.0",
+                ["robotframework-browser"],
+                "1.58.0",
             )
             == []
         )
@@ -161,7 +163,8 @@ class TestValidation:
             _fake,
         )
         warnings = validate_playwright_pin_against_packages(
-            ["requests", "some-random-lib"], "1.58.0",
+            ["requests", "some-random-lib"],
+            "1.58.0",
         )
         assert warnings == []
         assert called["count"] == 0, "must not probe non-browser packages"
@@ -175,7 +178,8 @@ class TestValidation:
         )
         assert (
             validate_playwright_pin_against_packages(
-                ["robotframework-browser"], "1.58.0",
+                ["robotframework-browser"],
+                "1.58.0",
             )
             == []
         )
@@ -213,8 +217,7 @@ def test_backend_playwright_satisfies_published_constraint(
     spec_str = playwright_constraints_for_browser_package(package_name)
     if spec_str is None:
         pytest.skip(
-            f"Could not fetch playwright constraint for {package_name} "
-            f"from PyPI (offline?)"
+            f"Could not fetch playwright constraint for {package_name} from PyPI (offline?)"
         )
     spec = SpecifierSet(spec_str)
     backend_ver = Version(_installed_version("playwright"))
@@ -254,11 +257,13 @@ def _build_fake_wheel(playwright_spec: str) -> bytes:
     with _zip.ZipFile(buf, "w") as zf:
         zf.writestr(
             "Browser/wrapper/package.json",
-            _json.dumps({
-                "name": "robotframework-playwright",
-                "version": "19.14.2",
-                "dependencies": {"playwright": playwright_spec},
-            }),
+            _json.dumps(
+                {
+                    "name": "robotframework-playwright",
+                    "version": "19.14.2",
+                    "dependencies": {"playwright": playwright_spec},
+                }
+            ),
         )
     return buf.getvalue()
 
@@ -270,8 +275,10 @@ class TestWheelProbe:
         wheel = _build_fake_wheel("^1.59.1")
         meta = {
             "urls": [
-                {"filename": "robotframework_browser-19.14.2-py3-none-manylinux_2_17_x86_64.whl",
-                 "url": "fake://wheel"},
+                {
+                    "filename": "robotframework_browser-19.14.2-py3-none-manylinux_2_17_x86_64.whl",
+                    "url": "fake://wheel",
+                },
             ],
         }
         ver = rfbrowser_node_playwright_version(
@@ -287,8 +294,10 @@ class TestWheelProbe:
         wheel = _build_fake_wheel("~1.58.0")
         meta = {
             "urls": [
-                {"filename": "robotframework_browser-19.0-py3-none-manylinux_2_17_x86_64.whl",
-                 "url": "fake://wheel"},
+                {
+                    "filename": "robotframework_browser-19.0-py3-none-manylinux_2_17_x86_64.whl",
+                    "url": "fake://wheel",
+                },
             ],
         }
         ver = rfbrowser_node_playwright_version(
@@ -299,11 +308,11 @@ class TestWheelProbe:
         assert ver == "1.58.0"
 
     def test_returns_none_when_no_playwright_dep(self) -> None:
-        from src.environments.service import rfbrowser_node_playwright_version
-
         import io
         import json as _json
         import zipfile as _zip
+
+        from src.environments.service import rfbrowser_node_playwright_version
 
         buf = io.BytesIO()
         with _zip.ZipFile(buf, "w") as zf:
@@ -312,10 +321,14 @@ class TestWheelProbe:
                 _json.dumps({"dependencies": {"other-dep": "1.0.0"}}),
             )
         wheel = buf.getvalue()
-        meta = {"urls": [
-            {"filename": "robotframework_browser-19.0-py3-none-manylinux_2_17_x86_64.whl",
-             "url": "fake://wheel"},
-        ]}
+        meta = {
+            "urls": [
+                {
+                    "filename": "robotframework_browser-19.0-py3-none-manylinux_2_17_x86_64.whl",
+                    "url": "fake://wheel",
+                },
+            ]
+        }
         ver = rfbrowser_node_playwright_version(
             "robotframework-browser",
             pypi_json_fetcher=lambda url: __import__("json").dumps(meta).encode(),
@@ -338,10 +351,14 @@ class TestWheelProbe:
     def test_returns_none_on_corrupt_wheel(self) -> None:
         from src.environments.service import rfbrowser_node_playwright_version
 
-        meta = {"urls": [
-            {"filename": "robotframework_browser-19.0-py3-none-manylinux_2_17_x86_64.whl",
-             "url": "fake://wheel"},
-        ]}
+        meta = {
+            "urls": [
+                {
+                    "filename": "robotframework_browser-19.0-py3-none-manylinux_2_17_x86_64.whl",
+                    "url": "fake://wheel",
+                },
+            ]
+        }
         ver = rfbrowser_node_playwright_version(
             "robotframework-browser",
             pypi_json_fetcher=lambda url: __import__("json").dumps(meta).encode(),
@@ -367,4 +384,5 @@ def test_real_pypi_rfbrowser_node_playwright_version() -> None:
     )
     # Sanity: the extracted version is a valid semver-ish string.
     import re
+
     assert re.match(r"^\d+\.\d+\.\d+$", ver), f"unexpected format: {ver!r}"

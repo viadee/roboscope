@@ -25,6 +25,7 @@ import httpx
 
 from src.config import settings
 from src.explorer.rf_sections import KEYWORDS, SETTINGS, build_section_matcher, is_section_start
+from src.insecure_tls import tls_verify
 
 logger = logging.getLogger("roboscope.ai.rf_knowledge")
 
@@ -173,7 +174,9 @@ async def _call_mcp_tool(tool_name: str, arguments: dict[str, Any] | None = None
         return None
 
     try:
-        async with httpx.AsyncClient(timeout=settings.RF_MCP_TIMEOUT) as client:
+        async with httpx.AsyncClient(
+            timeout=settings.RF_MCP_TIMEOUT, verify=tls_verify()
+        ) as client:
             # Ensure we have a valid session
             session_id = await _ensure_session(client, url)
             if not session_id:
@@ -337,7 +340,13 @@ def _scan_repo_files(repo_id: int) -> tuple[list[dict], set[str]]:
                 if current_kw and current_kw["name"].lower() not in seen_kw:
                     seen_kw.add(current_kw["name"].lower())
                     keywords.append(current_kw)
-                current_kw = {"name": stripped, "library": f.stem, "doc": "", "doc_format": "text", "args": []}
+                current_kw = {
+                    "name": stripped,
+                    "library": f.stem,
+                    "doc": "",
+                    "doc_format": "text",
+                    "args": [],
+                }
             elif current_kw and stripped.lower().startswith("[documentation]"):
                 doc = stripped.split("]", 1)[1].strip() if "]" in stripped else ""
                 current_kw["doc"] = doc[:4000]
@@ -356,7 +365,10 @@ def _scan_repo_files(repo_id: int) -> tuple[list[dict], set[str]]:
     _imported_repos.add(repo_id)
     logger.info(
         "Scanned repo %d: %d keywords, %d library imports from %d files",
-        repo_id, len(keywords), len(library_imports), len(files),
+        repo_id,
+        len(keywords),
+        len(library_imports),
+        len(files),
     )
     return keywords, library_imports
 
@@ -401,7 +413,7 @@ def _resolve_library_keywords(library_names: set[str], venv_path: str) -> list[d
         "            fmt = 'text'\n"
         "        for kw in libdoc.keywords:\n"
         "            kw_args = [str(a) for a in (kw.args or [])]\n"
-        "            results.append({'name': kw.name, 'library': lib_name, 'doc': (kw.doc or '')[:4000], 'doc_format': fmt, 'args': kw_args})\n"
+        "            results.append({'name': kw.name, 'library': lib_name, 'doc': (kw.doc or '')[:4000], 'doc_format': fmt, 'args': kw_args})\n"  # noqa: E501
         "    except Exception:\n"
         "        pass\n"
         "print(json.dumps(results))\n"
@@ -410,7 +422,9 @@ def _resolve_library_keywords(library_names: set[str], venv_path: str) -> list[d
     try:
         result = subprocess.run(
             [python_path, "-c", script, *library_names],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if result.returncode == 0 and result.stdout.strip():
             kws = json.loads(result.stdout.strip())
@@ -440,6 +454,7 @@ def _get_repo_env_venv_path(repo_id: int) -> str | None:
             return None
 
         from src.environments.models import Environment
+
         env = session.execute(
             select(Environment).where(Environment.id == repo.environment_id)
         ).scalar_one_or_none()
@@ -495,7 +510,9 @@ def _get_env_installed_libraries(venv_path: str) -> set[str]:
     try:
         result = subprocess.run(
             [python_path, "-c", script],
-            capture_output=True, text=True, timeout=20,
+            capture_output=True,
+            text=True,
+            timeout=20,
         )
         if result.returncode == 0 and result.stdout.strip():
             names = json.loads(result.stdout.strip())
@@ -539,10 +556,11 @@ async def search_keywords(query: str, repo_id: int | None = None) -> list[dict]:
                 lib_keywords = _resolve_library_keywords(all_libraries, venv_path)
                 for kw in lib_keywords:
                     name_lower = kw["name"].lower()
-                    if match_all or query_lower in name_lower or name_lower in query_lower:
-                        if name_lower not in seen:
-                            seen.add(name_lower)
-                            results.append(kw)
+                    if (
+                        match_all or query_lower in name_lower or name_lower in query_lower
+                    ) and name_lower not in seen:
+                        seen.add(name_lower)
+                        results.append(kw)
 
     # 3. Optional: rf-mcp for built-in keyword semantic search
     if is_available():
@@ -559,12 +577,14 @@ async def search_keywords(query: str, repo_id: int | None = None) -> list[dict]:
                 name = m.get("keyword_name", m.get("name", ""))
                 if name.lower() not in seen:
                     seen.add(name.lower())
-                    results.append({
-                        "name": name,
-                        "library": m.get("library", ""),
-                        "doc": (m.get("documentation", "") or "")[:4000],
-                        "doc_format": "text",
-                    })
+                    results.append(
+                        {
+                            "name": name,
+                            "library": m.get("library", ""),
+                            "doc": (m.get("documentation", "") or "")[:4000],
+                            "doc_format": "text",
+                        }
+                    )
 
     return results
 

@@ -1,9 +1,6 @@
 """Tests for settings API endpoints."""
 
-import pytest
-
 from src.settings.models import AppSetting
-from src.settings.service import seed_default_settings
 from tests.conftest import auth_header
 
 

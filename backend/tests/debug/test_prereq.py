@@ -114,9 +114,7 @@ class TestInstallRobotcode:
         def raise_fnf(*args, **kwargs):
             raise FileNotFoundError("uv not found")
 
-        monkeypatch.setattr(
-            "src.debug.prereq.pip_install_cmd", raise_fnf
-        )
+        monkeypatch.setattr("src.debug.prereq.pip_install_cmd", raise_fnf)
 
         with pytest.raises(PrereqInstallFailed, match="uv not available"):
             asyncio.run(install_robotcode(str(venv)))

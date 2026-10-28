@@ -157,9 +157,7 @@ def gate_advanced_execution(
             _block(f"insufficient_role:preRunModifierUserCode:{user.role}", "insufficient_role")
 
     # 2b. Custom listeners (EXEC.11): a non-curated class path is Tier-C user-code.
-    usercode_listeners = [
-        k for m in listeners if (k := _modifier_key(m)) and not is_curated_key(k)
-    ]
+    usercode_listeners = [k for m in listeners if (k := _modifier_key(m)) and not is_curated_key(k)]
     if usercode_listeners:
         if not resolve_flag(db, "executionCustomListenerUserCode").value:
             _block(
@@ -177,7 +175,9 @@ def gate_advanced_execution(
             _block(f"insufficient_role:executionPythonPath:{user.role}", "insufficient_role")
     if variable_files:
         if not resolve_flag(db, "executionVariableFile").value:
-            _block("feature_disabled:executionVariableFile", "feature_disabled:executionVariableFile")  # noqa: E501
+            _block(
+                "feature_disabled:executionVariableFile", "feature_disabled:executionVariableFile"
+            )  # noqa: E501
         if not _role_at_least(user, Role.ADMIN):
             _block(f"insufficient_role:executionVariableFile:{user.role}", "insufficient_role")
 

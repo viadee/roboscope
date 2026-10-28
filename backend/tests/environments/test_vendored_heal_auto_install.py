@@ -15,9 +15,8 @@ Pins:
 from __future__ import annotations
 
 import logging
-import subprocess
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -48,17 +47,20 @@ def test_install_skips_silently_when_vendor_dir_missing(
     accidentally rm'd) we don't want venv creation to fail — log a
     warning and keep going."""
     fake_path = Path("/tmp/does/not/exist/robotframework-roboscopeheal")
-    with patch(
-        "src.environments.tasks._vendored_heal_path",
-        return_value=fake_path,
-    ), patch("src.environments.tasks.subprocess.run") as mock_run:
+    with (
+        patch(
+            "src.environments.tasks._vendored_heal_path",
+            return_value=fake_path,
+        ),
+        patch("src.environments.tasks.subprocess.run") as mock_run,
+    ):
         with caplog.at_level(logging.WARNING, logger="roboscope.environments.tasks"):
             _install_vendored_heal_into_venv("/tmp/fake-venv", env_id=99)
         # subprocess.run NEVER fires when the vendor dir is missing.
         mock_run.assert_not_called()
-        assert any(
-            "vendored heal lib missing" in r.message for r in caplog.records
-        ), "missing-vendor warning not emitted"
+        assert any("vendored heal lib missing" in r.message for r in caplog.records), (
+            "missing-vendor warning not emitted"
+        )
 
 
 def test_install_passes_vendor_path_to_pip(
@@ -70,22 +72,22 @@ def test_install_passes_vendor_path_to_pip(
     real_vendor = _vendored_heal_path()
     assert real_vendor.is_dir()  # if this fails the test fixture is broken
     fake_result = MagicMock(returncode=0, stdout="", stderr="")
-    with patch(
-        "src.environments.tasks.subprocess.run", return_value=fake_result,
-    ) as mock_run:
-        with caplog.at_level(logging.INFO, logger="roboscope.environments.tasks"):
-            _install_vendored_heal_into_venv("/tmp/fake-venv", env_id=42)
+    with (
+        patch(
+            "src.environments.tasks.subprocess.run",
+            return_value=fake_result,
+        ) as mock_run,
+        caplog.at_level(logging.INFO, logger="roboscope.environments.tasks"),
+    ):
+        _install_vendored_heal_into_venv("/tmp/fake-venv", env_id=42)
     # The vendor path string ends up in argv somewhere — that's the
     # actual contract we care about (uv pip install accepts a path as
     # a positional package spec, same as a package name).
     invoked_argv = mock_run.call_args[0][0]
-    assert str(real_vendor) in invoked_argv, (
-        f"vendor path not in pip argv: {invoked_argv!r}"
+    assert str(real_vendor) in invoked_argv, f"vendor path not in pip argv: {invoked_argv!r}"
+    assert any("seeded robotframework-roboscopeheal" in r.getMessage() for r in caplog.records), (
+        f"INFO log not emitted; records seen: {[r.getMessage() for r in caplog.records]!r}"
     )
-    assert any(
-        "seeded robotframework-roboscopeheal" in r.getMessage()
-        for r in caplog.records
-    ), f"INFO log not emitted; records seen: {[r.getMessage() for r in caplog.records]!r}"
 
 
 def test_install_failure_is_logged_warning_not_raised(
@@ -96,17 +98,20 @@ def test_install_failure_is_logged_warning_not_raised(
     than tearing the venv-creation transaction down. The user can
     install heal manually later from the package-management UI."""
     fake_result = MagicMock(
-        returncode=1, stdout="", stderr="ERROR: build wheel failed",
+        returncode=1,
+        stdout="",
+        stderr="ERROR: build wheel failed",
     )
-    with patch(
-        "src.environments.tasks.subprocess.run", return_value=fake_result,
+    with (
+        patch(
+            "src.environments.tasks.subprocess.run",
+            return_value=fake_result,
+        ),
+        caplog.at_level(logging.WARNING, logger="roboscope.environments.tasks"),
     ):
-        with caplog.at_level(logging.WARNING, logger="roboscope.environments.tasks"):
-            _install_vendored_heal_into_venv("/tmp/fake-venv", env_id=7)
+        _install_vendored_heal_into_venv("/tmp/fake-venv", env_id=7)
     assert any(
-        "vendored heal install failed" in r.message
-        and "rc=1" in r.message
-        for r in caplog.records
+        "vendored heal install failed" in r.message and "rc=1" in r.message for r in caplog.records
     )
 
 
@@ -115,16 +120,15 @@ def test_install_subprocess_raise_is_caught(
 ) -> None:
     """Even an unexpected exception (e.g. uv binary missing on
     PATH) keeps venv creation viable — log + return."""
-    with patch(
-        "src.environments.tasks.subprocess.run",
-        side_effect=FileNotFoundError("uv: not found"),
+    with (
+        patch(
+            "src.environments.tasks.subprocess.run",
+            side_effect=FileNotFoundError("uv: not found"),
+        ),
+        caplog.at_level(logging.WARNING, logger="roboscope.environments.tasks"),
     ):
-        with caplog.at_level(logging.WARNING, logger="roboscope.environments.tasks"):
-            _install_vendored_heal_into_venv("/tmp/fake-venv", env_id=12)
-    assert any(
-        "vendored heal install raised" in r.message
-        for r in caplog.records
-    )
+        _install_vendored_heal_into_venv("/tmp/fake-venv", env_id=12)
+    assert any("vendored heal install raised" in r.message for r in caplog.records)
 
 
 # --- Shipped-vendor registry (`_shipped_vendor_path`) ---
@@ -173,13 +177,13 @@ def test_shipped_vendor_path_logs_when_dir_missing(
     directory got stripped (build artefact, dev cleanup, …),
     return None + WARN — the caller falls back to PyPI cleanly
     instead of trying to install from a path that doesn't exist."""
-    with patch.dict(
-        "src.environments.tasks._SHIPPED_VENDOR_PACKAGES",
-        {"some-broken-shipped-pkg": "does-not-exist-on-disk"},
-    ), caplog.at_level(logging.WARNING, logger="roboscope.environments.tasks"):
+    with (
+        patch.dict(
+            "src.environments.tasks._SHIPPED_VENDOR_PACKAGES",
+            {"some-broken-shipped-pkg": "does-not-exist-on-disk"},
+        ),
+        caplog.at_level(logging.WARNING, logger="roboscope.environments.tasks"),
+    ):
         result = _shipped_vendor_path("some-broken-shipped-pkg")
     assert result is None
-    assert any(
-        "vendor dir missing" in r.message
-        for r in caplog.records
-    )
+    assert any("vendor dir missing" in r.message for r in caplog.records)

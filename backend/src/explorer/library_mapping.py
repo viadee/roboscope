@@ -62,29 +62,35 @@ def identify_rf_libraries(installed_packages: list[dict]) -> list[dict]:
 
         # Check known reverse mapping
         if pypi_lower in PYPI_TO_LIBRARY:
-            results.append({
-                "package_name": name,
-                "version": pkg.get("version", ""),
-                "library_name": PYPI_TO_LIBRARY[pypi_lower],
-                "source": "known",
-            })
+            results.append(
+                {
+                    "package_name": name,
+                    "version": pkg.get("version", ""),
+                    "library_name": PYPI_TO_LIBRARY[pypi_lower],
+                    "source": "known",
+                }
+            )
         elif pypi_lower.startswith("robotframework-") and pypi_lower != "robotframework":
             # Heuristic: robotframework-foo → Foo (PascalCase)
-            suffix = name[len("robotframework-"):]
+            suffix = name[len("robotframework-") :]
             lib_name = suffix.replace("-", " ").title().replace(" ", "")
-            results.append({
-                "package_name": name,
-                "version": pkg.get("version", ""),
-                "library_name": lib_name,
-                "source": "heuristic",
-            })
+            results.append(
+                {
+                    "package_name": name,
+                    "version": pkg.get("version", ""),
+                    "library_name": lib_name,
+                    "source": "heuristic",
+                }
+            )
         elif name_lower.startswith("rpaframework"):
-            results.append({
-                "package_name": name,
-                "version": pkg.get("version", ""),
-                "library_name": "RPA" if name_lower == "rpaframework" else name,
-                "source": "known",
-            })
+            results.append(
+                {
+                    "package_name": name,
+                    "version": pkg.get("version", ""),
+                    "library_name": "RPA" if name_lower == "rpaframework" else name,
+                    "source": "known",
+                }
+            )
 
     return results
 

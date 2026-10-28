@@ -2330,6 +2330,30 @@ Login Works
         tip: 'Always use a strong, unique SECRET_KEY in production. If the SECRET_KEY changes, previously encrypted secrets will become unreadable.'
       },
       {
+        id: 'insecure-tls',
+        title: 'Corporate Networks &amp; Self-Signed Certificates',
+        content: `
+<p>
+  Behind a corporate proxy that intercepts HTTPS with its own certificate authority, package
+  installs, <code>rfbrowser init</code>, Git syncs and PyPI lookups fail with
+  <em>certificate verify failed</em> / <em>self-signed certificate in certificate chain</em>.
+</p>
+<h4>Preferred: trust the corporate CA</h4>
+<p>
+  Point the tools at your CA bundle before starting RoboScope: <code>SSL_CERT_FILE</code> (uv, Python),
+  <code>NODE_EXTRA_CA_CERTS</code> (Node.js / Playwright download) and <code>GIT_SSL_CAINFO</code> (Git).
+</p>
+<h4>Escape hatch: ignore the trust chain</h4>
+<p>
+  Set <code>INSECURE_TLS=true</code> in <code>.env</code> and restart. RoboScope then disables
+  certificate verification for everything it talks to: uv (venv creation, package installs),
+  npm and the Playwright browser download during <code>rfbrowser init</code>, Git clone/pull/push,
+  PyPI package search, AI providers, webhooks, SSO identity providers, Docker image builds and the
+  recorder browser. A warning is logged at startup.
+</p>`,
+        tip: 'INSECURE_TLS disables every certificate check — a man-in-the-middle can read and alter all traffic. Use it only inside a trusted network, at your own risk.'
+      },
+      {
         id: 'identity-providers',
         title: 'Identity Providers (SSO)',
         content: `

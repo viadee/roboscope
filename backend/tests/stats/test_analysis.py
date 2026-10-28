@@ -1,18 +1,14 @@
 """Tests for stats analysis compute functions and bug fixes."""
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from src.execution.models import ExecutionRun, RunStatus
 from src.reports.models import Report, TestResult
 from src.repos.models import Repository
 from src.stats.analysis import (
     _broadcast_analysis_status,
-    compute_assertion_density,
     compute_documentation_coverage,
-    compute_error_patterns,
     compute_failure_heatmap,
     compute_flakiness_score,
     compute_keyword_duplicates,
@@ -20,7 +16,6 @@ from src.stats.analysis import (
     compute_keyword_reuse_rate,
     compute_keyword_similarity,
     compute_library_distribution,
-    compute_redundancy_detection,
     compute_robocop_violations,
     compute_slowest_tests,
     compute_suite_duration_treemap,
@@ -92,7 +87,6 @@ def _seed_test_results(db_session, admin_user):
     db_session.flush()
     db_session.refresh(repo)
 
-    results = []
     for i in range(4):
         run = _make_run(repo.id, admin_user.id, status=RunStatus.PASSED)
         db_session.add(run)
@@ -111,7 +105,7 @@ def _seed_test_results(db_session, admin_user):
             suite_name="AuthSuite",
             status="PASS" if i % 2 == 0 else "FAIL",
             duration_seconds=2.0 + i,
-            start_time=f"2026-02-{10+i:02d}T10:00:00",
+            start_time=f"2026-02-{10 + i:02d}T10:00:00",
         )
         db_session.add(tr_a)
 
@@ -122,7 +116,7 @@ def _seed_test_results(db_session, admin_user):
             suite_name="UISuite",
             status="PASS",
             duration_seconds=0.5 + i * 0.1,
-            start_time=f"2026-02-{10+i:02d}T10:01:00",
+            start_time=f"2026-02-{10 + i:02d}T10:01:00",
         )
         db_session.add(tr_b)
 
@@ -133,7 +127,7 @@ def _seed_test_results(db_session, admin_user):
             suite_name="AuthSuite",
             status="FAIL",
             duration_seconds=1.0,
-            start_time=f"2026-02-{10+i:02d}T10:02:00",
+            start_time=f"2026-02-{10 + i:02d}T10:02:00",
         )
         db_session.add(tr_c)
 
@@ -149,10 +143,12 @@ class TestBroadcastAnalysisStatus:
         """_broadcast_analysis_status should not raise when no event loop exists."""
         mock_ws = MagicMock()
         mock_ws.broadcast.return_value = MagicMock()
-        with patch("src.websocket.manager.ws_manager", mock_ws):
-            with patch("src.main._event_loop", None, create=True):
-                # Should not raise
-                _broadcast_analysis_status(1, "completed", 100)
+        with (
+            patch("src.websocket.manager.ws_manager", mock_ws),
+            patch("src.main._event_loop", None, create=True),
+        ):
+            # Should not raise
+            _broadcast_analysis_status(1, "completed", 100)
 
     def test_broadcast_schedules_coroutine(self):
         """When event loop is running, should schedule coroutine via run_coroutine_threadsafe."""
@@ -161,24 +157,27 @@ class TestBroadcastAnalysisStatus:
         mock_ws = MagicMock()
 
         # Create a real coroutine for asyncio.run_coroutine_threadsafe
-        import asyncio
 
         async def fake_broadcast(*args, **kwargs):
             pass
 
         mock_ws.broadcast.return_value = fake_broadcast()
 
-        with patch("src.websocket.manager.ws_manager", mock_ws):
-            with patch("src.main._event_loop", mock_loop, create=True):
-                with patch("asyncio.run_coroutine_threadsafe") as mock_rct:
-                    _broadcast_analysis_status(42, "running", 50)
+        with (
+            patch("src.websocket.manager.ws_manager", mock_ws),
+            patch("src.main._event_loop", mock_loop, create=True),
+            patch("asyncio.run_coroutine_threadsafe") as mock_rct,
+        ):
+            _broadcast_analysis_status(42, "running", 50)
 
-        mock_ws.broadcast.assert_called_once_with({
-            "type": "analysis_status_changed",
-            "analysis_id": 42,
-            "status": "running",
-            "progress": 50,
-        })
+        mock_ws.broadcast.assert_called_once_with(
+            {
+                "type": "analysis_status_changed",
+                "analysis_id": 42,
+                "status": "running",
+                "progress": 50,
+            }
+        )
         mock_rct.assert_called_once()
 
 
@@ -417,7 +416,13 @@ class TestExistingComputeFunctions:
         keywords = [
             {"name": "Log", "library": "BuiltIn", "type": "kw", "duration": 0.1, "status": "PASS"},
             {"name": "Log", "library": "BuiltIn", "type": "kw", "duration": 0.1, "status": "PASS"},
-            {"name": "Sleep", "library": "BuiltIn", "type": "kw", "duration": 1.0, "status": "PASS"},
+            {
+                "name": "Sleep",
+                "library": "BuiltIn",
+                "type": "kw",
+                "duration": 1.0,
+                "status": "PASS",
+            },
         ]
         result = compute_keyword_frequency(keywords)
         assert result["total_calls"] == 3

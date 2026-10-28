@@ -21,12 +21,12 @@ from __future__ import annotations
 import logging
 import sys
 import threading
+from datetime import UTC
 from typing import Any
 
 # FK resolution for fresh background-thread DB sessions (CLAUDE.md).
 import src.auth.models  # noqa: F401
 import src.repos.models  # noqa: F401
-
 from src.recording.desktop_selector_synthesis import (
     DesktopAncestor,
     DesktopElementSnapshot,
@@ -142,8 +142,8 @@ def run_desktop_recorder_session(session_id: int) -> None:
     hosts so this codepath is importable everywhere."""
     if not sys.platform.startswith("win"):
         logger.warning(
-            "desktop_windows recorder dispatched on non-Windows host — "
-            "no-op for session %d", session_id,
+            "desktop_windows recorder dispatched on non-Windows host — no-op for session %d",
+            session_id,
         )
         _mark_status(session_id, RecordingStatus.FAILED, "desktop recorder requires Windows")
         finalize_session(session_id)
@@ -211,7 +211,7 @@ def _desktop_loop(session_id: int, stop_event: threading.Event) -> None:
 
 
 def _mark_status(session_id: int, status: str, message: str | None = None) -> None:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from src.database import get_sync_session
 
@@ -223,9 +223,7 @@ def _mark_status(session_id: int, status: str, message: str | None = None) -> No
             row.status = status
             if message:
                 row.error_message = message[:2000]
-            row.finished_at = datetime.now(timezone.utc)
+            row.finished_at = datetime.now(UTC)
             db.commit()
     except Exception:
-        logger.exception(
-            "desktop recorder: failed to mark session %d as %s", session_id, status
-        )
+        logger.exception("desktop recorder: failed to mark session %d as %s", session_id, status)

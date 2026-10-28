@@ -36,6 +36,11 @@ Thumbs.db
 htmlcov/
 .coverage
 coverage.xml
+# Mutation testing
+backend/mutants/
+backend/.mutmut-cache
+frontend/.stryker-tmp/
+frontend/reports/
 
 # Node
 node_modules/
@@ -46,7 +51,6 @@ e2e/playwright-report/
 e2e/test-results/
 frontend/test-results/
 e2e/demo-video/
-e2e/.auth-state.json
 
 # Docker
 docker-compose.override.yml

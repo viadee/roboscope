@@ -1,11 +1,9 @@
 """Tests for API token CRUD and authentication."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
-import pytest
 from sqlalchemy.orm import Session
 
-from src.auth.constants import Role
 from src.webhooks.service import (
     TOKEN_PREFIX,
     create_api_token,
@@ -23,7 +21,10 @@ class TestTokenService:
     def test_generate_token_format(self, db_session: Session, admin_user):
         """Token starts with rbs_ prefix and is 68+ chars."""
         token_model, plaintext = create_api_token(
-            db_session, name="test", role="runner", user_id=admin_user.id,
+            db_session,
+            name="test",
+            role="runner",
+            user_id=admin_user.id,
         )
         assert plaintext.startswith(TOKEN_PREFIX)
         assert len(plaintext) >= 68  # rbs_ + 64 hex chars
@@ -31,7 +32,10 @@ class TestTokenService:
     def test_token_hash_matches(self, db_session: Session, admin_user):
         """Token can be found by hashing the plaintext."""
         token_model, plaintext = create_api_token(
-            db_session, name="test", role="runner", user_id=admin_user.id,
+            db_session,
+            name="test",
+            role="runner",
+            user_id=admin_user.id,
         )
         token_hash = verify_token(plaintext)
         found = get_token_by_hash(db_session, token_hash)
@@ -47,19 +51,29 @@ class TestTokenService:
     def test_token_with_expiry(self, db_session: Session, admin_user):
         """Token with expiry has expires_at set."""
         token_model, _ = create_api_token(
-            db_session, name="test", role="runner", user_id=admin_user.id,
+            db_session,
+            name="test",
+            role="runner",
+            user_id=admin_user.id,
             expires_in_days=30,
         )
         assert token_model.expires_at is not None
         # Compare as naive (SQLite stores without tz)
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        expires = token_model.expires_at.replace(tzinfo=None) if token_model.expires_at.tzinfo else token_model.expires_at
+        now = datetime.now(UTC).replace(tzinfo=None)
+        expires = (
+            token_model.expires_at.replace(tzinfo=None)
+            if token_model.expires_at.tzinfo
+            else token_model.expires_at
+        )
         assert expires > now
 
     def test_token_without_expiry(self, db_session: Session, admin_user):
         """Token without expiry has expires_at=None."""
         token_model, _ = create_api_token(
-            db_session, name="test", role="runner", user_id=admin_user.id,
+            db_session,
+            name="test",
+            role="runner",
+            user_id=admin_user.id,
         )
         assert token_model.expires_at is None
 
@@ -73,7 +87,10 @@ class TestTokenService:
     def test_revoke_token(self, db_session: Session, admin_user):
         """Revoking a token sets is_active=False."""
         token_model, _ = create_api_token(
-            db_session, name="test", role="runner", user_id=admin_user.id,
+            db_session,
+            name="test",
+            role="runner",
+            user_id=admin_user.id,
         )
         revoked = revoke_token(db_session, token_model.id)
         assert revoked is not None
@@ -82,7 +99,10 @@ class TestTokenService:
     def test_revoked_token_not_in_list(self, db_session: Session, admin_user):
         """Revoked tokens don't appear in list."""
         token_model, _ = create_api_token(
-            db_session, name="test", role="runner", user_id=admin_user.id,
+            db_session,
+            name="test",
+            role="runner",
+            user_id=admin_user.id,
         )
         revoke_token(db_session, token_model.id)
         tokens = list_tokens(db_session)
@@ -91,7 +111,10 @@ class TestTokenService:
     def test_prefix_display(self, db_session: Session, admin_user):
         """Prefix shows first 8 chars of random part."""
         token_model, plaintext = create_api_token(
-            db_session, name="test", role="runner", user_id=admin_user.id,
+            db_session,
+            name="test",
+            role="runner",
+            user_id=admin_user.id,
         )
         expected_prefix = plaintext[:12]  # rbs_ + 8 hex chars
         assert token_model.prefix == expected_prefix

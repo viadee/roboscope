@@ -1,7 +1,5 @@
 """Report models."""
 
-from datetime import datetime
-
 from sqlalchemy import Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,9 +32,7 @@ class TestResult(Base):
     __tablename__ = "test_results"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    report_id: Mapped[int] = mapped_column(
-        ForeignKey("reports.id", ondelete="CASCADE"), index=True
-    )
+    report_id: Mapped[int] = mapped_column(ForeignKey("reports.id", ondelete="CASCADE"), index=True)
     suite_name: Mapped[str] = mapped_column(String(500))
     test_name: Mapped[str] = mapped_column(String(500), index=True)
     status: Mapped[str] = mapped_column(String(20))  # PASS, FAIL, SKIP

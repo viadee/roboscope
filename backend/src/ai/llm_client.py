@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from src.ai.encryption import decrypt_api_key
 from src.ai.models import AiProvider
+from src.insecure_tls import tls_verify
 
 logger = logging.getLogger("roboscope.ai.llm_client")
 
@@ -86,7 +87,7 @@ def _call_openai_compatible(
     # timeout errors into a clear, actionable message.
     timeout = httpx.Timeout(120.0, connect=5.0)
     try:
-        with httpx.Client(timeout=timeout) as client:
+        with httpx.Client(timeout=timeout, verify=tls_verify()) as client:
             response = client.post(url, json=payload, headers=headers)
             if response.status_code >= 400:
                 _raise_with_body(response)
@@ -98,8 +99,7 @@ def _call_openai_compatible(
         ) from e
     except httpx.TimeoutException as e:
         raise RuntimeError(
-            f"LLM provider timed out at {url} — it may be overloaded or "
-            "unreachable."
+            f"LLM provider timed out at {url} — it may be overloaded or unreachable."
         ) from e
 
     # H4: validate shape — providers/proxies (e.g. Ollama under load) can
@@ -107,9 +107,7 @@ def _call_openai_compatible(
     # direct index/key access raised an opaque IndexError/KeyError that
     # surfaced as a cryptic job failure; give a clear, actionable message.
     choices = data.get("choices") or []
-    content = (
-        choices[0].get("message", {}).get("content") if choices else None
-    )
+    content = choices[0].get("message", {}).get("content") if choices else None
     if not content:
         raise RuntimeError(
             "The LLM returned no content (empty 'choices' or missing message). "
@@ -163,7 +161,7 @@ def _call_anthropic(
     # timeout errors into a clear, actionable message.
     timeout = httpx.Timeout(120.0, connect=5.0)
     try:
-        with httpx.Client(timeout=timeout) as client:
+        with httpx.Client(timeout=timeout, verify=tls_verify()) as client:
             response = client.post(url, json=payload, headers=headers)
             if response.status_code >= 400:
                 _raise_with_body(response)
@@ -175,8 +173,7 @@ def _call_anthropic(
         ) from e
     except httpx.TimeoutException as e:
         raise RuntimeError(
-            f"LLM provider timed out at {url} — it may be overloaded or "
-            "unreachable."
+            f"LLM provider timed out at {url} — it may be overloaded or unreachable."
         ) from e
 
     content = ""
@@ -198,6 +195,4 @@ def _raise_with_body(response) -> None:
         detail = body.get("error", {}).get("message", "") or str(body)
     except Exception:
         detail = response.text[:500]
-    raise RuntimeError(
-        f"LLM API error {response.status_code}: {detail}"
-    )
+    raise RuntimeError(f"LLM API error {response.status_code}: {detail}")

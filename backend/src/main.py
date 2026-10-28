@@ -7,6 +7,7 @@ import sys
 import uuid
 import webbrowser
 from contextlib import asynccontextmanager
+from datetime import UTC
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Query, Request, WebSocket, WebSocketDisconnect
@@ -20,7 +21,7 @@ from starlette.responses import FileResponse
 
 from src.api.v1.router import api_router
 from src.config import settings
-from src.database import create_tables, get_db, SessionLocal
+from src.database import SessionLocal, create_tables, get_db
 from src.rate_limit import limiter
 from src.utc_response import UtcJSONResponse
 from src.websocket.manager import ws_manager
@@ -118,6 +119,10 @@ async def lifespan(app: FastAPI):
     logger.info(f"Database: {'SQLite' if settings.is_sqlite else 'PostgreSQL'}")
     logger.info("Task executor: in-process ThreadPoolExecutor (max_workers=1)")
 
+    from src.insecure_tls import apply_insecure_tls
+
+    apply_insecure_tls()
+
     # Require SECRET_KEY to be set explicitly
     if not settings.SECRET_KEY:
         logger.error(
@@ -133,6 +138,7 @@ async def lifespan(app: FastAPI):
     # runner registry is empty now, so any PENDING/RUNNING row is dead).
     try:
         from src.execution.tasks import reconcile_interrupted_runs
+
         reconcile_interrupted_runs()
     except Exception:
         logger.warning("startup run reconciliation failed", exc_info=True)
@@ -142,6 +148,7 @@ async def lifespan(app: FastAPI):
     # logs immediately rather than on the first run-dialog open. Never fatal.
     try:
         from src.execution.modifiers import load_registry
+
         load_registry(force=True)
     except Exception:
         logger.warning("startup modifier-registry load failed", exc_info=True)
@@ -149,22 +156,24 @@ async def lifespan(app: FastAPI):
     # Seed default admin user
     with SessionLocal() as session:
         from src.auth.service import ensure_admin_exists
+
         ensure_admin_exists(session)
         session.commit()
 
     # Seed default settings
     with SessionLocal() as session:
         from src.settings.service import seed_default_settings
+
         seed_default_settings(session)
         session.commit()
 
     # Seed "Examples" project with bundled test files
     with SessionLocal() as session:
-        from src.repos.models import Repository
         from sqlalchemy import select
-        result = session.execute(
-            select(Repository).where(Repository.name == "Examples")
-        )
+
+        from src.repos.models import Repository
+
+        result = session.execute(select(Repository).where(Repository.name == "Examples"))
         if result.scalar_one_or_none() is None:
             examples_dir = Path(__file__).resolve().parent.parent / "examples" / "tests"
             if examples_dir.is_dir():
@@ -189,17 +198,14 @@ async def lifespan(app: FastAPI):
     # hand. Auto-sync is OFF by default so we don't surprise the user
     # with background pulls; the manual Sync button still works.
     with SessionLocal() as session:
-        from src.repos.models import Repository
         from sqlalchemy import select
+
+        from src.repos.models import Repository
         from src.task_executor import dispatch_task
 
         EXAMPLES_REPO_NAME = "Robot Framework Examples"
-        EXAMPLES_REPO_URL = (
-            "https://github.com/raffelino/robot-framework-examples.git"
-        )
-        result = session.execute(
-            select(Repository).where(Repository.name == EXAMPLES_REPO_NAME)
-        )
+        EXAMPLES_REPO_URL = "https://github.com/raffelino/robot-framework-examples.git"
+        result = session.execute(select(Repository).where(Repository.name == EXAMPLES_REPO_NAME))
         if result.scalar_one_or_none() is None:
             workspace = Path(settings.WORKSPACE_DIR)
             workspace.mkdir(parents=True, exist_ok=True)
@@ -217,19 +223,21 @@ async def lifespan(app: FastAPI):
             session.add(repo)
             session.commit()
             logger.info(
-                "Seeded '%s' project (git): %s", EXAMPLES_REPO_NAME, EXAMPLES_REPO_URL,
+                "Seeded '%s' project (git): %s",
+                EXAMPLES_REPO_NAME,
+                EXAMPLES_REPO_URL,
             )
             # Kick off the initial clone in the background so the
             # project shows up in the UI immediately and the working
             # tree fills in within a few seconds.
             try:
                 from src.repos.tasks import sync_repo
+
                 dispatch_task(sync_repo, repo.id)
                 logger.info("Dispatched initial clone for repo %d", repo.id)
             except Exception:
                 logger.exception(
-                    "Initial clone dispatch failed for %s — user can "
-                    "click Sync manually to retry",
+                    "Initial clone dispatch failed for %s — user can click Sync manually to retry",
                     EXAMPLES_REPO_NAME,
                 )
 
@@ -237,31 +245,34 @@ async def lifespan(app: FastAPI):
     with SessionLocal() as session:
         from src.environments.models import Environment, EnvironmentPackage
         from src.repos.models import Repository
-        stuck_builds = session.query(Environment).filter(
-            Environment.docker_build_status == "building"
-        ).all()
+
+        stuck_builds = (
+            session.query(Environment).filter(Environment.docker_build_status == "building").all()
+        )
         for env in stuck_builds:
             env.docker_build_status = "error"
             env.docker_build_error = "Build interrupted — application was restarted."
             logger.warning("Reset stuck Docker build for env '%s' (id=%d)", env.name, env.id)
 
-        stuck_pkgs = session.query(EnvironmentPackage).filter(
-            EnvironmentPackage.install_status.in_(["pending", "installing"])
-        ).all()
+        stuck_pkgs = (
+            session.query(EnvironmentPackage)
+            .filter(EnvironmentPackage.install_status.in_(["pending", "installing"]))
+            .all()
+        )
         for pkg in stuck_pkgs:
             pkg.install_status = "failed"
             pkg.install_error = "Installation interrupted — application was restarted."
             logger.warning(
-                "Reset stuck package '%s' in env %d", pkg.package_name, pkg.environment_id,
+                "Reset stuck package '%s' in env %d",
+                pkg.package_name,
+                pkg.environment_id,
             )
 
         # Repositories whose `sync_repo` task was killed mid-pull keep
         # `sync_status='syncing'` forever — auto-sync skips them as
         # "in flight" and the UI shows an indefinite spinner. Surface
         # the interrupt so the user can re-trigger a manual sync.
-        stuck_syncs = session.query(Repository).filter(
-            Repository.sync_status == "syncing"
-        ).all()
+        stuck_syncs = session.query(Repository).filter(Repository.sync_status == "syncing").all()
         for repo in stuck_syncs:
             repo.sync_status = "error"
             repo.sync_error = "Sync interrupted — application was restarted."
@@ -272,6 +283,7 @@ async def lifespan(app: FastAPI):
 
     # Discover and load plugins
     from src.plugins.registry import plugin_registry
+
     plugin_registry.discover_builtin()
 
     # Auto-start rf-mcp (bundled dependency — always start). Skipped under
@@ -283,11 +295,13 @@ async def lifespan(app: FastAPI):
     else:
         with SessionLocal() as session:
             from src.settings.service import get_setting_value
+
             env_id_str = get_setting_value(session, "rf_mcp_environment_id", "")
             port_str = get_setting_value(session, "rf_mcp_port", str(settings.RF_MCP_PORT))
 
-            from src.task_executor import dispatch_task
             from src.ai import rf_mcp_manager
+            from src.task_executor import dispatch_task
+
             env_id = int(env_id_str) if env_id_str else None
             port = int(port_str)
             rf_mcp_manager._status = "starting"
@@ -299,9 +313,11 @@ async def lifespan(app: FastAPI):
                 logger.warning("Failed to auto-start rf-mcp", exc_info=True)
 
     # Start retention enforcement scheduler (daily cleanup)
-    from datetime import datetime, timedelta, timezone as _timezone
+    from datetime import datetime, timedelta
+
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.interval import IntervalTrigger
+
     from src.audit.retention import enforce_retention
     from src.auth.discovery_refresh import refresh_discovery_cache
     from src.auth.retention_cleanup import run_hourly_cleanup
@@ -321,7 +337,7 @@ async def lifespan(app: FastAPI):
         trigger=IntervalTrigger(hours=24),
         id="oidc_discovery_refresh",
         name="OIDC Discovery Cache Refresh (24h)",
-        next_run_time=datetime.now(_timezone.utc) + timedelta(hours=24),
+        next_run_time=datetime.now(UTC) + timedelta(hours=24),
         replace_existing=True,
     )
     # Story 5-5: hourly cleanup of expired OidcLoginAttempt and stale
@@ -339,6 +355,7 @@ async def lifespan(app: FastAPI):
     # finest granularity worth the wake-up cost; per-repo
     # sync_interval_minutes is the actual cadence the user controls.
     from src.repos.tasks import auto_sync_due_repos
+
     _scheduler.add_job(
         auto_sync_due_repos,
         trigger=IntervalTrigger(minutes=5),
@@ -356,6 +373,7 @@ async def lifespan(app: FastAPI):
     # Story V14.1: per-minute heartbeat that fires due test schedules.
     # coalesce + next_run_at recomputed from "now" => a missed window fires once.
     from src.execution.schedule_trigger import run_due_schedules
+
     _scheduler.add_job(
         run_due_schedules,
         trigger=IntervalTrigger(minutes=1),
@@ -384,12 +402,14 @@ async def lifespan(app: FastAPI):
         # Called from inside the session manager's asyncio task — we
         # already have a running loop, so a direct create_task on the
         # broadcast coroutine is safe.
-        coro = ws_manager.broadcast({
-            "type": "debug_event",
-            "topic": topic,
-            "kind": kind,
-            "body": body,
-        })
+        coro = ws_manager.broadcast(
+            {
+                "type": "debug_event",
+                "topic": topic,
+                "kind": kind,
+                "body": body,
+            }
+        )
         asyncio.create_task(coro)
 
     session_manager.set_forwarder(_debug_forwarder)
@@ -419,15 +439,18 @@ async def lifespan(app: FastAPI):
 
     # Stop rf-mcp server if running
     from src.ai import rf_mcp_manager
+
     if rf_mcp_manager.is_running():
         rf_mcp_manager.stop_server()
         logger.info("Stopped rf-mcp server")
 
     # Gracefully shut down background task executor
     from src.task_executor import shutdown_executor
+
     shutdown_executor(wait=False)
 
     from src.plugins.registry import plugin_registry
+
     plugin_registry.shutdown_all()
 
 
@@ -462,6 +485,7 @@ def create_app() -> FastAPI:
 
     # Audit middleware — logs all write operations (POST/PUT/PATCH/DELETE) to audit_logs
     from src.audit.middleware import AuditMiddleware
+
     app.add_middleware(AuditMiddleware)
 
     # Request ID middleware — attaches a unique ID to each request for log correlation.
@@ -512,12 +536,14 @@ def create_app() -> FastAPI:
                 conn.execute(sql_text("SELECT 1"))
         except Exception as e:
             return Response(
-                content=__import__("json").dumps({
-                    **body,
-                    "status": "unhealthy",
-                    "reason": "database_unreachable",
-                    "error": str(e)[:200],
-                }),
+                content=__import__("json").dumps(
+                    {
+                        **body,
+                        "status": "unhealthy",
+                        "reason": "database_unreachable",
+                        "error": str(e)[:200],
+                    }
+                ),
                 status_code=503,
                 media_type="application/json",
             )
@@ -540,6 +566,7 @@ def create_app() -> FastAPI:
             return False
         try:
             from src.auth.service import decode_token, get_user_by_id
+
             payload = decode_token(token)
             if payload.get("type") != "access":
                 return False

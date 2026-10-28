@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -55,8 +55,7 @@ def _mk_session(
         status=status,
         source="playwright",
         triggered_by=owner.id,
-        started_at=datetime.now(timezone.utc).replace(tzinfo=None)
-        - timedelta(minutes=started_minutes_ago),
+        started_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=started_minutes_ago),
     )
     db.add(s)
     db.commit()
@@ -70,7 +69,8 @@ class TestAbortIdleRecordingSessions:
         repo = _mk_repo(db_session, owner)
         idle = _mk_session(
             db_session,
-            owner=owner, repo=repo,
+            owner=owner,
+            repo=repo,
             status=RecordingStatus.RECORDING,
             started_minutes_ago=45,  # well beyond 30-min cutoff
         )
@@ -85,9 +85,7 @@ class TestAbortIdleRecordingSessions:
         assert refreshed.finished_at is not None
 
         audits = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "recording.session.aborted")
-            .all()
+            db_session.query(AuditLog).filter(AuditLog.action == "recording.session.aborted").all()
         )
         assert len(audits) == 1
         detail = json.loads(audits[0].detail)
@@ -99,7 +97,8 @@ class TestAbortIdleRecordingSessions:
         repo = _mk_repo(db_session, owner)
         _mk_session(
             db_session,
-            owner=owner, repo=repo,
+            owner=owner,
+            repo=repo,
             status=RecordingStatus.RECORDING,
             started_minutes_ago=10,  # well under cutoff
         )
@@ -112,7 +111,8 @@ class TestAbortIdleRecordingSessions:
         repo = _mk_repo(db_session, owner)
         _mk_session(
             db_session,
-            owner=owner, repo=repo,
+            owner=owner,
+            repo=repo,
             status=RecordingStatus.COMPLETED,
             started_minutes_ago=120,
         )
@@ -128,17 +128,26 @@ class TestAbortIdleRecordingSessions:
         owner = _mk_user(db_session)
         repo = _mk_repo(db_session, owner)
         _mk_session(
-            db_session, owner=owner, repo=repo,
-            status=RecordingStatus.RECORDING, started_minutes_ago=40,
+            db_session,
+            owner=owner,
+            repo=repo,
+            status=RecordingStatus.RECORDING,
+            started_minutes_ago=40,
         )
         _mk_session(
-            db_session, owner=owner, repo=repo,
-            status=RecordingStatus.RECORDING, started_minutes_ago=90,
+            db_session,
+            owner=owner,
+            repo=repo,
+            status=RecordingStatus.RECORDING,
+            started_minutes_ago=90,
         )
         # Plus a fresh one that must NOT be aborted.
         fresh = _mk_session(
-            db_session, owner=owner, repo=repo,
-            status=RecordingStatus.RECORDING, started_minutes_ago=5,
+            db_session,
+            owner=owner,
+            repo=repo,
+            status=RecordingStatus.RECORDING,
+            started_minutes_ago=5,
         )
 
         aborted = abort_idle_recording_sessions(db_session)

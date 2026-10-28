@@ -37,9 +37,7 @@ def _to_role(raw: str | None) -> Role | None:
         return None
 
 
-def team_role_for_repo(
-    db: Session, user: User, repo: Repository
-) -> Role | None:
+def team_role_for_repo(db: Session, user: User, repo: Repository) -> Role | None:
     """Return the user's team-level role on the repo, or None.
 
     A single JOIN on `team_members` scoped to the repo's team.
@@ -55,9 +53,7 @@ def team_role_for_repo(
     return _to_role(row)
 
 
-def project_member_role(
-    db: Session, user: User, repo: Repository
-) -> Role | None:
+def project_member_role(db: Session, user: User, repo: Repository) -> Role | None:
     """Return the explicit per-repo `ProjectMember.role`, or None."""
     row = db.execute(
         select(ProjectMember.role).where(

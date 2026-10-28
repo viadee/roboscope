@@ -18,6 +18,8 @@ from tests.repos.test_save_loop import (  # noqa: F401  (fixtures)
     working_clone,
 )
 
+pytestmark = pytest.mark.slow  # real subprocess / git in tmp_path — out of the fast dev loop
+
 
 class TestService:
     def test_modified(self, working_clone: Path):
@@ -77,7 +79,8 @@ class TestService:
         assert out["status"] == "binary" and out["diff"] is None
 
     @pytest.mark.parametrize(
-        "bad", ["../etc/passwd", "/etc/passwd", "sub/../../x", "", ".", "sub"],
+        "bad",
+        ["../etc/passwd", "/etc/passwd", "sub/../../x", "", ".", "sub"],
     )
     def test_traversal_rejected(self, working_clone: Path, bad: str):
         (working_clone / "sub").mkdir()
@@ -132,7 +135,9 @@ class TestRouter:
 
     def test_unknown_repo_404(self, client, admin_user):
         r = client.get(
-            "/api/v1/repos/99999/diff", params={"path": "a"}, headers=auth_header(admin_user),
+            "/api/v1/repos/99999/diff",
+            params={"path": "a"},
+            headers=auth_header(admin_user),
         )
         assert r.status_code == 404
 

@@ -13,7 +13,6 @@ from src.encryption import encrypt_value
 from src.teams.models import Team
 from tests.conftest import auth_header
 
-
 BASE = "/api/v1/teams"
 DEL_BASE = "/api/v1/group-mappings"
 
@@ -80,11 +79,7 @@ class TestCreateMapping:
         assert body["group_claim_value"] == "engineering"
         assert body["role"] == "editor"
 
-        events = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "group_mapping.created")
-            .all()
-        )
+        events = db_session.query(AuditLog).filter(AuditLog.action == "group_mapping.created").all()
         assert len(events) == 1
 
     def test_duplicate_returns_409(
@@ -215,24 +210,14 @@ class TestDeleteMapping:
         )
         mid = create.json()["id"]
 
-        resp = client.delete(
-            f"{DEL_BASE}/{mid}", headers=auth_header(admin_user)
-        )
+        resp = client.delete(f"{DEL_BASE}/{mid}", headers=auth_header(admin_user))
         assert resp.status_code == 204
 
-        events = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "group_mapping.deleted")
-            .all()
-        )
+        events = db_session.query(AuditLog).filter(AuditLog.action == "group_mapping.deleted").all()
         assert len(events) == 1
 
-    def test_delete_nonexistent_returns_404(
-        self, client: TestClient, admin_user: User
-    ) -> None:
-        resp = client.delete(
-            f"{DEL_BASE}/99999", headers=auth_header(admin_user)
-        )
+    def test_delete_nonexistent_returns_404(self, client: TestClient, admin_user: User) -> None:
+        resp = client.delete(f"{DEL_BASE}/99999", headers=auth_header(admin_user))
         assert resp.status_code == 404
 
     def test_editor_cannot_delete(
@@ -249,7 +234,5 @@ class TestDeleteMapping:
             headers=auth_header(admin_user),
         )
         mid = create.json()["id"]
-        resp = client.delete(
-            f"{DEL_BASE}/{mid}", headers=auth_header(editor_user)
-        )
+        resp = client.delete(f"{DEL_BASE}/{mid}", headers=auth_header(editor_user))
         assert resp.status_code == 403

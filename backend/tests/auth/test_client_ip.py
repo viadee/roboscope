@@ -38,9 +38,7 @@ class TestNoTrustedProxies:
 
     def test_ignores_xff_when_no_proxies_configured(self):
         client = TestClient(_app_returning_client_ip())
-        resp = client.get(
-            "/probe", headers={"X-Forwarded-For": "203.0.113.7"}
-        )
+        resp = client.get("/probe", headers={"X-Forwarded-For": "203.0.113.7"})
         assert resp.json()["ip"] == "testclient"
 
 
@@ -53,12 +51,14 @@ class TestTrustedProxy:
         # the test client is treated as trusted. Cover the algorithm.
         with patch("src.auth.client_ip._trusted_proxies") as trust:
             import ipaddress
+
             trust.return_value = [ipaddress.ip_network("0.0.0.0/0")]
 
             # Since peer must pass _is_trusted(peer_str, nets) and
             # peer_str is "testclient" (not an IP), we additionally
             # patch _is_trusted to return True for "testclient".
             with patch("src.auth.client_ip._is_trusted") as is_trusted:
+
                 def _trust_peer_and_real_ips(ip_str, _nets):
                     if ip_str == "testclient":
                         return True
@@ -78,6 +78,7 @@ class TestTrustedProxy:
     def test_returns_peer_when_xff_missing_even_if_peer_trusted(self):
         with patch("src.auth.client_ip._trusted_proxies") as trust:
             import ipaddress
+
             trust.return_value = [ipaddress.ip_network("0.0.0.0/0")]
             with patch("src.auth.client_ip._is_trusted", return_value=True):
                 client = TestClient(_app_returning_client_ip())

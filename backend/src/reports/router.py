@@ -24,12 +24,10 @@ from src.auth.dependencies import (
 )
 from src.auth.models import User
 from src.auth.service import decode_token, get_user_by_id
+from src.config import settings
 from src.database import get_db
 from src.rate_limit import limiter
-
-optional_bearer = HTTPBearer(auto_error=False)
 from src.reports.models import Report, TestResult
-from src.config import settings
 from src.reports.parser import parse_output_xml, parse_output_xml_deep
 from src.reports.schemas import (
     MissingLibrariesResponse,
@@ -52,6 +50,8 @@ from src.reports.service import (
     list_unique_tests,
     render_xunit,
 )
+
+optional_bearer = HTTPBearer(auto_error=False)
 
 logger = logging.getLogger("roboscope.reports")
 
@@ -100,7 +100,7 @@ def _authenticate_flexible(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
-        )
+        ) from None
 
 
 @router.get("", response_model=list[ReportResponse])
@@ -155,7 +155,7 @@ def upload_archive(
     # present and oversized, (b) read in 1 MiB chunks and abort the
     # moment we cross the cap.
     MAX_UPLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
-    CHUNK_SIZE = 1024 * 1024              # 1 MiB
+    CHUNK_SIZE = 1024 * 1024  # 1 MiB
 
     declared_length = request.headers.get("content-length")
     if declared_length is not None:
@@ -202,7 +202,7 @@ def upload_archive(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Error reading uploaded file: {e}",
-        )
+        ) from e
 
     # Extract to a unique directory under REPORTS_DIR/archives/
     import uuid
@@ -232,7 +232,7 @@ def upload_archive(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Error extracting ZIP: {e}",
-        )
+        ) from e
 
     # Find output.xml (may be at root or one level deep)
     output_xml = None
@@ -265,7 +265,7 @@ def upload_archive(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Error parsing output.xml: {e}",
-        )
+        ) from e
 
     # Create Report record (no execution_run_id for archives)
     report = Report(
@@ -302,7 +302,10 @@ def upload_archive(
 
     logger.info(
         "Archive uploaded: %s — %d tests (%d passed, %d failed)",
-        archive_name, parsed.total_tests, parsed.passed_tests, parsed.failed_tests,
+        archive_name,
+        parsed.total_tests,
+        parsed.passed_tests,
+        parsed.failed_tests,
     )
 
     results = get_test_results(db, report.id)
@@ -323,7 +326,7 @@ def compare(
     try:
         return compare_reports(db, report_a, report_b)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.get("/tests/unique", response_model=list[UniqueTestResponse])
@@ -445,7 +448,9 @@ def get_report_html(
         )
 
     from fastapi.responses import RedirectResponse
+
     from src.reports.asset_tokens import mint_asset_token
+
     asset_token = mint_asset_token(report_id)
     return RedirectResponse(
         url=f"/api/v1/reports/{report_id}/assets/report.html?at={asset_token}",
@@ -474,6 +479,7 @@ def get_report_asset(
     # Asset-token path: try first, since it's the cheapest check (no DB
     # roundtrip, no user lookup) and is what iframe-loaded HTML uses.
     from src.reports.asset_tokens import verify_asset_token
+
     if at and verify_asset_token(at, report_id):
         pass  # authenticated
     else:
@@ -499,7 +505,7 @@ def get_report_asset(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: path traversal detected",
-        )
+        ) from None
 
     if not requested_path.exists() or not requested_path.is_file():
         raise HTTPException(
@@ -520,20 +526,15 @@ def get_report_asset(
     # parsed from HTML), so the asset endpoint rejects it as
     # unauthenticated. The injected `<base>` makes resolution
     # deterministic for HTML-defined AND JS-driven navigation. */
-    if media_type == "text/html" or str(requested_path).lower().endswith(
-        (".html", ".htm")
-    ):
+    if media_type == "text/html" or str(requested_path).lower().endswith((".html", ".htm")):
         from src.reports.asset_tokens import mint_asset_token
+
         try:
-            html_content = requested_path.read_text(
-                encoding="utf-8", errors="replace"
-            )
+            html_content = requested_path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             return FileResponse(str(requested_path), media_type=media_type)
         fresh_token = mint_asset_token(report_id)
-        base_tag = (
-            f'<base href="/api/v1/reports/{report_id}/assets/?at={fresh_token}">'
-        )
+        base_tag = f'<base href="/api/v1/reports/{report_id}/assets/?at={fresh_token}">'
         # Robot's report.html uses fragment-only links like
         # `<a href="#totals">`. With our base href those resolve to
         # `<base>/?at=…#totals` — the asset endpoint receives an empty
@@ -642,7 +643,7 @@ def get_report_xml_data(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to parse output.xml: {e}",
-        )
+        ) from e
 
     return data
 
@@ -667,8 +668,15 @@ def get_report_tests(
 
 
 _EXPORT_COLUMNS = (
-    "suite_name", "test_name", "long_name", "status", "duration_seconds",
-    "tags", "start_time", "end_time", "error_message",
+    "suite_name",
+    "test_name",
+    "long_name",
+    "status",
+    "duration_seconds",
+    "tags",
+    "start_time",
+    "end_time",
+    "error_message",
 )
 
 
@@ -701,9 +709,7 @@ def export_report_results(
         return Response(
             content=body,
             media_type="application/xml",
-            headers={
-                "Content-Disposition": f'attachment; filename="report_{report_id}_xunit.xml"'
-            },
+            headers={"Content-Disposition": f'attachment; filename="report_{report_id}_xunit.xml"'},
         )
 
     rows = [
@@ -725,9 +731,7 @@ def export_report_results(
     writer.writerow(_EXPORT_COLUMNS)
     for row in rows:
         writer.writerow([_csv_safe(row[c]) for c in _EXPORT_COLUMNS])
-    return Response(
-        content=buf.getvalue(), media_type="text/csv; charset=utf-8", headers=headers
-    )
+    return Response(content=buf.getvalue(), media_type="text/csv; charset=utf-8", headers=headers)
 
 
 @router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)

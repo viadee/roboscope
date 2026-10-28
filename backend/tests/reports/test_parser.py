@@ -4,7 +4,6 @@ import pytest
 
 from src.reports.parser import ParsedReport, ParsedTestResult, parse_output_xml
 
-
 SAMPLE_OUTPUT_XML = """\
 <?xml version="1.0" encoding="UTF-8"?>
 <robot generator="Robot 7.0" generated="2024-01-01T12:00:00.000000">

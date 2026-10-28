@@ -1,6 +1,6 @@
 """Statistics and KPI API endpoints."""
 
-import asyncio
+import contextlib
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -11,7 +11,6 @@ from src.auth.dependencies import get_current_user, require_role
 from src.auth.models import User
 from src.database import get_db
 from src.rate_limit import limiter
-from src.task_executor import dispatch_task
 from src.stats.analysis import run_analysis
 from src.stats.schemas import (
     AVAILABLE_KPIS,
@@ -41,6 +40,7 @@ from src.stats.service import (
     list_analyses,
 )
 from src.stats.tasks import aggregate_daily_kpis, get_data_status
+from src.task_executor import dispatch_task
 
 router = APIRouter()
 
@@ -111,8 +111,9 @@ def list_flaky_quarantine(
     _current_user: User = Depends(get_current_user),
 ):
     """List all quarantined flaky tests. Optional `repository_id` filter."""
-    from src.stats.models import FlakyQuarantine
     from sqlalchemy import select
+
+    from src.stats.models import FlakyQuarantine
 
     stmt = select(FlakyQuarantine)
     if repository_id is not None:
@@ -142,10 +143,11 @@ def add_flaky_quarantine(
     """Mark a flaky test as quarantined. Idempotent: re-marking the same
     (repository_id, suite_name, test_name) tuple returns the existing row."""
     from datetime import datetime
+
     from sqlalchemy import select
 
-    from src.audit.service import log_event
     from src.audit.event_types import AuditEventType
+    from src.audit.service import log_event
     from src.repos.models import Repository
     from src.stats.models import FlakyQuarantine
 
@@ -183,7 +185,8 @@ def add_flaky_quarantine(
     db.flush()
     db.refresh(row)
 
-    try:
+    # Audit event type may not be present on older DBs — safe to skip.
+    with contextlib.suppress(AttributeError):
         log_event(
             db,
             AuditEventType.FLAKY_TEST_QUARANTINED,
@@ -196,9 +199,6 @@ def add_flaky_quarantine(
             },
             ip_address=request.client.host if request.client else None,
         )
-    except AttributeError:
-        # Audit event type may not be present on older DBs — safe to skip.
-        pass
     db.commit()
 
     return FlakyQuarantineResponse(
@@ -220,8 +220,8 @@ def remove_flaky_quarantine(
     current_user: User = Depends(require_role(Role.EDITOR)),
 ):
     """Unquarantine a flaky test."""
-    from src.audit.service import log_event
     from src.audit.event_types import AuditEventType
+    from src.audit.service import log_event
     from src.stats.models import FlakyQuarantine
 
     row = db.get(FlakyQuarantine, quarantine_id)
@@ -235,7 +235,7 @@ def remove_flaky_quarantine(
     repo_id = row.repository_id
     db.delete(row)
 
-    try:
+    with contextlib.suppress(AttributeError):
         log_event(
             db,
             AuditEventType.FLAKY_TEST_UNQUARANTINED,
@@ -244,8 +244,6 @@ def remove_flaky_quarantine(
             detail=details,
             ip_address=request.client.host if request.client else None,
         )
-    except AttributeError:
-        pass
     db.commit()
 
 
@@ -347,6 +345,7 @@ def get_analysis_endpoint(
     analysis = get_analysis(db, analysis_id)
     if not analysis:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Analysis not found")
     return _analysis_to_response(analysis)
 

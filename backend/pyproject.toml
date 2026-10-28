@@ -7,7 +7,7 @@ packages = ["src"]
 
 [project]
 name = "roboscope-backend"
-version = "0.15.0"
+version = "0.16.0"
 description = "RoboScope - Web-based Robot Framework Test Management Tool"
 requires-python = ">=3.11"
 dependencies = [
@@ -95,6 +95,10 @@ dev = [
     "mypy>=1.13.0",
     "pre-commit>=4.0.0",
     "respx>=0.23.1",
+    # Mutation testing (docs/TESTING.md). Pinned <3: mutmut 3 strips a hard-coded
+    # "src." prefix from module names (src-layout assumption) and asserts on
+    # packages literally named `src`, which is what this backend is.
+    "mutmut>=2.5,<3",
 ]
 
 # Story HEAL-VENDORED — route `robotframework-roboscopeheal`
@@ -130,9 +134,20 @@ filterwarnings = [
     "ignore::DeprecationWarning",
 ]
 markers = [
+    "unit: auto-marked (tests/conftest.py) — no DB, no app, no real subprocess; the mutation-tested tier",
+    "db: auto-marked — uses db_session / client (TestClient + in-memory SQLite)",
     "integration: requires an installed playwright chromium browser; opt-in via -m integration",
     "slow: spawns a real subprocess/venv/browser and materially slows the suite; excluded from the fast dev loop (make test-backend-fast), included in make test-backend",
 ]
+
+# Mutation testing for the unit tier: `make mutation-backend` (docs/TESTING.md).
+# paths_to_mutate = pure-logic modules with dedicated unit tests. mutmut_config.py
+# narrows the runner per mutant to that module's test files; `runner` is the
+# full unit tier used by `--rerun-all` to confirm a survivor.
+[tool.mutmut]
+paths_to_mutate = "src/utc_response.py,src/insecure_tls.py,src/encryption.py,src/ai/encryption.py,src/ai/patch_apply.py,src/ai/patch_extractor.py,src/ai/xray_bridge.py,src/auth/return_to.py,src/auth/pii_hash.py,src/auth/client_ip.py,src/debug/dap_protocol.py,src/debug/output_xml_walker.py,src/environments/venv_utils.py,src/execution/resolver.py,src/execution/modifiers/registry.py,src/explorer/library_mapping.py,src/explorer/rf_sections.py,src/recording/generator.py,src/recording/robot_emit.py,src/recording/selector_synthesis.py,src/recording/desktop_selector_synthesis.py,src/recording/selector_schema.py,src/recording/selector_verification.py,src/recording/v2_payload_translator.py,src/reports/parser.py"
+tests_dir = "tests/"
+runner = ".venv/bin/python -m pytest -x -q -p no:cacheprovider -o addopts= -m unit tests/"
 
 [tool.ruff]
 target-version = "py312"
@@ -140,6 +155,10 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N", "UP", "B", "C4", "SIM"]
+# E501: `ruff format` owns line length; what it leaves long is a string/URL.
+# N806: UPPER_CASE locals are deliberate function-scoped constants.
+# N817: `ElementTree as ET` is the canonical stdlib/defusedxml alias.
+ignore = ["E501", "N806", "N817"]
 
 [tool.ruff.lint.flake8-bugbear]
 # Mark FastAPI dependency-injection helpers as immutable so the
@@ -159,6 +178,9 @@ extend-immutable-calls = [
     "src.auth.dependencies.require_role",
     "src.auth.dependencies.require_effective_role",
     "src.auth.dependencies.require_effective_role_for_run",
+    "src.auth.dependencies.require_effective_role_for_recording",
+    "src.auth.dependencies.require_effective_role_for_report",
+    "src.governance.dependencies.require_package_op",
 ]
 
 [tool.ruff.lint.isort]
@@ -170,7 +192,9 @@ known-first-party = ["src"]
 # "redefinition" (F811) of the imported name even though the import
 # uses `# noqa: F401`. F811 is a real bug-class in production code,
 # so we silence it ONLY in tests/.
-"tests/**" = ["F811"]
+# Tests also keep `l` loop names, NOT_/HEAD in test names, `assert False`
+# and blind `pytest.raises(Exception)` — readability over rule purity there.
+"tests/**" = ["F811", "E741", "N802", "B011", "B017"]
 
 [tool.mypy]
 python_version = "3.12"

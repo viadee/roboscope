@@ -80,6 +80,7 @@ All settings are in the `.env` file (created automatically from `.env.example` o
 | `WORKSPACE_DIR` | `~/.roboscope/workspace` | Directory for cloned Git repositories |
 | `REPORTS_DIR` | `~/.roboscope/reports` | Directory for test execution reports |
 | `VENVS_DIR` | `~/.roboscope/venvs` | Directory for Python virtual environments |
+| `INSECURE_TLS` | `false` | Ignore the whole TLS trust chain (corporate MITM proxies / self-signed certs) for uv, npm/Playwright, Git, PyPI, AI providers, webhooks, SSO and Docker builds. **At your own risk.** Prefer `SSL_CERT_FILE` / `NODE_EXTRA_CA_CERTS` / `GIT_SSL_CAINFO` with your CA bundle. |
 
 ### Changing the Port
 

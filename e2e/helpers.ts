@@ -3,7 +3,7 @@
  */
 import { type Page, expect } from '@playwright/test';
 
-const API = 'http://localhost:8000/api/v1';
+export const API = process.env.API_URL || 'http://localhost:8000/api/v1';
 const EMAIL = 'admin@roboscope.local';
 const PASSWORD = 'admin123';
 

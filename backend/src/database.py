@@ -12,9 +12,10 @@ from datetime import datetime
 from sqlalchemy import MetaData, create_engine, func, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
+from src.config import settings
+
 logger = logging.getLogger("roboscope.database")
 
-from src.config import settings
 
 # Naming convention for consistent constraint names across SQLite & PostgreSQL
 convention = {
@@ -36,11 +37,13 @@ if settings.is_sqlite:
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 
 if settings.is_postgres:
-    engine_kwargs.update({
-        "pool_size": 10,
-        "max_overflow": 20,
-        "pool_recycle": 3600,
-    })
+    engine_kwargs.update(
+        {
+            "pool_size": 10,
+            "max_overflow": 20,
+            "pool_recycle": 3600,
+        }
+    )
 
 engine = create_engine(settings.sync_database_url, **engine_kwargs)
 
@@ -120,32 +123,36 @@ def _migrate_sqlite(conn) -> None:
     git_url_notnull = columns.get("git_url", (0, 0, 0, 1))[3] == 1
     if "repo_type" not in columns or git_url_notnull:
         # Need to recreate the table to change NOT NULL on git_url and add repo_type
-        conn.execute(text(
-            "CREATE TABLE IF NOT EXISTS repositories_new ("
-            "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
-            "  name VARCHAR(255) UNIQUE NOT NULL,"
-            "  repo_type VARCHAR(20) DEFAULT 'git',"
-            "  git_url VARCHAR(500),"
-            "  default_branch VARCHAR(100) DEFAULT 'main',"
-            "  local_path VARCHAR(500) NOT NULL,"
-            "  last_synced_at DATETIME,"
-            "  auto_sync BOOLEAN DEFAULT 1,"
-            "  sync_interval_minutes INTEGER DEFAULT 15,"
-            "  created_by INTEGER NOT NULL REFERENCES users(id),"
-            "  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
-            "  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"
-            ")"
-        ))
-        conn.execute(text(
-            "INSERT OR IGNORE INTO repositories_new "
-            "(id, name, repo_type, git_url, default_branch, local_path, "
-            " last_synced_at, auto_sync, sync_interval_minutes, created_by, "
-            " created_at, updated_at) "
-            "SELECT id, name, 'git', git_url, default_branch, local_path, "
-            " last_synced_at, auto_sync, sync_interval_minutes, created_by, "
-            " created_at, updated_at "
-            "FROM repositories"
-        ))
+        conn.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS repositories_new ("
+                "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "  name VARCHAR(255) UNIQUE NOT NULL,"
+                "  repo_type VARCHAR(20) DEFAULT 'git',"
+                "  git_url VARCHAR(500),"
+                "  default_branch VARCHAR(100) DEFAULT 'main',"
+                "  local_path VARCHAR(500) NOT NULL,"
+                "  last_synced_at DATETIME,"
+                "  auto_sync BOOLEAN DEFAULT 1,"
+                "  sync_interval_minutes INTEGER DEFAULT 15,"
+                "  created_by INTEGER NOT NULL REFERENCES users(id),"
+                "  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                "  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"
+                ")"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT OR IGNORE INTO repositories_new "
+                "(id, name, repo_type, git_url, default_branch, local_path, "
+                " last_synced_at, auto_sync, sync_interval_minutes, created_by, "
+                " created_at, updated_at) "
+                "SELECT id, name, 'git', git_url, default_branch, local_path, "
+                " last_synced_at, auto_sync, sync_interval_minutes, created_by, "
+                " created_at, updated_at "
+                "FROM repositories"
+            )
+        )
         conn.execute(text("DROP TABLE repositories"))
         conn.execute(text("ALTER TABLE repositories_new RENAME TO repositories"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_repo_name ON repositories(name)"))
@@ -156,7 +163,9 @@ def _migrate_sqlite(conn) -> None:
 
     # Add sync_status and sync_error columns if missing
     if "sync_status" not in columns:
-        conn.execute(text("ALTER TABLE repositories ADD COLUMN sync_status VARCHAR(20) DEFAULT 'idle'"))
+        conn.execute(
+            text("ALTER TABLE repositories ADD COLUMN sync_status VARCHAR(20) DEFAULT 'idle'")
+        )
         logger.info("Migration: added sync_status column")
     if "sync_error" not in columns:
         conn.execute(text("ALTER TABLE repositories ADD COLUMN sync_error TEXT"))
@@ -172,71 +181,77 @@ def _migrate_sqlite(conn) -> None:
     columns = {row[1]: row for row in result.fetchall()}
 
     if "environment_id" not in columns:
-        conn.execute(text(
-            "ALTER TABLE repositories ADD COLUMN environment_id INTEGER REFERENCES environments(id) ON DELETE SET NULL"
-        ))
+        conn.execute(
+            text(
+                "ALTER TABLE repositories ADD COLUMN environment_id INTEGER REFERENCES environments(id) ON DELETE SET NULL"
+            )
+        )
         logger.info("Migration: added environment_id column to repositories")
 
     # Add report_id column to ai_jobs if missing
     result = conn.execute(text("PRAGMA table_info(ai_jobs)"))
     ai_jobs_columns = {row[1] for row in result.fetchall()}
     if "report_id" not in ai_jobs_columns:
-        conn.execute(text(
-            "ALTER TABLE ai_jobs ADD COLUMN report_id INTEGER REFERENCES reports(id)"
-        ))
+        conn.execute(
+            text("ALTER TABLE ai_jobs ADD COLUMN report_id INTEGER REFERENCES reports(id)")
+        )
         logger.info("Migration: added report_id column to ai_jobs")
 
     # Migrate environment_packages table: add install_status and install_error columns
     result = conn.execute(text("PRAGMA table_info(environment_packages)"))
     pkg_columns = {row[1] for row in result.fetchall()}
     if "install_status" not in pkg_columns:
-        conn.execute(text(
-            "ALTER TABLE environment_packages ADD COLUMN install_status VARCHAR(20) DEFAULT 'installed'"
-        ))
+        conn.execute(
+            text(
+                "ALTER TABLE environment_packages ADD COLUMN install_status VARCHAR(20) DEFAULT 'installed'"
+            )
+        )
         logger.info("Migration: added install_status column to environment_packages")
     if "install_error" not in pkg_columns:
-        conn.execute(text(
-            "ALTER TABLE environment_packages ADD COLUMN install_error TEXT"
-        ))
+        conn.execute(text("ALTER TABLE environment_packages ADD COLUMN install_error TEXT"))
         logger.info("Migration: added install_error column to environment_packages")
 
     # Migrate environments table: add default_runner_type and max_docker_containers
     result = conn.execute(text("PRAGMA table_info(environments)"))
     env_columns = {row[1] for row in result.fetchall()}
     if "default_runner_type" not in env_columns:
-        conn.execute(text(
-            "ALTER TABLE environments ADD COLUMN default_runner_type VARCHAR(20) DEFAULT 'subprocess'"
-        ))
+        conn.execute(
+            text(
+                "ALTER TABLE environments ADD COLUMN default_runner_type VARCHAR(20) DEFAULT 'subprocess'"
+            )
+        )
         logger.info("Migration: added default_runner_type column to environments")
     if "max_docker_containers" not in env_columns:
-        conn.execute(text(
-            "ALTER TABLE environments ADD COLUMN max_docker_containers INTEGER DEFAULT 1"
-        ))
+        conn.execute(
+            text("ALTER TABLE environments ADD COLUMN max_docker_containers INTEGER DEFAULT 1")
+        )
         logger.info("Migration: added max_docker_containers column to environments")
     # Story V15.5: user-edited Dockerfile + user-provided image flag
     if "dockerfile_override" not in env_columns:
         conn.execute(text("ALTER TABLE environments ADD COLUMN dockerfile_override TEXT"))
         logger.info("Migration: added dockerfile_override column to environments")
     if "docker_image_custom" not in env_columns:
-        conn.execute(text(
-            "ALTER TABLE environments ADD COLUMN docker_image_custom BOOLEAN NOT NULL DEFAULT 0"
-        ))
+        conn.execute(
+            text(
+                "ALTER TABLE environments ADD COLUMN docker_image_custom BOOLEAN NOT NULL DEFAULT 0"
+            )
+        )
         logger.info("Migration: added docker_image_custom column to environments")
 
     # Phase-4: users.first_login_complete
     result = conn.execute(text("PRAGMA table_info(users)"))
     user_columns = {row[1] for row in result.fetchall()}
     if "first_login_complete" not in user_columns:
-        conn.execute(text(
-            "ALTER TABLE users ADD COLUMN first_login_complete BOOLEAN NOT NULL DEFAULT 0"
-        ))
+        conn.execute(
+            text("ALTER TABLE users ADD COLUMN first_login_complete BOOLEAN NOT NULL DEFAULT 0")
+        )
         logger.info("Migration: added first_login_complete column to users")
 
     # Story SECURITY-1: users.password_change_required
     if "password_change_required" not in user_columns:
-        conn.execute(text(
-            "ALTER TABLE users ADD COLUMN password_change_required BOOLEAN NOT NULL DEFAULT 0"
-        ))
+        conn.execute(
+            text("ALTER TABLE users ADD COLUMN password_change_required BOOLEAN NOT NULL DEFAULT 0")
+        )
         logger.info("Migration: added password_change_required column to users")
 
     # Phase-4: repositories.team_id (nullable; FK enforced by Alembic migration, not here)
@@ -246,88 +261,118 @@ def _migrate_sqlite(conn) -> None:
         conn.execute(text("ALTER TABLE repositories ADD COLUMN team_id INTEGER"))
         logger.info("Migration: added team_id column to repositories")
 
+    # Epic EXEC (issue #66): these three columns used to exist only in Alembic
+    # revision e7c1a2b3d4f5, so an in-place upgrade to 0.15 broke runs/schedules.
+    for table, col in _EXEC_COLUMNS:
+        cols = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})")).fetchall()}
+        if col not in cols:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} TEXT"))
+            logger.info("Migration: added %s column to %s", col, table)
+
+
+_EXEC_COLUMNS = (
+    ("execution_runs", "advanced_config"),
+    ("schedules", "variables"),
+    ("schedules", "advanced_config"),
+)
+
 
 def _migrate_postgres(conn) -> None:
     """PostgreSQL migrations."""
-    result = conn.execute(text(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_name = 'repositories' AND column_name = 'repo_type'"
-    ))
+    result = conn.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'repositories' AND column_name = 'repo_type'"
+        )
+    )
     if not result.fetchone():
-        conn.execute(text(
-            "ALTER TABLE repositories ADD COLUMN repo_type VARCHAR(20) DEFAULT 'git'"
-        ))
-        conn.execute(text(
-            "ALTER TABLE repositories ALTER COLUMN git_url DROP NOT NULL"
-        ))
+        conn.execute(
+            text("ALTER TABLE repositories ADD COLUMN repo_type VARCHAR(20) DEFAULT 'git'")
+        )
+        conn.execute(text("ALTER TABLE repositories ALTER COLUMN git_url DROP NOT NULL"))
         logger.info("Migration: added repo_type column, made git_url nullable")
 
     # Add environment_id column if missing
-    result = conn.execute(text(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_name = 'repositories' AND column_name = 'environment_id'"
-    ))
+    result = conn.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'repositories' AND column_name = 'environment_id'"
+        )
+    )
     if not result.fetchone():
-        conn.execute(text(
-            "ALTER TABLE repositories ADD COLUMN environment_id INTEGER "
-            "REFERENCES environments(id) ON DELETE SET NULL"
-        ))
+        conn.execute(
+            text(
+                "ALTER TABLE repositories ADD COLUMN environment_id INTEGER "
+                "REFERENCES environments(id) ON DELETE SET NULL"
+            )
+        )
         logger.info("Migration: added environment_id column to repositories")
 
     # Add report_id column to ai_jobs if missing
-    result = conn.execute(text(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_name = 'ai_jobs' AND column_name = 'report_id'"
-    ))
+    result = conn.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'ai_jobs' AND column_name = 'report_id'"
+        )
+    )
     if not result.fetchone():
-        conn.execute(text(
-            "ALTER TABLE ai_jobs ADD COLUMN report_id INTEGER "
-            "REFERENCES reports(id)"
-        ))
+        conn.execute(
+            text("ALTER TABLE ai_jobs ADD COLUMN report_id INTEGER REFERENCES reports(id)")
+        )
         logger.info("Migration: added report_id column to ai_jobs")
 
     # Add install_status column to environment_packages if missing
-    result = conn.execute(text(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_name = 'environment_packages' AND column_name = 'install_status'"
-    ))
+    result = conn.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'environment_packages' AND column_name = 'install_status'"
+        )
+    )
     if not result.fetchone():
-        conn.execute(text(
-            "ALTER TABLE environment_packages ADD COLUMN install_status VARCHAR(20) DEFAULT 'installed'"
-        ))
+        conn.execute(
+            text(
+                "ALTER TABLE environment_packages ADD COLUMN install_status VARCHAR(20) DEFAULT 'installed'"
+            )
+        )
         logger.info("Migration: added install_status column to environment_packages")
 
     # Add install_error column to environment_packages if missing
-    result = conn.execute(text(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_name = 'environment_packages' AND column_name = 'install_error'"
-    ))
+    result = conn.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'environment_packages' AND column_name = 'install_error'"
+        )
+    )
     if not result.fetchone():
-        conn.execute(text(
-            "ALTER TABLE environment_packages ADD COLUMN install_error TEXT"
-        ))
+        conn.execute(text("ALTER TABLE environment_packages ADD COLUMN install_error TEXT"))
         logger.info("Migration: added install_error column to environment_packages")
 
     # Add default_runner_type column to environments if missing
-    result = conn.execute(text(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_name = 'environments' AND column_name = 'default_runner_type'"
-    ))
+    result = conn.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'environments' AND column_name = 'default_runner_type'"
+        )
+    )
     if not result.fetchone():
-        conn.execute(text(
-            "ALTER TABLE environments ADD COLUMN default_runner_type VARCHAR(20) DEFAULT 'subprocess'"
-        ))
+        conn.execute(
+            text(
+                "ALTER TABLE environments ADD COLUMN default_runner_type VARCHAR(20) DEFAULT 'subprocess'"
+            )
+        )
         logger.info("Migration: added default_runner_type column to environments")
 
     # Add max_docker_containers column to environments if missing
-    result = conn.execute(text(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_name = 'environments' AND column_name = 'max_docker_containers'"
-    ))
+    result = conn.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'environments' AND column_name = 'max_docker_containers'"
+        )
+    )
     if not result.fetchone():
-        conn.execute(text(
-            "ALTER TABLE environments ADD COLUMN max_docker_containers INTEGER DEFAULT 1"
-        ))
+        conn.execute(
+            text("ALTER TABLE environments ADD COLUMN max_docker_containers INTEGER DEFAULT 1")
+        )
         logger.info("Migration: added max_docker_containers column to environments")
 
     # Story V15.5: user-edited Dockerfile + user-provided image flag
@@ -335,55 +380,77 @@ def _migrate_postgres(conn) -> None:
         ("dockerfile_override", "TEXT"),
         ("docker_image_custom", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ):
-        result = conn.execute(text(
-            "SELECT column_name FROM information_schema.columns "
-            f"WHERE table_name = 'environments' AND column_name = '{col}'"
-        ))
+        result = conn.execute(
+            text(
+                "SELECT column_name FROM information_schema.columns "
+                f"WHERE table_name = 'environments' AND column_name = '{col}'"
+            )
+        )
         if not result.fetchone():
             conn.execute(text(f"ALTER TABLE environments ADD COLUMN {col} {ddl}"))
             logger.info("Migration: added %s column to environments", col)
 
     # Phase-4: users.first_login_complete
-    result = conn.execute(text(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_name = 'users' AND column_name = 'first_login_complete'"
-    ))
+    result = conn.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'users' AND column_name = 'first_login_complete'"
+        )
+    )
     if not result.fetchone():
-        conn.execute(text(
-            "ALTER TABLE users ADD COLUMN first_login_complete BOOLEAN NOT NULL DEFAULT FALSE"
-        ))
+        conn.execute(
+            text("ALTER TABLE users ADD COLUMN first_login_complete BOOLEAN NOT NULL DEFAULT FALSE")
+        )
         logger.info("Migration: added first_login_complete column to users")
 
     # Story SECURITY-1: users.password_change_required
-    result = conn.execute(text(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_name = 'users' AND column_name = 'password_change_required'"
-    ))
+    result = conn.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'users' AND column_name = 'password_change_required'"
+        )
+    )
     if not result.fetchone():
-        conn.execute(text(
-            "ALTER TABLE users ADD COLUMN password_change_required BOOLEAN NOT NULL DEFAULT FALSE"
-        ))
+        conn.execute(
+            text(
+                "ALTER TABLE users ADD COLUMN password_change_required BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+        )
         logger.info("Migration: added password_change_required column to users")
 
     # Phase-4: repositories.team_id (nullable; FK enforced by Alembic migration, not here)
-    result = conn.execute(text(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_name = 'repositories' AND column_name = 'team_id'"
-    ))
+    result = conn.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'repositories' AND column_name = 'team_id'"
+        )
+    )
     if not result.fetchone():
         conn.execute(text("ALTER TABLE repositories ADD COLUMN team_id INTEGER"))
         logger.info("Migration: added team_id column to repositories")
 
     # Story REPO-3: pre-run sync flag
-    result = conn.execute(text(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_name = 'repositories' AND column_name = 'pre_run_sync'"
-    ))
+    result = conn.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'repositories' AND column_name = 'pre_run_sync'"
+        )
+    )
     if not result.fetchone():
-        conn.execute(text(
-            "ALTER TABLE repositories ADD COLUMN pre_run_sync BOOLEAN DEFAULT FALSE"
-        ))
+        conn.execute(text("ALTER TABLE repositories ADD COLUMN pre_run_sync BOOLEAN DEFAULT FALSE"))
         logger.info("Migration: added pre_run_sync column to repositories")
+
+    # Epic EXEC (issue #66) — see _migrate_sqlite
+    for table, col in _EXEC_COLUMNS:
+        result = conn.execute(
+            text(
+                "SELECT column_name FROM information_schema.columns "
+                f"WHERE table_name = '{table}' AND column_name = '{col}'"
+            )
+        )
+        if not result.fetchone():
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} TEXT"))
+            logger.info("Migration: added %s column to %s", col, table)
 
 
 def drop_tables() -> None:

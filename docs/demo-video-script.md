@@ -22,7 +22,7 @@
 
 ### Feature-Highlight-Box (Feature Tag)
 - **Position**: Unten-Links, 40px vom unteren Rand, 40px vom linken Rand
-- **Stil**: Steel Blue Hintergrund (#3B7DD8), abgerundete Ecken (8px)
+- **Stil**: Steel Blue Hintergrund (#2D63B0), abgerundete Ecken (8px)
 - **Schrift**: 18px, semibold, weiss
 - **Animation**: Slide-in von links (0.3s), verbleibt 3s, Slide-out nach links (0.3s)
 - **Padding**: 10px 20px

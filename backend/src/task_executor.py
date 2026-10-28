@@ -9,8 +9,9 @@ All task functions are plain Python callables — no decorators needed.
 
 import logging
 import uuid
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger("roboscope.executor")
 

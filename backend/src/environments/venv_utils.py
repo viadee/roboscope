@@ -1,13 +1,13 @@
 """Cross-platform venv path utilities + uv command builders."""
 
 import logging
-import os
 import re
 import shutil
 import sys
 from pathlib import Path
 
 from src.config import settings
+from src.insecure_tls import uv_insecure_host_args
 
 logger = logging.getLogger("roboscope.environments.venv_utils")
 
@@ -148,7 +148,9 @@ def probe_python_version(venv_path: str) -> str:
     try:
         out = subprocess.run(
             [python, "-c", "import sys;print('%d.%d' % sys.version_info[:2])"],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
     except (OSError, subprocess.TimeoutExpired) as e:
         raise ValueError(f"Python in '{venv_path}' is not runnable: {e}") from e
@@ -197,6 +199,7 @@ def pip_install_cmd(
         cmd += ["--index-url", index_url]
     if extra_index_url:
         cmd += ["--extra-index-url", extra_index_url]
+    cmd += uv_insecure_host_args(index_url, extra_index_url)
     cmd += list(packages)
     return cmd
 

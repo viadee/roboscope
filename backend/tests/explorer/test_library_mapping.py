@@ -1,7 +1,5 @@
 """Tests for library_mapping: PyPI package resolution and built-in detection."""
 
-import pytest
-
 from src.explorer.library_mapping import (
     BUILTIN_LIBRARIES,
     LIBRARY_TO_PYPI,

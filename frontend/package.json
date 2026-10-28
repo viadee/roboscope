@@ -1,6 +1,6 @@
 {
   "name": "roboscope-frontend",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -43,6 +43,8 @@
     "esbuild": ">=0.28.1"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
     "@types/node": "^24.13.6",
     "@vitejs/plugin-vue": "^6.0.9",
     "@vue/test-utils": "^2.4.0",

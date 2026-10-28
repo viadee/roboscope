@@ -260,9 +260,7 @@ class RobotDebugSession:
         try:
             self._proc = await asyncio.create_subprocess_exec(*argv, **spawn_kwargs)
         except FileNotFoundError as e:
-            raise DebugSessionStartFailed(
-                f"failed to spawn robotcode: {e}"
-            ) from e
+            raise DebugSessionStartFailed(f"failed to spawn robotcode: {e}") from e
 
         # Drain stdout in the background — both for diagnostics on
         # connect-failure AND so the pipe doesn't fill once the test
@@ -308,7 +306,8 @@ class RobotDebugSession:
             logger.exception("subprocess output pump crashed")
 
     async def _connect_with_retry(
-        self, port: int,
+        self,
+        port: int,
     ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
         """Repeatedly try to connect to the DAP server until it accepts
         or the timeout fires. Surfaces a diagnostic failure that
@@ -348,8 +347,7 @@ class RobotDebugSession:
         tail = "\n".join(tail_lines) if tail_lines else "(no output)"
         if rc is not None:
             raise DebugSessionStartFailed(
-                f"robotcode exited with code {rc} during boot. "
-                f"Last output:\n{tail}"
+                f"robotcode exited with code {rc} during boot. Last output:\n{tail}"
             )
         raise DebugSessionStartFailed(
             "robotcode did not start a TCP listener within "
@@ -442,9 +440,7 @@ class RobotDebugSession:
                 f"DAP handshake step `{e.command}` failed: {e.message}"
             ) from e
         except (TimeoutError, DapProtocolError, OSError) as e:
-            raise DebugSessionStartFailed(
-                f"DAP handshake transport error: {e}"
-            ) from e
+            raise DebugSessionStartFailed(f"DAP handshake transport error: {e}") from e
 
     def _launch_args(self) -> dict[str, Any]:
         """Build the DAP ``launch`` payload for RobotCode's launcher.
@@ -563,9 +559,7 @@ class RobotDebugSession:
         try:
             self.events.put_nowait({"kind": kind, "body": body})
         except asyncio.QueueFull:
-            logger.warning(
-                "RobotDebugSession event queue full — dropping oldest"
-            )
+            logger.warning("RobotDebugSession event queue full — dropping oldest")
             with suppress(asyncio.QueueEmpty):
                 self.events.get_nowait()
             with suppress(asyncio.QueueFull):

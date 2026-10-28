@@ -240,11 +240,13 @@ class TestBroadcastRunStatus:
 
         await mgr.broadcast_run_status(3, "passed")
 
-        expected = json.dumps({
-            "type": "run_status_changed",
-            "run_id": 3,
-            "status": "passed",
-        })
+        expected = json.dumps(
+            {
+                "type": "run_status_changed",
+                "run_id": 3,
+                "status": "passed",
+            }
+        )
         ws_general.send_text.assert_awaited_once_with(expected)
         ws_run.send_text.assert_awaited_once_with(expected)
 
@@ -256,12 +258,14 @@ class TestBroadcastRunStatus:
 
         await mgr.broadcast_run_status(1, "failed", error="timeout")
 
-        expected = json.dumps({
-            "type": "run_status_changed",
-            "run_id": 1,
-            "status": "failed",
-            "error": "timeout",
-        })
+        expected = json.dumps(
+            {
+                "type": "run_status_changed",
+                "run_id": 1,
+                "status": "failed",
+                "error": "timeout",
+            }
+        )
         ws.send_text.assert_awaited_once_with(expected)
 
 
@@ -274,12 +278,14 @@ class TestBroadcastDockerBuildLog:
 
         await mgr.broadcast_docker_build_log(env_id=2, line="Step 1/5", done=False)
 
-        expected = json.dumps({
-            "type": "docker_build_log",
-            "environment_id": 2,
-            "line": "Step 1/5",
-            "done": False,
-        })
+        expected = json.dumps(
+            {
+                "type": "docker_build_log",
+                "environment_id": 2,
+                "line": "Step 1/5",
+                "done": False,
+            }
+        )
         ws.send_text.assert_awaited_once_with(expected)
 
     @pytest.mark.asyncio
@@ -328,7 +334,9 @@ class TestBroadcastPackageStatus:
         ws = _make_ws()
         await mgr.connect(ws)
 
-        await mgr.broadcast_package_status(env_id=1, package_name="robotframework", status="installed")
+        await mgr.broadcast_package_status(
+            env_id=1, package_name="robotframework", status="installed"
+        )
 
         call_data = json.loads(ws.send_text.call_args[0][0])
         assert call_data["type"] == "package_status_changed"

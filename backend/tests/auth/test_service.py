@@ -1,18 +1,19 @@
 """Tests for auth service."""
 
 import pytest
+
+from src.auth.schemas import RegisterRequest
 from src.auth.service import (
-    hash_password,
-    verify_password,
+    authenticate_user,
     create_access_token,
     create_refresh_token,
-    decode_token,
-    authenticate_user,
     create_user,
+    decode_token,
     get_user_by_email,
     get_user_by_id,
+    hash_password,
+    verify_password,
 )
-from src.auth.schemas import RegisterRequest
 
 
 class TestPasswordHashing:

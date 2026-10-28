@@ -58,9 +58,7 @@ class TestTeamCRUD:
 
     def test_update_team(self, db_session: Session) -> None:
         team = create_team(db_session, TeamCreate(name="Alpha"))
-        updated = update_team(
-            db_session, team.id, TeamUpdate(description="new desc")
-        )
+        updated = update_team(db_session, team.id, TeamUpdate(description="new desc"))
         assert updated is not None
         assert updated.description == "new desc"
 
@@ -84,9 +82,7 @@ class TestTeamCRUD:
 
 
 class TestMemberCRUD:
-    def test_add_member(
-        self, db_session: Session, admin_user: User, other_user: User
-    ) -> None:
+    def test_add_member(self, db_session: Session, admin_user: User, other_user: User) -> None:
         team = create_team(db_session, TeamCreate(name="Alpha"))
         member = add_member(
             db_session,
@@ -110,9 +106,7 @@ class TestMemberCRUD:
             is None
         )
 
-    def test_add_member_unknown_user_raises(
-        self, db_session: Session
-    ) -> None:
+    def test_add_member_unknown_user_raises(self, db_session: Session) -> None:
         team = create_team(db_session, TeamCreate(name="Alpha"))
         with pytest.raises(ValueError, match="team.member.user_not_found"):
             add_member(
@@ -153,9 +147,7 @@ class TestMemberCRUD:
         db_session.commit()
         db_session.refresh(synced)
 
-        updated = update_member(
-            db_session, team.id, synced.id, TeamMemberUpdate(role="admin")
-        )
+        updated = update_member(db_session, team.id, synced.id, TeamMemberUpdate(role="admin"))
         assert updated is not None
         assert updated.role == "admin"
         assert updated.source == "manual"
@@ -170,26 +162,15 @@ class TestMemberCRUD:
             TeamMemberCreate(user_id=other_user.id, role="viewer"),
         )
         assert member is not None
-        updated = update_member(
-            db_session, team.id, member.id, TeamMemberUpdate(role="editor")
-        )
+        updated = update_member(db_session, team.id, member.id, TeamMemberUpdate(role="editor"))
         assert updated is not None
         assert updated.source == "manual"
 
-    def test_update_member_nonexistent_returns_none(
-        self, db_session: Session
-    ) -> None:
+    def test_update_member_nonexistent_returns_none(self, db_session: Session) -> None:
         team = create_team(db_session, TeamCreate(name="Alpha"))
-        assert (
-            update_member(
-                db_session, team.id, 99999, TeamMemberUpdate(role="admin")
-            )
-            is None
-        )
+        assert update_member(db_session, team.id, 99999, TeamMemberUpdate(role="admin")) is None
 
-    def test_remove_member(
-        self, db_session: Session, admin_user: User, other_user: User
-    ) -> None:
+    def test_remove_member(self, db_session: Session, admin_user: User, other_user: User) -> None:
         team = create_team(db_session, TeamCreate(name="Alpha"))
         member = add_member(
             db_session,

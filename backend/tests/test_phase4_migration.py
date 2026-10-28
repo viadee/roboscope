@@ -17,9 +17,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
-import sqlalchemy as sa
 from sqlalchemy import create_engine, inspect, text
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
@@ -77,16 +77,16 @@ def _build_pre_phase4_baseline(url: str) -> None:
     """
     from sqlalchemy import MetaData, Table, UniqueConstraint
 
-    from src.database import Base
     import src.auth.models  # noqa: F401
-    import src.repos.models  # noqa: F401
-    import src.execution.models  # noqa: F401
     import src.environments.models  # noqa: F401
-    import src.reports.models  # noqa: F401
-    import src.stats.models  # noqa: F401
-    import src.settings.models  # noqa: F401
-    import src.teams.models  # noqa: F401
+    import src.execution.models  # noqa: F401
     import src.rate_limit  # noqa: F401
+    import src.reports.models  # noqa: F401
+    import src.repos.models  # noqa: F401
+    import src.settings.models  # noqa: F401
+    import src.stats.models  # noqa: F401
+    import src.teams.models  # noqa: F401
+    from src.database import Base
 
     phase4_table_names = set(PHASE4_TABLES)
     baseline_md = MetaData(naming_convention=Base.metadata.naming_convention)
@@ -142,8 +142,10 @@ def test_phase4_migration_roundtrip(fresh_db):
     # Seeded settings rows.
     with engine.connect() as conn:
         rows = conn.execute(
-            text("SELECT key, value, value_type, category FROM app_settings "
-                 "WHERE category = 'auth' ORDER BY key")
+            text(
+                "SELECT key, value, value_type, category FROM app_settings "
+                "WHERE category = 'auth' ORDER BY key"
+            )
         ).fetchall()
     keys = [r[0] for r in rows]
     for k in PHASE4_SETTING_KEYS:

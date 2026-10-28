@@ -103,7 +103,7 @@ async function applyPatch(idx: number, patch: SuggestedPatch) {
   border: 1px solid var(--color-border, #cbd5e1); background: #fff; border-radius: 4px;
   padding: 3px 8px; font-size: 12px; cursor: pointer; white-space: nowrap;
 }
-.analysis-patch__apply { border-color: var(--color-primary, #3B7DD8); color: var(--color-primary, #3B7DD8); }
+.analysis-patch__apply { border-color: var(--color-primary, #2D63B0); color: var(--color-primary, #2D63B0); }
 .analysis-patch__apply:disabled { opacity: 0.6; cursor: default; }
 .analysis-patch__copy:hover, .analysis-patch__apply:not(:disabled):hover { background: #EBF4FF; }
 .analysis-patch__error { margin: 0; padding: 6px 10px; font-size: 12px; color: var(--color-danger, #d33); }

@@ -64,7 +64,7 @@ class TestWsRunOutputAuth:
         try:
             with client.websocket_connect(f"/ws/runs/{run.id}"):
                 pass
-            assert False, "expected the server to close the connection"
+            raise AssertionError("expected the server to close the connection")
         except WebSocketDisconnect as exc:
             assert exc.code == 4401
 
@@ -76,7 +76,7 @@ class TestWsRunOutputAuth:
         try:
             with client.websocket_connect(f"/ws/runs/{run.id}?token=not-a-real-jwt"):
                 pass
-            assert False, "expected the server to close the connection"
+            raise AssertionError("expected the server to close the connection")
         except WebSocketDisconnect as exc:
             assert exc.code == 4401
 
@@ -90,7 +90,7 @@ class TestWsRunOutputAuth:
         try:
             with client.websocket_connect(f"/ws/runs/{run.id}?token={token}"):
                 pass
-            assert False, "expected the server to close the connection"
+            raise AssertionError("expected the server to close the connection")
         except WebSocketDisconnect as exc:
             assert exc.code == 4401
 
@@ -102,7 +102,7 @@ class TestWsRunOutputAuth:
         try:
             with client.websocket_connect(f"/ws/runs/999999?token={token}"):
                 pass
-            assert False, "expected the server to close the connection"
+            raise AssertionError("expected the server to close the connection")
         except WebSocketDisconnect as exc:
             assert exc.code == 4403
 
@@ -133,7 +133,7 @@ class TestWsNotificationsAuth:
         try:
             with client.websocket_connect(f"/ws/notifications?token={token}"):
                 pass
-            assert False, "expected the server to close the connection"
+            raise AssertionError("expected the server to close the connection")
         except WebSocketDisconnect as exc:
             assert exc.code == 4401
 

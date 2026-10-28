@@ -41,10 +41,7 @@ def _vendored_heal_path() -> Path:
     relative to THIS file: `backend/src/environments/tasks.py` →
     `backend/vendor/...`.
     """
-    return (
-        Path(__file__).resolve().parent.parent.parent
-        / "vendor" / "robotframework-roboscopeheal"
-    )
+    return Path(__file__).resolve().parent.parent.parent / "vendor" / "robotframework-roboscopeheal"
 
 
 # Registry of packages that ship vendored inside RoboScope.
@@ -76,15 +73,13 @@ def _shipped_vendor_path(package_name: str) -> Path | None:
     vendor_dir = _SHIPPED_VENDOR_PACKAGES.get(package_name.lower())
     if vendor_dir is None:
         return None
-    path = (
-        Path(__file__).resolve().parent.parent.parent
-        / "vendor" / vendor_dir
-    )
+    path = Path(__file__).resolve().parent.parent.parent / "vendor" / vendor_dir
     if not path.is_dir():
         logger.warning(
             "_shipped_vendor_path: %s registered but vendor dir "
             "missing at %s — falling back to PyPI",
-            package_name, path,
+            package_name,
+            path,
         )
         return None
     return path
@@ -116,25 +111,29 @@ def _install_vendored_heal_into_venv(venv_path: str, env_id: int) -> None:
         # regression watchdog for this; if we reached production
         # without that directory, something more serious is off.
         logger.warning(
-            "vendored heal lib missing at %s — skipping auto-install "
-            "into env %d", vendor_path, env_id,
+            "vendored heal lib missing at %s — skipping auto-install into env %d",
+            vendor_path,
+            env_id,
         )
         return
     try:
         result = subprocess.run(
             pip_install_cmd(venv_path, str(vendor_path)),
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
     except Exception:
         logger.warning(
-            "vendored heal install raised in env %d; venv usable, "
-            "user can install manually later", env_id, exc_info=True,
+            "vendored heal install raised in env %d; venv usable, user can install manually later",
+            env_id,
+            exc_info=True,
         )
         return
     if result.returncode != 0:
         logger.warning(
             "vendored heal install failed in env %d (rc=%d): %s",
-            env_id, result.returncode,
+            env_id,
+            result.returncode,
             (result.stderr or result.stdout or "")[:400],
         )
         return
@@ -162,9 +161,8 @@ def _broadcast_package_status(env_id: int, package_name: str, status: str, **ext
 def _mark_packages_changed(session, env_id: int) -> None:
     """Update packages_changed_at timestamp on the environment."""
     from datetime import datetime
-    env = session.execute(
-        select(Environment).where(Environment.id == env_id)
-    ).scalar_one_or_none()
+
+    env = session.execute(select(Environment).where(Environment.id == env_id)).scalar_one_or_none()
     if env:
         env.packages_changed_at = datetime.now(UTC)
 
@@ -194,16 +192,21 @@ def _get_conflicting_browser_package(env_id: int, package_name: str, session) ->
     """Return the name of a conflicting browser variant already installed, or None."""
     if not _is_any_browser_variant(package_name):
         return None
-    pkgs = session.execute(
-        select(EnvironmentPackage).where(
-            EnvironmentPackage.environment_id == env_id,
-            EnvironmentPackage.install_status.in_(["installed", "installing", "pending"]),
+    pkgs = (
+        session.execute(
+            select(EnvironmentPackage).where(
+                EnvironmentPackage.environment_id == env_id,
+                EnvironmentPackage.install_status.in_(["installed", "installing", "pending"]),
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     for p in pkgs:
-        if p.package_name.lower().replace("_", "-") != package_name.lower().replace("_", "-"):
-            if _is_any_browser_variant(p.package_name):
-                return p.package_name
+        if p.package_name.lower().replace("_", "-") != package_name.lower().replace(
+            "_", "-"
+        ) and _is_any_browser_variant(p.package_name):
+            return p.package_name
     return None
 
 
@@ -258,7 +261,10 @@ def _run_rfbrowser_init(
                 pkg.install_error = error_msg
                 session.commit()
                 _broadcast_package_status(
-                    env_id, package_name, "failed", error=error_msg[:500],
+                    env_id,
+                    package_name,
+                    "failed",
+                    error=error_msg[:500],
                 )
             return  # Don't raise — the install itself succeeded
 
@@ -279,7 +285,10 @@ def _run_rfbrowser_init(
             pkg.install_error = error_msg[:2000]
             session.commit()
             _broadcast_package_status(
-                env_id, package_name, "failed", error=error_msg[:500],
+                env_id,
+                package_name,
+                "failed",
+                error=error_msg[:500],
             )
         raise
 
@@ -336,7 +345,10 @@ def create_venv(env_id: int) -> dict:
             )
             if result.returncode != 0:
                 error_msg = result.stderr or result.stdout or "Unknown error"
-                if "No matching distribution" in error_msg or "requires-python" in error_msg.lower():
+                if (
+                    "No matching distribution" in error_msg
+                    or "requires-python" in error_msg.lower()
+                ):
                     error_msg = (
                         f"robotframework is not yet available for Python {env.python_version}. "
                         f"Consider using Python 3.12 or 3.13 instead. Details: {error_msg}"
@@ -398,7 +410,8 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
             logger.info("venv missing for env %d, creating %s", env_id, venv_path)
             result = subprocess.run(
                 create_venv_cmd(str(venv_path), env.python_version),
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             if result.returncode != 0:
                 error_msg = f"Failed to create venv: {result.stderr or result.stdout}"
@@ -414,12 +427,16 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
             _install_vendored_heal_into_venv(str(venv_path), env_id)
 
         # Mark as installing
-        pkg = session.execute(
-            select(EnvironmentPackage).where(
-                EnvironmentPackage.environment_id == env_id,
-                EnvironmentPackage.package_name == package_name,
+        pkg = (
+            session.execute(
+                select(EnvironmentPackage).where(
+                    EnvironmentPackage.environment_id == env_id,
+                    EnvironmentPackage.package_name == package_name,
+                )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
 
         if pkg:
             pkg.install_status = "installing"
@@ -443,9 +460,10 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
             if shipped_path is not None:
                 pkg_spec = str(shipped_path)
                 logger.info(
-                    "install_package: resolving %s (no version) to "
-                    "vendored source at %s (env %d)",
-                    package_name, shipped_path, env_id,
+                    "install_package: resolving %s (no version) to vendored source at %s (env %d)",
+                    package_name,
+                    shipped_path,
+                    env_id,
                 )
             else:
                 pkg_spec = f"{package_name}=={version}" if version else package_name
@@ -481,7 +499,9 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
                 pkg.install_error = None
                 session.commit()
                 _broadcast_package_status(
-                    env_id, package_name, "installed",
+                    env_id,
+                    package_name,
+                    "installed",
                     installed_version=installed_version,
                 )
 
@@ -495,7 +515,9 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
                 # Warn if Docker image needs rebuild
                 if env.docker_image:
                     _broadcast_package_status(
-                        env_id, package_name, "warning",
+                        env_id,
+                        package_name,
+                        "warning",
                         warning=(
                             "robotframework-browser was initialized in the local venv, "
                             "but the Docker image needs rebuilding to include Node.js "
@@ -512,7 +534,10 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
                 pkg.install_error = error_msg[:2000]
                 session.commit()
                 _broadcast_package_status(
-                    env_id, package_name, "failed", error=error_msg[:500],
+                    env_id,
+                    package_name,
+                    "failed",
+                    error=error_msg[:500],
                 )
             return {"status": "error", "message": error_msg}
         except Exception as exc:
@@ -523,7 +548,10 @@ def _install_package_inner(env_id: int, package_name: str, version: str | None =
                 pkg.install_error = error_msg[:2000]
                 session.commit()
                 _broadcast_package_status(
-                    env_id, package_name, "failed", error=error_msg[:500],
+                    env_id,
+                    package_name,
+                    "failed",
+                    error=error_msg[:500],
                 )
             return {"status": "error", "message": error_msg}
 
@@ -548,12 +576,16 @@ def _upgrade_package_inner(env_id: int, package_name: str) -> dict:
             return {"status": "error", "message": "Environment not found or no venv"}
 
         # Mark as installing
-        pkg = session.execute(
-            select(EnvironmentPackage).where(
-                EnvironmentPackage.environment_id == env_id,
-                EnvironmentPackage.package_name == package_name,
+        pkg = (
+            session.execute(
+                select(EnvironmentPackage).where(
+                    EnvironmentPackage.environment_id == env_id,
+                    EnvironmentPackage.package_name == package_name,
+                )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
 
         if pkg:
             pkg.install_status = "installing"
@@ -594,7 +626,9 @@ def _upgrade_package_inner(env_id: int, package_name: str) -> dict:
                 pkg.install_error = None
                 session.commit()
                 _broadcast_package_status(
-                    env_id, package_name, "installed",
+                    env_id,
+                    package_name,
+                    "installed",
                     installed_version=installed_version,
                 )
 
@@ -608,7 +642,9 @@ def _upgrade_package_inner(env_id: int, package_name: str) -> dict:
                 # Warn if Docker image needs rebuild
                 if env.docker_image:
                     _broadcast_package_status(
-                        env_id, package_name, "warning",
+                        env_id,
+                        package_name,
+                        "warning",
                         warning=(
                             "robotframework-browser was initialized in the local venv, "
                             "but the Docker image needs rebuilding to include Node.js "
@@ -625,7 +661,10 @@ def _upgrade_package_inner(env_id: int, package_name: str) -> dict:
                 pkg.install_error = error_msg[:2000]
                 session.commit()
                 _broadcast_package_status(
-                    env_id, package_name, "failed", error=error_msg[:500],
+                    env_id,
+                    package_name,
+                    "failed",
+                    error=error_msg[:500],
                 )
             return {"status": "error", "message": error_msg}
         except Exception as exc:
@@ -636,13 +675,16 @@ def _upgrade_package_inner(env_id: int, package_name: str) -> dict:
                 pkg.install_error = error_msg[:2000]
                 session.commit()
                 _broadcast_package_status(
-                    env_id, package_name, "failed", error=error_msg[:500],
+                    env_id,
+                    package_name,
+                    "failed",
+                    error=error_msg[:500],
                 )
             return {"status": "error", "message": error_msg}
 
 
 def _check_docker_disk_space(
-    client: "docker.DockerClient",  # type: ignore[name-defined]
+    client: "docker.DockerClient",  # type: ignore[name-defined]  # noqa: F821
     env_id: int,
     log_lines: list[str],
     has_browser: bool = False,
@@ -650,7 +692,10 @@ def _check_docker_disk_space(
     """Check available disk space in Docker and warn if low."""
     try:
         result = client.containers.run(
-            "alpine", "df -h /", remove=True, stderr=True,
+            "alpine",
+            "df -h /",
+            remove=True,
+            stderr=True,
         )
         # Parse output: "overlay  2.9G  2.4G  464.0M  84%  /"
         for raw_line in result.decode().strip().splitlines():
@@ -720,9 +765,13 @@ def build_docker_image(env_id: int) -> dict:
         env.docker_build_log = None
         session.commit()
 
-        packages = session.execute(
-            select(EnvironmentPackage).where(EnvironmentPackage.environment_id == env_id)
-        ).scalars().all()
+        packages = (
+            session.execute(
+                select(EnvironmentPackage).where(EnvironmentPackage.environment_id == env_id)
+            )
+            .scalars()
+            .all()
+        )
 
         try:
             from src.environments.service import generate_dockerfile
@@ -746,6 +795,7 @@ def build_docker_image(env_id: int) -> dict:
 
             # Story REFACTOR-1 — shared bootstrap helper.
             from src.docker_client import get_docker_client
+
             client = get_docker_client()
 
             # Build image from in-memory tarball
@@ -779,7 +829,11 @@ def build_docker_image(env_id: int) -> dict:
                 _broadcast_docker_build_log(env_id, msg)
 
             resp = client.api.build(
-                fileobj=f, custom_context=True, tag=tag, rm=True, decode=True,
+                fileobj=f,
+                custom_context=True,
+                tag=tag,
+                rm=True,
+                decode=True,
             )
             for chunk in resp:
                 if "stream" in chunk:
@@ -810,6 +864,7 @@ def build_docker_image(env_id: int) -> dict:
 
             # Update environment's docker_image in DB
             from datetime import datetime
+
             env.docker_image = tag
             env.docker_image_custom = False  # a RoboScope build switches back to managed
             env.docker_image_built_at = datetime.now(UTC)
@@ -840,9 +895,15 @@ def _enrich_docker_error(error: str) -> str:
         disk_info = ""
         try:
             out = subprocess.check_output(
-                ["docker", "system", "df", "--format",
-                 "{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)"],
-                text=True, timeout=5,
+                [
+                    "docker",
+                    "system",
+                    "df",
+                    "--format",
+                    "{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)",
+                ],
+                text=True,
+                timeout=5,
             ).strip()
             disk_info = f"\n\nDocker disk usage:\n{out}"
         except Exception:
@@ -856,11 +917,7 @@ def _enrich_docker_error(error: str) -> str:
             f"{disk_info}"
         )
     if "connection refused" in lower or "cannot connect" in lower:
-        return (
-            f"{error}\n\n"
-            "Cannot connect to Docker. "
-            "Make sure Docker Desktop is running."
-        )
+        return f"{error}\n\nCannot connect to Docker. Make sure Docker Desktop is running."
     return error
 
 
@@ -873,19 +930,29 @@ def rfbrowser_init_task(env_id: int) -> dict:
         if env is None or env.venv_path is None:
             return {"status": "error", "message": "Environment not found"}
 
-        installed_packages = session.execute(
-            select(EnvironmentPackage).where(
-                EnvironmentPackage.environment_id == env_id,
-                EnvironmentPackage.install_status == "installed",
+        installed_packages = (
+            session.execute(
+                select(EnvironmentPackage).where(
+                    EnvironmentPackage.environment_id == env_id,
+                    EnvironmentPackage.install_status == "installed",
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         browser_pkg = next(
             (p for p in installed_packages if _is_browser_package(p.package_name)),
             None,
         )
 
         try:
-            _run_rfbrowser_init(env.venv_path, env_id, browser_pkg.package_name if browser_pkg else "robotframework-browser", browser_pkg, session)
+            _run_rfbrowser_init(
+                env.venv_path,
+                env_id,
+                browser_pkg.package_name if browser_pkg else "robotframework-browser",
+                browser_pkg,
+                session,
+            )
             if browser_pkg:
                 session.commit()
             return {"status": "success"}
@@ -900,6 +967,7 @@ def introspect_keywords_task(env_id: int) -> dict:
     import json as _json
 
     from src.environments.service import rebuild_keyword_cache
+
     with get_sync_session() as session:
         cache = rebuild_keyword_cache(session, env_id)
         if cache is None:

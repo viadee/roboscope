@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from src.auth.models import IdentityProvider, User
 from src.auth.seen_groups import list_seen_groups, record_seen_groups
 from src.encryption import encrypt_value
-from src.teams.service import list_available_groups_for_idp
 from tests.conftest import auth_header
 
 
@@ -47,15 +46,11 @@ class TestSeenGroupsCache:
             "gamma",
         ]
 
-    def test_empty_groups_is_noop(
-        self, db_session: Session, idp: IdentityProvider
-    ) -> None:
+    def test_empty_groups_is_noop(self, db_session: Session, idp: IdentityProvider) -> None:
         record_seen_groups(db_session, idp.id, [])
         assert list_seen_groups(db_session, idp.id) == []
 
-    def test_ignores_non_string_entries(
-        self, db_session: Session, idp: IdentityProvider
-    ) -> None:
+    def test_ignores_non_string_entries(self, db_session: Session, idp: IdentityProvider) -> None:
         # The id_token claim is supposed to be a list of strings; defend
         # against the defensive-programming case of unexpected types.
         record_seen_groups(db_session, idp.id, ["alpha", 42, None, "beta"])  # type: ignore[list-item]

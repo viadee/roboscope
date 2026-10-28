@@ -757,3 +757,18 @@ export function serializeRobotForm(form: RobotForm, opts: { isResource?: boolean
   if (!result.endsWith('\n')) result += '\n'
   return result
 }
+
+/**
+ * RECORDER-IDMAP — scan a .robot text for trailing `# rbs:<id>` comments and return the
+ * set of ids the file references. Used to prune dead sidecar commands
+ * after the user deletes a step in the editor.
+ */
+export function collectRbsIdsFromContent(content: string): Set<string> {
+  const ids = new Set<string>()
+  // Same shape as the backend emitter: 1+ whitespace, then `# rbs:`,
+  // then 8–32 hex chars at the end of a line.
+  const re = /\s+# rbs:([a-f0-9]{8,32})\s*$/gm
+  let m: RegExpExecArray | null
+  while ((m = re.exec(content)) !== null) ids.add(m[1])
+  return ids
+}

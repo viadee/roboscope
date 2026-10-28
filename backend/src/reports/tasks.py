@@ -6,9 +6,8 @@ from pathlib import Path
 from sqlalchemy import select
 
 import src.auth.models  # noqa: F401
-import src.repos.models  # noqa: F401
 import src.execution.models  # noqa: F401
-
+import src.repos.models  # noqa: F401
 from src.database import get_sync_session
 from src.reports.models import Report, TestResult
 from src.reports.parser import parse_output_xml
@@ -68,7 +67,10 @@ def parse_report(run_id: int, output_xml_path: str) -> dict:
 
             logger.info(
                 "Report parsed for run %d: %d tests (%d passed, %d failed)",
-                run_id, parsed.total_tests, parsed.passed_tests, parsed.failed_tests,
+                run_id,
+                parsed.total_tests,
+                parsed.passed_tests,
+                parsed.failed_tests,
             )
 
             return {

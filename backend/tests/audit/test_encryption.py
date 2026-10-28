@@ -1,7 +1,5 @@
 """Tests for Fernet encryption and environment variable secrets."""
 
-import pytest
-
 from src.encryption import decrypt_value, encrypt_value, is_encrypted
 
 
@@ -42,19 +40,27 @@ class TestEnvironmentVariableEncryption:
     """Tests for secret variable encryption in environments service."""
 
     def test_secret_variable_is_encrypted_at_rest(self, db_session, admin_user):
-        from src.environments.models import Environment, EnvironmentVariable
-        from src.environments.service import add_variable
+        from src.environments.models import Environment
         from src.environments.schemas import EnvVarCreate
+        from src.environments.service import add_variable
 
         env = Environment(
-            name="test-env", python_version="3.12", created_by=admin_user.id,
+            name="test-env",
+            python_version="3.12",
+            created_by=admin_user.id,
         )
         db_session.add(env)
         db_session.flush()
 
-        var = add_variable(db_session, env.id, EnvVarCreate(
-            key="DB_PASSWORD", value="secret123", is_secret=True,
-        ))
+        var = add_variable(
+            db_session,
+            env.id,
+            EnvVarCreate(
+                key="DB_PASSWORD",
+                value="secret123",
+                is_secret=True,
+            ),
+        )
 
         # Value in DB should be encrypted, not plaintext
         assert var.value != "secret123"
@@ -62,53 +68,77 @@ class TestEnvironmentVariableEncryption:
 
     def test_non_secret_variable_stored_plaintext(self, db_session, admin_user):
         from src.environments.models import Environment
-        from src.environments.service import add_variable
         from src.environments.schemas import EnvVarCreate
+        from src.environments.service import add_variable
 
         env = Environment(
-            name="test-env2", python_version="3.12", created_by=admin_user.id,
+            name="test-env2",
+            python_version="3.12",
+            created_by=admin_user.id,
         )
         db_session.add(env)
         db_session.flush()
 
-        var = add_variable(db_session, env.id, EnvVarCreate(
-            key="APP_NAME", value="roboscope", is_secret=False,
-        ))
+        var = add_variable(
+            db_session,
+            env.id,
+            EnvVarCreate(
+                key="APP_NAME",
+                value="roboscope",
+                is_secret=False,
+            ),
+        )
 
         assert var.value == "roboscope"
 
     def test_decrypt_variable_value(self, db_session, admin_user):
         from src.environments.models import Environment
-        from src.environments.service import add_variable, decrypt_variable_value
         from src.environments.schemas import EnvVarCreate
+        from src.environments.service import add_variable, decrypt_variable_value
 
         env = Environment(
-            name="test-env3", python_version="3.12", created_by=admin_user.id,
+            name="test-env3",
+            python_version="3.12",
+            created_by=admin_user.id,
         )
         db_session.add(env)
         db_session.flush()
 
-        var = add_variable(db_session, env.id, EnvVarCreate(
-            key="SECRET_KEY", value="my-secret", is_secret=True,
-        ))
+        var = add_variable(
+            db_session,
+            env.id,
+            EnvVarCreate(
+                key="SECRET_KEY",
+                value="my-secret",
+                is_secret=True,
+            ),
+        )
 
         # Decrypt should return original value
         assert decrypt_variable_value(var) == "my-secret"
 
     def test_decrypt_non_secret_returns_plaintext(self, db_session, admin_user):
         from src.environments.models import Environment
-        from src.environments.service import add_variable, decrypt_variable_value
         from src.environments.schemas import EnvVarCreate
+        from src.environments.service import add_variable, decrypt_variable_value
 
         env = Environment(
-            name="test-env4", python_version="3.12", created_by=admin_user.id,
+            name="test-env4",
+            python_version="3.12",
+            created_by=admin_user.id,
         )
         db_session.add(env)
         db_session.flush()
 
-        var = add_variable(db_session, env.id, EnvVarCreate(
-            key="DEBUG", value="true", is_secret=False,
-        ))
+        var = add_variable(
+            db_session,
+            env.id,
+            EnvVarCreate(
+                key="DEBUG",
+                value="true",
+                is_secret=False,
+            ),
+        )
 
         assert decrypt_variable_value(var) == "true"
 
@@ -118,14 +148,19 @@ class TestEnvironmentVariableEncryption:
         from src.environments.service import decrypt_variable_value
 
         env = Environment(
-            name="test-env5", python_version="3.12", created_by=admin_user.id,
+            name="test-env5",
+            python_version="3.12",
+            created_by=admin_user.id,
         )
         db_session.add(env)
         db_session.flush()
 
         # Simulate a legacy secret stored as plaintext
         var = EnvironmentVariable(
-            environment_id=env.id, key="OLD_SECRET", value="legacy-plain", is_secret=True,
+            environment_id=env.id,
+            key="OLD_SECRET",
+            value="legacy-plain",
+            is_secret=True,
         )
         db_session.add(var)
         db_session.flush()

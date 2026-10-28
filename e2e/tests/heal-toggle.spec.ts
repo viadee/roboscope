@@ -22,9 +22,8 @@
  *     keywords in one click.
  */
 import { test, expect, type Page } from '@playwright/test';
-import { loginAndGoToDashboard } from '../helpers';
+import { API, loginAndGoToDashboard } from '../helpers';
 
-const API = 'http://localhost:8000/api/v1';
 const EMAIL = 'admin@roboscope.local';
 const PASSWORD = 'admin123';
 

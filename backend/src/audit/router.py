@@ -6,9 +6,6 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from src.auth.constants import Role
-from src.auth.dependencies import require_role
-from src.auth.models import User
 from src.audit.schemas import AuditLogListResponse, AuditLogResponse
 from src.audit.service import (
     export_audit_csv,
@@ -16,6 +13,9 @@ from src.audit.service import (
     get_distinct_resource_types,
     list_audit_logs,
 )
+from src.auth.constants import Role
+from src.auth.dependencies import require_role
+from src.auth.models import User
 from src.database import get_db
 
 router = APIRouter()
@@ -97,4 +97,5 @@ def trigger_retention(
 ):
     """Manually trigger retention enforcement (admin only). Defaults to dry-run."""
     from src.audit.retention import enforce_retention
+
     return enforce_retention(dry_run=dry_run)

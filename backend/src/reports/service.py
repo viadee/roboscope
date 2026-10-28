@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import delete, func, select, update
@@ -87,9 +87,7 @@ def delete_report(db: Session, report: Report) -> bool:
 
 def get_report_by_run(db: Session, run_id: int) -> Report | None:
     """Get a report by execution run ID."""
-    result = db.execute(
-        select(Report).where(Report.execution_run_id == run_id)
-    )
+    result = db.execute(select(Report).where(Report.execution_run_id == run_id))
     return result.scalar_one_or_none()
 
 
@@ -104,6 +102,7 @@ def list_reports(
 
     if repository_id:
         from src.execution.models import ExecutionRun
+
         query = query.join(ExecutionRun, Report.execution_run_id == ExecutionRun.id).where(
             ExecutionRun.repository_id == repository_id
         )
@@ -226,7 +225,7 @@ def get_test_history(
     days: int = 90,
 ) -> TestHistoryResponse:
     """Get pass/fail history for a specific test across all reports."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
 
     query = (
         select(TestResult, Report.created_at)
@@ -283,15 +282,12 @@ def list_unique_tests(
 ) -> list[UniqueTestResponse]:
     """List unique test names with their latest status and run count."""
     # Subquery: latest report_id per test_name
-    latest_sub = (
-        select(
-            TestResult.test_name,
-            TestResult.suite_name,
-            func.max(TestResult.report_id).label("latest_report_id"),
-            func.count(TestResult.id).label("run_count"),
-        )
-        .group_by(TestResult.test_name, TestResult.suite_name)
-    )
+    latest_sub = select(
+        TestResult.test_name,
+        TestResult.suite_name,
+        func.max(TestResult.report_id).label("latest_report_id"),
+        func.count(TestResult.id).label("run_count"),
+    ).group_by(TestResult.test_name, TestResult.suite_name)
 
     if search:
         latest_sub = latest_sub.where(TestResult.test_name.ilike(f"%{search}%"))
@@ -350,10 +346,13 @@ def detect_missing_libraries(db: Session, report_id: int) -> MissingLibrariesRes
         return MissingLibrariesResponse(libraries=[])
 
     # Get failed test results
-    failed = db.execute(
-        select(TestResult)
-        .where(TestResult.report_id == report_id, TestResult.status == "FAIL")
-    ).scalars().all()
+    failed = (
+        db.execute(
+            select(TestResult).where(TestResult.report_id == report_id, TestResult.status == "FAIL")
+        )
+        .scalars()
+        .all()
+    )
 
     # Extract library names from error messages
     seen: set[str] = set()
@@ -372,10 +371,12 @@ def detect_missing_libraries(db: Session, report_id: int) -> MissingLibrariesRes
                 pypi = resolve_pypi_package(top_module)
                 if pypi:
                     seen.add(top_module)
-                    libraries.append(MissingLibraryItem(
-                        library_name=top_module,
-                        pypi_package=pypi,
-                    ))
+                    libraries.append(
+                        MissingLibraryItem(
+                            library_name=top_module,
+                            pypi_package=pypi,
+                        )
+                    )
 
     # Resolve environment from execution run
     env_id: int | None = None
@@ -413,9 +414,19 @@ def render_xunit(output_xml_path: str) -> bytes:
     with tempfile.TemporaryDirectory() as tmp:
         xunit = Path(tmp) / "xunit.xml"
         argv = [
-            sys.executable, "-m", "robot.rebot",
-            "--output", "NONE", "--log", "NONE", "--report", "NONE",
-            "--nostatusrc", "--xunit", str(xunit), output_xml_path,
+            sys.executable,
+            "-m",
+            "robot.rebot",
+            "--output",
+            "NONE",
+            "--log",
+            "NONE",
+            "--report",
+            "NONE",
+            "--nostatusrc",
+            "--xunit",
+            str(xunit),
+            output_xml_path,
         ]
         try:
             proc = subprocess.run(argv, capture_output=True, text=True, timeout=120)

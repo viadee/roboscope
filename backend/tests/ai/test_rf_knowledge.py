@@ -46,11 +46,7 @@ def _make_tool_response(result_data):
     response.json.return_value = {
         "jsonrpc": "2.0",
         "id": 2,
-        "result": {
-            "content": [
-                {"type": "text", "text": json.dumps(result_data)}
-            ]
-        },
+        "result": {"content": [{"type": "text", "text": json.dumps(result_data)}]},
     }
     response.raise_for_status = MagicMock()
     return response
@@ -75,15 +71,13 @@ def _make_sse_tool_response(result_data):
     response = MagicMock()
     response.status_code = 200
     response.headers = {"content-type": "text/event-stream"}
-    json_result = json.dumps({
-        "jsonrpc": "2.0",
-        "id": 2,
-        "result": {
-            "content": [
-                {"type": "text", "text": json.dumps(result_data)}
-            ]
-        },
-    })
+    json_result = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "result": {"content": [{"type": "text", "text": json.dumps(result_data)}]},
+        }
+    )
     response.text = f"event: message\ndata: {json_result}\n\n"
     response.raise_for_status = MagicMock()
     return response
@@ -271,7 +265,9 @@ class TestCallMcpTool:
             patch("httpx.AsyncClient", return_value=cm),
         ):
             mock_settings.RF_MCP_TIMEOUT = 10
-            result = await rf_knowledge._call_mcp_tool("recommend_libraries", {"description": "web"})
+            result = await rf_knowledge._call_mcp_tool(
+                "recommend_libraries", {"description": "web"}
+            )
             assert result == ["SeleniumLibrary", "Browser"]
 
     @pytest.mark.asyncio
@@ -285,9 +281,9 @@ class TestCallMcpTool:
 
         tool_result = {"ok": True}
         cm, mock_client = _mock_client_with_responses(
-            expired_resp,                   # 1st tools/call → 400
-            _make_init_response(),          # re-init
-            _make_notif_response(),         # re-init notification
+            expired_resp,  # 1st tools/call → 400
+            _make_init_response(),  # re-init
+            _make_notif_response(),  # re-init notification
             _make_tool_response(tool_result),  # retry tools/call
         )
 
@@ -379,10 +375,18 @@ class TestSearchKeywords:
             "strategy": "exact",
             "result": {
                 "matches": [
-                    {"keyword_name": "Click Element", "library": "SeleniumLibrary", "documentation": "Clicks an element"},
-                    {"keyword_name": "Click Button", "library": "SeleniumLibrary", "documentation": "Clicks a button"},
+                    {
+                        "keyword_name": "Click Element",
+                        "library": "SeleniumLibrary",
+                        "documentation": "Clicks an element",
+                    },
+                    {
+                        "keyword_name": "Click Button",
+                        "library": "SeleniumLibrary",
+                        "documentation": "Clicks a button",
+                    },
                 ]
-            }
+            },
         }
         rf_knowledge._session_id = SESSION_ID
         rf_knowledge._session_url = MCP_URL

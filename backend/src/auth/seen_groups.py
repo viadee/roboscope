@@ -25,9 +25,7 @@ def _key(idp_id: int) -> str:
 
 
 def list_seen_groups(db: Session, idp_id: int) -> list[str]:
-    row = (
-        db.query(AppSetting).filter(AppSetting.key == _key(idp_id)).one_or_none()
-    )
+    row = db.query(AppSetting).filter(AppSetting.key == _key(idp_id)).one_or_none()
     if row is None or not row.value:
         return []
     try:
@@ -44,15 +42,13 @@ def record_seen_groups(db: Session, idp_id: int, groups: list[str]) -> None:
     if not groups:
         return
     existing = list_seen_groups(db, idp_id)
-    seen = {g: None for g in existing}  # dict preserves insertion order
+    seen = dict.fromkeys(existing)  # dict preserves insertion order
     for g in groups:
         if isinstance(g, str) and g not in seen:
             seen[g] = None
     merged = list(seen.keys())[-_MAX_ENTRIES:]
 
-    row = (
-        db.query(AppSetting).filter(AppSetting.key == _key(idp_id)).one_or_none()
-    )
+    row = db.query(AppSetting).filter(AppSetting.key == _key(idp_id)).one_or_none()
     payload = json.dumps(merged)
     if row is None:
         row = AppSetting(

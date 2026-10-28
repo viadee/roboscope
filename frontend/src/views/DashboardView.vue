@@ -167,10 +167,10 @@ function go(to: string) {
 .dashboard-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 18px rgba(16, 25, 51, 0.10);
-  border-color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
 }
 .dashboard-card:focus-visible {
-  outline: 3px solid var(--color-primary, #3B7DD8);
+  outline: 3px solid var(--color-primary, #2D63B0);
   outline-offset: 3px;
 }
 
@@ -194,7 +194,7 @@ function go(to: string) {
   right: 18px;
   bottom: 14px;
   font-size: 18px;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   opacity: 0.5;
   transition: opacity 0.15s, transform 0.15s;
 }
@@ -207,13 +207,13 @@ function go(to: string) {
    reads as informational rather than a navigation target. */
 .dashboard-card--tip {
   cursor: default;
-  background: color-mix(in srgb, var(--color-primary, #3B7DD8) 6%, var(--color-bg-card, #fff));
-  border-color: color-mix(in srgb, var(--color-primary, #3B7DD8) 30%, var(--color-border, #e2e8f0));
+  background: color-mix(in srgb, var(--color-primary, #2D63B0) 6%, var(--color-bg-card, #fff));
+  border-color: color-mix(in srgb, var(--color-primary, #2D63B0) 30%, var(--color-border, #e2e8f0));
   padding-bottom: 22px;
 }
 .dashboard-card--tip:hover {
   transform: none;
   box-shadow: none;
-  border-color: color-mix(in srgb, var(--color-primary, #3B7DD8) 30%, var(--color-border, #e2e8f0));
+  border-color: color-mix(in srgb, var(--color-primary, #2D63B0) 30%, var(--color-border, #e2e8f0));
 }
 </style>

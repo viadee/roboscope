@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from src.auth.dependencies import get_current_user
 from src.auth.models import User
 from src.database import get_db
+from src.environments.service import docker_pip_list, get_environment, pip_list_installed
 from src.explorer.schemas import (
     FileContent,
     FileCreateRequest,
@@ -31,7 +32,6 @@ from src.explorer.service import (
     search_in_repo,
     write_file,
 )
-from src.environments.service import docker_pip_list, get_environment, pip_list_installed
 from src.repos.service import get_repository
 
 router = APIRouter()
@@ -56,7 +56,7 @@ def get_tree(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error building tree: {e}",
-        )
+        ) from e
 
 
 @router.get("/{repo_id}/file", response_model=FileContent)
@@ -78,9 +78,11 @@ def get_file(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Path traversal not allowed",
-        )
+        ) from None
     except FileNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+        ) from None
 
 
 @router.get("/{repo_id}/search", response_model=list[SearchResult])
@@ -124,6 +126,7 @@ def get_project_keywords(
     if repo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
     from src.explorer.service import parse_robot_keywords_in_repo
+
     return parse_robot_keywords_in_repo(repo.local_path)
 
 
@@ -222,9 +225,11 @@ def create_new_file(
     try:
         return create_file(repo.local_path, body.path, body.content)
     except FileExistsError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed"
+        ) from None
 
 
 @router.put("/{repo_id}/file", response_model=FileContent)
@@ -242,9 +247,13 @@ def save_file(
     try:
         return write_file(repo.local_path, body.path, body.content)
     except FileNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+        ) from None
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed"
+        ) from None
 
 
 @router.delete("/{repo_id}/file", status_code=status.HTTP_204_NO_CONTENT)
@@ -262,11 +271,15 @@ def delete_existing_file(
     try:
         delete_file(repo.local_path, path)
     except FileNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+        ) from None
     except PermissionError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed"
+        ) from None
 
 
 @router.post("/{repo_id}/file/rename", response_model=FileContent)
@@ -284,11 +297,15 @@ def rename_existing_file(
     try:
         return rename_file(repo.local_path, body.old_path, body.new_path)
     except FileNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source file not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Source file not found"
+        ) from None
     except FileExistsError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed"
+        ) from None
 
 
 @router.post("/{repo_id}/file/open", status_code=status.HTTP_204_NO_CONTENT)
@@ -306,9 +323,13 @@ def open_file_in_editor(
     try:
         open_in_editor(repo.local_path, body.path)
     except FileNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+        ) from None
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed"
+        ) from None
 
 
 @router.post("/{repo_id}/folder/open", status_code=status.HTTP_204_NO_CONTENT)
@@ -326,6 +347,8 @@ def open_folder_in_file_browser(
     try:
         open_in_file_browser(repo.local_path, body.path)
     except FileNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from None
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Path traversal not allowed"
+        ) from None

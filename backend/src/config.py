@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Application
     PROJECT_NAME: str = "RoboScope"
-    VERSION: str = "0.15.0"
+    VERSION: str = "0.16.0"
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
     HOST: str = "0.0.0.0"
@@ -45,9 +45,8 @@ class Settings(BaseSettings):
         Handles legacy async-style URLs (sqlite+aiosqlite, postgresql+asyncpg)
         by stripping the async driver prefix, so existing .env files keep working.
         """
-        return (
-            self.DATABASE_URL.replace("sqlite+aiosqlite://", "sqlite://")
-            .replace("postgresql+asyncpg://", "postgresql://")
+        return self.DATABASE_URL.replace("sqlite+aiosqlite://", "sqlite://").replace(
+            "postgresql+asyncpg://", "postgresql://"
         )
 
     # JWT Authentication
@@ -77,6 +76,11 @@ class Settings(BaseSettings):
 
     # Logging
     LOG_LEVEL: str = "INFO"
+
+    # TLS — ignore the whole trust chain (corporate MITM proxies / self-signed
+    # certs). Affects uv, rfbrowser init (npm + Playwright), git, PyPI, LLM,
+    # webhooks, SSO and the recorder browser. See src/insecure_tls.py.
+    INSECURE_TLS: bool = False
 
     # uv (package manager — replaces pip/venv)
     UV_PATH: str = ""  # Optional explicit path to uv binary; auto-detected if empty

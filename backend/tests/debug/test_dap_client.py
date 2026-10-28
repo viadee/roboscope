@@ -9,6 +9,7 @@ real Robot Framework, no network access beyond loopback.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from typing import Any
 
@@ -16,6 +17,8 @@ import pytest
 
 from src.debug.dap_client import DapApplicationError, DapClient
 from src.debug.dap_protocol import encode_message
+
+pytestmark = pytest.mark.slow  # real subprocess / git in tmp_path — out of the fast dev loop
 
 # ---------------------------------------------------------------------------
 # Test harness — minimal DAP fake server
@@ -35,18 +38,14 @@ class _FakeServer:
         self._client_writer: asyncio.StreamWriter | None = None
 
     async def start(self) -> int:
-        self._server = await asyncio.start_server(
-            self._handle, host="127.0.0.1", port=0
-        )
+        self._server = await asyncio.start_server(self._handle, host="127.0.0.1", port=0)
         return self._server.sockets[0].getsockname()[1]  # type: ignore[no-any-return]
 
     async def stop(self) -> None:
         if self._client_writer is not None:
             self._client_writer.close()
-            try:
+            with contextlib.suppress(Exception):
                 await self._client_writer.wait_closed()
-            except Exception:  # noqa: BLE001
-                pass
         if self._server is not None:
             self._server.close()
             await self._server.wait_closed()
@@ -64,9 +63,7 @@ class _FakeServer:
         self._client_writer.write(encode_message(msg))  # type: ignore[arg-type]
         await self._client_writer.drain()
 
-    async def _handle(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ) -> None:
+    async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         self._client_writer = writer
         # Drain any unsolicited events queued before the connection.
         for evt in self.unsolicited_events:

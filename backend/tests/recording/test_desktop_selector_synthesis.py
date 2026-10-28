@@ -23,9 +23,7 @@ class TestAutomationId:
         assert aid[0].value == "submitBtn"
 
     def test_autogen_automation_id_penalised(self) -> None:
-        cands = synthesise_desktop_selectors(
-            _snap(automation_id="K8aB9cD1eF2gH3iJ4kL5mNopQ")
-        )
+        cands = synthesise_desktop_selectors(_snap(automation_id="K8aB9cD1eF2gH3iJ4kL5mNopQ"))
         aid = [c for c in cands if c.strategy == "automation_id"][0]
         assert aid.quality_score == 92 - 25
 
@@ -75,12 +73,9 @@ class TestUiaXpath:
                 ],
             )
         )
-        anchored = [
-            c for c in cands
-            if c.strategy == "xpath" and "AutomationId" in c.value
-        ]
+        anchored = [c for c in cands if c.strategy == "xpath" and "AutomationId" in c.value]
         assert len(anchored) == 1
-        assert 'AutomationId' in anchored[0].value and 'LoginDlg' in anchored[0].value
+        assert "AutomationId" in anchored[0].value and "LoginDlg" in anchored[0].value
         assert anchored[0].quality_score == 55
 
     def test_falls_back_to_name_anchor(self) -> None:
@@ -93,10 +88,7 @@ class TestUiaXpath:
                 ],
             )
         )
-        anchored = [
-            c for c in cands
-            if c.strategy == "xpath" and "Name" in c.value
-        ]
+        anchored = [c for c in cands if c.strategy == "xpath" and "Name" in c.value]
         assert len(anchored) == 1
         assert anchored[0].quality_score == 50
 
@@ -104,10 +96,7 @@ class TestUiaXpath:
         cands = synthesise_desktop_selectors(
             _snap(ancestors=[DesktopAncestor(control_type="Window")])
         )
-        abs_x = [
-            c for c in cands
-            if c.strategy == "xpath" and c.value.startswith("/Window/Button")
-        ]
+        abs_x = [c for c in cands if c.strategy == "xpath" and c.value.startswith("/Window/Button")]
         assert abs_x[0].quality_score == 22
 
 

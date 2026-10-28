@@ -73,9 +73,7 @@ class TestAssignTeam:
         assert resp.json()["team_id"] == team.id
 
         audits = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "repository.team_assigned")
-            .all()
+            db_session.query(AuditLog).filter(AuditLog.action == "repository.team_assigned").all()
         )
         assert len(audits) == 1
         assert audits[0].resource_id == repo.id
@@ -104,9 +102,7 @@ class TestAssignTeam:
         assert resp.json()["team_id"] is None
 
         unassigned = (
-            db_session.query(AuditLog)
-            .filter(AuditLog.action == "repository.team_unassigned")
-            .all()
+            db_session.query(AuditLog).filter(AuditLog.action == "repository.team_unassigned").all()
         )
         assert len(unassigned) == 1
 
@@ -162,8 +158,6 @@ class TestAssignTeam:
             json={"team_id": team.id},
             headers=auth_header(admin_user),
         )
-        get_resp = client.get(
-            f"{BASE}/{repo.id}", headers=auth_header(admin_user)
-        )
+        get_resp = client.get(f"{BASE}/{repo.id}", headers=auth_header(admin_user))
         assert get_resp.status_code == 200
         assert get_resp.json()["team_id"] == team.id

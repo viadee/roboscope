@@ -28,6 +28,7 @@ import { effectiveSelector } from '@/utils/effectiveSelector'
 import type { RecordedCommand, RecordedFlow, RecordingTransport } from '@/types/recorder.types'
 import { RECORDER_SCHEMA_VERSION } from '@/types/recorder.types'
 import SelectorPicker from '@/components/recorder/SelectorPicker.vue'
+import { applyPhase, phaseAfterCommand, type RecorderPhase } from '@/utils/recorderPhase'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -42,15 +43,6 @@ const commands = ref<RecordedCommand[]>([])
  * backend. `connecting` is the only transport-level state; everything
  * else mirrors a `LifecyclePhase` from `v2_command_queue.py`.
  */
-type RecorderPhase =
-  | 'connecting'
-  | 'browser_starting'
-  | 'browser_ready'
-  | 'browser_restarting'
-  | 'browser_crashed'
-  | 'done'
-  | 'error'
-
 const phase = ref<RecorderPhase>('connecting')
 const errorMsg = ref<string | null>(null)
 const crashMessage = ref<string | null>(null)
@@ -79,9 +71,8 @@ function handleCommand(ev: MessageEvent) {
     // still a strong signal that the browser is live. Catches the
     // edge case where lifecycle events were dropped (queue cleared,
     // network blip in the middle of the SSE handshake).
-    if (phase.value === 'connecting' || phase.value === 'browser_starting') {
-      _transitionTo('browser_ready')
-    }
+    const next = phaseAfterCommand(phase.value)
+    if (next) _transitionTo(next)
   } catch (e) {
     // Malformed payload — log and continue; the capture layer is the
     // source of truth, not this consumer.
@@ -107,23 +98,25 @@ function handleLifecycle(ev: MessageEvent) {
 }
 
 function _transitionTo(next: RecorderPhase, message: string | null = null): void {
-  phase.value = next
-  if (next === 'browser_ready') {
-    readyAtMs.value = Date.now()
-    crashMessage.value = null
-    errorMsg.value = null
-    if (uptimeInterval === null) {
-      uptimeInterval = setInterval(() => { now.value = Date.now() }, 1000)
-    }
-  } else if (next === 'browser_restarting' || next === 'browser_starting') {
-    readyAtMs.value = null
-  } else if (next === 'browser_crashed') {
-    crashMessage.value = message
-    readyAtMs.value = null
-    if (uptimeInterval !== null) {
-      clearInterval(uptimeInterval)
-      uptimeInterval = null
-    }
+  const s = applyPhase(
+    {
+      phase: phase.value,
+      readyAtMs: readyAtMs.value,
+      crashMessage: crashMessage.value,
+      tickerActive: uptimeInterval !== null,
+    },
+    next,
+    message,
+  )
+  phase.value = s.phase
+  readyAtMs.value = s.readyAtMs
+  crashMessage.value = s.crashMessage
+  if (next === 'browser_ready') errorMsg.value = null
+  if (s.tickerActive && uptimeInterval === null) {
+    uptimeInterval = setInterval(() => { now.value = Date.now() }, 1000)
+  } else if (!s.tickerActive && uptimeInterval !== null) {
+    clearInterval(uptimeInterval)
+    uptimeInterval = null
   }
 }
 
@@ -520,7 +513,7 @@ const uptimeLabel = computed<string | null>(() => {
 .recording-live__status.is-browser_ready       { background: rgba(44, 152, 70, 0.15); color: #1a5c2a; }
 .recording-live__status.is-browser_restarting  { background: rgba(212, 136, 62, 0.2);  color: #6e3d09; }
 .recording-live__status.is-browser_crashed     { background: #fee2e2; color: #7f1d1d; }
-.recording-live__status.is-done                { background: rgba(59, 125, 216, 0.15); color: #1a3c7a; }
+.recording-live__status.is-done                { background: rgba(45, 99, 176, 0.15); color: #1a3c7a; }
 .recording-live__status.is-error               { background: #fee2e2; color: #7f1d1d; }
 
 /* Story RECORDER-VIS-1 — phase card next to the heading. */
@@ -545,8 +538,8 @@ const uptimeLabel = computed<string | null>(() => {
   color: var(--color-text-muted, #5A6380);
 }
 .recording-live__restart-browser:hover:not(:disabled) {
-  border-color: var(--color-primary, #3B7DD8);
-  color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
+  color: var(--color-primary, #2D63B0);
 }
 .recording-live__restart-browser:disabled {
   opacity: 0.45;
@@ -569,7 +562,7 @@ const uptimeLabel = computed<string | null>(() => {
 .recording-live__effective-value {
   font-family: var(--font-mono, ui-monospace, "Cascadia Code", monospace);
   font-size: 0.78rem;
-  color: var(--color-text-secondary, #4a5b75);
+  color: var(--color-text-muted);
   background: var(--color-bg, #fff);
   padding: 1px 5px;
   border-radius: 3px;
@@ -607,13 +600,13 @@ const uptimeLabel = computed<string | null>(() => {
 
 .recording-live__keyword {
   font-weight: 600;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
 }
 
 .recording-live__args {
   font-family: var(--font-mono, monospace);
   font-size: 0.8rem;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
 }
 
 .recording-live__frame-badge {
@@ -636,7 +629,7 @@ const uptimeLabel = computed<string | null>(() => {
   padding: 0 8px;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--color-text-secondary, #888);
+  color: var(--color-text-muted);
   font-size: 0.85rem;
   line-height: 1.6;
   cursor: pointer;
@@ -659,7 +652,7 @@ const uptimeLabel = computed<string | null>(() => {
 }
 
 .recording-live__hint {
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted);
   font-style: italic;
   margin: 1rem 0;
 }

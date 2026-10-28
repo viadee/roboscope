@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
-import pytest
 import respx
 from authlib.jose import JsonWebKey, jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -35,7 +34,9 @@ BASE_URL = "/api/v1/auth/sso"
 _CLIENT_ID = "test-client-id"
 
 
-def _make_idp(db: Session, *, name: str = "test-idp", group_claim: str = "groups") -> IdentityProvider:
+def _make_idp(
+    db: Session, *, name: str = "test-idp", group_claim: str = "groups"
+) -> IdentityProvider:
     discovery_doc = {
         "issuer": ISSUER,
         "authorization_endpoint": f"{ISSUER}/authorize",
@@ -52,7 +53,7 @@ def _make_idp(db: Session, *, name: str = "test-idp", group_claim: str = "groups
         group_claim_name=group_claim,
         is_enabled=True,
         discovery_cache_json=json.dumps(discovery_doc),
-        discovery_cached_at=datetime.now(timezone.utc),
+        discovery_cached_at=datetime.now(UTC),
     )
     db.add(idp)
     # Commit promotes the row to the fixture's outer SAVEPOINT so it survives
@@ -78,7 +79,7 @@ def _make_attempt(
         pkce_verifier=encrypt_value(pkce_verifier),
         idp_id=idp.id,
         return_to=return_to,
-        expires_at=datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds),
+        expires_at=datetime.now(UTC) + timedelta(seconds=expires_in_seconds),
     )
     db.add(attempt)
     db.commit()
@@ -127,9 +128,7 @@ def test_callback_sets_access_and_refresh_token_cookies(
     assert cookies.get("roboscope_sso_access_token")
     assert cookies.get("roboscope_sso_refresh_token")
     # `Set-Cookie` header must not mark them HttpOnly — frontend reads them.
-    set_cookie = "\n".join(
-        v for k, v in resp.headers.items() if k.lower() == "set-cookie"
-    )
+    set_cookie = "\n".join(v for k, v in resp.headers.items() if k.lower() == "set-cookie")
     access_block = next(
         block for block in set_cookie.split("\n") if "roboscope_sso_access_token" in block
     )
@@ -137,9 +136,7 @@ def test_callback_sets_access_and_refresh_token_cookies(
     assert "Max-Age=60" in access_block
 
 
-def test_callback_cache_control_no_store(
-    client: TestClient, db_session: Session, mock_oidc
-):
+def test_callback_cache_control_no_store(client: TestClient, db_session: Session, mock_oidc):
     idp = _make_idp(db_session)
     attempt = _make_attempt(db_session, idp)
     mock_oidc.with_claims(sub="u1", email="alice@example.com", nonce=attempt.nonce)
@@ -173,9 +170,7 @@ def test_callback_creates_new_user_with_viewer_role(
     assert user.last_login_at is not None
 
 
-def test_callback_existing_user_preserves_role(
-    client: TestClient, db_session: Session, mock_oidc
-):
+def test_callback_existing_user_preserves_role(client: TestClient, db_session: Session, mock_oidc):
     existing = User(
         email="admin-ext@example.com",
         username="admin-ext",
@@ -199,10 +194,8 @@ def test_callback_existing_user_preserves_role(
     assert existing.role == Role.ADMIN
 
 
-def test_callback_updates_last_login_at(
-    client: TestClient, db_session: Session, mock_oidc
-):
-    old_ts = datetime.now(timezone.utc) - timedelta(days=30)
+def test_callback_updates_last_login_at(client: TestClient, db_session: Session, mock_oidc):
+    old_ts = datetime.now(UTC) - timedelta(days=30)
     existing = User(
         email="returning@example.com",
         username="returning",
@@ -228,13 +221,11 @@ def test_callback_updates_last_login_at(
     # Compare without timezone to avoid SQLite naive-datetime mismatch.
     current = existing.last_login_at
     if current.tzinfo is None:
-        current = current.replace(tzinfo=timezone.utc)
+        current = current.replace(tzinfo=UTC)
     assert current > old_ts
 
 
-def test_callback_consumes_attempt_row(
-    client: TestClient, db_session: Session, mock_oidc
-):
+def test_callback_consumes_attempt_row(client: TestClient, db_session: Session, mock_oidc):
     idp = _make_idp(db_session)
     attempt = _make_attempt(db_session, idp)
     mock_oidc.with_claims(sub="u1", email="a@b.c", nonce=attempt.nonce)
@@ -252,9 +243,7 @@ def test_callback_consumes_attempt_row(
 # ---------------------------------------------------------------------------
 
 
-def test_callback_unknown_state_redirects_to_error(
-    client: TestClient, db_session: Session
-):
+def test_callback_unknown_state_redirects_to_error(client: TestClient, db_session: Session):
     resp = client.get(
         f"{BASE_URL}/callback",
         params={"code": "c", "state": "no-such-state"},
@@ -268,9 +257,7 @@ def test_callback_unknown_state_redirects_to_error(
     assert detail["reason"] == "state.unknown"
 
 
-def test_callback_expired_attempt_redirects_to_error(
-    client: TestClient, db_session: Session
-):
+def test_callback_expired_attempt_redirects_to_error(client: TestClient, db_session: Session):
     idp = _make_idp(db_session)
     attempt = _make_attempt(db_session, idp, expires_in_seconds=-5)
 
@@ -286,9 +273,7 @@ def test_callback_expired_attempt_redirects_to_error(
     assert db_session.query(OidcLoginAttempt).filter_by(state=attempt.state).first() is not None
 
 
-def test_callback_disabled_idp_redirects_to_error(
-    client: TestClient, db_session: Session
-):
+def test_callback_disabled_idp_redirects_to_error(client: TestClient, db_session: Session):
     idp = _make_idp(db_session)
     attempt = _make_attempt(db_session, idp)
     idp.is_enabled = False
@@ -303,9 +288,7 @@ def test_callback_disabled_idp_redirects_to_error(
     assert resp.headers["location"] == "/sso-error?code=idp.unavailable"
 
 
-def test_callback_token_exchange_timeout(
-    client: TestClient, db_session: Session
-):
+def test_callback_token_exchange_timeout(client: TestClient, db_session: Session):
     idp = _make_idp(db_session)
     attempt = _make_attempt(db_session, idp)
 
@@ -341,9 +324,7 @@ def test_callback_token_exchange_timeout(
     assert detail["sub_reason"] == "timeout"
 
 
-def test_callback_invalid_signature_redirects_to_error(
-    client: TestClient, db_session: Session
-):
+def test_callback_invalid_signature_redirects_to_error(client: TestClient, db_session: Session):
     """id_token signed by a key that is NOT in the IdP's published JWKS → token.invalid."""
     idp = _make_idp(db_session)
     attempt = _make_attempt(db_session, idp)
@@ -353,9 +334,13 @@ def test_callback_invalid_signature_redirects_to_error(
     rogue_jwk = JsonWebKey.import_key(rogue_private, {"kty": "RSA", "kid": "rogue-kid"})
     now = int(time.time())
     claims = {
-        "iss": ISSUER, "aud": _CLIENT_ID, "sub": "u1",
-        "email": "a@b.c", "nonce": attempt.nonce,
-        "iat": now, "exp": now + 600,
+        "iss": ISSUER,
+        "aud": _CLIENT_ID,
+        "sub": "u1",
+        "email": "a@b.c",
+        "nonce": attempt.nonce,
+        "iat": now,
+        "exp": now + 600,
     }
     header = {"alg": "RS256", "kid": "rogue-kid"}
     rogue_token = jwt.encode(header, claims, rogue_jwk)
@@ -364,12 +349,15 @@ def test_callback_invalid_signature_redirects_to_error(
 
     with respx.mock(assert_all_called=False) as router:
         router.get(f"{ISSUER}/.well-known/openid-configuration").mock(
-            return_value=httpx.Response(200, json={
-                "issuer": ISSUER,
-                "authorization_endpoint": f"{ISSUER}/authorize",
-                "token_endpoint": f"{ISSUER}/token",
-                "jwks_uri": f"{ISSUER}/jwks",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "issuer": ISSUER,
+                    "authorization_endpoint": f"{ISSUER}/authorize",
+                    "token_endpoint": f"{ISSUER}/token",
+                    "jwks_uri": f"{ISSUER}/jwks",
+                },
+            )
         )
         # JWKS advertises a DIFFERENT key — signature verification must fail.
         legit_private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -380,10 +368,15 @@ def test_callback_invalid_signature_redirects_to_error(
             return_value=httpx.Response(200, json={"keys": [legit_jwk_pub.as_dict()]})
         )
         router.post(f"{ISSUER}/token").mock(
-            return_value=httpx.Response(200, json={
-                "access_token": "x", "token_type": "bearer",
-                "expires_in": 600, "id_token": rogue_token,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "access_token": "x",
+                    "token_type": "bearer",
+                    "expires_in": 600,
+                    "id_token": rogue_token,
+                },
+            )
         )
         resp = client.get(
             f"{BASE_URL}/callback",
@@ -416,8 +409,10 @@ def test_callback_iss_mismatch_redirects_to_error(
     idp = _make_idp(db_session)
     attempt = _make_attempt(db_session, idp)
     mock_oidc.with_claims(
-        iss="https://different-issuer.example", sub="u1",
-        email="a@b.c", nonce=attempt.nonce,
+        iss="https://different-issuer.example",
+        sub="u1",
+        email="a@b.c",
+        nonce=attempt.nonce,
     )
 
     resp = client.get(
@@ -435,8 +430,10 @@ def test_callback_aud_mismatch_redirects_to_error(
     idp = _make_idp(db_session)
     attempt = _make_attempt(db_session, idp)
     mock_oidc.with_claims(
-        aud="some-other-client", sub="u1",
-        email="a@b.c", nonce=attempt.nonce,
+        aud="some-other-client",
+        sub="u1",
+        email="a@b.c",
+        nonce=attempt.nonce,
     )
 
     resp = client.get(
@@ -494,9 +491,7 @@ def test_callback_group_sync_inserts_new_memberships(
 
     idp = _make_idp(db_session)
     db_session.add(
-        IdPGroupMapping(
-            idp_id=idp.id, group_claim_value="eng-all", team_id=team.id, role="runner"
-        )
+        IdPGroupMapping(idp_id=idp.id, group_claim_value="eng-all", team_id=team.id, role="runner")
     )
     db_session.flush()
     attempt = _make_attempt(db_session, idp)
@@ -510,11 +505,7 @@ def test_callback_group_sync_inserts_new_memberships(
         follow_redirects=False,
     )
     user = db_session.query(User).filter_by(email="dev@example.com").one()
-    tm = (
-        db_session.query(TeamMember)
-        .filter_by(team_id=team.id, user_id=user.id)
-        .one()
-    )
+    tm = db_session.query(TeamMember).filter_by(team_id=team.id, user_id=user.id).one()
     assert tm.source == "idp_group_sync"
     assert tm.role == "runner"
 
@@ -528,15 +519,20 @@ def test_callback_group_sync_removes_stale_memberships(
     db_session.flush()
 
     user = User(
-        email="returning@example.com", username="ret",
-        hashed_password="", role=Role.VIEWER, is_active=True,
+        email="returning@example.com",
+        username="ret",
+        hashed_password="",
+        role=Role.VIEWER,
+        is_active=True,
     )
     db_session.add(user)
     db_session.flush()
     db_session.add(
         TeamMember(
-            team_id=team_old.id, user_id=user.id,
-            role="viewer", source="idp_group_sync",
+            team_id=team_old.id,
+            user_id=user.id,
+            role="viewer",
+            source="idp_group_sync",
         )
     )
     db_session.flush()
@@ -544,15 +540,19 @@ def test_callback_group_sync_removes_stale_memberships(
     idp = _make_idp(db_session)
     db_session.add(
         IdPGroupMapping(
-            idp_id=idp.id, group_claim_value="new-group",
-            team_id=team_new.id, role="viewer",
+            idp_id=idp.id,
+            group_claim_value="new-group",
+            team_id=team_new.id,
+            role="viewer",
         )
     )
     db_session.flush()
     attempt = _make_attempt(db_session, idp)
     mock_oidc.with_claims(
-        sub="u1", email="returning@example.com",
-        nonce=attempt.nonce, groups=["new-group"],
+        sub="u1",
+        email="returning@example.com",
+        nonce=attempt.nonce,
+        groups=["new-group"],
     )
 
     client.get(
@@ -562,12 +562,11 @@ def test_callback_group_sync_removes_stale_memberships(
     )
     # Old sync row removed, new sync row inserted.
     assert (
-        db_session.query(TeamMember)
-        .filter_by(team_id=team_old.id, user_id=user.id).first() is None
+        db_session.query(TeamMember).filter_by(team_id=team_old.id, user_id=user.id).first() is None
     )
     assert (
-        db_session.query(TeamMember)
-        .filter_by(team_id=team_new.id, user_id=user.id).first() is not None
+        db_session.query(TeamMember).filter_by(team_id=team_new.id, user_id=user.id).first()
+        is not None
     )
 
 
@@ -579,15 +578,20 @@ def test_callback_group_sync_preserves_manual_grants(
     db_session.flush()
 
     user = User(
-        email="manual@example.com", username="m",
-        hashed_password="", role=Role.VIEWER, is_active=True,
+        email="manual@example.com",
+        username="m",
+        hashed_password="",
+        role=Role.VIEWER,
+        is_active=True,
     )
     db_session.add(user)
     db_session.flush()
     db_session.add(
         TeamMember(
-            team_id=team.id, user_id=user.id,
-            role="admin", source="manual",
+            team_id=team.id,
+            user_id=user.id,
+            role="admin",
+            source="manual",
         )
     )
     db_session.flush()
@@ -596,8 +600,10 @@ def test_callback_group_sync_preserves_manual_grants(
     # No mapping exists for this team — manual grant must survive.
     attempt = _make_attempt(db_session, idp)
     mock_oidc.with_claims(
-        sub="u1", email="manual@example.com",
-        nonce=attempt.nonce, groups=["unrelated"],
+        sub="u1",
+        email="manual@example.com",
+        nonce=attempt.nonce,
+        groups=["unrelated"],
     )
 
     client.get(
@@ -605,10 +611,7 @@ def test_callback_group_sync_preserves_manual_grants(
         params={"code": "c", "state": attempt.state},
         follow_redirects=False,
     )
-    manual_tm = (
-        db_session.query(TeamMember)
-        .filter_by(team_id=team.id, user_id=user.id).one()
-    )
+    manual_tm = db_session.query(TeamMember).filter_by(team_id=team.id, user_id=user.id).one()
     assert manual_tm.source == "manual"
     assert manual_tm.role == "admin"
 
@@ -621,15 +624,20 @@ def test_callback_group_sync_updates_role_when_mapping_changes(
     db_session.flush()
 
     user = User(
-        email="u@example.com", username="u",
-        hashed_password="", role=Role.VIEWER, is_active=True,
+        email="u@example.com",
+        username="u",
+        hashed_password="",
+        role=Role.VIEWER,
+        is_active=True,
     )
     db_session.add(user)
     db_session.flush()
     db_session.add(
         TeamMember(
-            team_id=team.id, user_id=user.id,
-            role="viewer", source="idp_group_sync",
+            team_id=team.id,
+            user_id=user.id,
+            role="viewer",
+            source="idp_group_sync",
         )
     )
     db_session.flush()
@@ -637,15 +645,15 @@ def test_callback_group_sync_updates_role_when_mapping_changes(
     idp = _make_idp(db_session)
     db_session.add(
         IdPGroupMapping(
-            idp_id=idp.id, group_claim_value="eng",
-            team_id=team.id, role="editor",
+            idp_id=idp.id,
+            group_claim_value="eng",
+            team_id=team.id,
+            role="editor",
         )
     )
     db_session.flush()
     attempt = _make_attempt(db_session, idp)
-    mock_oidc.with_claims(
-        sub="u1", email="u@example.com", nonce=attempt.nonce, groups=["eng"]
-    )
+    mock_oidc.with_claims(sub="u1", email="u@example.com", nonce=attempt.nonce, groups=["eng"])
 
     client.get(
         f"{BASE_URL}/callback",
@@ -662,14 +670,10 @@ def test_callback_group_sync_updates_role_when_mapping_changes(
 # ---------------------------------------------------------------------------
 
 
-def test_callback_success_emits_audit_events(
-    client: TestClient, db_session: Session, mock_oidc
-):
+def test_callback_success_emits_audit_events(client: TestClient, db_session: Session, mock_oidc):
     idp = _make_idp(db_session)
     attempt = _make_attempt(db_session, idp, return_to="/dashboard")
-    mock_oidc.with_claims(
-        sub="u1", email="a@b.c", nonce=attempt.nonce, groups=[]
-    )
+    mock_oidc.with_claims(sub="u1", email="a@b.c", nonce=attempt.nonce, groups=[])
 
     client.get(
         f"{BASE_URL}/callback",
@@ -677,22 +681,19 @@ def test_callback_success_emits_audit_events(
         follow_redirects=False,
     )
     success = db_session.query(AuditLog).filter_by(action="sso.login.success").one()
-    synced = (
-        db_session.query(AuditLog).filter_by(action="team.member.synced_from_idp").one()
-    )
+    synced = db_session.query(AuditLog).filter_by(action="team.member.synced_from_idp").one()
     assert success.resource_type == "sso"
     assert synced.resource_type == "team"
     detail = json.loads(success.detail)
     from src.auth.pii_hash import hash_email, is_email_hash
+
     assert "email" not in detail, "plaintext email must not leak into audit detail"
     assert is_email_hash(detail["email_hash"])
     assert detail["email_hash"] == hash_email("a@b.c")
     assert detail["return_to"] == "/dashboard"
 
 
-def test_callback_failure_emits_structured_audit_event(
-    client: TestClient, db_session: Session
-):
+def test_callback_failure_emits_structured_audit_event(client: TestClient, db_session: Session):
     client.get(
         f"{BASE_URL}/callback",
         params={"code": "c", "state": "missing"},
@@ -749,15 +750,15 @@ def test_callback_replay_same_state_fails_on_second_call(
     assert resp2.headers["location"] == "/sso-error?code=state.unknown"
 
 
-def test_callback_rejects_unverified_email(
-    client: TestClient, db_session: Session, mock_oidc
-):
+def test_callback_rejects_unverified_email(client: TestClient, db_session: Session, mock_oidc):
     """D1 — email_verified must be True; unverified tokens are rejected."""
     idp = _make_idp(db_session)
     attempt = _make_attempt(db_session, idp)
     mock_oidc.with_claims(
-        sub="u1", email="spoof@example.com",
-        email_verified=False, nonce=attempt.nonce,
+        sub="u1",
+        email="spoof@example.com",
+        email_verified=False,
+        nonce=attempt.nonce,
     )
 
     resp = client.get(
@@ -770,13 +771,14 @@ def test_callback_rejects_unverified_email(
     assert db_session.query(User).filter_by(email="spoof@example.com").first() is None
 
 
-def test_callback_rejects_deactivated_user(
-    client: TestClient, db_session: Session, mock_oidc
-):
+def test_callback_rejects_deactivated_user(client: TestClient, db_session: Session, mock_oidc):
     """P6 — Deactivated local users must not be silently reactivated by SSO."""
     disabled = User(
-        email="disabled@example.com", username="disabled",
-        hashed_password="", role=Role.VIEWER, is_active=False,
+        email="disabled@example.com",
+        username="disabled",
+        hashed_password="",
+        role=Role.VIEWER,
+        is_active=False,
     )
     db_session.add(disabled)
     db_session.flush()
@@ -784,7 +786,9 @@ def test_callback_rejects_deactivated_user(
     idp = _make_idp(db_session)
     attempt = _make_attempt(db_session, idp)
     mock_oidc.with_claims(
-        sub="u1", email="disabled@example.com", nonce=attempt.nonce,
+        sub="u1",
+        email="disabled@example.com",
+        nonce=attempt.nonce,
     )
 
     resp = client.get(
@@ -835,12 +839,15 @@ def test_callback_token_exchange_http_error_captures_status(
 
     with respx.mock(assert_all_called=False) as router:
         router.get(f"{ISSUER}/.well-known/openid-configuration").mock(
-            return_value=httpx.Response(200, json={
-                "issuer": ISSUER,
-                "authorization_endpoint": f"{ISSUER}/authorize",
-                "token_endpoint": f"{ISSUER}/token",
-                "jwks_uri": f"{ISSUER}/jwks",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "issuer": ISSUER,
+                    "authorization_endpoint": f"{ISSUER}/authorize",
+                    "token_endpoint": f"{ISSUER}/token",
+                    "jwks_uri": f"{ISSUER}/jwks",
+                },
+            )
         )
         router.get(f"{ISSUER}/jwks").mock(return_value=httpx.Response(200, json={"keys": []}))
         router.post(f"{ISSUER}/token").mock(
@@ -861,14 +868,14 @@ def test_callback_token_exchange_http_error_captures_status(
     assert detail["http_status"] == 503
 
 
-def test_callback_azp_required_for_multi_aud(
-    client: TestClient, db_session: Session, mock_oidc
-):
+def test_callback_azp_required_for_multi_aud(client: TestClient, db_session: Session, mock_oidc):
     """P10 — When aud is a multi-value array, azp MUST equal client_id (OIDC §3.1.3.7)."""
     idp = _make_idp(db_session)
     attempt = _make_attempt(db_session, idp)
     mock_oidc.with_claims(
-        sub="u1", email="a@b.c", nonce=attempt.nonce,
+        sub="u1",
+        email="a@b.c",
+        nonce=attempt.nonce,
         aud=[_CLIENT_ID, "other-client"],  # no azp
     )
 
@@ -888,8 +895,11 @@ def test_callback_azp_matching_multi_aud_succeeds(
     idp = _make_idp(db_session)
     attempt = _make_attempt(db_session, idp)
     mock_oidc.with_claims(
-        sub="u1", email="a@b.c", nonce=attempt.nonce,
-        aud=[_CLIENT_ID, "other-client"], azp=_CLIENT_ID,
+        sub="u1",
+        email="a@b.c",
+        nonce=attempt.nonce,
+        aud=[_CLIENT_ID, "other-client"],
+        azp=_CLIENT_ID,
     )
 
     resp = client.get(
