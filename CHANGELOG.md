@@ -2,6 +2,46 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`INSECURE_TLS=true` for corporate MITM proxies**: one `.env` switch disables
+  certificate verification on every outbound path — uv/pip installs, `rfbrowser init`
+  (npm + Playwright download), git, in-process HTTP clients (LLM, RF knowledge,
+  webhooks, PyPI search, OIDC), the generated Dockerfile and recorder browser
+  contexts. Off by default; the startup log warns when it is on. The docs recommend
+  `SSL_CERT_FILE` / `NODE_EXTRA_CA_CERTS` / `GIT_SSL_CAINFO` first.
+- **Test tiers and mutation testing**: backend tests are auto-marked `unit` / `db`
+  (plus explicit `slow` / `integration`), with `make test-unit`, `make test-backend-db`
+  and friends. `make mutation` runs mutmut (backend) and Stryker (frontend) over the
+  pure-logic modules; `docs/TESTING.md` documents tiers, commands and the measured
+  baseline.
+
+### Fixed
+
+- **In-place upgrade from ≤0.14 broke runs and schedules** (#66): the columns
+  `execution_runs.advanced_config`, `schedules.variables` and
+  `schedules.advanced_config` existed only in an Alembic revision, which never runs
+  on boot. The startup migrations now add them on SQLite and PostgreSQL; a new test
+  boots a pre-0.15 schema and checks every model column is present afterwards.
+- **Deep links survive a login redirect**: the router guard now sends
+  `/login?return_to=…` (the key the SSO flow and backend already use) and also when a
+  stale token is detected; the login view honours `return_to` and the old `redirect`.
+- **Brand palette passes WCAG AA** (#38): `--color-primary` `#3B7DD8 → #2D63B0`,
+  `--color-primary-dark` `#2A5FA8 → #1F4E8C` (5.96:1 on white, 5.54:1 on the page
+  background); hard-coded fallbacks and `rgba(59,125,216,…)` tints follow. The
+  `color-contrast` axe rule is enabled again in the accessibility gate.
+- **E2E config honours `BASE_URL` / `API_URL`**; the never-wired `global-setup.ts`
+  is gone. Six frontend specs that tested copied-in logic now import the real code
+  (`robotTextIO`, `utils/recorderLaunch`, `utils/recorderPhase`, `router/authGuard`).
+
+### Security
+
+- Dependency bumps for all open Dependabot alerts: Pillow 13, GitPython 3.2.1,
+  virtualenv 21.15, filelock 4.2.4, fastmcp 3.4.11, opentelemetry-api 1.45.1
+  (backend lockfile); dompurify, vite, `@vitest/mocker`, undici, follow-redirects,
+  qs, source-map-js (frontend); undici, serialize-javascript, source-map-js
+  (extension).
+
 ## [0.15.0] - 2026-09-28
 
 ### Added
