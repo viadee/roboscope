@@ -246,6 +246,21 @@ def _migrate_sqlite(conn) -> None:
         conn.execute(text("ALTER TABLE repositories ADD COLUMN team_id INTEGER"))
         logger.info("Migration: added team_id column to repositories")
 
+    # Epic EXEC (issue #66): these three columns used to exist only in Alembic
+    # revision e7c1a2b3d4f5, so an in-place upgrade to 0.15 broke runs/schedules.
+    for table, col in _EXEC_COLUMNS:
+        cols = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})")).fetchall()}
+        if col not in cols:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} TEXT"))
+            logger.info("Migration: added %s column to %s", col, table)
+
+
+_EXEC_COLUMNS = (
+    ("execution_runs", "advanced_config"),
+    ("schedules", "variables"),
+    ("schedules", "advanced_config"),
+)
+
 
 def _migrate_postgres(conn) -> None:
     """PostgreSQL migrations."""
@@ -384,6 +399,16 @@ def _migrate_postgres(conn) -> None:
             "ALTER TABLE repositories ADD COLUMN pre_run_sync BOOLEAN DEFAULT FALSE"
         ))
         logger.info("Migration: added pre_run_sync column to repositories")
+
+    # Epic EXEC (issue #66) — see _migrate_sqlite
+    for table, col in _EXEC_COLUMNS:
+        result = conn.execute(text(
+            "SELECT column_name FROM information_schema.columns "
+            f"WHERE table_name = '{table}' AND column_name = '{col}'"
+        ))
+        if not result.fetchone():
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} TEXT"))
+            logger.info("Migration: added %s column to %s", col, table)
 
 
 def drop_tables() -> None:
