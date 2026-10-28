@@ -55,7 +55,7 @@ test.describe('Phase 4 accessibility (axe-core)', () => {
     );
     await page.goto('/login');
 
-    // The brand `--color-primary: #3B7DD8` on light backgrounds
+    // The brand `--color-primary: #2D63B0` on light backgrounds
     // (and white-on-primary in CTAs) sits at ~3.8 / 4.1 contrast
     // ratios — close to but below the WCAG-AA 4.5 threshold for
     // text. Tightening the brand palette is a design pass scoped
@@ -87,7 +87,7 @@ test.describe('Phase 4 accessibility (axe-core)', () => {
     );
     await page.goto('/sso-error?code=idp.unreachable');
 
-    // The brand `--color-primary: #3B7DD8` on light backgrounds
+    // The brand `--color-primary: #2D63B0` on light backgrounds
     // (and white-on-primary in CTAs) sits at ~3.8 / 4.1 contrast
     // ratios — close to but below the WCAG-AA 4.5 threshold for
     // text. Tightening the brand palette is a design pass scoped
@@ -140,7 +140,7 @@ test.describe('Phase 4 accessibility (axe-core)', () => {
     await page.goto('/welcome');
     await page.waitForLoadState('networkidle');
 
-    // The brand `--color-primary: #3B7DD8` on light backgrounds
+    // The brand `--color-primary: #2D63B0` on light backgrounds
     // (and white-on-primary in CTAs) sits at ~3.8 / 4.1 contrast
     // ratios — close to but below the WCAG-AA 4.5 threshold for
     // text. Tightening the brand palette is a design pass scoped

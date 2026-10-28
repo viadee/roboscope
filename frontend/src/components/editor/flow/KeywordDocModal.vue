@@ -227,7 +227,7 @@ function formatArg(parsed: ReturnType<typeof parseArgSignature>): string {
   border-radius: 6px;
 }
 .kw-doc-html :deep(a) {
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   text-decoration: underline;
 }
 .kw-doc-html :deep(table) {

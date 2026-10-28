@@ -78,7 +78,7 @@ const de: DocsContent = [
 </ol>
 <p>
   Das Design orientiert sich am <em>viadee.de</em>-Branding mit den
-  Hauptfarben Steel Blue (<code>#3B7DD8</code>) und Amber (<code>#D4883E</code>)
+  Hauptfarben Steel Blue (<code>#2D63B0</code>) und Amber (<code>#D4883E</code>)
   auf dunklem Navy-Hintergrund in der Sidebar.
 </p>`
       },

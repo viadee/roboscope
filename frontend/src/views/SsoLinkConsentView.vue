@@ -122,20 +122,20 @@ async function submit(approve: boolean) {
 
 .sso-consent__cta {
   padding: 0.6rem 1.5rem;
-  border: 1px solid var(--color-primary, #3B7DD8);
+  border: 1px solid var(--color-primary, #2D63B0);
   border-radius: 4px;
   font: inherit;
   cursor: pointer;
 }
 
 .sso-consent__cta--primary {
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: white;
 }
 
 .sso-consent__cta--secondary {
   background: transparent;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
 }
 
 .sso-consent__cta:disabled {

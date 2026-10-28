@@ -294,8 +294,8 @@ onMounted(async () => {
 
 .toolbar-btn:hover {
   background: var(--color-bg-hover, #f1f5f9);
-  border-color: var(--color-primary, #3B7DD8);
-  color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
+  color: var(--color-primary, #2D63B0);
 }
 
 .toolbar-select {
@@ -431,7 +431,7 @@ onMounted(async () => {
 
 .xml-view .tag-chip {
   font-size: 10px;
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   color: white;
   padding: 1px 6px;
   border-radius: 8px;

@@ -328,7 +328,7 @@ function onCancel() {
 .publish-diff-toggle {
   flex-shrink: 0; font-size: 11px; padding: 2px 6px;
   background: none; border: none; cursor: pointer;
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
 }
 .publish-diff { flex-basis: 100%; margin: 2px 0 6px; }
 .publish-diff-note { margin: 2px 6px; font-size: 11px; color: var(--color-text-muted, #5A6380); }
@@ -341,7 +341,7 @@ function onCancel() {
 .publish-diff-pre span { display: block; padding: 0 6px; white-space: pre; }
 .publish-diff-pre .diff-add { background: var(--color-success-bg, #DCFCE7); color: var(--color-success, #37996E); }
 .publish-diff-pre .diff-del { background: var(--color-danger-bg, #FEE2E2); color: var(--color-danger, #DC3545); }
-.publish-diff-pre .diff-hunk { color: var(--color-primary, #3B7DD8); }
+.publish-diff-pre .diff-hunk { color: var(--color-primary, #2D63B0); }
 .publish-diff-pre .diff-meta { color: var(--color-text-muted, #5A6380); }
 .publish-message-label {
   display: flex; flex-direction: column; gap: 4px;
@@ -356,7 +356,7 @@ function onCancel() {
 }
 .publish-message-input:focus {
   outline: none;
-  border-color: var(--color-primary, #3B7DD8);
+  border-color: var(--color-primary, #2D63B0);
 }
 .publish-conflict { display: flex; flex-direction: column; gap: 10px; }
 .publish-conflict h4 { margin: 0; color: var(--color-accent, #D4883E); }

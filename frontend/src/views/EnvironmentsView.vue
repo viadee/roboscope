@@ -1024,7 +1024,7 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
   display: inline-block;
   padding: 2px 8px;
   background: rgba(60, 181, 161, 0.1);
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   border-radius: 4px;
   font-size: 12px;
   font-family: monospace;
@@ -1140,9 +1140,9 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
 }
 
 .docker-build-building {
-  background: rgba(59, 125, 216, 0.08);
-  border: 1px solid rgba(59, 125, 216, 0.25);
-  color: var(--color-primary, #3B7DD8);
+  background: rgba(45, 99, 176, 0.08);
+  border: 1px solid rgba(45, 99, 176, 0.25);
+  color: var(--color-primary, #2D63B0);
   flex-direction: column;
 }
 
@@ -1193,8 +1193,8 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
 .docker-build-toggle {
   margin-left: auto;
   background: none;
-  border: 1px solid rgba(59, 125, 216, 0.3);
-  color: var(--color-primary, #3B7DD8);
+  border: 1px solid rgba(45, 99, 176, 0.3);
+  color: var(--color-primary, #2D63B0);
   cursor: pointer;
   font-size: 11px;
   padding: 2px 8px;
@@ -1202,14 +1202,14 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
 }
 
 .docker-build-toggle:hover {
-  background: rgba(59, 125, 216, 0.08);
+  background: rgba(45, 99, 176, 0.08);
 }
 
 .docker-build-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--color-primary, #3B7DD8);
+  background: var(--color-primary, #2D63B0);
   animation: pulse-dot 1.5s ease-in-out infinite;
   flex-shrink: 0;
 }
@@ -1354,7 +1354,7 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
 }
 
 .setup-icon {
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   margin-bottom: 16px;
 }
 
@@ -1383,7 +1383,7 @@ function isBrowserConflict(pkg: { name: string; group?: string }): boolean {
   display: inline-block;
   padding: 4px 12px;
   background: rgba(60, 181, 161, 0.1);
-  color: var(--color-primary, #3B7DD8);
+  color: var(--color-primary, #2D63B0);
   border-radius: 20px;
   font-size: 12px;
   font-weight: 500;

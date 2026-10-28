@@ -89,7 +89,7 @@ Backend (mutmut, `--rerun-all`, ≈14 s per mutant — budget ~1 h per 250 mutan
 | `src/recording/selector_synthesis.py` (49 of 281 checked) | 25 | 24 | 51 % |
 | `src/reports/parser.py` | not yet run (313 mutants) | | |
 
-Frontend (Stryker, 95 min for the full list):
+Frontend (Stryker, 21 min for the configured list, 60.7 % overall):
 
 | Module | Score | Note |
 |--------|------:|------|
@@ -105,10 +105,10 @@ Frontend (Stryker, 95 min for the full list):
 | `robotTextIO.ts` | 55 % | 157 uncovered mutants — mostly error-message strings |
 | `flowConverter.ts` | 44 % | 179 uncovered mutants — node-layout branches only exercised by Vue-mount specs |
 
-`robotKeywordSignatures.ts` (30 %) and `robotLanguage.ts` (22 %) were dropped from the
-`mutate` list after this run: they are static tables (keyword signatures, CodeMirror
-theme/grammar), their ~2300 string-literal mutants cost 98 % of the run time and a surviving
-`'#9AA5BF' → ''` tells you nothing. Overall score without them: ≈60 %.
+`robotKeywordSignatures.ts` (30 %) and `robotLanguage.ts` (22 %) are deliberately not in the
+`mutate` list: they are static tables (keyword signatures, CodeMirror theme/grammar), their
+~2300 string-literal mutants cost 98 % of the run time (95 min vs. 21 min) and a surviving
+`'#9AA5BF' → ''` tells you nothing.
 
 ## CI mapping
 

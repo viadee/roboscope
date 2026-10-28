@@ -6,7 +6,7 @@ Web-based Robot Framework test management (Git, GUI execution, reports, environm
 
 - **Offline-only**: no CDN / Google Fonts / external imports; all assets bundled locally. Backend AND frontend.
 - **Background work**: in-process `ThreadPoolExecutor(max_workers=1)` via `task_executor.dispatch_task()` — no Redis/Celery. (See the bg-thread gotchas below.)
-- **CSS vars** centralized in `frontend/src/assets/styles/main.css`. Brand: `--color-primary:#3B7DD8`, `--color-accent:#D4883E`, `--color-navy:#1A2D50`.
+- **CSS vars** centralized in `frontend/src/assets/styles/main.css`. Brand: `--color-primary:#2D63B0`, `--color-accent:#D4883E`, `--color-navy:#1A2D50`.
 - **i18n**: every user-facing string needs EN/DE/FR/ES entries. ZH (中文) is a 5th locale that deep-merges over EN (English fallback for the long tail), so it doesn't strictly need a hand entry — but the four above do.
 - **Commits**: Conventional Commits, PR-based.
 - Seed admin: `admin@roboscope.local` / `admin123`. API tokens `rbs_…` (SHA256-hashed) work alongside JWT.

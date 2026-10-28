@@ -1,8 +1,8 @@
 /* RoboScope Global Styles */
 :root {
   /* Primary: Steel Blue (RoboScope brand) */
-  --color-primary: #3B7DD8;
-  --color-primary-dark: #2A5FA8;
+  --color-primary: #2D63B0;
+  --color-primary-dark: #1F4E8C;
   --color-primary-light: #7BABEA;
   --color-primary-lighter: #B3D1F5;
   --color-primary-bg: #EBF3FD;
@@ -24,7 +24,7 @@
   --color-warning-bg: #FEF3C7;
   --color-danger: #DC3545;
   --color-danger-bg: #FEE2E2;
-  --color-info: #3B7DD8;
+  --color-info: #2D63B0;
   --color-info-bg: #EBF3FD;
 
   /* Backgrounds */
