@@ -75,19 +75,38 @@ open frontend/reports/mutation/index.html                        # HTML report
   belongs to a module that should not be in the mutate list.
 - Thresholds are informational (`break: null`); nothing in CI gates on the score.
 
-### Measured baseline (2026-10-27, local, 6 cores)
+### Measured baseline (2026-10-28, local, 6 cores)
 
-Backend (mutmut, `--rerun-all`, ≈14 s per mutant — budget ~1 h per 250 mutants):
+Backend (mutmut, `--rerun-all`, all 25 configured modules, 2517 mutants in one overnight run — budget ~1 h per 250 mutants):
 
 | Module | Killed | Survived | Score |
 |--------|-------:|---------:|------:|
+| `src/auth/pii_hash.py` | 15 | 0 | 100 % |
 | `src/utc_response.py` | 4 | 0 | 100 % |
 | `src/auth/return_to.py` | 27 | 4 | 87 % |
+| `src/recording/selector_verification.py` | 58 | 10 | 85 % |
 | `src/insecure_tls.py` | 23 | 6 | 79 % |
 | `src/environments/venv_utils.py` | 113 | 36 | 76 % |
+| `src/encryption.py` | 6 | 2 | 75 % |
+| `src/debug/dap_protocol.py` | 25 | 9 | 74 % |
+| `src/recording/selector_schema.py` | 45 | 20 | 69 % |
+| `src/recording/robot_emit.py` | 154 | 72 | 68 % |
+| `src/explorer/rf_sections.py` | 40 | 19 | 68 % |
+| `src/recording/desktop_selector_synthesis.py` | 61 | 30 | 67 % |
+| `src/ai/patch_apply.py` | 59 | 30 | 66 % |
+| `src/ai/xray_bridge.py` | 139 | 77 | 64 % |
+| `src/debug/output_xml_walker.py` | 47 | 28 | 63 % |
+| `src/recording/v2_payload_translator.py` | 100 | 61 | 62 % |
+| `src/ai/patch_extractor.py` | 17 | 11 | 61 % |
 | `src/execution/resolver.py` | 92 | 63 | 59 % |
-| `src/recording/selector_synthesis.py` (49 of 281 checked) | 25 | 24 | 51 % |
-| `src/reports/parser.py` | not yet run (313 mutants) | | |
+| `src/recording/selector_synthesis.py` | 156 | 125 | 56 % |
+| `src/execution/modifiers/registry.py` | 83 | 74 | 53 % |
+| `src/ai/encryption.py` | 3 | 3 | 50 % |
+| `src/recording/generator.py` | 52 | 61 | 46 % |
+| `src/auth/client_ip.py` | 13 | 16 | 45 % |
+| `src/explorer/library_mapping.py` | 49 | 66 | 43 % |
+| `src/reports/parser.py` | 94 | 219 | 30 % |
+| **all 25 modules** | **1475** | **1042** | **58.6 %** |
 
 Frontend (Stryker, 21 min for the configured list, 60.7 % overall):
 
